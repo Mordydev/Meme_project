@@ -20,6 +20,14 @@
     @apply font-heading text-2xl font-semibold leading-tight;
   }
   
+  h3, .h3 {
+    @apply font-heading text-xl font-semibold leading-tight;
+  }
+  
+  h4, .h4 {
+    @apply font-heading text-lg font-medium leading-snug;
+  }
+  
   body {
     @apply font-body text-base text-gray-900 bg-gray-50;
   }
@@ -33,6 +41,26 @@
   
   .btn-primary {
     @apply bg-primary text-white hover:bg-primary-hover active:bg-primary-active;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-gray-900 hover:bg-secondary-hover active:bg-secondary-active;
+  }
+  
+  .btn-success {
+    @apply bg-success text-white hover:bg-success-hover active:bg-success-active;
+  }
+  
+  .btn-error {
+    @apply bg-error text-white hover:bg-error-hover active:bg-error-active;
+  }
+  
+  .card {
+    @apply bg-white rounded-lg shadow-md p-4;
+  }
+  
+  .input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary;
   }
 }
 
