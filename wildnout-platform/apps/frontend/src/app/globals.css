@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Colors */
+    --color-wild-black: 18 18 18;
+    --color-battle-yellow: 233 227 54;
+    --color-hype-white: 255 255 255;
+    --color-victory-green: 54 233 92;
+    --color-roast-red: 233 54 54;
+    --color-flow-blue: 54 84 233;
+    
+    /* Color Mappings */
+    --background: var(--color-wild-black);
+    --foreground: var(--color-hype-white);
+    --primary: var(--color-battle-yellow);
+    --primary-foreground: var(--color-wild-black);
+    --secondary: var(--color-flow-blue);
+    --secondary-foreground: var(--color-hype-white);
+    --accent: var(--color-victory-green);
+    --accent-foreground: var(--color-wild-black);
+    --destructive: var(--color-roast-red);
+    --destructive-foreground: var(--color-hype-white);
+    
+    /* Typography */
+    --font-display: "Knockout", "Arial Black", sans-serif;
+    --font-body: "Inter", Arial, sans-serif;
+    --font-accent: "Druk", Impact, sans-serif;
+    
+    /* Font Sizes */
+    --text-display: 2rem;     /* 32px */
+    --text-headline: 1.5rem;  /* 24px */
+    --text-subhead: 1.125rem; /* 18px */
+    --text-body: 1rem;        /* 16px */
+    --text-caption: 0.875rem; /* 14px */
+    
+    /* Line Heights */
+    --leading-tight: 1;
+    --leading-normal: 1.5;
+    --leading-loose: 1.75;
+    
+    /* Font Weights */
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-bold: 700;
+    --weight-black: 900;
+    
+    /* Spacing */
+    --spacing: 0.25rem;
+    
+    /* Border Radius */
+    --radius-sm: 0.25rem;    /* 4px */
+    --radius-md: 0.5rem;     /* 8px */
+    --radius-lg: 0.75rem;    /* 12px */
+    --radius-xl: 1rem;       /* 16px */
+    --radius-full: 9999px;   /* Full circular radius */
+    
+    /* Animation */
+    --duration-instant: 100ms;
+    --duration-quick: 200ms;
+    --duration-standard: 300ms;
+    --duration-emphasis: 450ms;
+    --duration-celebration: 800ms;
+    
+    --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+    --easing-energetic: cubic-bezier(0.2, 0, 0, 1.3);
+    --easing-bounce: cubic-bezier(0.15, 1.15, 0.5, 1);
+    
+    /* Elevation/Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.5);
+  }
+  
+  /* Dark Mode Defaults - Our default theme is dark */
+  .dark {
+    --background: var(--color-wild-black);
+    --foreground: var(--color-hype-white);
+  }
+  
+  /* Color RGB Values for Reference */
+  :root {
+    --wild-black-hex: #121212;
+    --battle-yellow-hex: #E9E336;
+    --hype-white-hex: #FFFFFF;
+    --victory-green-hex: #36E95C;
+    --roast-red-hex: #E93636;
+    --flow-blue-hex: #3654E9;
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-wild-black text-hype-white;
+    font-family: var(--font-body);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+  
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-zinc-900;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-700 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-600;
+  }
+}
+
+@layer utilities {
+  /* Utility classes for animations */
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+  
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
+  
+  .animation-delay-700 {
+    animation-delay: 700ms;
+  }
+}
