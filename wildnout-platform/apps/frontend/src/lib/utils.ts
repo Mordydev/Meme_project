@@ -2,6 +2,11 @@ import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
 /**
+ * Export device utilities
+ */
+export * from './utils/device'
+
+/**
  * Combines class names with Tailwind's merge
  */
 export function cn(...inputs: ClassValue[]) {

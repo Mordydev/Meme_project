@@ -7,9 +7,10 @@ interface WelcomeStepProps {
   userData: any
   onNext: (data?: any) => void
   onSkip: () => void
+  isSaving?: boolean
 }
 
-export function WelcomeStep({ userData, onNext, onSkip }: WelcomeStepProps) {
+export function WelcomeStep({ userData, onNext, onSkip, isSaving = false }: WelcomeStepProps) {
   const { user } = useUser()
   const firstName = user?.firstName || 'there'
 
@@ -67,15 +68,24 @@ export function WelcomeStep({ userData, onNext, onSkip }: WelcomeStepProps) {
       >
         <button
           onClick={() => onNext()}
-          className="bg-battle-yellow hover:bg-battle-yellow/90 text-wild-black font-medium px-8 py-3 rounded-md text-lg"
+          disabled={isSaving}
+          className="bg-battle-yellow hover:bg-battle-yellow/90 text-wild-black font-medium px-8 py-3 rounded-md text-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Let's Go!
         </button>
         <button
           onClick={onSkip}
-          className="text-zinc-400 hover:text-hype-white px-8 py-3 rounded-md text-lg"
+          disabled={isSaving}
+          className="text-zinc-400 hover:text-hype-white px-8 py-3 rounded-md text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
         >
-          Skip Intro
+          {isSaving ? (
+            <>
+              <span className="mr-2 size-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></span>
+              Please wait...
+            </>
+          ) : (
+            'Skip Intro'
+          )}
         </button>
       </motion.div>
     </div>

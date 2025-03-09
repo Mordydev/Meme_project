@@ -16,6 +16,62 @@ export class AppError extends Error {
     super(message);
     this.name = 'AppError';
   }
+
+  /**
+   * Create a validation error
+   */
+  static validation(message: string, details?: any): ValidationError {
+    return new ValidationError(message, details);
+  }
+
+  /**
+   * Create an authentication error
+   */
+  static auth(message: string, details?: any): AuthError {
+    return new AuthError(message, details);
+  }
+
+  /**
+   * Create a forbidden error
+   */
+  static forbidden(message: string, details?: any): ForbiddenError {
+    return new ForbiddenError(message, details);
+  }
+
+  /**
+   * Create a not found error
+   */
+  static notFound(resource: string, id?: string): NotFoundError {
+    return new NotFoundError(resource, id);
+  }
+
+  /**
+   * Create a conflict error
+   */
+  static conflict(message: string, details?: any): ConflictError {
+    return new ConflictError(message, details);
+  }
+
+  /**
+   * Create a rate limit error
+   */
+  static rateLimit(message: string, details?: any): RateLimitError {
+    return new RateLimitError(message, details);
+  }
+
+  /**
+   * Create a dependency error
+   */
+  static dependency(service: string, message: string, details?: any): DependencyError {
+    return new DependencyError(service, message, details);
+  }
+
+  /**
+   * Create an internal error
+   */
+  static internal(message: string, details?: any): AppError {
+    return new AppError('internal_error', message, 500, details);
+  }
 }
 
 /**

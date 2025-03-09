@@ -1,0 +1,81 @@
+/**
+ * Theme System for Wild 'n Out Meme Coin Platform
+ * Defines theme variants and their overrides
+ */
+
+@layer theme {
+  /* Dark Theme (Default) */
+  :root, .theme-dark {
+    /* Default colors are already set in colors.css */
+    color-scheme: dark;
+  }
+  
+  /* Light Theme (Future support) */
+  .theme-light {
+    /* Background and foreground colors */
+    --color-background: var(--color-hype-white);
+    --color-foreground: var(--color-wild-black);
+    
+    /* Adjust foreground colors for proper contrast */
+    --color-primary-foreground: var(--color-wild-black);
+    --color-secondary-foreground: var(--color-hype-white);
+    --color-accent-foreground: var(--color-wild-black);
+    --color-destructive-foreground: var(--color-hype-white);
+    
+    /* Adjust shadow values for light theme */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+    
+    color-scheme: light;
+  }
+  
+  /* High Contrast Theme (Accessibility) */
+  .theme-high-contrast {
+    /* Maximize contrast for all elements */
+    --color-wild-black: 0 0 0; /* #000000 */
+    --color-hype-white: 255 255 255; /* #FFFFFF */
+    --color-battle-yellow: 255 215 0; /* Gold #FFD700 - More visible yellow */
+    --color-victory-green: 0 128 0; /* Green #008000 - Higher contrast green */
+    --color-roast-red: 255 0 0; /* Red #FF0000 - High contrast red */
+    --color-flow-blue: 0 0 255; /* Blue #0000FF - High contrast blue */
+    
+    /* Ensure text is always high contrast */
+    --color-background: var(--color-wild-black);
+    --color-foreground: var(--color-hype-white);
+    
+    /* Increase border visibility */
+    --radius-sm: var(--space-1);
+    --radius-md: var(--space-1);
+    --radius-lg: var(--space-2);
+    --radius-xl: var(--space-2);
+  }
+  
+  /* Tournament Theme - Special events theme variant */
+  .theme-tournament {
+    /* Gold-centric theme for competition events */
+    --color-battle-yellow: 255 215 0; /* Gold #FFD700 */
+    --color-primary: var(--color-battle-yellow);
+    --color-accent: 218 165 32; /* #DAA520 Goldenrod */
+    
+    /* More dramatic shadows */
+    --shadow-sm: 0 2px 3px rgba(255, 215, 0, 0.2);
+    --shadow-md: 0 4px 8px rgba(255, 215, 0, 0.3);
+    --shadow-lg: 0 10px 15px rgba(255, 215, 0, 0.4);
+    --shadow-xl: 0 20px 25px rgba(255, 215, 0, 0.5);
+    
+    /* Animation adjustments */
+    --easing-energetic: cubic-bezier(0.2, 0, 0, 1.5); /* Even more bounce */
+    --duration-celebration: 1000ms; /* Longer celebrations */
+  }
+}
+
+/* Theme Transition */
+.theme-transition {
+  transition: 
+    background-color var(--duration-standard) var(--easing-standard),
+    color var(--duration-standard) var(--easing-standard),
+    border-color var(--duration-standard) var(--easing-standard),
+    box-shadow var(--duration-standard) var(--easing-standard);
+}

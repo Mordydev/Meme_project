@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useReducedMotion } from 'framer-motion'
+import { toast } from 'sonner'
+import { saveUserProfile } from '@/lib/api/user-profile'
+import { useAuthentication } from '@/hooks/useAuthentication'
 import { WelcomeStep } from './steps/welcome-step'
 import { ProfileSetupStep } from './steps/profile-setup-step'
 import { FeatureHighlightsStep } from './steps/feature-highlights-step'
@@ -22,8 +25,10 @@ export function OnboardingFlow() {
     battleStyle: 'wildStyle',
     onboardingComplete: false
   })
+  const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
   const { user, isLoaded } = useUser()
+  const { getToken } = useAuthentication()
   const prefersReducedMotion = useReducedMotion()
 
   // Load user data if available
@@ -92,12 +97,24 @@ export function OnboardingFlow() {
         onboardingComplete: true
       }))
       
-      // Redirect to battle page
-      router.push('/battle')
+      // Save to backend
+      setIsSaving(true)
+      try {
+        const token = await getToken()
+        if (token) {
+          await saveUserProfile(token, updatedData)
+        }
+        // Redirect to battle page
+        router.push('/battle')
+      } catch (error) {
+        console.error('Failed to save profile:', error)
+        toast.error('Failed to save your profile. Please try again.')
+        setIsSaving(false)
+      }
     }
   }
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     // Mark onboarding as complete but without data collection
     const updatedData = {
       ...userData,
@@ -112,8 +129,22 @@ export function OnboardingFlow() {
       onboardingComplete: true
     }))
     
-    // Redirect to battle page
-    router.push('/battle')
+    // Save to backend
+    setIsSaving(true)
+    try {
+      const token = await getToken()
+      if (token) {
+        await saveUserProfile(token, {
+          onboardingComplete: true
+        })
+      }
+      // Redirect to battle page
+      router.push('/battle')
+    } catch (error) {
+      console.error('Failed to save profile:', error)
+      toast.error('Failed to save your profile. Please try again.')
+      setIsSaving(false)
+    }
   }
 
   const handleBack = () => {
@@ -136,7 +167,8 @@ export function OnboardingFlow() {
       key="welcome" 
       userData={userData} 
       onNext={handleNext} 
-      onSkip={handleSkip} 
+      onSkip={handleSkip}
+      isSaving={isSaving} 
     />,
     <ProfileSetupStep 
       key="profile" 
@@ -160,7 +192,8 @@ export function OnboardingFlow() {
       key="completion" 
       userData={userData} 
       onComplete={handleNext} 
-      onBack={handleBack} 
+      onBack={handleBack}
+      isSaving={isSaving}
     />
   ]
 

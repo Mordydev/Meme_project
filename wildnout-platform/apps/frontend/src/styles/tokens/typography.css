@@ -1,0 +1,109 @@
+/**
+ * Typography Token System for Wild 'n Out Meme Coin Platform
+ * Defines font families, sizes, weights, and line heights
+ */
+
+@layer theme {
+  :root {
+    /* Font Families */
+    --font-display: "Knockout", "Arial Black", sans-serif;
+    --font-body: "Inter", Arial, sans-serif;
+    --font-accent: "Druk", Impact, sans-serif;
+    
+    /* Font Sizes (with scaling at different viewport sizes) */
+    --text-display: clamp(1.75rem, 5vw, 2.5rem); /* 28px - 40px adaptive */
+    --text-headline: clamp(1.375rem, 3vw, 1.875rem); /* 22px - 30px adaptive */
+    --text-subhead: clamp(1.125rem, 2vw, 1.25rem); /* 18px - 20px adaptive */
+    --text-body: 1rem; /* 16px */
+    --text-caption: 0.875rem; /* 14px */
+    --text-small: 0.75rem; /* 12px */
+    
+    /* Line Heights - Using unitless values for better scaling */
+    --leading-tight: 1.1;
+    --leading-normal: 1.5;
+    --leading-loose: 1.75;
+    
+    /* Font Weights */
+    --weight-normal: 400;
+    --weight-medium: 500;
+    --weight-bold: 700;
+    --weight-black: 900;
+    
+    /* Letter Spacing */
+    --tracking-tighter: -0.05em;
+    --tracking-tight: -0.025em;
+    --tracking-normal: 0em;
+    --tracking-wide: 0.025em;
+    --tracking-wider: 0.05em;
+    --tracking-widest: 0.1em;
+    
+    /* For specialized titles and headers */
+    --text-display-large: clamp(2.5rem, 8vw, 4rem); /* 40px - 64px for hero sections */
+    --text-display-small: clamp(1.5rem, 4vw, 2rem); /* 24px - 32px for section headers */
+  }
+  
+  /* Responsive Typography Adjustments */
+  @media (max-width: 640px) {
+    :root {
+      /* Slightly smaller font sizes on mobile */
+      --text-display: 1.75rem; /* 28px */
+      --text-headline: 1.375rem; /* 22px */
+      --text-subhead: 1.125rem; /* 18px */
+      
+      /* Tighter line heights for mobile */
+      --leading-normal: 1.4;
+      --leading-loose: 1.6;
+    }
+  }
+}
+
+/* Utility Compositions */
+@layer components {
+  .text-display {
+    font-family: var(--font-display);
+    font-size: var(--text-display);
+    line-height: var(--leading-tight);
+    font-weight: var(--weight-bold);
+  }
+  
+  .text-headline {
+    font-family: var(--font-display);
+    font-size: var(--text-headline);
+    line-height: var(--leading-tight);
+    font-weight: var(--weight-bold);
+  }
+  
+  .text-subhead {
+    font-family: var(--font-display);
+    font-size: var(--text-subhead);
+    line-height: var(--leading-normal);
+    font-weight: var(--weight-medium);
+  }
+  
+  .text-body {
+    font-family: var(--font-body);
+    font-size: var(--text-body);
+    line-height: var(--leading-normal);
+    font-weight: var(--weight-normal);
+  }
+  
+  .text-caption {
+    font-family: var(--font-body);
+    font-size: var(--text-caption);
+    line-height: var(--leading-normal);
+    font-weight: var(--weight-normal);
+  }
+  
+  .text-small {
+    font-family: var(--font-body);
+    font-size: var(--text-small);
+    line-height: var(--leading-tight);
+    font-weight: var(--weight-normal);
+  }
+  
+  .text-accent {
+    font-family: var(--font-accent);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+}

@@ -2,17 +2,22 @@ import { FastifyInstance, FastifyServerOptions } from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
+import fastifyRedis from '@fastify/redis';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import authPlugin from './auth';
+import securityPlugin from './security';
+import healthPlugin from './health-plugin';
+import cachePlugin from './cache-plugin';
+import jobQueuePlugin from './job-queue-plugin';
 import { config } from '../config';
 import { logger } from '../lib/logger';
 import { errorHandler } from '../lib/errors';
 
 /**
- * Setup all plugins for Fastify
+ * Register all plugins for Fastify
  */
-export async function setupPlugins(fastify: FastifyInstance) {
+export async function registerPlugins(fastify: FastifyInstance) {
   // Add request ID to each request
   fastify.addHook('onRequest', (request, reply, done) => {
     request.id = request.id || crypto.randomUUID();
@@ -62,6 +67,12 @@ export async function setupPlugins(fastify: FastifyInstance) {
     }
   });
   
+  // Setup Redis
+  await fastify.register(fastifyRedis, {
+    url: config.redis.url,
+    closeClient: true,
+  });
+  
   // Setup API documentation with Swagger
   if (config.isDevelopment) {
     await fastify.register(fastifySwagger, {
@@ -95,6 +106,18 @@ export async function setupPlugins(fastify: FastifyInstance) {
   
   // Setup auth plugin
   await fastify.register(authPlugin);
+  
+  // Setup enhanced security plugin
+  await fastify.register(securityPlugin);
+
+  // Setup health monitoring
+  await fastify.register(healthPlugin);
+  
+  // Setup caching system
+  await fastify.register(cachePlugin);
+  
+  // Setup job queue system
+  await fastify.register(jobQueuePlugin);
 
   // Setup error handler
   fastify.setErrorHandler(errorHandler);

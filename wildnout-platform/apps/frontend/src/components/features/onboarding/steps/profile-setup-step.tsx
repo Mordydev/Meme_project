@@ -24,10 +24,30 @@ export function ProfileSetupStep({ userData, onNext, onBack }: ProfileSetupStepP
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Validation
     if (!displayName.trim()) {
       setError('Please enter a display name')
       return
     }
+    
+    if (displayName.trim().length < 3) {
+      setError('Display name must be at least 3 characters long')
+      return
+    }
+    
+    if (displayName.trim().length > 30) {
+      setError('Display name must be under 30 characters')
+      return
+    }
+    
+    // Bio validation (optional field)
+    if (bio && bio.length > 200) {
+      setError('Bio must be under 200 characters')
+      return
+    }
+    
+    // Clear any previous errors
+    setError('')
     
     onNext({
       displayName: displayName.trim(),

@@ -7,9 +7,10 @@ interface CompletionStepProps {
   userData: any
   onComplete: (data?: any) => void
   onBack: () => void
+  isSaving?: boolean
 }
 
-export function CompletionStep({ userData, onComplete, onBack }: CompletionStepProps) {
+export function CompletionStep({ userData, onComplete, onBack, isSaving = false }: CompletionStepProps) {
   return (
     <div className="flex flex-col min-h-screen p-6">
       <div className="max-w-3xl mx-auto w-full flex flex-col items-center">
@@ -73,7 +74,9 @@ export function CompletionStep({ userData, onComplete, onBack }: CompletionStepP
               <Flame size={20} className="text-zinc-400 mr-3" />
               <div>
                 <div className="text-hype-white font-medium">
-                  {battleTypes[userData.battleStyle] || 'Wild Style'}
+                  {userData.battleStyle === 'wildStyle' ? 'Wild Style' : 
+                   userData.battleStyle === 'pickUpKillIt' ? 'Pick Up & Kill It' : 
+                   userData.battleStyle === 'rAndBeef' ? 'R&Beef' : 'Wild Style'}
                 </div>
                 <div className="text-sm text-zinc-400">
                   Preferred Battle Type
@@ -134,15 +137,24 @@ export function CompletionStep({ userData, onComplete, onBack }: CompletionStepP
         >
           <button
             onClick={onBack}
-            className="px-6 py-2 border border-zinc-700 rounded-md text-zinc-300 hover:bg-zinc-800"
+            disabled={isSaving}
+            className="px-6 py-2 border border-zinc-700 rounded-md text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Back
           </button>
           <button
             onClick={() => onComplete()}
-            className="bg-battle-yellow hover:bg-battle-yellow/90 text-wild-black font-medium px-8 py-3 rounded-md"
+            disabled={isSaving}
+            className="bg-battle-yellow hover:bg-battle-yellow/90 text-wild-black font-medium px-8 py-3 rounded-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            Enter Wild 'n Out
+            {isSaving ? (
+              <>
+                <span className="mr-2 size-4 border-2 border-wild-black border-t-transparent rounded-full animate-spin"></span>
+                Saving...
+              </>
+            ) : (
+              'Enter Wild 'n Out'
+            )}
           </button>
         </motion.div>
       </div>

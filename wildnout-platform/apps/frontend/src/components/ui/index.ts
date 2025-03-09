@@ -1,10 +1,2 @@
-export * from './button'
-export * from './card'
-export * from './input'
-export * from './textarea'
-export * from './badge'
-export * from './avatar'
-export * from './dialog'
-export * from './tabs'
-export * from './tooltip'
-export * from './skeleton'
+export { default as TouchButton } from './TouchButton';
+export { default as ResponsiveDemo } from './ResponsiveDemo';

@@ -1,0 +1,175 @@
+/**
+ * Animation Token System for Wild 'n Out Meme Coin Platform
+ * Defines timing, easing, and animation patterns for consistent motion design
+ */
+
+@layer theme {
+  :root {
+    /* Duration Tokens */
+    --duration-instant: 100ms; /* Button presses, micro-interactions */
+    --duration-quick: 200ms; /* State changes, hover effects */
+    --duration-standard: 300ms; /* Normal transitions, UI changes */
+    --duration-emphasis: 450ms; /* Important state changes, battle transitions */
+    --duration-celebration: 800ms; /* Achievements, milestones, victories */
+    
+    /* Easing Tokens */
+    --easing-standard: cubic-bezier(0.2, 0, 0, 1); /* Default for most animations */
+    --easing-energetic: cubic-bezier(0.2, 0, 0, 1.3); /* Adds slight overshoot for emphasis */
+    --easing-bounce: cubic-bezier(0.15, 1.15, 0.5, 1); /* Used for celebrations and achievements */
+    --easing-entrance: cubic-bezier(0, 0, 0.2, 1); /* Smooth entrance animations */
+    --easing-exit: cubic-bezier(0.4, 0, 1, 1); /* Quick exit animations */
+    
+    /* Animation Delay Tokens */
+    --delay-short: 50ms;
+    --delay-medium: 150ms;
+    --delay-long: 300ms;
+    
+    /* Animation Composition Tokens */
+    --animation-fade-in: fade-in var(--duration-standard) var(--easing-entrance);
+    --animation-fade-out: fade-out var(--duration-standard) var(--easing-exit);
+    --animation-slide-up: slide-up var(--duration-standard) var(--easing-entrance);
+    --animation-slide-down: slide-down var(--duration-standard) var(--easing-entrance);
+    --animation-scale-in: scale-in var(--duration-standard) var(--easing-entrance);
+    --animation-scale-out: scale-out var(--duration-standard) var(--easing-exit);
+    --animation-celebrate: celebrate var(--duration-celebration) var(--easing-bounce);
+  }
+  
+  /* Reduced Motion Preference Adaptations */
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --duration-instant: 0ms;
+      --duration-quick: 0ms;
+      --duration-standard: 0ms;
+      --duration-emphasis: 100ms;
+      --duration-celebration: 100ms;
+      
+      --easing-standard: linear;
+      --easing-energetic: linear;
+      --easing-bounce: linear;
+      --easing-entrance: linear;
+      --easing-exit: linear;
+    }
+  }
+}
+
+/* Animation Keyframes */
+@layer utilities {
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  
+  @keyframes slide-up {
+    from { transform: translateY(10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  
+  @keyframes slide-down {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  
+  @keyframes scale-in {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  
+  @keyframes scale-out {
+    from { transform: scale(1); opacity: 1; }
+    to { transform: scale(0.95); opacity: 0; }
+  }
+  
+  @keyframes celebrate {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { transform: scale(1.1); }
+    70% { transform: scale(0.95); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-5deg); }
+    75% { transform: rotate(5deg); }
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  
+  @keyframes battle-entrance {
+    0% { transform: translateY(20px) scale(0.9); opacity: 0; }
+    60% { transform: translateY(-5px) scale(1.02); opacity: 1; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+}
+
+/* Animation Utility Classes */
+@layer components {
+  .animate-fade-in {
+    animation: var(--animation-fade-in);
+  }
+  
+  .animate-fade-out {
+    animation: var(--animation-fade-out);
+  }
+  
+  .animate-slide-up {
+    animation: var(--animation-slide-up);
+  }
+  
+  .animate-slide-down {
+    animation: var(--animation-slide-down);
+  }
+  
+  .animate-scale-in {
+    animation: var(--animation-scale-in);
+  }
+  
+  .animate-scale-out {
+    animation: var(--animation-scale-out);
+  }
+  
+  .animate-celebrate {
+    animation: var(--animation-celebrate);
+  }
+  
+  .animate-pulse-glow {
+    animation: pulse-glow 2s var(--easing-standard) infinite;
+  }
+  
+  .animate-wiggle {
+    animation: wiggle 1s var(--easing-bounce) infinite;
+  }
+  
+  .animate-float {
+    animation: float 3s var(--easing-standard) infinite;
+  }
+  
+  .animate-battle-entrance {
+    animation: battle-entrance var(--duration-emphasis) var(--easing-energetic);
+  }
+  
+  /* Animation Delay Utilities */
+  .delay-short {
+    animation-delay: var(--delay-short);
+  }
+  
+  .delay-medium {
+    animation-delay: var(--delay-medium);
+  }
+  
+  .delay-long {
+    animation-delay: var(--delay-long);
+  }
+}
