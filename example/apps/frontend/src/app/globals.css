@@ -1,0 +1,7 @@
+/**
+ * App Global Styles for Wild 'n Out Meme Coin Platform
+ * Entry point for all global styles
+ */
+
+/* Import main design system */
+@import "../styles/globals.css";

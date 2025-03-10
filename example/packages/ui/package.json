@@ -1,0 +1,22 @@
+{
+  "name": "@wildnout/ui",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "lint": "eslint \"**/*.ts*\"",
+    "test": "jest",
+    "clean": "rm -rf node_modules .turbo"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "eslint": "^8.55.0",
+    "typescript": "^5.4.2"
+  }
+}
