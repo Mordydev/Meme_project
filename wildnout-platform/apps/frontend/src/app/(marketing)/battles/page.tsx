@@ -2,10 +2,22 @@ import { Metadata } from 'next'
 import { BattleFormatCard } from '@/components/marketing/battle-format-card'
 import { RegistrationCTA } from '@/components/marketing/registration-cta'
 import { FeatureSection } from '@/components/marketing/feature-section'
+import dynamic from 'next/dynamic'
+
+// Dynamically import components with animations to improve initial load performance
+const ParticleBackground = dynamic(
+  () => import('@/components/marketing/particle-background'),
+  { ssr: false }
+)
+
+const BattleChampions = dynamic(
+  () => import('@/components/marketing/battle-champions'),
+  { ssr: false }
+)
 
 export const metadata: Metadata = {
-  title: 'Battle Arena | Wild 'n Out Meme Coin',
-  description: 'Compete in Wild 'n Out style battles, show off your skills, and win recognition in our Battle Arena',
+  title: "Battle Arena | Wild 'n Out Meme Coin",
+  description: "Compete in Wild 'n Out style battles, show off your skills, and win recognition in our Battle Arena",
 }
 
 export default function BattlesPage() {
@@ -67,24 +79,112 @@ export default function BattlesPage() {
   
   return (
     <div>
-      {/* Hero Section */}
-      <section className="py-20 px-4 bg-gradient-to-b from-zinc-900 to-wild-black">
-        <div className="container mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-display text-battle-yellow mb-6">
-            Battle Arena
+      {/* Enhanced Hero Section with Dynamic Lighting */}
+      <section className="relative py-32 px-4 overflow-hidden">
+        {/* Enhanced animated particle background */}
+        <div className="absolute inset-0 -z-10">
+          <ParticleBackground color="#E9E336" particleCount={400} particleSize={2.5} speed={0.03} />
+        </div>
+        
+        {/* Advanced gradient overlay with multiple layers */}
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-wild-black/95 via-wild-black/85 to-wild-black"></div>
+        
+        {/* Dynamic lighting effects */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full md:w-2/3 h-96 bg-battle-yellow/20 rounded-full blur-[120px] -z-10"></div>
+        <div className="absolute bottom-40 right-0 w-72 h-72 bg-flow-blue/10 rounded-full blur-[80px] -z-10 opacity-70"></div>
+        <div className="absolute top-40 left-0 w-60 h-60 bg-victory-green/10 rounded-full blur-[80px] -z-10 opacity-60"></div>
+        
+        <div className="container mx-auto text-center relative z-10">
+          {/* Hero content with enhanced typography */}
+          <div className="inline-block relative mb-3">
+            <span className="bg-battle-yellow/20 text-battle-yellow px-4 py-1 rounded-full text-sm font-medium">
+              THE ULTIMATE CREATIVE ARENA
+            </span>
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl font-display text-hype-white mb-6 drop-shadow-glow relative overflow-hidden">
+            <span className="text-battle-yellow relative z-10">Battle</span>
+            <span className="relative z-10"> Arena</span>
           </h1>
-          <p className="text-xl text-hype-white mb-8 max-w-3xl mx-auto">
+          
+          <p className="text-xl md:text-2xl text-hype-white/90 mb-10 max-w-3xl mx-auto font-light leading-relaxed">
             Built by the community for the community. Compete in Wild 'n Out style battles, showcase your creativity, and earn recognition in our digital arena.
           </p>
+          
+          {/* Call-to-action buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a 
+              href="/sign-up" 
+              className="px-8 py-4 bg-battle-yellow text-wild-black font-medium rounded-lg hover:bg-battle-yellow/90 transition-all shadow-glow-sm hover:shadow-glow-md flex items-center justify-center group relative overflow-hidden"
+            >
+              {/* Animated shine effect */}
+              <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-[150%] group-hover:translate-x-[150%] transition-all duration-700 ease-in-out transform skew-x-[-20deg]"></span>
+              
+              {/* Glow effect */}
+              <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-battle-yellow/40 blur-md"></span>
+              
+              <span className="mr-2 relative z-10">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.85"></path>
+                  <path d="M16 3a4 4 0 0 1 0 7.75"></path>
+                </svg>
+              </span>
+              <span className="group-hover:translate-x-1 transition-transform relative z-10">Enter Battle Arena</span>
+            </a>
+            
+            <a 
+              href="#battle-formats" 
+              className="px-8 py-4 bg-transparent text-hype-white border border-hype-white/50 hover:border-battle-yellow hover:text-battle-yellow font-medium rounded-lg transition-all flex items-center justify-center group relative overflow-hidden"
+            >
+              {/* Subtle pulse effect on hover */}
+              <span className="absolute inset-0 bg-battle-yellow/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+              
+              <span className="mr-2 relative z-10 group-hover:text-battle-yellow transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="m9 12 2 2 4-4"></path>
+                </svg>
+              </span>
+              <span className="group-hover:translate-x-1 transition-transform relative z-10">Learn About Battles</span>
+            </a>
+          </div>
+        </div>
+        
+        {/* Enhanced decorative elements */}
+        <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-zinc-700/50 to-transparent"></div>
+        
+        {/* Animated microphone icon */}
+        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex items-center justify-center">
+          <div className="relative w-12 h-12 flex items-center justify-center">
+            <div className="absolute inset-0 bg-battle-yellow/30 rounded-full blur-lg"></div>
+            <div className="text-6xl">🎤</div>
+          </div>
         </div>
       </section>
       
       {/* Battle Formats Section */}
-      <section className="py-16 px-4">
-        <div className="container mx-auto">
-          <h2 className="text-3xl font-display text-hype-white mb-8 text-center">
-            Battle Formats
-          </h2>
+      <section id="battle-formats" className="py-20 px-4 relative overflow-hidden">
+        {/* Background effect */}
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-wild-black via-wild-black/95 to-wild-black/90"></div>
+        <div className="absolute top-0 right-0 w-full h-full bg-grid-pattern opacity-10 -z-10"></div>
+        
+        {/* Glowing accent in corner */}
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-battle-yellow/10 rounded-full blur-[100px] -z-10"></div>
+        
+        <div className="container mx-auto relative">
+          <div className="flex flex-col items-center justify-center mb-12">
+            <div className="bg-battle-yellow/10 rounded-full px-4 py-1 mb-2">
+              <span className="text-battle-yellow text-sm font-medium">CHOOSE YOUR STYLE</span>
+            </div>
+            <h2 className="text-4xl md:text-5xl font-display text-hype-white mb-4 text-center">
+              Battle Formats
+            </h2>
+            <p className="text-zinc-400 max-w-2xl text-center">
+              Four distinct battle formats inspired by the Wild 'n Out show, each with unique rules and challenges to test your creative skills.
+            </p>
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {battleFormats.map((format, index) => (
@@ -116,8 +216,12 @@ export default function BattlesPage() {
         ]}
       />
       
-      {/* Rewards Section */}
-      <section className="py-16 px-4 bg-zinc-900/50">
+      {/* Enhanced Rewards Section */}
+      <section className="py-16 px-4 bg-zinc-900/50 relative overflow-hidden">
+        {/* Background lighting effects */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-battle-yellow/5 rounded-full blur-[150px] -z-10"></div>
+        <div className="absolute bottom-0 left-0 w-72 h-72 bg-victory-green/5 rounded-full blur-[120px] -z-10 opacity-70"></div>
+        
         <div className="container mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-display text-hype-white mb-4">
@@ -168,75 +272,39 @@ export default function BattlesPage() {
         </div>
       </section>
       
-      {/* Featured Battles Preview */}
-      <section className="py-16 px-4">
+      {/* Champions Section */}
+      <section className="py-20 px-4 relative overflow-hidden">
+        {/* Dynamic background lighting */}
+        <div className="absolute inset-0 bg-gradient-to-b from-wild-black/80 via-wild-black to-wild-black/90 -z-10"></div>
+        <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-battle-yellow/10 to-transparent -z-10"></div>
+        <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-flow-blue/10 to-transparent -z-10"></div>
+        
         <div className="container mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-display text-hype-white mb-4">
-              Featured Battles
+            <div className="inline-block px-4 py-1 rounded-full bg-gradient-to-r from-battle-yellow/20 to-flow-blue/20 text-battle-yellow text-sm font-medium mb-4">
+              BATTLE CHAMPIONS
+            </div>
+            <h2 className="text-4xl font-display text-hype-white mb-4 relative inline-block">
+              Meet The <span className="text-battle-yellow">Champions</span>
+              <span className="absolute -bottom-2 left-0 w-full h-1 bg-gradient-to-r from-battle-yellow to-flow-blue opacity-70"></span>
             </h2>
-            <p className="text-zinc-400 max-w-2xl mx-auto">
-              Here's a preview of the exciting battles waiting for you on the platform:
+            <p className="text-zinc-400 max-w-2xl mx-auto text-lg">
+              These creators dominate our battle arenas with creativity, wit, and star power
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700">
-              <div className="bg-battle-yellow/10 p-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-battle-yellow font-medium text-sm uppercase">Wild Style</span>
-                  <span className="bg-victory-green/20 text-victory-green text-xs px-2 py-1 rounded-full">Weekly</span>
-                </div>
-              </div>
-              <div className="p-5">
-                <h3 className="text-hype-white text-xl font-semibold mb-2">Monday Night Freestyle</h3>
-                <p className="text-zinc-400 text-sm mb-4">Show off your best freestyle skills in this weekly battle.</p>
-                <div className="flex justify-between text-sm text-zinc-500 mb-4">
-                  <span>30-45 participants</span>
-                  <span>24 hour voting</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700">
-              <div className="bg-flow-blue/10 p-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-flow-blue font-medium text-sm uppercase">Pick Up & Kill It</span>
-                  <span className="bg-victory-green/20 text-victory-green text-xs px-2 py-1 rounded-full">Active</span>
-                </div>
-              </div>
-              <div className="p-5">
-                <h3 className="text-hype-white text-xl font-semibold mb-2">Meme Remix Challenge</h3>
-                <p className="text-zinc-400 text-sm mb-4">Take a meme template and create something hilarious.</p>
-                <div className="flex justify-between text-sm text-zinc-500 mb-4">
-                  <span>40+ participants</span>
-                  <span>3 day event</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-zinc-800 rounded-lg overflow-hidden border border-zinc-700">
-              <div className="bg-roast-red/10 p-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-roast-red font-medium text-sm uppercase">R&Beef</span>
-                  <span className="bg-zinc-600/40 text-zinc-300 text-xs px-2 py-1 rounded-full">Coming Soon</span>
-                </div>
-              </div>
-              <div className="p-5">
-                <h3 className="text-hype-white text-xl font-semibold mb-2">Celebrity Roast Battle</h3>
-                <p className="text-zinc-400 text-sm mb-4">Create the funniest celebrity roasts in this special event.</p>
-                <div className="flex justify-between text-sm text-zinc-500 mb-4">
-                  <span>Limited slots</span>
-                  <span>Celebrity judging</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Champion Cards with enhanced visuals */}
+          <BattleChampions />
         </div>
       </section>
       
-      {/* CTA */}
-      <div className="py-12 px-4">
+      {/* Enhanced CTA Section */}
+      <div className="py-16 px-4 relative overflow-hidden">
+        {/* Dynamic background effects */}
+        <div className="absolute inset-0 bg-zinc-900/30 backdrop-blur-sm -z-10"></div>
+        <div className="absolute -top-40 -left-40 w-80 h-80 bg-battle-yellow/10 rounded-full blur-[100px] -z-10"></div>
+        <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-flow-blue/10 rounded-full blur-[100px] -z-10"></div>
+        
         <div className="container mx-auto">
           <RegistrationCTA 
             title="Ready to Enter the Battle?" 
