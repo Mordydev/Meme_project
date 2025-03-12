@@ -1,0 +1,30 @@
+{
+  "name": "frontend",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "jest",
+    "clean": "rm -rf .next .turbo node_modules"
+  },
+  "dependencies": {
+    "@success-kid/ui": "workspace:*",
+    "@success-kid/types": "workspace:*",
+    "@success-kid/utils": "workspace:*",
+    "next": "^14.0.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@success-kid/config": "workspace:*",
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.38",
+    "@types/react-dom": "^18.2.15",
+    "eslint": "^8.54.0",
+    "jest": "^29.7.0",
+    "typescript": "^5.3.2"
+  }
+}

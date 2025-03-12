@@ -1,0 +1,1 @@
+module.exports = require('@success-kid/config/prettier');

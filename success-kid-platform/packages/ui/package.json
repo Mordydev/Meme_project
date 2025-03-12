@@ -1,0 +1,36 @@
+{
+  "name": "@success-kid/ui",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src",
+    "test": "jest",
+    "clean": "rm -rf .turbo node_modules dist"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "dependencies": {
+    "@success-kid/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@success-kid/config": "workspace:*",
+    "@types/react": "^18.2.38",
+    "@types/react-dom": "^18.2.15",
+    "eslint": "^8.54.0",
+    "jest": "^29.7.0",
+    "react": "^18.2.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.2"
+  }
+}
