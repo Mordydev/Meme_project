@@ -8,11 +8,17 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "setup-env": "node scripts/setup-env.js",
+    "docker:up": "docker compose -f docker/development/docker-compose.yml up -d",
+    "docker:down": "docker compose -f docker/development/docker-compose.yml down",
+    "docker:restart": "docker compose -f docker/development/docker-compose.yml restart",
+    "prepare": "node scripts/make-executable.js"
   },
   "devDependencies": {
     "prettier": "^3.2.5",
-    "turbo": "^2.0.0"
+    "turbo": "^2.0.0",
+    "dotenv": "^16.4.0"
   },
   "engines": {
     "node": ">=18.0.0"

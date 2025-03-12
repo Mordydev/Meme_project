@@ -36,13 +36,47 @@ success-kid-platform/
 pnpm install
 ```
 
-2. Run development servers:
+2. Set up your environment:
+
+```bash
+pnpm setup-env
+```
+
+This will create a `.env.local` file from the example if it doesn't exist already. Make sure to update the values in `.env.local` with your actual configuration.
+
+3. Start the development services (PostgreSQL and Redis):
+
+```bash
+pnpm docker:up
+```
+
+4. Run development servers:
 
 ```bash
 pnpm dev
 ```
 
 This will start both the frontend and backend in development mode.
+
+### Development Environment
+
+The project uses Docker for consistent development environments:
+
+- **PostgreSQL 17.2**: Primary database (available at localhost:5432)
+- **Redis 8.2**: Caching and real-time features (available at localhost:6379)
+
+To manage Docker services:
+
+```bash
+# Start services
+pnpm docker:up
+
+# Stop services
+pnpm docker:down
+
+# Restart services
+pnpm docker:restart
+```
 
 ### Building
 
@@ -102,6 +136,34 @@ This repository uses PNPM workspaces for efficient dependency management:
 - **Jest**: Extends from @success-kid/config/jest
 
 These configurations are shared across all packages to ensure consistency.
+
+## Environment Configuration
+
+The project uses a structured approach to environment variables:
+
+- `.env.example`: Template with all required variables (committed to repository)
+- `.env.local`: Local development variables (not committed, created from example)
+- `.env.test`: Testing environment variables (committed to repository)
+- `.env.staging`: Staging environment variables (committed to repository)
+
+### Required Environment Variables
+
+#### Frontend Variables
+- `NEXT_PUBLIC_API_URL`: URL for the backend API
+- `NEXT_PUBLIC_WS_URL`: WebSocket URL for real-time features
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk authentication publishable key
+
+#### Backend Variables
+- `PORT`: Port for the backend server (default: 3001)
+- `DATABASE_URL`: PostgreSQL connection string
+- `REDIS_URL`: Redis connection string
+- `CLERK_SECRET_KEY`: Clerk authentication secret key
+- `JWT_SECRET`: Secret for JWT token generation
+- `CORS_ORIGIN`: Allowed CORS origin
+
+### Environment Validation
+
+All environment variables are validated at runtime using Zod schemas to ensure type safety and prevent runtime errors due to missing or invalid configuration.
 
 ## Contributing
 

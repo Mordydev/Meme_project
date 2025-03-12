@@ -38,3 +38,13 @@ pnpm-debug.log*
 
 # vercel
 .vercel
+
+# exclude env files except examples
+.env
+.env.local
+!.env.example
+!.env.test
+!.env.staging
+
+# docker volumes
+docker/development/data
