@@ -1,58 +1,49 @@
 /**
- * Environment Configuration
- * 
- * This module validates and provides type-safe access to environment variables.
- * It fails fast if required environment variables are missing.
+ * Environment configuration with validation
  */
-
-import { validateBackendEnv, type BackendEnv } from '@success-kid/env-schema';
-import path from 'path';
-import fs from 'fs';
+export interface EnvironmentConfig {
+  NODE_ENV: 'development' | 'test' | 'production';
+  PORT: number;
+  HOST: string;
+  CORS_ORIGIN: string;
+  DATABASE_URL: string;
+  REDIS_URL: string;
+  JWT_SECRET: string;
+}
 
 /**
- * Load environment variables from .env file if not in production
+ * Load and validate environment variables
+ * This provides type-safe access to environment variables with defaults
  */
-function loadEnvFile(): void {
-  // Skip in production (environment variables should be set through the deployment platform)
-  if (process.env.NODE_ENV === 'production') {
-    return;
-  }
+export function loadEnvironment(): EnvironmentConfig {
+  // Read from env with defaults
+  const env: EnvironmentConfig = {
+    NODE_ENV: (process.env.NODE_ENV as EnvironmentConfig['NODE_ENV']) || 'development',
+    PORT: parseInt(process.env.PORT || '3001', 10),
+    HOST: process.env.HOST || '0.0.0.0',
+    CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
+    DATABASE_URL: process.env.DATABASE_URL || 'postgresql://dev:dev@localhost:5432/successKidPlatform',
+    REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
+    JWT_SECRET: process.env.JWT_SECRET || 'dev-jwt-secret',
+  };
 
-  // Try to load environment from .env.local or .env.test
-  const envFile = process.env.NODE_ENV === 'test' 
-    ? '.env.test'
-    : '.env.local';
-  
-  const envPath = path.resolve(process.cwd(), '..', '..', envFile);
-  
-  // If the file exists, parse it
-  if (fs.existsSync(envPath)) {
-    const envConfig = require('dotenv').parse(fs.readFileSync(envPath));
+  // Validate required environment variables in production
+  if (env.NODE_ENV === 'production') {
+    const requiredVars = ['DATABASE_URL', 'REDIS_URL', 'JWT_SECRET'];
+    const missingVars = requiredVars.filter(key => !process.env[key]);
     
-    // Set environment variables that haven't been set yet
-    for (const key in envConfig) {
-      if (!process.env[key]) {
-        process.env[key] = envConfig[key];
-      }
+    if (missingVars.length > 0) {
+      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    }
+    
+    // Warn about using default JWT secret in production
+    if (env.JWT_SECRET === 'dev-jwt-secret') {
+      console.warn('WARNING: Using default JWT_SECRET in production environment!');
     }
   }
+
+  return env;
 }
 
-// Load environment variables from file if needed
-loadEnvFile();
-
-/**
- * Validate environment variables and provide type-safe access
- */
-function getValidatedEnvironment(): BackendEnv {
-  try {
-    return validateBackendEnv(process.env);
-  } catch (error) {
-    console.error('❌ Invalid environment variables:', error.format());
-    throw new Error('Invalid environment configuration. Please check your environment variables.');
-  }
-}
-
-// Export validated environment
-const env = getValidatedEnvironment();
-export default env;
+// Export a singleton instance
+export const env = loadEnvironment();

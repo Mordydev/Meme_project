@@ -1,11 +1,14 @@
-/**
- * Component exports
- * 
- * This file exports all components for easier imports throughout the application.
- */
+// Re-export all component categories
 
-// Export by category
+// UI Components
 export * from './ui';
+
+// Feature Components
+export * from './features/points';
+// Add other feature exports as they're created
+
+// Layout Components
 export * from './layout';
-export * from './features';
-export * from './providers';
+
+// Auth Components
+export * from './auth';
