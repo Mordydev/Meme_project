@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
 import { cn } from '@/lib/utils';
+import { Notifications } from '@/components/features/notifications';
 
 interface NavItem {
   label: string;
@@ -52,6 +53,7 @@ export function MainNav() {
           ))}
         </nav>
         <div className="ml-auto flex items-center space-x-4">
+          <Notifications />
           <UserButton afterSignOutUrl="/" />
         </div>
       </div>

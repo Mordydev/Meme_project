@@ -2,74 +2,81 @@
 
 ## Table of Contents
 
-1. **Executive Summary**
-   1.1 Project Overview
-   1.2 Strategic Vision & Goals
-   1.3 Core Metrics & Success Factors
-
-2. **Platform Strategy**
-   2.1 Brand Identity & Values
-   2.2 Competitive Differentiation
-   2.3 Long-term Vision & Sustainability
-   2.4 Regulatory & Compliance Considerations
-
-3. **User Experience & Design**
-   3.1 User Types & Access Levels
-   3.2 User Flow & Navigation
-   3.3 Visual Design & Branding
-   3.4 Mobile-First Implementation Strategy
-   3.5 Accessibility & Inclusivity
-
-4. **Feature Specification**
-   4.1 Feature Matrix & Prioritization
-   4.2 Core Community Features
-   4.3 Token & Market Features
-   4.4 Gamification System
-   4.5 Profile & Social Features
-
-5. **Technical Architecture**
-   5.1 System Architecture Overview
-   5.2 Frontend Architecture
-   5.3 Backend & Data Architecture
-   5.4 Integration Strategy
-   5.5 Security Framework
-   5.6 Performance Optimization
-
-6. **Implementation Roadmap**
-   6.1 MVP Definition
-   6.2 Phase 1: Core Platform (Days 1-14)
-   6.3 Phase 2: Community Enhancement (Days 15-30)
-   6.4 Phase 3: Market & Analytics Expansion (Days 31-60)
-   6.5 Technical Debt & Quality Management
-
-7. **Appendices**
-   7.1 Detailed Database Schema
-   7.2 API Specifications
-   7.3 Component Library
-   7.4 Code Examples & References
+1. [Executive Summary](#1-executive-summary)
+2. [Platform Strategy](#2-platform-strategy)
+   - [Brand & Values](#21-brand-identity--values)
+   - [Tokenomics & Ecosystem](#22-tokenomics--ecosystem)
+   - [Competitive Differentiation](#23-competitive-differentiation)
+   - [Long-term Vision & Governance](#24-long-term-vision--governance)
+   - [Regulatory Considerations](#25-regulatory--compliance-considerations)
+3. [User Experience Design](#3-user-experience-design)
+   - [User Personas & Journeys](#31-user-personas--journeys)
+   - [User Flows & Navigation](#32-user-flows--navigation)
+   - [Visual & Motion Design](#33-visual--motion-design)
+   - [Mobile Implementation](#34-mobile-implementation-strategy)
+   - [Accessibility & Inclusivity](#35-accessibility--inclusivity)
+4. [Feature Specification](#4-feature-specification)
+   - [MVP Feature Prioritization](#41-mvp-feature-prioritization)
+   - [Community Features](#42-community-features)
+   - [Token & Market Features](#43-token--market-features)
+   - [Gamification System](#44-gamification-system)
+   - [Profile & Social Features](#45-profile--social-features)
+   - [Rewards & Referral System](#46-rewards--referral-system)
+5. [Technical Architecture](#5-technical-architecture)
+   - [Architecture Overview](#51-system-architecture-overview)
+   - [Technology Stack](#52-technology-stack)
+   - [Application Architecture](#53-application-architecture)
+   - [Integration Strategy](#54-integration-strategy)
+   - [Security Framework](#55-security-framework)
+   - [Performance Optimization](#56-performance-optimization)
+   - [Project Structure](#57-project-structure)
+6. [Implementation Roadmap](#6-implementation-roadmap)
+   - [MVP Definition](#61-mvp-definition)
+   - [Phase 1: Core Platform](#62-phase-1-core-platform-days-1-14)
+   - [Phase 2: Community Enhancement](#63-phase-2-community-enhancement-days-15-30)
+   - [Phase 3: Market & Analytics](#64-phase-3-market--analytics-days-31-60)
+   - [Technical Debt Management](#65-technical-debt-management)
+7. [Marketing & Community Strategy](#7-marketing--community-strategy)
+   - [Messaging Framework](#71-messaging-framework)
+   - [Launch Strategy](#72-launch-strategy)
+   - [Community Growth Tactics](#73-community-growth-tactics)
+   - [Content Strategy](#74-content-strategy)
+   - [Crisis Communication Plan](#75-crisis-communication-plan)
+8. [Appendices](#8-appendices)
+   - [Database Schema](#81-database-schema)
+   - [API Specifications](#82-api-specifications)
+   - [Component Library](#83-component-library)
+   - [Code Examples](#84-code-examples)
+   - [Implementation Metrics](#85-implementation-metrics)
 
 ---
 
 # 1. Executive Summary
 
-## 1.1 Project Overview
+## Project Overview
 
-The Success Kid Community Platform aims to transform a viral meme coin into a sustainable digital community with real utility and engagement. While most meme coins rely solely on short-term hype, our vision is to harness the positive energy and recognition of the Success Kid meme to build a vibrant ecosystem where crypto enthusiasts and meme lovers alike can connect, engage, and create value together.
+The Success Kid Community Platform transforms a viral meme coin into a sustainable digital community with real utility and engagement. While most meme coins rely solely on short-term hype, our vision is to harness the positive energy and recognition of the Success Kid meme to build a vibrant ecosystem where crypto enthusiasts and meme lovers alike can connect, engage, and create value together.
 
-## 1.2 Strategic Vision & Goals
+Our tagline—"Clench Your Fist, Claim Your Success!"—embodies our mission to empower users through a combination of nostalgic connection, fair tokenomics, and rewarding engagement.
+
+## Strategic Vision & Goals
 
 The platform's core purpose extends beyond supporting token price to creating an engaging digital space that captures the essence of the Success Kid meme – determination, achievement, and positivity – while providing genuine utility for community members.
+
+The platform introduces a dual-token economy:
+- **SKC Token**: The core cryptocurrency for the ecosystem
+- **Success Points (SP)**: On-platform utility tokens earned through engagement and redeemable for SKC
 
 ### Market Cap Milestones
 
 We've established clear market cap milestones to track growth:
-- ✓ $100,000 (Completed)
-- ✓ $500,000 (Completed)
-- ⟳ $1,000,000 (In progress)
-- $5,000,000 (Next major target)
-- $10,000,000 (Medium-term goal)
-- $50,000,000 (Ambitious target)
-- $100,000,000+ (Long-term vision)
+- ☐ $100,000 (First milestone)
+- ☐ $500,000 (Initial growth target)
+- ☐ $1,000,000 (Community establishment)
+- ☐ $5,000,000 (Expansion milestone)
+- ☐ $10,000,000 (Medium-term goal)
+- ☐ $50,000,000 (Ambitious target)
+- ☐ $100,000,000+ (Long-term vision)
 
 These milestones will be prominently displayed in the platform with visual indicators of progress, creating a shared goal for the community to rally around.
 
@@ -82,8 +89,9 @@ All platform decisions will be guided by these principles:
 - **Scalability**: Architecture that can grow with increasing users and features
 - **Mobile optimization**: Ensuring full functionality on mobile devices
 - **Resource efficiency**: Maximizing impact with available development resources
+- **Transparency**: Clear communication about development, tokenomics, and governance
 
-## 1.3 Core Metrics & Success Factors
+## Core Metrics & Success Factors
 
 Beyond market cap, we'll measure success through:
 
@@ -96,14 +104,10 @@ Beyond market cap, we'll measure success through:
 | Platform Growth | Wallet connections | 25%+ of users linking wallets |
 | | Leaderboard participation | 40%+ of users on leaderboards |
 | | Cross-platform growth | 20%+ increase in social followers |
-
-Our platform will stand apart from typical meme coin communities through:
-- Real utility beyond speculation (engagement features, wallet tracking)
-- Gamification that drives meaningful interaction
-- Mobile-first design for accessibility anywhere
-- Real-time data integration for informed community members
-- User reputation system that creates social capital
-- Cross-platform integration with existing social channels
+| Token Ecosystem | Success Points earned daily | 50,000+ SP per day |
+| | Token redemptions | 20%+ of active users redeeming weekly |
+| | Referral participation | 30%+ of users referring others |
+| | Community treasury growth | 10%+ increase monthly |
 
 ---
 
@@ -111,27 +115,103 @@ Our platform will stand apart from typical meme coin communities through:
 
 ## 2.1 Brand Identity & Values
 
-The platform will embody the Success Kid ethos through core values that inform all design and feature decisions:
+The platform embodies the Success Kid ethos through core values that inform all design and feature decisions:
 
 | Core Value | Implementation |
 |------------|---------------|
-| **Determination** | Celebrating persistence and growth through progression systems |
+| **Determination** | Celebrating persistence through progression systems |
 | **Achievement** | Recognizing milestones and contributions via badges and rewards |
 | **Positivity** | Maintaining an uplifting community atmosphere through moderation and UI design |
 | **Inclusivity** | Welcoming both crypto experts and newcomers with intuitive interfaces |
 | **Transparency** | Open communication about platform development and token performance |
+| **Fairness** | Equitable reward distribution and anti-exploitation measures |
+| **Community** | Collaborative features and shared goals |
 
-Visual design will incorporate the Success Kid meme's recognizable imagery with modern, clean interfaces that appeal to both crypto enthusiasts and broader audiences.
+### Brand Voice & Tone
 
-## 2.2 Competitive Differentiation
+The Success Kid Community Platform will communicate with a distinctive voice that reinforces our core brand identity:
 
-While immediate focus is on maintaining momentum during the hype cycle, our long-term vision includes:
-- Evolving into a self-sustaining community hub that thrives regardless of token price fluctuations
-- Potentially expanding to support multiple meme coins/communities under one platform
-- Developing additional utility features that provide value to holders
-- Creating a model for how meme-based communities can create lasting impact in the crypto space
+| Voice Attribute | Description | Example |
+|-----------------|-------------|----------|
+| **Encouraging** | Celebrates achievements, focuses on positive outcomes | "You just earned your first 1,000 SP! Keep that success momentum going!" |
+| **Authentic** | Genuine, conversational, and human | "We've all been there - crypto can be confusing. Let's figure this out together." |
+| **Confident** | Assured but not arrogant, knowledgeable but accessible | "This is how Success Kid community members do it. Simple, effective, rewarding." |
+| **Clear** | Direct, straightforward, avoiding jargon when possible | "Connect your wallet in 3 steps. No complicated processes, just click, approve, done." |
 
-## 2.3 Long-term Vision & Sustainability
+### Tone Adaptations
+
+While the voice remains consistent, the tone will adapt to different contexts:
+
+| Context | Tone Approach | Example |
+|---------|---------------|---------|
+| **Onboarding** | Welcoming, patient, guiding | "Welcome to the Success Kid community! Let's get you set up so you can start earning rewards." |
+| **Achievements** | Celebratory, validating, energetic | "ACHIEVEMENT UNLOCKED! You're now a 'Content Champion' with 50 creations. The community loves your contributions!" |
+| **Technical Instructions** | Clear, reassuring, step-by-step | "Your wallet will open in a new window. You'll need to approve the connection request to continue." |
+| **Market Updates** | Balanced, factual, contextual | "The market cap just reached $500K! That's a 25% increase this week, driven by growing community activity." |
+| **Error Messages** | Helpful, solution-focused, empathetic | "Something went wrong with your post submission. Let's try again - your draft has been saved." |
+
+Our platform will stand apart from typical meme coin communities through:
+
+Real utility beyond speculation (engagement features, wallet tracking, token rewards)
+Gamification that drives meaningful interaction (Success Points system)
+Mobile-first design for accessibility anywhere
+Real-time data integration for informed community members
+User reputation system that creates social capital
+Cross-platform integration with existing social channels
+Transparent token distribution favoring community members
+
+## 2.2 Tokenomics & Ecosystem
+
+The Success Kid Token (SKC) forms the backbone of our platform's economy, with a thoughtfully designed tokenomics model that prioritizes community rewards, sustainable development, and fair distribution.
+
+### Total Supply
+- **7 billion SKC tokens** (Lucky number 7, tying into the "success" theme)
+
+### Token Allocation
+
+| Allocation | Percentage | Amount | Purpose | Release Schedule |
+|------------|------------|--------|---------|------------------|
+| **Community Rewards** | 50% | 3.5 billion SKC | Incentivize platform engagement | Weekly over 12 months (67.307M SKC/week) |
+| **Development Team** | 20% | 1.4 billion SKC | Fund development, marketing | Weekly over 12 months starting Month 3 (26.923M SKC/week) |
+| **Public Sale** | 30% | 2.1 billion SKC | Distribution and liquidity | 
+### Success Points (SP) System
+
+Platform activity is rewarded with Success Points (SP), which can be redeemed for SKC tokens:
+
+* **Earning SP**: Users earn points for creating content, engaging with posts, referring new users, and completing challenges
+* **Point Tiers**: Activities are weighted based on value contribution (e.g., original content earns more than likes)
+* **Redemption Rate**: 100 SP = 1 SKC, with a daily cap (10,000 SP/user) to manage supply flow
+* **Dashboard**: Clear UI showing SP balance, redemption history, and leaderboard rank
+
+### Anti-Inflation Mechanisms
+
+To maintain token economy sustainability:
+
+| Mechanism | Implementation | Monitoring Method |
+|-----------|----------------|-------------------|
+| **Daily Redemption Caps** | Maximum 10,000 SP (100 SKC) per user per day | Real-time cap enforcement, utilization tracking |
+| **Activity Verification** | Automated + manual verification of legitimate engagement | Suspicious activity detection system with anomaly alerts |
+| **Quality Filters** | Points weighted by content quality and engagement patterns | Content quality scoring system with threshold triggers |
+| **Detection Systems** | Algorithms to identify manipulation patterns | Weekly activity pattern analysis with automated flagging |
+| **Gradual Release** | Controlled token distribution over 12-month schedule | Token distribution dashboard with deviation alerts |
+
+## 2.3 Competitive Differentiation
+
+Our platform stands apart from both typical meme coins and traditional social platforms:
+
+| Feature | Success Kid Platform | Typical Meme Coins | Traditional Social Platforms |
+|---------|---------------------|-------------------|----------------------------|
+| Token Utility | Active engagement ecosystem with concrete rewards | Speculative only | No token integration |
+| Rewards | Transparent points system with anti-inflation controls | Occasional airdrops | Algorithm-based visibility |
+| Tokenomics | 70% locked, 50% to community with verifiable contracts | Often unclear, team-heavy | N/A |
+| Content Ownership | User-owned, blockchain verifiable | No content component | Platform-owned |
+| UI/UX | Premium animations, modern design | Basic web presence | Variable quality |
+| Transparency | Public dashboard, development roadmap | Limited transparency | Opaque algorithms |
+| Gamification | Comprehensive system with progression | Basic or non-existent | Limited or ad-focused |
+
+## 2.4 Long-term Vision & Governance
+
+### Sustainable Value Creation
 
 The platform will generate sustainable value through:
 
@@ -141,15 +221,29 @@ The platform will generate sustainable value through:
 - **Resilient architecture**: Technical foundation capable of evolving with market conditions
 - **Data-driven refinement**: Continuous optimization based on engagement metrics and user feedback
 
-## 2.4 Regulatory & Compliance Considerations
+### Governance Evolution Roadmap
 
-The platform must adhere to these regulatory and ethical guidelines:
+The platform will transition from centralized to community governance through a clear progression:
+
+| Phase | Timeframe | Governance Model | Transition Criteria |
+|-------|-----------|------------------|---------------------|
+| **Phase 1: Advisory** | Months 1-3 | Team-led with community input on specific topics | Platform launch, 5,000+ active users |
+| **Phase 2: Feature-specific** | Months 4-6 | Community voting on feature priorities and platform direction | 15,000+ active users, 30% governance participation |
+| **Phase 3: Token-weighted** | Months 7-12 | Token-weighted voting on major decisions, team implementation | 50,000+ active users, 40% governance participation |
+| **Phase 4: DAO** | Year 2+ | Full DAO governance with elected council and transparent treasury | 100,000+ active users, 50% governance participation, technical framework maturity |
+
+Each governance transition will be triggered by reaching specific platform metrics rather than arbitrary dates, ensuring the community is sufficiently developed for each level of responsibility.
+
+## 2.5 Regulatory & Compliance Considerations
+
+The platform adheres to regulatory and ethical guidelines across three critical areas:
 
 ### Crypto-Specific Compliance
 - **Disclaimer Integration**: Clear disclaimers about investment risks
 - **No Financial Advice**: Policies preventing misrepresentation of financial advice
 - **Transparency Requirements**: Clear disclosure of platform ownership and relationships
 - **Token Information Accuracy**: Verification processes for token data accuracy
+- **KYC/AML Readiness**: Framework for implementing compliance measures if needed
 
 ### Data Protection & Privacy
 - **GDPR Compliance**: Support for user data access, export, and deletion
@@ -165,22 +259,50 @@ The platform must adhere to these regulatory and ethical guidelines:
 
 ---
 
-# 3. User Experience & Design
+# 3. User Experience Design
 
-## 3.1 User Types & Access Levels
+## 3.1 User Personas & Journeys
 
-The platform will support multiple user roles with appropriate permissions:
+### Core User Personas
 
-| User Type | Access & Capabilities | Requirements |
-|-----------|----------------------|--------------|
-| **Visitor** | View public content, price information | No registration required |
-| **Registered User** | Participate in discussions, earn points, create content | Email or social sign-in |
-| **Wallet-Connected User** | All basic features plus token-related functionality | Connected Phantom wallet or address entry |
-| **Verified Holder** | Premium features and exclusive content | Verification of token holdings above threshold |
-| **Moderator** | Content moderation tools, basic admin functions | Appointed by admins or earned through reputation |
-| **Administrator** | Full platform control and configuration | System-level access |
+| Persona | Demographics | Motivation | Pain Points | Platform Goals |
+|---------|--------------|------------|-------------|----------------|
+| **Crypto Enthusiast (Charlie)** | 25-35, tech-savvy, active in crypto | Finding promising early tokens, gaining influence in emerging projects | Unreliable information, scattered communities, fear of scams | Track token performance, gain status through early participation, connect with investors |
+| **Content Creator (Mia)** | 18-28, social media active, creative | Creating viral content, recognition for creativity, earning from social skills | Communities that fade quickly, content without attribution, limited crypto knowledge | Create rewarded content, build following, learn crypto through participation |
+| **Casual Participant (Chris)** | 30-45, moderate tech skills, curious | Participating in approachable projects, learning about blockchain practically | Confusing interfaces, crypto jargon, complicated wallet management | Monitor investments casually, participate without technical barriers, earn through simple engagement |
 
-## 3.2 User Flow & Navigation
+### User Journey Mapping
+
+#### Discovery Journey
+
+| Stage | User Experience | Design Focus | Success Indicators |
+|-------|----------------|--------------|-------------------|
+| **Initial Awareness** | User encounters Success Kid token mention | Nostalgic imagery, clear value proposition | Time on page, scroll depth |
+| **Value Exploration** | User evaluates platform utility and potential | Transparent tokenomics, community showcase | Pages visited, documentation engagement |
+| **Trust Evaluation** | User assesses credibility and security | Team transparency, security explanations | Social proof engagement, contract verification |
+| **Registration Decision** | User decides to join the community | Streamlined onboarding, visible benefits | Conversion rate, form completion time |
+
+#### Onboarding Journey
+
+| Stage | User Experience | Design Focus | Success Indicators |
+|-------|----------------|--------------|-------------------|
+| **Account Creation** | User completes registration process | Multiple auth options, progress indication | Registration completion rate, auth method distribution |
+| **Platform Introduction** | User explores key features through guided tour | Interactive walkthrough, visual demonstrations | Tour completion, feature discovery metrics |
+| **First Engagement** | User makes first contribution to community | Simplified creation tools, immediate feedback | First post creation rate, response metrics |
+| **Wallet Connection** | User connects crypto wallet (if desired) | Clear value proposition, simplified process | Wallet connection rate, connection success rate |
+| **Reward Introduction** | User earns first Success Points | Clear explanation, celebration animation | Points understanding, continued engagement |
+
+#### Core Engagement Loop
+
+| Stage | User Experience | Design Focus | Success Indicators |
+|-------|----------------|--------------|-------------------|
+| **Content Creation/Engagement** | User contributes or engages with content | Streamlined tools, immediate feedback | Creation frequency, engagement depth |
+| **Reward Earning** | User accumulates Success Points | Transparent attribution, progress visualization | Points earned per session, activity diversification |
+| **Community Connection** | User interacts with other members | Discovery features, conversation tools | Connections formed, message frequency |
+| **Achievement Progression** | User unlocks achievements and levels | Recognition systems, milestone celebrations | Achievement completion rate, level progression |
+| **Token Redemption** | User converts SP to SKC tokens | Simple interface, clear value, celebration | Redemption rate, return frequency |
+
+## 3.2 User Flows & Navigation
 
 ### Primary User Flows
 
@@ -223,12 +345,11 @@ The platform will support multiple user roles with appropriate permissions:
   - Resources: Educational content and platform documentation
   - Announcements: Official updates and news
   - Wallet: Detailed portfolio analytics (when connected)
+  - Rewards: Success Points management and redemption
 
-## 3.3 Visual Design & Branding
+## 3.3 Visual & Motion Design
 
-### Nostalgic Modernism Design Approach
-
-The visual design will balance nostalgic elements from the meme's 2007-2010 heyday with modern, clean interface standards:
+### Visual Design System
 
 #### Color Palette
 - **Primary**: Bold Victory Blue (#1E88E5) - representing achievement and trust
@@ -245,16 +366,57 @@ The visual design will balance nostalgic elements from the meme's 2007-2010 heyd
 - **Accent Text**: "Rubik" - Slightly playful for achievements and gamification elements
 - **Data Display**: "Roboto Mono" - Clear, precise for numbers and statistics
 
-#### Iconography & Visual Elements
-- **Icon Style**: Rounded, friendly icons with consistent weight and style
-- **Badges**: Circular achievement badges with gradient treatments
-- **Charts**: Smooth, animated visualizations with consistent styling
-- **Illustrations**: Custom Success Kid-themed illustrations for empty states and milestones
-- **Microinteractions**: Subtle animations reinforcing success and progress
+### Motion Design Strategy
 
-## 3.4 Mobile-First Implementation Strategy
+Our platform employs strategic animation to enhance user experience, reinforce brand identity, and create moments of delight:
 
-Our platform will be designed and built with a mobile-first approach, ensuring an excellent experience on devices of all sizes.
+#### Animation Implementation Tiers
+
+| Tier | Technology | Performance Impact | Use Cases | Examples |
+|------|------------|-------------------|-----------|----------|
+| **Essential Animations** | Tailwind Animation | Minimal | Core UI feedback, transitions, states | Button presses, form feedback, loading states |
+| **Enhanced Interactions** | Framer Motion | Low-Medium | Page transitions, component animations | Card expansions, list reordering, modal transitions |
+| **Premium Moments** | GSAP | Medium | Celebrations, achievements, milestones | Market cap celebrations, badge unlocks, special events |
+
+#### Key Animation Patterns
+
+| Pattern | Purpose | Implementation | Example Code |
+|---------|---------|----------------|-------------|
+| **Success Celebrations** | Reward achievement moments | GSAP timeline with particle effects | `gsap.timeline().to(element, {scale: 1.2, duration: 0.3}).to(element, {scale: 1, duration: 0.2})` |
+| **Feedback Animations** | Provide immediate user feedback | Framer Motion with variants | `<motion.button whileTap={{scale: 0.95}} whileHover={{scale: 1.05}} />` |
+| **Transition Effects** | Maintain context between views | Page transitions with shared elements | `<motion.div layoutId="shared-element" />` |
+| **Loading States** | Reduce perceived wait time | Tailwind with custom keyframes | `animate-pulse bg-primary/50 rounded-full` |
+
+### Animation Categories
+
+| Animation Type | Purpose | Technical Implementation | Example |
+|----------------|---------|--------------------------|---------|
+| **Micro-interactions** | Provide immediate feedback for user actions | CSS transitions, simple Framer Motion effects | Button hover: `transition: all 0.2s ease-in-out; transform: scale(1.05);` |
+| **State Transitions** | Show relationships between different UI states | CSS transitions, simple React animations | Modal dialog: `AnimatePresence` with `initial={{ opacity: 0, y: 20 }}` |
+| **Achievement Animations** | Celebrate user accomplishments | Framer Motion sequences, particle effects | Level up: Confetti burst with `<motion.div animate={{ scale: [1, 1.2, 1] }}` |
+| **Data Visualizations** | Make information more understandable | D3.js, Framer Motion | Chart animation: `<motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}` |
+| **Ambient Motion** | Create subtle environmental movement for richness | CSS gradients, GSAP | Background gradient: `animation: gradientShift 8s ease infinite;` |
+
+### Dynamic Lighting Effects
+
+| Effect Type | Implementation | Location | Performance Consideration |
+|------------|----------------|----------|---------------------------|
+| **Success Glow** | Radial gradient with dynamic opacity animation | Achievement unlocks, milestone celebrations | GPU-accelerated with `will-change: opacity, transform;` |
+| **Ambient Gradient Flow** | Subtle shifting CSS gradients with low opacity | Section backgrounds, cards on hover | Limit to 3-5 concurrent animations; use `@media (prefers-reduced-motion)` |
+| **Pulse Effects** | Scale animations with box-shadow | Notification indicators, real-time updates | Use `transform` instead of width/height; throttle frequent updates |
+| **Reflective Surfaces** | CSS backdrop-filter with subtle animation | Premium content cards, verified holder areas | Add fallbacks for older browsers; test on lower-end devices |
+
+### Animation Principles
+
+1. **Purpose Over Decoration**: Every animation serves a functional purpose
+2. **Performance First**: Animations optimized for mobile devices and lower-end hardware
+3. **Accessibility Conscious**: Respects reduced-motion preferences via `@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; } }`
+4. **Brand Reinforcement**: Animations reflect Success Kid's triumphant, positive ethos
+5. **Progressive Enhancement**: Core experience works without animations, enhanced with them
+
+## 3.4 Mobile Implementation Strategy
+
+Our platform follows a mobile-first approach, ensuring excellent experience across devices:
 
 ### Responsive Design Framework
 - **Mobile-First Grid System**: 4-column mobile expanding to 12-column desktop
@@ -269,13 +431,13 @@ Our platform will be designed and built with a mobile-first approach, ensuring a
 - **Data Efficiency**: Lazy loading and compressed assets
 
 ### Platform-Specific Enhancements
+- **Progressive Web App**: Installable experience with home screen presence
 - **iOS-Specific**: Support for Dynamic Type, respecting system settings
 - **Android-Specific**: Material Design inspired feedback and transitions
-- **PWA Capabilities**: Installable web app with home screen presence
 
 ## 3.5 Accessibility & Inclusivity
 
-To maximize community participation, the platform will implement:
+To maximize community participation, the platform implements:
 
 ### Web Accessibility Standards
 - **WCAG 2.1 AA Compliance**: Core features accessible to users with disabilities
@@ -309,21 +471,15 @@ The following matrix outlines all platform features with their priority, complex
 | Live Price Tracking | Token | Must Have | Medium | 1 | 10 |
 | Market Cap Visualization | Token | Must Have | Medium | 1 | 9 |
 | Phantom Wallet Connection | Token | Must Have | High | 1 | 9 |
-| Points System | Gamification | Must Have | Medium | 1 | 9 |
+| Success Points System | Gamification | Must Have | Medium | 1 | 10 |
+| Token Redemption | Token | Must Have | High | 4 | 10 |
 | Leaderboards | Gamification | Must Have | Medium | 1 | 8 |
 | User Profiles | Social | Must Have | Medium | 1 | 8 |
-| Admin Dashboard | Platform | Should Have | High | 2 | 6 |
 | Transaction Feed | Token | Must Have | Medium | 1 | 8 |
 | Achievement Badges | Gamification | Must Have | Medium | 1 | 8 |
 | Notification System | Platform | Must Have | Medium | 1 | 9 |
 | Wallet Balance Display | Token | Must Have | Low | 1 | 8 |
-| Portfolio Tracking | Token | Could Have | High | 3 | 6 |
-| Direct Messaging | Social | Should Have | Medium | 2 | 7 |
-| Follow System | Social | Should Have | Medium | 2 | 7 |
-| Content Moderation Tools | Platform | Should Have | High | 2 | 7 |
-| Community Challenges | Gamification | Could Have | Medium | 3 | 6 |
-| Offline Support | Platform | Could Have | High | 3 | 5 |
-| Push Notifications | Platform | Should Have | Medium | 2 | 7 |
+| Referral System | Growth | Must Have | Medium | 1 | 9 |
 
 ### Feature Dependencies Map
 
@@ -338,7 +494,7 @@ Content Creation ← → Discussion Forums
     ↓
 Activity Feed ← → Notification System
     ↓
-Points System → Leaderboards → Achievements
+Success Points System → Leaderboards → Achievements
 
 Phantom Integration
     ↓
@@ -347,6 +503,8 @@ Wallet Balance → Transaction History
 Price Tracking
     ↓
 Market Cap Visualization → Transaction Feed
+    ↓
+Token Redemption → Lock Dashboard
 ```
 
 ## 4.2 Core Community Features
@@ -357,6 +515,7 @@ Market Cap Visualization → Transaction Feed
   - General Discussion
   - Token Talk (price, trading, news)
   - Memes & Media
+  - Success Stories
   - Strategy & Ideas
   - Help & Support
 
@@ -364,16 +523,19 @@ Market Cap Visualization → Transaction Feed
   - Text posts (rich text formatting)
   - Image posts (single or gallery)
   - Link posts with preview
+  - Poll posts with voting options
 
 - **Interactions**:
   - Upvote/downvote
   - Comment threading (1 level deep in MVP)
   - Share functionality
+  - Save for later
 
 - **Sorting Options**:
   - Newest
   - Most Popular (today, this week, all time)
   - Most Commented
+  - Trending (algorithm-based)
 
 ### 4.2.2 Content Creation Tools
 
@@ -383,6 +545,7 @@ Market Cap Visualization → Transaction Feed
   - Link previews
   - Emoji support
   - Formatting toolbar
+  - Meme generation tools
 
 - **Media Support**:
   - Image optimization and resizing
@@ -398,6 +561,7 @@ Market Cap Visualization → Transaction Feed
   - Achievement alerts
   - System announcements
   - Price milestones
+  - Success Points earned
 
 - **Delivery Options**:
   - In-app notifications
@@ -472,11 +636,9 @@ Market Cap Visualization → Transaction Feed
 
 ## 4.4 Gamification System
 
-### 4.4.1 Points Economy
+### Points Economy
 
-The platform will implement a balanced points economy that rewards valuable community contributions:
-
-| Activity | Points | Cooldown/Limits | Rationale |
+| Activity | Success Points (SP) | Daily Limit | Rationale |
 |----------|--------|-----------------|-----------|
 | Account Creation | 100 | Once | Welcome bonus to kickstart engagement |
 | Daily Login | 20 | Once per day | Encourages regular visits |
@@ -491,24 +653,22 @@ The platform will implement a balanced points economy that rewards valuable comm
 | Streak Bonus | 10 × streak days (max 100) | Daily | Rewards consistency |
 | Referral Signup | 500 | Per unique referral | Rewards community growth |
 
-### 4.4.2 Level System
+### Level System
 
 | Level | Points Required | Title | Special Feature |
 |-------|----------------|-------|----------------|
 | 1 | 0 | New Arrival | Base features |
-| 2 | 250 | First Steps | Custom avatar frame |
-| 3 | 500 | Sand Grabber | Post formatting options |
-| 4 | 1,000 | Small Victory | Profile customization |
-| 5 | 2,000 | Determined | Custom name color |
-| 6 | 3,500 | Achiever | Post highlighting |
-| 7 | 5,000 | Winner | Special emotes |
-| 8 | 7,500 | Celebrated | Profile banner options |
-| 9 | 10,000 | Success Story | Comment spotlight |
-| 10 | 15,000 | Victory Kid | Special effects |
+| 2 | 500 | First Steps | Custom avatar frame |
+| 3 | 1,000 | Sand Grabber | Post formatting options |
+| 4 | 2,500 | Small Victory | Profile customization |
+| 5 | 5,000 | Determined | Custom name color |
+| 6 | 10,000 | Achiever | Post highlighting |
+| 7 | 50,000 | Winner | Special emotes |
+| 8 | 75,000 | Celebrated | Profile banner options |
+| 9 | 100,000 | Success Story | Comment spotlight |
+| 10| 150,000 | Victory Kid | Special effects |
 
-### 4.4.3 Achievement System
-
-Achievements will be organized into themed categories:
+### Achievement System
 
 | Achievement | Description | Difficulty | Points |
 |-------------|-------------|------------|--------|
@@ -522,7 +682,6 @@ Achievements will be organized into themed categories:
 | **Milestone Witness** | Be active during a market cap milestone achievement | Rare | 500 |
 | **Community Voice** | Receive 100 total upvotes on your content | Epic | 750 |
 | **Community Builder** | Successfully refer 5 new users who remain active | Epic | 1000 |
-| **Success Kid Legend** | Complete 50 achievements | Legendary | 2000 |
 
 ### 4.4.4 Leaderboards
 
@@ -531,6 +690,13 @@ Achievements will be organized into themed categories:
   - Weekly (resets Sunday 00:00 UTC)
   - Monthly (resets 1st of month)
   - All-time
+
+- **Categories**:
+  - Overall Points
+  - Content Creation
+  - Community Engagement
+  - Referral Champions
+  - Token Redemption
 
 - **Display Information**:
   - Rank
@@ -542,6 +708,7 @@ Achievements will be organized into themed categories:
 - **Personal Ranking**:
   - Highlighted location in each leaderboard
   - Points needed to reach next rank
+  - Historical best ranking
 
 ## 4.5 Profile & Social Features
 
@@ -564,6 +731,12 @@ User profiles will serve as achievement showcases and identity expressions:
   - Points total and level progress
   - Token holdings (if wallet connected and visibility enabled)
   
+- **Success Points Dashboard**
+  - Current SP balance
+  - Points earned today/this week
+  - Redemption history
+  - Earnings breakdown by activity
+
 - **Referral Dashboard**
   - Unique referral code/link for sharing
   - Total referral count and points earned
@@ -629,112 +802,198 @@ User profiles will serve as achievement showcases and identity expressions:
   - Importance threshold settings
   - Temporal adjustments (latest, trending, etc.)
 
+## 4.6 Rewards & Referral System
+
+### Success Points to Token Redemption
+
+- **Conversion Process**:
+  - Fixed rate: 100 SP = 1 SKC
+  - Weekly redemption cap: 10,000 SP (100 SKC) per user
+  - Minimum redemption: 1,000 SP (10 SKC)
+  - Connected wallet required for redemption
+  - Redemption availability: Weekly processing window
+
+- **Implementation**:
+  ```
+  // Pseudocode for redemption process
+  function requestRedemption(userId, pointsAmount) {
+    // Validate user has sufficient points
+    if (getUserPoints(userId) < pointsAmount) return ERROR_INSUFFICIENT_POINTS;
+    
+    // Validate within cap
+    if (pointsAmount > WEEKLY_CAP) return ERROR_EXCEEDS_CAP;
+    
+    // Validate user has connected wallet
+    if (!isWalletConnected(userId)) return ERROR_NO_WALLET;
+    
+    // Calculate token amount
+    const tokenAmount = pointsAmount / 100;
+    
+    // Deduct points immediately
+    deductUserPoints(userId, pointsAmount);
+    
+    // Queue redemption transaction
+    queueTokenTransfer(getUserWallet(userId), tokenAmount);
+    
+    // Return confirmation
+    return {
+      status: SUCCESS,
+      pointsRedeemed: pointsAmount,
+      tokensAwarded: tokenAmount,
+      estimatedProcessingTime: getNextProcessingTime()
+    };
+  }
+  ```
+
+### Referral System
+
+- **Program Structure**:
+  - Unique referral code per user
+  - Dedicated landing page for each referral
+  - Multi-level tracking (sign-up, engagement, retention)
+  - Rewards for both referrer and referee
+
+- **Reward Distribution**:
+  - Initial reward: 500 SP when referred user completes onboarding
+  - Engagement bonus: 250 SP when referred user reaches 1,000 SP
+  - Wallet bonus: 250 SP when referred user connects wallet
+  - Long-term incentive: 1% of referred user's earned SP for 3 months
+
+- **Referral Tools**:
+  - Personalized invitation messages
+  - Social media integration
+  - Performance analytics
+  - Referral leaderboard
+  - Specialized achievements
+
 ---
 
 # 5. Technical Architecture
 
 ## 5.1 System Architecture Overview
 
-The Success Kid Community Platform will be built using a modern JAMstack architecture with serverless components, optimized for performance, rapid development, and scalability.
+```
+┌─────────────────────────────────────┐         ┌─────────────────────────┐
+│  Client Applications                │◄────────►│  Auth Service (Clerk)   │
+│  - Next.js Web App                  │         └─────────────────────────┘
+│  - Progressive Web App              │                    ▲
+└───────────────┬─────────────────────┘                    │
+                │                                          │
+                ▼                                          │
+┌─────────────────────────────────────┐                    │
+│  CDN & Edge                         │                    │
+│  - Cloudflare                       │                    │
+│  - Vercel Edge                      │                    │
+└───────────────┬─────────────────────┘                    │
+                │                                          │
+                ▼                                          │
+┌─────────────────────────────────────┐                    │
+│  API Layer (Fastify)                │◄────────────┬─────┘
+│  - RESTful Endpoints                │             │
+│  - WebSocket Service                │             │
+│  - Rate Limiting                    │             │
+└───────────────┬──────┬──────────────┘             │
+                │      │                            │
+                ▼      ▼                            ▼
+┌───────────────────┐ ┌─────────────────┐ ┌─────────────────────┐
+│  Primary Database │ │  Redis Services │ │  Blockchain Service │
+│  (Supabase/Postgres)│ │  - Cache       │ │  - Web3.js          │
+│  - User Data      │ │  - Pub/Sub      │ │  - Phantom Connect  │
+│  - Content        │ │  - Session Store│ │  - Price Oracle     │
+│  - Battles        │ │  - Search       │ │  - Transaction Feed │
+└───────────────────┘ └─────────────────┘ └─────────────────────┘
+```
 
 ### Architecture Key Principles
 
-- **Decoupled Frontend & Backend**: React frontend communicates with Supabase via RESTful and realtime APIs
-- **Serverless Approach**: Leveraging managed services to minimize infrastructure overhead
-- **Real-time By Default**: All data synchronized in real-time across clients
+- **Decoupled Frontend & Backend**: Next.js frontend communicates with Fastify backend via RESTful and real-time APIs
+- **API-First Design**: Well-defined API contracts enabling independent development
+- **Serverless Where Possible**: Leveraging managed services for scalability and cost efficiency
+- **Real-time By Default**: Core features built with real-time updates in mind
 - **Progressive Enhancement**: Core functionality works without JavaScript, enhanced with JS
 - **Mobile-First Implementation**: Optimized for mobile devices first, then enhanced for desktop
-- **API-Driven Development**: Well-defined APIs for all data operations
+- **Secure By Design**: Security considerations built into architecture from ground up
 
-### System Architecture Diagram
+## 5.2 Technology Stack
+
+| Layer | Technologies | Rationale |
+|-------|--------------|-----------|
+| Frontend | Next.js 15.2, React 19.1, TypeScript 5.4 | Server components for performance, concurrent rendering features, enhanced type safety |
+| UI Components | Tailwind CSS 4.0, shadcn/ui 2.3, Framer Motion 10.16 | Efficient styling system, accessible components, gesture and animation support |
+| State Management | Zustand 4.4, React Query 5.8 | Minimal boilerplate state management, efficient data fetching and caching |
+| Backend API | Node.js 22.3, Fastify 5.2, TypeScript 5.4 | High-performance server, type safety, aligned with frontend |
+| Real-time | @fastify/websocket 10.3, Redis Streams 8.2 | Efficient WebSocket implementation with reliable message delivery |
+| Database | Supabase (PostgreSQL 17.2), Redis 8.2 | Relational database with real-time capabilities plus high-performance caching |
+| Authentication | Clerk 5.3 | Comprehensive auth solution with multiple providers and security best practices |
+| Blockchain | Web3.js 4.0, Solana connections | Industry-standard blockchain integration library with Solana optimizations |
+| Infrastructure | Vercel, AWS ECS on Graviton3, Cloudflare | Scalable, high-performance hosting with global CDN and edge computing |
+| DevOps | Docker 24.0.5, GitHub Actions 3.0, Terraform 1.5 | Containerization, CI/CD automation, and infrastructure as code |
+
+## 5.3 Application Architecture
+
+### Frontend Architecture
+
+The frontend follows a feature-based structure with Next.js App Router:
 
 ```
-┌─────────────────────────────────────┐        ┌─────────────────────────┐
-│  Client Application (React + Vite)  │◄─────► │  Authentication (Clerk) │
-└───────────────┬─────────────────────┘        └─────────────────────────┘
-                │                                         ▲
-                ▼                                         │
-┌─────────────────────────────────────┐                  │
-│  Supabase Backend                   │◄─────────────────┘
-│  ┌───────────────┐ ┌─────────────┐ │        ┌─────────────────────────┐
-│  │ PostgreSQL DB │ │ Realtime    │ │◄─────► │ Phantom Wallet Connect  │
-│  └───────────────┘ └─────────────┘ │        └─────────────────────────┘
-│  ┌───────────────┐ ┌─────────────┐ │
-│  │ Storage       │ │ Edge Funcs  │ │        ┌─────────────────────────┐
-│  └───────────────┘ └─────────────┘ │◄─────► │ Blockchain Data APIs    │
-└─────────────────────────────────────┘        │ (Dexscreener, Solscan)  │
-                                               └─────────────────────────┘
+apps/frontend/
+├── src/
+│   ├── app/                   # Next.js App Router
+│   │   ├── (auth)/            # Authentication route group
+│   │   ├── (marketing)/       # Public marketing route group
+│   │   ├── (platform)/        # Authenticated platform route group
+│   │   │   ├── community/     # Community pages
+│   │   │   ├── create/        # Content creation pages
+│   │   │   ├── market/        # Market data pages
+│   │   │   ├── profile/       # Profile pages
+│   │   │   └── rewards/       # Rewards pages
+│   │   ├── api/               # API routes for frontend-only functionality
+│   │   └── onboarding/        # User onboarding flows
+│   │
+│   ├── components/            # React components
+│   │   ├── animations/        # Animation-related components
+│   │   ├── auth/              # Authentication components
+│   │   ├── features/          # Feature-specific components
+│   │   ├── layout/            # Layout components
+│   │   ├── ui/                # Generic UI components
+│   │   └── wallet/            # Wallet connection components
+│   │
+│   ├── hooks/                 # Custom React hooks
+│   ├── lib/                   # Utility functions and shared code
+│   ├── styles/                # Global styles and themes
+│   └── types/                 # TypeScript types
+│
+├── public/                    # Static assets
+├── next.config.js             # Next.js configuration
+└── package.json               # Package dependencies
 ```
 
-## 5.2 Frontend Architecture
+### Backend Architecture
 
-### Technology Selection
+The backend follows a modular structure with Fastify:
 
-- **Framework**: React 18+ (for concurrent features and suspense)
-- **Build Tool**: Vite (for fast development and optimized production builds)
-- **TypeScript**: For type safety and developer experience
-- **Styling**: Tailwind CSS with custom design tokens
-- **State Management**: 
-  - React Query: For server state
-  - Context API: For global UI state
-  - Zustand: For complex state with minimal boilerplate
-- **Routing**: React Router v6+
-
-### Component Architecture
-
-The frontend will follow an atomic design methodology:
-
-- **Atoms**: Basic UI elements (buttons, inputs, icons)
-- **Molecules**: Combinations of atoms (form fields, menu items)
-- **Organisms**: Complex UI components (forums, chat windows, price charts)
-- **Templates**: Page layouts without specific content
-- **Pages**: Complete page implementations
-
-### Performance Optimization Strategy
-
-- **Code Splitting**: Route-based and component-based splitting
-- **Tree Shaking**: Eliminating unused code
-- **Asset Optimization**: Automated image compression and serving
-- **Lazy Loading**: For non-critical components and routes
-- **Memoization**: Strategic use of React.memo, useMemo, useCallback
-- **Suspense & Concurrent Features**: For improved user experience
-- **Bundle Analysis**: Regular monitoring of bundle size
-
-## 5.3 Backend & Data Architecture
-
-### Supabase Configuration
-
-- **Database**: PostgreSQL with PostGIS for location features
-- **API**: Auto-generated RESTful endpoints with customization
-- **Realtime**: WebSocket subscriptions for live updates
-- **Edge Functions**: Serverless functions for complex logic
-- **Storage**: Buckets for user uploads and media
-- **Authentication**: Integration with Clerk as primary auth provider
-
-### Database Structure
-
-The platform will use a relational database with the following core entities:
-
-- **Users**: Account information and profile data
-- **Content**: Posts, comments, media
-- **Engagement**: Likes, follows, interactions
-- **Gamification**: Points, achievements, levels
-- **Market Data**: Price snapshots, transactions
-- **Wallet Connections**: User-wallet associations
-
-### Authentication & Authorization
-
-- **Multi-provider Authentication**:
-  - Clerk for social and email auth
-  - Phantom wallet integration
-  - Account linking methodology
-  - Guest access for limited functionality
-
-- **Permission Model**:
-  - Role-based access control
-  - Feature-specific permissions
-  - Time-bound permissions
-  - Conditional permissions based on token holdings
+```
+apps/backend/
+├── src/
+│   ├── api/                  # API route handlers
+│   │   ├── auth/             # Authentication endpoints
+│   │   ├── content/          # Content management endpoints
+│   │   ├── token/            # Token and wallet endpoints
+│   │   └── users/            # User management endpoints
+│   │
+│   ├── config/               # Application configuration
+│   ├── lib/                  # Shared utilities and helpers
+│   ├── middleware/           # HTTP middleware
+│   ├── models/               # Data models and schemas
+│   ├── plugins/              # Fastify plugins
+│   ├── repositories/         # Data access layer
+│   ├── services/             # Business logic services
+│   ├── websockets/           # WebSocket handlers
+│   └── app.ts                # Fastify app setup
+│
+├── test/                     # Test files
+└── package.json              # Package dependencies
+```
 
 ## 5.4 Integration Strategy
 
@@ -814,11 +1073,23 @@ The platform will use a relational database with the following core entities:
   - Graceful reconnection handling
   - Subscription optimization
 
-- **Data Transmission**:
-  - Compact data formats
-  - Throttled updates for high-frequency data
-  - Batched updates when appropriate
-  - Delta updates to minimize payload size
+## 5.7 Project Structure
+
+The project follows a monorepo architecture using Turborepo, containing both frontend and backend applications along with shared packages:
+
+```
+success-kid-platform/
+├── apps/                      # Application packages
+│   ├── frontend/              # Next.js frontend application  
+│   └── backend/               # Fastify backend API service
+├── packages/                  # Shared libraries
+│   ├── ui/                    # Shared UI components
+│   ├── types/                 # Shared TypeScript types
+│   └── utils/                 # Common utilities
+├── docs/                      # Project documentation
+├── turbo.json                 # Turborepo configuration
+└── package.json               # Root package configuration
+```
 
 ---
 
@@ -826,28 +1097,22 @@ The platform will use a relational database with the following core entities:
 
 ## 6.1 MVP Definition
 
-The MVP represents the smallest possible set of features that delivers substantial value while being achievable within a rapid timeframe.
+The MVP delivers the essential functionality that provides immediate value to users while being feasible for rapid implementation:
 
-### MVP Scope
-
-The Success Kid Community Platform MVP will include:
-
-- **Community Features**: Discussion forums, content creation, basic profiles, activity feed, notifications
-- **Token Features**: Price tracking, market cap milestone tracker, transaction feed, wallet connection, balance display
-- **Gamification**: Points system, initial achievements, basic leaderboards, user levels
-- **User Management**: Registration, authentication, profile management, basic settings, user roles
-- **Mobile**: Responsive design, touch optimization
+### MVP Focus
+- **Core Platform Features**: User authentication, profiles, content creation and forums
+- **Token Integration**: Wallet connection, balance display, transaction feed
+- **Gamification Foundation**: Points system, basic achievements, initial leaderboards
+- **Mobile Experience**: Responsive design optimized for all devices
 
 ### MVP Exclusions
-
 The following will be explicitly excluded from the MVP to ensure rapid delivery:
-
-- Real-time chat (added in Phase 2)
-- Direct messaging (added in Phase 2)
-- Advanced content moderation tools (enhanced in Phase 2)
-- Portfolio analytics (added in Phase 3)
-- Community challenges and competitions (added in Phase 3)
-- Advanced admin dashboard (enhanced over Phases 2-3)
+- Real-time chat (Phase 2)
+- Direct messaging (Phase 2)
+- Advanced analytics (Phase 3)
+- Portfolio tracking (Phase 3)
+- Community challenges (Phase 3)
+- Governance features (Phase 3)
 
 ## 6.2 Phase 1: Core Platform (Days 1-14)
 
@@ -870,16 +1135,14 @@ The following will be explicitly excluded from the MVP to ensure rapid delivery:
 - Deployment preparation
 
 ### Deliverables
-- Functioning platform with all MVP features
-- Mobile-responsive design
-- Basic admin tools
-- Initial achievement system
 
-### Success Metrics
-- Platform stability (99%+ uptime)
-- Initial user adoption (500+ registrations)
-- Content creation (100+ posts in first week)
-- Wallet connections (25%+ of registered users)
+| Category | Deliverables | Success Criteria |
+|----------|--------------|------------------|
+| **Platform Foundation** | User authentication, profiles, content creation | Working platform with 99%+ stability |
+| **Community Features** | Forums, posting, comments, basic moderation | 100+ posts in first week |
+| **Token Features** | Wallet connection, balance display, transaction feed | 25%+ of users connect wallets |
+| **Gamification** | Points system, basic achievements | User understanding of rewards system |
+| **Mobile Experience** | Responsive design, touch optimizations | Comparable experience across devices |
 
 ## 6.3 Phase 2: Community Enhancement (Days 15-30)
 
@@ -892,108 +1155,480 @@ The following will be explicitly excluded from the MVP to ensure rapid delivery:
 - **Engagement Depth**: Expanded gamification
 - **Moderation Tools**: Enhanced community management
 
-### Key Features for Phase 2
-- Real-time chat rooms
-- Direct messaging
-- Enhanced media embedding
-- User following system
-- Additional achievements
-- Challenges system
-- Improved content moderation tools
-- Push notifications
+### Key Deliverables
 
-### Success Metrics
-- Session duration increase (30%+)
-- Return visit frequency (40%+ daily active users)
-- Content engagement (50%+ posts with comments)
-- Community interactions (messages, follows, reactions)
+| Category | Deliverables | Success Criteria |
+|----------|--------------|------------------|
+| **Community Engagement** | Real-time chat, enhanced media support | 30%+ increase in session duration |
+| **Social Features** | Following system, direct messaging | 40%+ of users connecting with others |
+| **Gamification Expansion** | Additional achievements, challenges | 50%+ increase in points activity |
+| **Platform Experience** | Push notifications, improved UX | 40%+ opt-in to notifications |
+| **Moderation Enhancement** | Advanced tools, reporting system | 90%+ of reported content handled within 24h |
 
-## 6.4 Phase 3: Market & Analytics Expansion (Days 31-60)
+## 6.4 Phase 3: Market & Analytics (Days 31-60)
 
 **Goal**: Provide deeper market insights and sophisticated community features.
 
 ### Focus Areas
+
+These features will be implemented based on user feedback and platform metrics from Phases 1-2:
+
 - **Advanced Analytics**: Portfolio tracking and market insights
 - **Community Maturity**: Reputation systems and advanced roles
-- **Event System**: Community challenges and competitions
 - **Platform Intelligence**: Recommendation systems and trending content
 - **Ecosystem Integration**: Enhanced blockchain integration
 
-### Key Features for Phase 3
-- Advanced price charts and analysis
-- Portfolio analytics
-- Price alerts
-- Community competitions
-- Reputation system
-- Content recommendation engine
-- Enhanced admin analytics
-- Offline support improvements
+### Key Deliverables
 
-### Success Metrics
-- Long-term retention (30%+ 30-day retention)
-- Feature utilization (75%+ using Phase 3 features)
-- Community-led content (50%+ of engagement from user initiatives)
-- Positive feedback ratings (80%+ satisfaction)
+| Category | Deliverables | Success Criteria |
+|----------|--------------|------------------|
+| **Market Intelligence** | Advanced charts, portfolio tracking | 50%+ of wallet-connected users use analytics |
+| **Content Discovery** | Recommendation engine, trending content | 30%+ increase in content engagement |
+| **Community Leadership** | Reputation system, advanced roles | 15%+ of users in leadership positions |
+| **Platform Evolution** | Governance foundation, community input | 10%+ of users participating in governance |
 
-## 6.5 Technical Debt & Quality Management
+## 6.5 Technical Debt Management
 
 To balance rapid development with sustainable architecture:
 
-1. **Debt Identification**: Regular technical debt reviews and documentation
-2. **Containment Strategy**: Isolating technical compromises to non-critical areas
-3. **Repayment Schedule**: Dedicated refactoring sprints between feature phases
-4. **Quality Gates**: Minimum quality thresholds for critical platform components
-5. **Architecture Reviews**: Regular evaluation of structural decisions
-
-### Technical Debt Management Timeline
-
-| Phase | Technical Debt Activity | Focus Areas |
-|-------|-------------------------|------------|
-| End of MVP | Initial debt assessment | Core architecture, performance bottlenecks |
-| Mid-Phase 2 | Refactoring sprint | Component optimization, test coverage |
-| End of Phase 2 | Architecture review | Scalability, security hardening |
-| Mid-Phase 3 | Major refactoring | Database optimization, API consolidation |
-| End of Phase 3 | Comprehensive review | Long-term sustainability planning |
+| Phase | Technical Debt Activity | Focus Areas | Success Metrics |
+|-------|-------------------------|------------|-----------------|
+| End of MVP | Initial debt assessment | Core architecture, performance bottlenecks | Comprehensive backlog created |
+| Mid-Phase 2 | Refactoring sprint | Component optimization, test coverage | 85%+ test coverage on critical paths |
+| End of Phase 2 | Architecture review | Scalability, security hardening | Successful penetration testing |
+| Mid-Phase 3 | Major refactoring | Database optimization, API consolidation | 50%+ query performance improvement |
+| End of Phase 3 | Comprehensive review | Long-term sustainability planning | Architecture capable of 10x user growth |
 
 ---
 
-# 7. Appendices
+# 7. Marketing & Community Strategy
 
-## 7.1 Detailed Database Schema
+## 7.1 Messaging Framework
 
-Detailed entity-relationship diagrams and complete table definitions are available in the project repository. Key entities include:
+### Core Message Pillars
 
-- **users**: Core user information
-- **profiles**: Extended user profile data
-- **wallet_connections**: Linked wallet information
-- **posts**: User-generated content
-- **comments**: Responses to posts
-- **categories**: Content organization
-- **user_points**: Point transaction ledger
-- **achievements**: Accomplishment definitions
-- **user_achievements**: User-achievement relationships
-- **market_snapshots**: Historical price data
-- **transactions**: Token transaction records
+| Pillar | Core Message | Supporting Points |
+|--------|--------------|-------------------|
+| **Nostalgic Connection** | "Remember Success Kid? Now he's your ticket to crypto success!" | • Leverages emotional connection to beloved meme<br>• Bridges mainstream culture with crypto community |
+| **Fair Tokenomics** | "70% locked, 50% reserved for YOU—join a meme coin movement that rewards the community" | • Transparent and community-centric approach<br>• Differentiates from typical token distributions |
+| **Active Engagement Rewards** | "Earn while you participate - every post, comment, and share brings you closer to success" | • Showcases the earn-to-engage model<br>• Highlights immediate value proposition |
+| **Community Power** | "A platform built by the community, for the community" | • Establishes the collaborative nature of the project<br>• Creates sense of collective ownership |
 
-## 7.2 API Specifications
+### Target Audience Messaging
 
-Complete API documentation is maintained in the project repository. The platform uses:
+| Audience | Primary Message | Call to Action |
+|----------|----------------|---------------|
+| **Crypto Enthusiasts** | "Be early to a tokenomics model that rewards actual community members" | "Connect your wallet and start earning" |
+| **Content Creators** | "Turn your creative skills into crypto rewards" | "Join the community and show your creativity" |
+| **Casual Participants** | "The easiest way to start earning crypto while having fun" | "Sign up now - no wallet needed to start" |
+| **Existing Token Holders** | "Multiply your investment through active participation" | "Connect your wallet to unlock holder benefits" |
 
-- **Supabase Auto-generated APIs**: Core data operations
-- **Custom APIs**: For complex business logic
-- **Blockchain APIs**: For token and market data
-- **Social APIs**: For platform integrations
+## 7.2 Launch Strategy
 
-## 7.3 Component Library
+### Pre-Launch Phase (1-2 Weeks)
 
-The project includes a comprehensive component library following atomic design principles. Full documentation is available in Storybook format in the project repository.
+1. **Teaser Campaign**
+   - Success Kid meme nostalgia social media campaign
+   - Animated teasers highlighting platform features
+   - Whitepaper and tokenomics reveal
+   - Countdown to platform beta
 
-## 7.4 Code Examples & References
+2. **Community Seeding**
+   - Discord/Telegram community building
+   - Early adopter recruitment
+   - Ambassador program formation
+   - Content creator partnerships
 
-Code snippets and implementation examples are available in the project repository, including:
+3. **Technical Preparation**
+   - Platform beta testing
+   - Security audits
+   - Wallet integration optimization
+   - Token contract deployment
 
-- Authentication flows
-- Wallet integration
-- Real-time data handling
-- Performance optimization techniques
-- Security implementation patterns
+## 7.3 Community Growth Tactics
+
+### Referral Program Optimization
+
+- **Multi-tier Rewards**: Escalating bonuses for referrers who bring active users
+- **Custom Invitations**: Personalized messaging and landing pages
+- **Tracking Dashboard**: Real-time performance metrics for referrers
+- **Community Recognition**: Leaderboards and special status for top referrers
+- **Limited-Time Boosters**: Strategic multipliers during key growth periods
+
+### Engagement Acceleration
+
+- **Daily Challenges**: Rotating tasks with bonus rewards
+- **Community Voting**: User input on featured content and development
+- **Special Events**: Time-limited activities with increased rewards
+- **AMAs**: Regular sessions with team and crypto personalities
+- **Content Competitions**: Themed contests with token prizes
+
+### Retention Mechanisms
+
+- **Streak Rewards**: Increasing bonuses for daily activity
+- **Progressive Unlocking**: New features revealed through consistent usage
+- **Personalized Recommendations**: Content and connection suggestions based on interests
+- **Achievement Paths**: Guided progression through platform features
+- **FOMO-Driven Events**: Limited-time opportunities with visible countdowns
+
+## 7.4 Content Strategy
+
+### Content Pillars
+
+| Content Type | Purpose | Format | Frequency | Example |
+|--------------|---------|--------|-----------|---------|
+| **Educational** | Build knowledge and confidence | Guides, tutorials, explainers | 2x weekly | "How to Connect Your Wallet: A Visual Guide" |
+| **Community** | Showcase activity and people | Spotlights, interviews, stories | 3x weekly | "Member Spotlight: How Charlie Built a Following" |
+| **Market** | Keep community informed | Updates, analysis, milestones | Daily | "Market Report: SKC Approaches Next Milestone" |
+| **Entertainment** | Foster fun and engagement | Memes, challenges, humor | 5x weekly | "Success Kid Meme Contest: Winner Announcement" |
+
+### Content Calendar Framework
+
+- **Monday**: Market recap and week ahead goals
+- **Tuesday**: Community spotlight feature
+- **Wednesday**: Educational deep dive
+- **Thursday**: Team update or AMA
+- **Friday**: Fun content and weekend challenge
+- **Weekend**: Community-generated content showcase
+
+## 7.5 Crisis Communication Plan
+
+### Crisis Types & Response Protocols
+
+| Crisis Type | Response Protocol | Communication Channels | Team Responsibilities |
+|-------------|-------------------|------------------------|------------------------|
+| **Technical Issues** | 1. Immediate acknowledgment<br>2. Regular status updates (30-60 min)<br>3. Clear explanation of impact<br>4. Post-resolution analysis | • Platform banner<br>• Discord/Telegram announcements<br>• Twitter/X updates<br>• Email for major issues | • Tech Lead: Issue assessment<br>• Community Manager: User communication<br>• Product Owner: Impact analysis |
+| **Market Volatility** | 1. Factual, balanced updates<br>2. Focus on long-term vision<br>3. Community perspective<br>4. Transparency about dynamics | • Market data section<br>• Discord market channel<br>• Regular team posts | • Token Lead: Market analysis<br>• Community Manager: Community support<br>• CEO: Strategic messaging |
+| **Community Conflicts** | 1. Address legitimate concerns<br>2. Reinforce community standards<br>3. Private resolution of individual issues<br>4. Public summary when appropriate | • Direct messaging<br>• Moderation announcements<br>• Community guidelines | • Community Manager: Mediation<br>• Moderation Team: Enforcement<br>• Product Owner: Feature adjustments |
+| **External Criticism** | 1. Fact-based responses<br>2. Focus on platform strengths<br>3. Invitation for constructive dialogue<br>4. Implementation of valuable feedback | • Official blog posts<br>• Twitter/X responses<br>• AMAs addressing concerns | • CEO: Official responses<br>• Marketing: Narrative management<br>• Product Team: Addressing valid points |
+
+### Crisis Management Process
+
+1. **Detection**: Monitoring systems and community alerts identify potential issues
+2. **Assessment**: Crisis team evaluates severity and appropriate response level
+3. **Communication**: Initial statement issued across relevant channels
+4. **Resolution**: Implementation of solution steps with regular updates
+5. **Review**: Post-crisis analysis and preventive measures implementation
+
+---
+
+# 8. Appendices
+
+## 8.1 Database Schema
+
+### Core Entities
+
+```
+users
+├── id (PK)
+├── email
+├── display_name
+├── auth_provider
+├── created_at
+├── last_login
+└── status
+
+profiles
+├── user_id (FK → users.id)
+├── bio
+├── avatar_url
+├── level
+├── title
+├── social_links
+└── preferences
+
+wallet_connections
+├── id (PK)
+├── user_id (FK → users.id)
+├── wallet_address
+├── is_verified
+├── connected_at
+└── last_verified_at
+
+content
+├── id (PK)
+├── user_id (FK → users.id)
+├── type
+├── content_text
+├── media_urls
+├── created_at
+├── updated_at
+└── status
+
+comments
+├── id (PK)
+├── content_id (FK → content.id)
+├── user_id (FK → users.id)
+├── comment_text
+├── created_at
+└── parent_id (FK → comments.id)
+
+user_points
+├── id (PK)
+├── user_id (FK → users.id)
+├── amount
+├── source
+├── reference_id
+├── created_at
+└── description
+
+achievements
+├── id (PK)
+├── name
+├── description
+├── image_url
+├── points_reward
+├── difficulty
+└── requirements
+
+user_achievements
+├── user_id (FK → users.id)
+├── achievement_id (FK → achievements.id)
+├── unlocked_at
+└── progress
+```
+
+## 8.2 API Specifications
+
+### RESTful API Endpoints
+
+| Endpoint | Method | Description | Authentication | Rate Limit |
+|----------|--------|-------------|----------------|------------|
+| `/api/v1/auth/register` | POST | Register new user | None | 10/hour |
+| `/api/v1/auth/login` | POST | Login existing user | None | 10/minute |
+| `/api/v1/users/me` | GET | Get current user | Required | 60/minute |
+| `/api/v1/users/:id/profile` | GET | Get user profile | Optional | 60/minute |
+| `/api/v1/content` | GET | Get content feed | Optional | 60/minute |
+| `/api/v1/content` | POST | Create content | Required | 30/minute |
+| `/api/v1/content/:id` | GET | Get specific content | Optional | 60/minute |
+| `/api/v1/content/:id/comments` | GET | Get content comments | Optional | 60/minute |
+| `/api/v1/content/:id/comments` | POST | Create comment | Required | 30/minute |
+| `/api/v1/wallet/connect` | POST | Connect wallet | Required | 10/hour |
+| `/api/v1/market/overview` | GET | Get market data | None | 60/minute |
+| `/api/v1/transactions` | GET | Get transaction feed | None | 60/minute |
+| `/api/v1/points/history` | GET | Get points history | Required | 60/minute |
+| `/api/v1/points/redeem` | POST | Redeem points for tokens | Required | 10/hour |
+| `/api/v1/achievements` | GET | Get achievements list | Optional | 60/minute |
+| `/api/v1/leaderboard` | GET | Get leaderboard | None | 60/minute |
+| `/api/v1/referrals` | GET | Get referral stats | Required | 60/minute |
+| `/api/v1/referrals/create` | POST | Create referral link | Required | 10/day |
+
+### WebSocket Events
+
+| Event | Direction | Description | Data Structure |
+|-------|-----------|-------------|----------------|
+| `user:points` | Server → Client | Points earned update | `{ amount, source, total }` |
+| `content:new` | Server → Client | New content in feed | `{ id, preview, author }` |
+| `achievement:unlocked` | Server → Client | Achievement unlocked | `{ achievement, points, animation }` |
+| `market:update` | Server → Client | Market data refresh | `{ price, change, volume }` |
+| `transaction:new` | Server → Client | New transaction | `{ type, amount, timeAgo }` |
+| `notification:new` | Server → Client | New notification | `{ type, message, actionUrl }` |
+| `user:typing` | Client → Server | User typing indicator | `{ contentId, isTyping }` |
+| `content:reaction` | Client → Server | React to content | `{ contentId, reactionType }` |
+
+## 8.3 Component Library
+
+The project uses a comprehensive component library built with Tailwind CSS and shadcn/ui, with custom Success Kid themed components.
+
+### Core UI Components
+
+| Component | Props | Description | Usage Example |
+|-----------|-------|-------------|--------------|
+| `Button` | `variant, size, disabled, loading` | Primary action element with multiple styles | `<Button variant="primary">Connect Wallet</Button>` |
+| `Card` | `variant, size, hoverable` | Container for grouped information | `<Card hoverable>Content goes here</Card>` |
+| `Avatar` | `src, name, size, border, level` | User profile image with level indicator | `<Avatar src={url} name="User" level={5} />` |
+| `Badge` | `variant, size, animated` | Status and achievement indicators | `<Badge variant="achievement">Level Up!</Badge>` |
+| `TextField` | `label, error, helper, disabled` | Text input with validation states | `<TextField label="Username" error={error} />` |
+| `Toast` | `type, message, duration, action` | Temporary notifications | `showToast({ type: "success", message: "Points earned!" })` |
+| `Tabs` | `items, activeTab, onChange` | Tabbed navigation container | `<Tabs items={tabItems} activeTab="market" />` |
+| `ProgressBar` | `value, max, showLabel, animated` | Progress visualization | `<ProgressBar value={75} max={100} animated />` |
+| `PriceDisplay` | `value, change, size, currency` | Formatted price with change indicator | `<PriceDisplay value={0.0023} change={5.4} />` |
+| `AchievementCard` | `achievement, unlocked, progress` | Display for achievements | `<AchievementCard achievement={data} progress={0.5} />` |
+
+## 8.4 Code Examples
+
+### Points System Implementation
+
+```typescript
+// src/services/points/pointsService.ts
+
+interface PointsTransaction {
+  userId: string;
+  amount: number;
+  source: PointSource;
+  referenceId?: string;
+  description?: string;
+}
+
+enum PointSource {
+  CONTENT_CREATION = 'content_creation',
+  COMMENT = 'comment',
+  UPVOTE_RECEIVED = 'upvote_received',
+  DAILY_LOGIN = 'daily_login',
+  ACHIEVEMENT = 'achievement',
+  REFERRAL = 'referral',
+  // Other sources...
+}
+
+class PointsService {
+  // Award points to a user
+  async awardPoints(transaction: PointsTransaction): Promise<boolean> {
+    try {
+      // Check daily limits for this source
+      const dailyLimit = await this.getDailyLimit(transaction.userId, transaction.source);
+      if (dailyLimit.reached) {
+        logger.info(`Daily limit reached for ${transaction.userId} on ${transaction.source}`);
+        return false;
+      }
+      
+      // Record transaction
+      const result = await db.userPoints.create({
+        data: {
+          userId: transaction.userId,
+          amount: transaction.amount,
+          source: transaction.source,
+          referenceId: transaction.referenceId,
+          description: transaction.description || this.getDefaultDescription(transaction.source)
+        }
+      });
+      
+      // Update user's total points
+      await db.profiles.update({
+        where: { userId: transaction.userId },
+        data: { 
+          totalPoints: { increment: transaction.amount }
+        }
+      });
+      
+      // Check for level up
+      await this.checkLevelProgress(transaction.userId);
+      
+      // Emit real-time event
+      events.emit('user:points', {
+        userId: transaction.userId,
+        amount: transaction.amount,
+        source: transaction.source,
+        total: await this.getUserTotalPoints(transaction.userId)
+      });
+      
+      return true;
+    } catch (error) {
+      logger.error('Error awarding points', error);
+      return false;
+    }
+  }
+  
+  // Additional methods for checking limits, getting balances, etc.
+}
+
+export const pointsService = new PointsService();
+```
+
+### Wallet Connection Flow
+
+```typescript
+// src/features/wallet/WalletConnect.tsx
+
+import { useState } from 'react';
+import { Button, Card, Text, Alert } from '@/components/ui';
+import { useWallet } from '@/hooks/useWallet';
+import { motion } from 'framer-motion';
+
+export const WalletConnect = () => {
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { connect, wallet } = useWallet();
+  
+  const handleConnect = async () => {
+    try {
+      setIsConnecting(true);
+      setError(null);
+      await connect();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect wallet');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+  
+  if (wallet) {
+    return (
+      <Card className="p-4 border border-success bg-success/10">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Text variant="heading">Wallet Connected</Text>
+          <Text className="font-mono text-sm">{wallet.publicKey}</Text>
+          <div className="mt-4 flex items-center">
+            <div className="bg-success/20 p-2 rounded-full h-10 w-10 flex items-center justify-center mr-3">
+              <Icon name="check" className="text-success" />
+            </div>
+            <div>
+              <Text variant="label">Balance</Text>
+              <Text variant="heading">{wallet.balance} SKC</Text>
+            </div>
+          </div>
+        </motion.div>
+      </Card>
+    );
+  }
+  
+  return (
+    <Card className="p-4">
+      <Text variant="heading">Connect Your Wallet</Text>
+      <Text className="mb-4">Connect your Phantom wallet to track your tokens and enable redemptions.</Text>
+      
+      {error && <Alert variant="error" className="mb-4">{error}</Alert>}
+      
+      <Button 
+        variant="primary" 
+        size="lg" 
+        loading={isConnecting}
+        onClick={handleConnect}
+        className="w-full"
+      >
+        Connect Phantom Wallet
+      </Button>
+      
+      <Text variant="small" className="mt-2 text-center">
+        Don't have a wallet? <a href="/resources/wallet-setup" className="text-primary">Learn how to setup</a>
+      </Text>
+    </Card>
+  );
+};
+```
+
+## 8.5 Implementation Metrics
+
+### Development Velocity
+
+| Metric | Target | Measurement Method | Review Frequency |
+|--------|--------|-------------------|------------------|
+| Story Points per Sprint | 40 points | JIRA velocity tracking | Weekly |
+| Deployment Frequency | 3x per week | CI/CD pipeline metrics | Weekly |
+| Code Review Turnaround | <8 hours | GitHub PR metrics | Weekly |
+| Bug Resolution Time | <48 hours for critical | Issue tracking system | Weekly |
+| Test Coverage | 85%+ for critical paths | Test reports | Weekly |
+
+### Technical Performance
+
+| Metric | Target | Measurement Method | Review Frequency |
+|--------|--------|-------------------|------------------|
+| Page Load Time | <2s initial, <500ms subsequent | Lighthouse, RUM | Daily |
+| API Response Time | <200ms p95 | Backend monitoring | Daily |
+| Database Query Time | <50ms p95 | Query performance monitoring | Weekly |
+| Error Rate | <0.5% | Error tracking system | Daily |
+| Uptime | 99.9%+ | Monitoring system | Daily |
+| Mobile Performance Score | >85 Lighthouse | Automated testing | Weekly |
+
+### User Experience
+
+| Metric | Target | Measurement Method | Review Frequency |
+|--------|--------|-------------------|------------------|
+| Core Web Vitals | All "Good" thresholds | Lighthouse, RUM | Weekly |
+| User Reported Issues | <10 per 1000 users | Support tickets, feedback | Weekly |
+| Task Completion Rate | >90% | User testing, analytics | Bi-weekly |
+| User Satisfaction | >4.5/5 rating | In-app feedback | Monthly |
+| Feature Discovery | >70% of features used | Feature usage analytics | Monthly |

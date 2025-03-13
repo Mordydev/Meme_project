@@ -1,60 +1,28 @@
 import { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
+import { WebSocket } from 'ws';
+import { ConnectionRegistry } from './connection-registry';
+import { eventBus, EventType } from '../lib/event-bus';
+import { logger } from '../lib/logger';
+import { processMessage, authenticateConnection } from './handlers';
 
 /**
- * WebSocket handler for real-time updates
+ * WebSocket plugin for Fastify
+ * Handles real-time communication with clients
  */
 export default fp(async function websocketPlugin(fastify: FastifyInstance) {
-  // Register WebSocket plugin - this would use @fastify/websocket in a full implementation
-  // fastify.register(require('@fastify/websocket'));
-  
-  // Connection registry for tracking active WebSocket connections
-  class ConnectionRegistry {
-    private connections: Map<string, Set<any>> = new Map();
-    
-    add(userId: string, socket: any): void {
-      if (!this.connections.has(userId)) {
-        this.connections.set(userId, new Set());
-      }
-      this.connections.get(userId)?.add(socket);
-    }
-    
-    remove(userId: string, socket: any): void {
-      const userConnections = this.connections.get(userId);
-      if (userConnections) {
-        userConnections.delete(socket);
-        if (userConnections.size === 0) {
-          this.connections.delete(userId);
-        }
-      }
-    }
-    
-    sendToUser(userId: string, message: any): void {
-      const userConnections = this.connections.get(userId);
-      if (userConnections) {
-        const messageString = JSON.stringify(message);
-        userConnections.forEach(socket => {
-          if (socket.readyState === 1) { // OPEN
-            socket.send(messageString);
-          }
-        });
-      }
-    }
-    
-    sendToAll(message: any): void {
-      const messageString = JSON.stringify(message);
-      this.connections.forEach(sockets => {
-        sockets.forEach(socket => {
-          if (socket.readyState === 1) { // OPEN
-            socket.send(messageString);
-          }
-        });
-      });
-    }
-  }
-  
-  // Create connection registry
+  // Initialize connection registry
   const connectionRegistry = new ConnectionRegistry();
+  
+  // Register WebSocket plugin - make sure @fastify/websocket is installed
+  await fastify.register(require('@fastify/websocket'), {
+    options: {
+      maxPayload: 1048576, // 1MB max message size
+      clientTracking: true,
+      // Ping interval to keep connections alive
+      pingInterval: 30000,
+    },
+  });
   
   // Expose registry for use in other parts of the application
   fastify.decorate('websockets', {
@@ -63,38 +31,120 @@ export default fp(async function websocketPlugin(fastify: FastifyInstance) {
     sendToAll: (message: any) => connectionRegistry.sendToAll(message),
   });
   
-  // Set up WebSocket route - this is a placeholder for a real implementation
+  // Set up WebSocket route
   fastify.get('/ws', { websocket: true }, (connection, request) => {
-    // This would be a real implementation using the @fastify/websocket plugin
+    const socket = connection.socket;
+    let userId: string | null = null;
+    
     fastify.log.info('WebSocket connection established');
     
-    // In a real implementation, we'd authenticate the user here
-    // const userId = authenticateWebsocketConnection(request);
-    const userId = '1'; // Placeholder
+    // Authenticate connection
+    userId = authenticateConnection(request);
     
-    // Add to connection registry
-    connectionRegistry.add(userId, connection.socket);
+    if (userId) {
+      // Register authenticated connection
+      connectionRegistry.add(userId, socket);
+      fastify.log.info(`WebSocket authenticated for user ${userId}`);
+    } else {
+      // Allow anonymous connection but with limited capabilities
+      fastify.log.info('Anonymous WebSocket connection');
+    }
     
     // Handle connection close
-    connection.socket.on('close', () => {
-      connectionRegistry.remove(userId, connection.socket);
-      fastify.log.info('WebSocket connection closed');
+    socket.on('close', () => {
+      fastify.log.info(`WebSocket connection closed${userId ? ` for user ${userId}` : ''}`);
+      if (userId) {
+        connectionRegistry.remove(userId, socket);
+      }
     });
     
     // Handle messages
-    connection.socket.on('message', (message) => {
-      try {
-        const data = JSON.parse(message.toString());
-        fastify.log.info(`WebSocket message received: ${JSON.stringify(data)}`);
-        
-        // Here we would process different message types
-        // This is a placeholder implementation
-        if (data.type === 'ping') {
-          connection.socket.send(JSON.stringify({ type: 'pong' }));
-        }
-      } catch (error) {
-        fastify.log.error('Error processing WebSocket message', error);
-      }
+    socket.on('message', (message: WebSocket.Data) => {
+      const messageStr = message.toString();
+      processMessage(socket, userId, messageStr);
     });
+    
+    // Handle errors
+    socket.on('error', (error) => {
+      fastify.log.error('WebSocket error', error);
+    });
+    
+    // Send welcome message
+    socket.send(JSON.stringify({
+      type: 'connected',
+      data: {
+        userId,
+        timestamp: new Date().toISOString(),
+        authenticated: Boolean(userId)
+      }
+    }));
   });
+  
+  // Subscribe to events for broadcasting
+  setupEventSubscriptions(connectionRegistry);
+  
+  // Log connection stats periodically
+  setInterval(() => {
+    logger.debug(`WebSocket stats: ${connectionRegistry.getUserCount()} users, ${connectionRegistry.getConnectionCount()} connections`);
+  }, 60000);
 });
+
+/**
+ * Set up event subscriptions for real-time updates
+ * @param registry Connection registry for sending messages
+ */
+function setupEventSubscriptions(registry: ConnectionRegistry) {
+  // Points awarded event
+  eventBus.subscribe(EventType.POINTS_AWARDED, (data) => {
+    const { userId, amount, source } = data;
+    registry.sendToUser(userId, {
+      type: 'points.update',
+      data: {
+        amount,
+        source,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    logger.debug(`Sent points update to user ${userId}`);
+  });
+  
+  // Achievement unlocked event
+  eventBus.subscribe(EventType.ACHIEVEMENT_UNLOCKED, (data) => {
+    const { userId, achievement } = data;
+    registry.sendToUser(userId, {
+      type: 'achievement.unlocked',
+      data: {
+        achievement,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    logger.debug(`Sent achievement notification to user ${userId}`);
+  });
+  
+  // Content created event
+  eventBus.subscribe(EventType.CONTENT_CREATED, (data) => {
+    registry.sendToAll({
+      type: 'content.new',
+      data: {
+        id: data.id,
+        author: data.author,
+        preview: data.preview,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    logger.debug('Broadcast new content to all users');
+  });
+  
+  // Market milestone reached
+  eventBus.subscribe(EventType.MILESTONE_REACHED, (data) => {
+    registry.sendToAll({
+      type: 'milestone.reached',
+      data: {
+        milestone: data.milestone,
+        value: data.value,
+        timestamp: new Date().toISOString(),
+      },
+    });
+    logger.debug(`Broadcast milestone achievement: ${data.milestone}`);
+  });
+}

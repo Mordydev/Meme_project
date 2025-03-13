@@ -74,6 +74,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Register API routes
   await app.register(import('./api'), { prefix: '/api/v1' });
 
+  // Register WebSocket plugin
+  await app.register(import('./websockets'));
+
   // Enhanced health check route
   app.get('/health', async () => {
     const dbHealth = await checkDatabaseHealth();

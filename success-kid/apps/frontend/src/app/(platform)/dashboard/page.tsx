@@ -4,6 +4,7 @@ import { PointsSummary } from '@/components/features/points/points-summary';
 import { MarketCapTracker } from '@/components/features/market/market-cap-tracker';
 import { RecentActivity } from '@/components/features/activity/recent-activity';
 import { LeaderboardPreview } from '@/components/features/leaderboard/leaderboard-preview';
+import { WebSocketStatus, EventSimulator } from '@/components/features/real-time';
 
 export default async function DashboardPage() {
   const user = await currentUser();
@@ -22,7 +23,11 @@ export default async function DashboardPage() {
       
       <div className="grid gap-6 md:grid-cols-2">
         <RecentActivity />
-        <LeaderboardPreview />
+        <div className="space-y-6">
+          <LeaderboardPreview />
+          <WebSocketStatus />
+          <EventSimulator />
+        </div>
       </div>
     </div>
   );
