@@ -1,7 +1,5 @@
 import { DashboardHeader } from '@/components/layout/dashboard-header';
-import { ContentFeed } from '@/components/features/content/content-feed';
-import { CreatePostButton } from '@/components/features/content/create-post-button';
-import { ContentFilter } from '@/components/features/content/content-filter';
+import { CategoryBrowser, FeedContainer, CreatePostButton } from '@/components/features/community';
 
 export default async function CommunityPage() {
   return (
@@ -14,10 +12,15 @@ export default async function CommunityPage() {
       
       <div className="grid gap-6 md:grid-cols-12">
         <div className="md:col-span-3">
-          <ContentFilter />
+          <CategoryBrowser 
+            onSelectCategory={(categoryId) => {
+              // This will be handled client-side via navigation
+              console.log(`Selected category: ${categoryId}`);
+            }}
+          />
         </div>
         <div className="md:col-span-9">
-          <ContentFeed />
+          <FeedContainer />
         </div>
       </div>
     </div>

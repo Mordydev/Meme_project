@@ -1,7 +1,7 @@
 import { currentUser } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
 import { DashboardHeader } from '@/components/layout/dashboard-header';
-import { ProfileHeader, ProfileTabs, TabsContent } from '@/components/features/profile';
+import { ProfileHeader, ProfileWrapper } from '@/components/features/profile';
 import { ProfileContent } from '@/components/features/profile/profile-content';
 
 export default async function ProfilePage() {

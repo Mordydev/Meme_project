@@ -4,9 +4,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
+import Link from 'next/link';
+import { usePointsStore } from '@/store/usePointsStore';
 
 export default function DashboardPage() {
   const { isLoaded, isSignedIn, isOnboarded, user } = useAuth();
+  const { balance, fetchBalance } = usePointsStore();
   const router = useRouter();
   
   // Redirect to onboarding if not completed
@@ -15,6 +18,13 @@ export default function DashboardPage() {
       router.push('/onboarding');
     }
   }, [isLoaded, isSignedIn, isOnboarded, router]);
+  
+  // Fetch points data when the component mounts
+  useEffect(() => {
+    if (isSignedIn) {
+      fetchBalance();
+    }
+  }, [isSignedIn, fetchBalance]);
   
   if (!isLoaded) {
     return (
@@ -35,6 +45,30 @@ export default function DashboardPage() {
         <div className="container mx-auto flex items-center justify-between">
           <div className="text-xl font-bold text-primary">Success Kid Platform</div>
           <div className="flex items-center gap-4">
+            <nav className="hidden md:block">
+              <ul className="flex space-x-6">
+                <li>
+                  <Link href="/dashboard" className="text-sm font-medium text-primary">
+                    Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/points" className="text-sm font-medium text-gray-600 hover:text-primary">
+                    Points
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/community" className="text-sm font-medium text-gray-600 hover:text-primary">
+                    Community
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/profile" className="text-sm font-medium text-gray-600 hover:text-primary">
+                    Profile
+                  </Link>
+                </li>
+              </ul>
+            </nav>
             <span className="text-sm text-gray-600">
               Welcome, {user?.firstName || user?.username}
             </span>
@@ -51,13 +85,24 @@ export default function DashboardPage() {
           {/* Points Card */}
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-xl font-semibold">Your Points</h2>
-            <div className="mb-2 text-4xl font-bold text-primary">1,250</div>
+            <div className="mb-2 text-4xl font-bold text-primary">{balance}</div>
             <p className="text-sm text-gray-500">
               Earn more points by participating in the community!
             </p>
-            <button className="mt-4 w-full rounded-lg bg-primary px-4 py-2 text-white transition hover:bg-primary-600">
-              Redeem Points
-            </button>
+            <div className="mt-4 flex gap-2">
+              <Link 
+                href="/points"
+                className="flex-1 rounded-lg bg-primary px-4 py-2 text-center text-white transition hover:bg-primary-600"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/points?tab=redeem"
+                className="flex-1 rounded-lg border border-primary bg-white px-4 py-2 text-center text-primary transition hover:bg-primary/5"
+              >
+                Redeem
+              </Link>
+            </div>
           </div>
           
           {/* Recent Activity Card */}

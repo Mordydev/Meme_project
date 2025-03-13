@@ -40,20 +40,24 @@ export function useProfileData(userId?: string): ProfileData {
       setError(null);
       
       try {
-        // In a real implementation, we would fetch from API
-        // For now, using mock data
+        // Get the user ID to fetch
+        const targetUserId = isOwnProfile ? currentUser?.id : userId;
         
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 500));
+        if (!targetUserId) {
+          throw new Error('User ID not available');
+        }
         
-        // Mock stats data
-        setStats({
-          points: 1250,
-          achievements: 8,
-          posts: 23,
-          followers: 15,
-          following: 42
-        });
+        // Fetch profile data from API
+        const response = await fetch(`/api/users/${targetUserId}/profile`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch profile: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Update stats from API response
+        setStats(data.data.stats);
       } catch (err) {
         console.error('Error fetching profile data:', err);
         setError(err instanceof Error ? err : new Error('Failed to fetch profile data'));
@@ -63,7 +67,7 @@ export function useProfileData(userId?: string): ProfileData {
     };
     
     fetchProfileData();
-  }, [userId, isLoaded, currentUser?.id]);
+  }, [userId, isLoaded, currentUser?.id, isOwnProfile]);
   
   return {
     user: isOwnProfile ? currentUser : null, // Would fetch other user data from API in real implementation

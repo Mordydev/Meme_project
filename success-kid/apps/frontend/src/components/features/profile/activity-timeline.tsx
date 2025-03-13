@@ -1,6 +1,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui';
+import { getRelativeTime, groupByDate, getDateDisplayText } from '@/lib/profile';
 
 // Types
 export interface UserActivity {
@@ -35,34 +36,7 @@ interface ActivityItemProps {
   isOwn: boolean;
 }
 
-// Helper function to format relative time
-function getRelativeTime(timestamp: string): string {
-  const now = new Date();
-  const activityDate = new Date(timestamp);
-  const diffInSeconds = Math.floor((now.getTime() - activityDate.getTime()) / 1000);
-  
-  if (diffInSeconds < 60) return 'just now';
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-  
-  return activityDate.toLocaleDateString();
-}
-
-// Group activities by date
-function groupActivitiesByDate(activities: UserActivity[]) {
-  const groups: { [key: string]: UserActivity[] } = {};
-  
-  activities.forEach(activity => {
-    const date = new Date(activity.timestamp).toLocaleDateString();
-    if (!groups[date]) {
-      groups[date] = [];
-    }
-    groups[date].push(activity);
-  });
-  
-  return groups;
-}
+// Use utility functions from profile lib
 
 // ActivityItem component for rendering individual activities
 function ActivityItem({ activity, isOwn }: ActivityItemProps) {
@@ -231,7 +205,7 @@ export function ActivityTimeline({
   
   // Use mock data for now - would be replaced with actual data
   const displayActivities = activities.length > 0 ? activities : mockActivities;
-  const activityGroups = groupActivitiesByDate(displayActivities);
+  const activityGroups = groupByDate(displayActivities);
   
   if (isLoading) {
     return (
@@ -250,7 +224,7 @@ export function ActivityTimeline({
       {Object.entries(activityGroups).map(([date, activities]) => (
         <div key={date} className="mb-6">
           <h3 className="text-sm font-medium text-muted-foreground mb-2">
-            {date === new Date().toLocaleDateString() ? 'Today' : date}
+            {getDateDisplayText(date)}
           </h3>
           <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
             {activities.map(activity => (

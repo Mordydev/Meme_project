@@ -5,6 +5,7 @@
  */
 
 export * from './points';
+export * from './community';
 
 /**
  * API response wrapper type
