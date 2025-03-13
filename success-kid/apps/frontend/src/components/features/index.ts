@@ -9,6 +9,7 @@
 export * from './notifications';
 export * from './points';
 export * from './real-time';
+export * from './market';
 
 // Create placeholder exports for components referenced in pages
 // These will be implemented as part of feature development tasks

@@ -6,6 +6,7 @@
 
 export * from './points';
 export * from './community';
+export * from './market';
 
 /**
  * API response wrapper type
