@@ -1,8 +1,11 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WebSocketProvider } from './WebSocketProvider';
+import { useAuth } from '@clerk/nextjs';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useUserStore } from '@/store/useUserStore';
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -18,6 +21,30 @@ export function Providers({ children }: ProvidersProps) {
       },
     },
   }));
+
+  // Get Clerk auth state
+  const { isLoaded, isSignedIn, userId } = useAuth();
+  
+  // Get auth store actions
+  const { setAuthenticated, setLoading } = useAuthStore();
+  
+  // Get user store actions
+  const { fetchProfile } = useUserStore();
+  
+  // Synchronize authentication state
+  useEffect(() => {
+    if (isLoaded) {
+      setAuthenticated(!!isSignedIn);
+      setLoading(false);
+      
+      // Fetch user profile if signed in
+      if (isSignedIn && userId) {
+        fetchProfile().catch(error => {
+          console.error('Error fetching user profile:', error);
+        });
+      }
+    }
+  }, [isLoaded, isSignedIn, userId, setAuthenticated, setLoading, fetchProfile]);
 
   return (
     <QueryClientProvider client={queryClient}>

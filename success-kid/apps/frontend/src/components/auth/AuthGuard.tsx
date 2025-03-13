@@ -8,20 +8,30 @@ import { useEffect } from 'react';
 interface AuthGuardProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  requireOnboarding?: boolean;
 }
 
 /**
- * Client-side authentication guard component
+ * Enhanced client-side authentication guard component
  * Redirects to sign-in page if user is not authenticated
+ * Optionally redirects to onboarding if user is not onboarded
  */
-export function AuthGuard({ children, fallback }: AuthGuardProps) {
-  const { isLoaded, isSignedIn } = useAuth();
+export function AuthGuard({ 
+  children, 
+  fallback,
+  requireOnboarding = true 
+}: AuthGuardProps) {
+  const { isLoaded, isSignedIn, isOnboarded } = useAuth();
   
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      redirect('/sign-in');
+    if (isLoaded) {
+      if (!isSignedIn) {
+        redirect('/sign-in');
+      } else if (requireOnboarding && !isOnboarded) {
+        redirect('/onboarding');
+      }
     }
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, isOnboarded, requireOnboarding]);
   
   if (!isLoaded) {
     return fallback || (
@@ -32,6 +42,10 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
   }
   
   if (!isSignedIn) {
+    return null;
+  }
+  
+  if (requireOnboarding && !isOnboarded) {
     return null;
   }
   
