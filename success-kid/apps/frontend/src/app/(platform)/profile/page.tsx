@@ -1,12 +1,24 @@
 import { currentUser } from '@clerk/nextjs';
+import { redirect } from 'next/navigation';
 import { DashboardHeader } from '@/components/layout/dashboard-header';
-import { ProfileDetails } from '@/components/features/profile/profile-details';
-import { UserActivity } from '@/components/features/profile/user-activity';
-import { UserAchievements } from '@/components/features/profile/user-achievements';
-import { WalletConnection } from '@/components/features/wallet/wallet-connection';
+import { ProfileHeader, ProfileTabs, TabsContent } from '@/components/features/profile';
+import { ProfileContent } from '@/components/features/profile/profile-content';
 
 export default async function ProfilePage() {
   const user = await currentUser();
+  
+  if (!user) {
+    redirect('/login');
+  }
+  
+  // Mock stats - would be fetched from API in real implementation
+  const stats = {
+    points: 1250,
+    achievements: 8,
+    posts: 23,
+    followers: 15,
+    following: 42
+  };
   
   return (
     <div className="space-y-6">
@@ -15,16 +27,14 @@ export default async function ProfilePage() {
         description="Manage your account and view your activity"
       />
       
-      <div className="grid gap-6 md:grid-cols-12">
-        <div className="md:col-span-4 lg:col-span-3 space-y-6">
-          <ProfileDetails user={user} />
-          <WalletConnection />
-        </div>
-        <div className="md:col-span-8 lg:col-span-9 space-y-6">
-          <UserAchievements />
-          <UserActivity />
-        </div>
-      </div>
+      <ProfileHeader
+        user={user}
+        stats={stats}
+        isOwnProfile={true}
+        onEditProfile={() => {}}
+      />
+      
+      <ProfileContent userId={user.id} />
     </div>
   );
 }

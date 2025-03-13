@@ -3,6 +3,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { WebSocketProvider } from './WebSocketProvider';
+import { NavigationProvider } from './NavigationProvider';
+import { AuthProvider } from '@/components/auth/providers/AuthProvider';
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -21,9 +23,13 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <WebSocketProvider>
-        {children}
-      </WebSocketProvider>
+      <AuthProvider>
+        <NavigationProvider>
+          <WebSocketProvider>
+            {children}
+          </WebSocketProvider>
+        </NavigationProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

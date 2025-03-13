@@ -1,109 +1,176 @@
-import env from '@/env';
-import { Button } from '@/components/ui/button';
+'use client';
+
+import { useAuth } from '@/hooks/useAuth';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@clerk/nextjs';
+import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 
-export default function MarketingPage() {
-  const { userId } = auth();
-  const isSignedIn = !!userId;
-
+export default function HomePage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const router = useRouter();
+  
+  // Redirect to dashboard if signed in
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.push('/dashboard');
+    }
+  }, [isLoaded, isSignedIn, router]);
+  
   return (
-    <main className="min-h-screen flex flex-col items-center p-4 bg-gradient-to-r from-primary to-purple-600">
-      <div className="max-w-5xl w-full mx-auto py-16 md:py-24">
-        <div className="flex flex-col items-center text-center text-white">
-          <h1 className="text-4xl md:text-6xl font-bold mb-6">
-            Clench Your Fist, Claim Your Success!
-          </h1>
+    <div className="min-h-screen bg-gray-50">
+      {/* Navigation */}
+      <nav className="border-b border-gray-200 bg-white">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+          <div className="text-xl font-bold text-primary">Success Kid</div>
+          <div className="flex items-center space-x-4">
+            <Link href="/sign-in">
+              <Button variant="outline">Sign In</Button>
+            </Link>
+            <Link href="/sign-up">
+              <Button>Sign Up</Button>
+            </Link>
+          </div>
+        </div>
+      </nav>
+      
+      {/* Hero Section */}
+      <section className="bg-gradient-to-b from-white to-gray-50 py-16">
+        <div className="container mx-auto flex flex-col items-center justify-between px-4 md:flex-row">
+          <div className="mb-10 max-w-md md:mb-0">
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="mb-6 text-4xl font-bold leading-tight text-gray-900 md:text-5xl"
+            >
+              Clench Your Fist, <br />
+              <span className="text-primary">Claim Your Success!</span>
+            </motion.h1>
+            
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="mb-8 text-lg text-gray-600"
+            >
+              Join a vibrant ecosystem where crypto enthusiasts and meme lovers connect, engage, and create value together.
+            </motion.p>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              className="flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0"
+            >
+              <Link href="/sign-up">
+                <Button size="lg" className="w-full sm:w-auto">
+                  Join Community
+                </Button>
+              </Link>
+              <Link href="/sign-in">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                  Sign In
+                </Button>
+              </Link>
+            </motion.div>
+          </div>
           
-          <p className="text-xl md:text-2xl mb-8 max-w-2xl">
-            Join the Success Kid community platform where crypto enthusiasts and meme lovers 
-            connect, engage, and create value together.
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7 }}
+            className="relative"
+          >
+            <div className="flex h-64 w-64 items-center justify-center overflow-hidden rounded-full bg-primary/10 md:h-80 md:w-80">
+              <span className="text-8xl">🤜</span>
+            </div>
+            <div className="absolute left-0 top-0 -z-10 h-full w-full scale-110 blur-xl opacity-20" style={{ background: 'radial-gradient(circle, #1E88E5 0%, transparent 70%)' }}></div>
+          </motion.div>
+        </div>
+      </section>
+      
+      {/* Feature Section */}
+      <section className="py-16">
+        <div className="container mx-auto px-4">
+          <h2 className="mb-12 text-center text-3xl font-bold text-gray-900">Key Platform Features</h2>
+          
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+            >
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-xl text-primary">
+                🏆
+              </div>
+              <h3 className="mb-2 text-xl font-semibold text-gray-900">Success Points</h3>
+              <p className="text-gray-600">
+                Earn points for your contributions that can be redeemed for tokens.
+              </p>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+            >
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-xl text-primary">
+                👥
+              </div>
+              <h3 className="mb-2 text-xl font-semibold text-gray-900">Vibrant Community</h3>
+              <p className="text-gray-600">
+                Connect with fellow members, share ideas, and build relationships.
+              </p>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+            >
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-xl text-primary">
+                💰
+              </div>
+              <h3 className="mb-2 text-xl font-semibold text-gray-900">Wallet Integration</h3>
+              <p className="text-gray-600">
+                Connect your wallet to track your tokens and enable redemptions.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+      
+      {/* CTA Section */}
+      <section className="bg-primary/5 py-16">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="mb-6 text-3xl font-bold text-gray-900">
+            Ready to join the Success Kid community?
+          </h2>
+          <p className="mx-auto mb-8 max-w-2xl text-lg text-gray-600">
+            Create your account, set up your profile, and start earning rewards today.
           </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4">
-            {isSignedIn ? (
-              <Button asChild size="lg">
-                <Link href="/(platform)/dashboard">Go to Dashboard</Link>
-              </Button>
-            ) : (
-              <>
-                <Button asChild size="lg">
-                  <Link href="/(auth)/register">Join Now</Link>
-                </Button>
-                <Button asChild variant="outline" size="lg">
-                  <Link href="/(auth)/login">Sign In</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      <section className="w-full max-w-5xl bg-white rounded-lg shadow-lg p-8 mb-16">
-        <h2 className="text-3xl font-bold mb-6 text-center">Market Cap Milestones</h2>
-        
-        <div className="space-y-4">
-          <div className="bg-gray-100 rounded-lg p-4">
-            <div className="flex justify-between mb-2">
-              <span className="font-semibold">$100,000</span>
-              <span className="text-accent font-medium">First milestone</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div className="bg-accent h-2.5 rounded-full w-[45%]"></div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-100 rounded-lg p-4">
-            <div className="flex justify-between mb-2">
-              <span className="font-semibold">$500,000</span>
-              <span className="text-gray-500 font-medium">Initial growth target</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div className="bg-gray-400 h-2.5 rounded-full w-[10%]"></div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-100 rounded-lg p-4">
-            <div className="flex justify-between mb-2">
-              <span className="font-semibold">$1,000,000</span>
-              <span className="text-gray-500 font-medium">Community establishment</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div className="bg-gray-400 h-2.5 rounded-full w-[5%]"></div>
-            </div>
-          </div>
+          <Link href="/sign-up">
+            <Button size="lg">
+              Get Started
+            </Button>
+          </Link>
         </div>
       </section>
       
-      <section className="w-full max-w-5xl bg-white rounded-lg shadow-lg p-8">
-        <h2 className="text-3xl font-bold mb-6 text-center">How It Works</h2>
-        
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
-              <span className="text-2xl font-bold text-primary">1</span>
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Join the Community</h3>
-            <p className="text-gray-600">Create an account and connect your wallet to become part of the Success Kid ecosystem.</p>
-          </div>
-          
-          <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
-              <span className="text-2xl font-bold text-primary">2</span>
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Engage & Earn</h3>
-            <p className="text-gray-600">Participate in discussions, create content, and earn Success Points (SP) for your contributions.</p>
-          </div>
-          
-          <div className="flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
-              <span className="text-2xl font-bold text-primary">3</span>
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Redeem Rewards</h3>
-            <p className="text-gray-600">Convert your Success Points to SKC tokens and enjoy the benefits of our growing ecosystem.</p>
-          </div>
+      {/* Footer */}
+      <footer className="border-t border-gray-200 bg-white py-8">
+        <div className="container mx-auto px-4 text-center text-gray-500">
+          <p>© 2025 Success Kid Community Platform. All rights reserved.</p>
         </div>
-      </section>
-    </main>
+      </footer>
+    </div>
   );
 }
