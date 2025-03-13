@@ -1,15 +1,38 @@
 /**
- * Make the setup-env.js script executable
+ * A script to make all shell scripts executable
  */
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-const setupEnvPath = path.join(__dirname, 'setup-env.js');
+const scriptsDir = path.join(__dirname);
+
+console.log('Making shell scripts executable...');
 
 try {
-  // Add execute permissions (chmod +x)
-  fs.chmodSync(setupEnvPath, '755');
-  console.log('Made setup-env.js executable');
+  // Get all .sh files in the scripts directory
+  const files = fs.readdirSync(scriptsDir).filter(file => file.endsWith('.sh'));
+
+  // Make each file executable
+  files.forEach(file => {
+    const filePath = path.join(scriptsDir, file);
+    console.log(`Making ${filePath} executable...`);
+    execSync(`chmod +x ${filePath}`);
+  });
+
+  // Make the husky scripts executable if they exist
+  const huskyDir = path.join(__dirname, '..', '.husky');
+  if (fs.existsSync(huskyDir)) {
+    const huskyFiles = fs.readdirSync(huskyDir).filter(file => !file.startsWith('_'));
+    huskyFiles.forEach(file => {
+      const filePath = path.join(huskyDir, file);
+      console.log(`Making ${filePath} executable...`);
+      execSync(`chmod +x ${filePath}`);
+    });
+  }
+
+  console.log('All shell scripts are now executable.');
 } catch (error) {
-  console.error('Error making setup-env.js executable:', error);
+  console.error('Error making scripts executable:', error);
+  process.exit(1);
 }

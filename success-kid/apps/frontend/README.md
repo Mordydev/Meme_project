@@ -1,117 +1,136 @@
-# Success Kid Community Platform Frontend
+# Success Kid Frontend
 
-This is the frontend application for the Success Kid Community Platform, built with Next.js, React, TypeScript, and Tailwind CSS.
+This is the frontend application for the Success Kid Community Platform, built with Next.js, React, and TypeScript.
 
-## Directory Structure
+## Technology Stack
 
-The application follows a feature-based organization pattern with clear separation of concerns:
+- **Next.js 15.2+** - React framework with App Router
+- **React 19.1+** - UI library with Server Components
+- **TypeScript 5.4+** - Type safety
+- **Tailwind CSS 4.0+** - Styling framework
+- **Clerk** - Authentication provider
+- **Zustand** - State management
+- **React Query** - Data fetching and caching
+- **Framer Motion** - Animation
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 22.3+
+- PNPM 8.15.0+
+
+### Development
+
+1. Install dependencies
+```bash
+pnpm install
+```
+
+2. Run the development server
+```bash
+pnpm dev
+```
+
+3. Open [http://localhost:3000](http://localhost:3000) with your browser to see the application
+
+### Available Scripts
+
+```bash
+# Start development server
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Start production server
+pnpm start
+
+# Run tests
+pnpm test
+
+# Run Storybook (component documentation)
+pnpm storybook
+
+# Build Storybook static site
+pnpm build-storybook
+
+# Run linting
+pnpm lint
+
+# Fix linting issues
+pnpm lint:fix
+```
+
+## Project Structure
 
 ```
 frontend/
+├── app/                    # Next.js App Router
+│   ├── (auth)/             # Authentication route group
+│   ├── (marketing)/        # Public marketing route group
+│   ├── (platform)/         # Authenticated platform route group
+│   ├── api/                # API routes
+│   ├── layout.tsx          # Root layout
+│   └── page.tsx            # Root page
 ├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── (auth)/             # Authentication route group
-│   │   │   ├── login/          # Login page
-│   │   │   └── register/       # Registration page
-│   │   ├── (marketing)/        # Public marketing route group
-│   │   │   └── page.tsx        # Landing page
-│   │   ├── (platform)/         # Authenticated platform route group
-│   │   │   ├── dashboard/      # User dashboard
-│   │   │   ├── community/      # Community pages
-│   │   │   └── profile/        # User profile
-│   │   ├── api/                # API routes
-│   │   ├── layout.tsx          # Root layout
-│   │   └── page.tsx            # Root page
-│   ├── components/             # React components
-│   │   ├── ui/                 # Generic UI components
-│   │   ├── features/           # Feature-specific components
-│   │   ├── layout/             # Layout components
-│   │   └── providers/          # Context providers
-│   ├── hooks/                  # Custom React hooks
-│   ├── lib/                    # Utility functions
-│   ├── store/                  # State management
-│   ├── styles/                 # Global styles
-│   └── types/                  # TypeScript types
-├── public/                     # Static assets
-├── next.config.js              # Next.js configuration
-├── package.json                # Package configuration
-└── tsconfig.json               # TypeScript configuration
+│   ├── components/         # React components
+│   │   ├── ui/             # Generic UI components
+│   │   ├── features/       # Feature-specific components
+│   │   └── layout/         # Layout components
+│   ├── hooks/              # Custom React hooks
+│   ├── lib/                # Utility functions
+│   ├── store/              # State management
+│   └── types/              # TypeScript types
+├── public/                 # Static assets
+└── middleware.ts           # Next.js middleware
 ```
-
-## Component Hierarchy
-
-The application follows a 5-level component hierarchy:
-
-1. **Foundation Components** (in `components/ui`)
-   - Basic UI elements with no business logic
-   - Highly reusable across the entire application
-
-2. **Composite Components** (in `components/ui` or specific feature directories)
-   - Combinations of foundation components
-   - Encapsulate common UI patterns
-
-3. **Feature Components** (in `components/features/{feature-name}`)
-   - Implement specific business features
-   - Combine multiple composite components
-
-4. **Layout Components** (in `components/layout`)
-   - Structure and organize other components
-   - Handle responsive behavior and positioning
-
-5. **Page Components** (in `app/**/page.tsx`)
-   - Top-level components for complete views
-   - Compose feature components into complete pages
 
 ## Routing Structure
 
-The application uses route groups (in parentheses) to organize routes without affecting URLs:
+The application uses the Next.js App Router with route groups:
 
-- `(auth)`: Authentication-related pages (login, register)
-- `(marketing)`: Public marketing pages (landing page)
-- `(platform)`: Protected application pages for authenticated users
+- `(auth)/*` - Authentication routes (login, register)
+- `(marketing)/*` - Public marketing pages (landing page, about, etc.)
+- `(platform)/*` - Authenticated platform experience
 
-## State Management
+Route groups (in parentheses) don't affect the URL structure but help with code organization.
 
-- **UI State**: React's useState/useReducer for component-local state
-- **Feature State**: Zustand stores organized by feature
-- **Server State**: React Query for data fetching and caching
-- **Global State**: Zustand for truly global state (authentication, theme, etc.)
+## Component Documentation
+
+Component documentation is available through Storybook:
+
+1. Run Storybook
+```bash
+pnpm storybook
+```
+
+2. Open [http://localhost:6006](http://localhost:6006) to see the component documentation
+
+## Environment Variables
+
+The following environment variables are required:
+
+- `NEXT_PUBLIC_API_URL` - URL for the backend API
+- `NEXT_PUBLIC_WS_URL` - WebSocket URL for real-time features
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - Clerk authentication publishable key
+
+Create a `.env.local` file in the frontend directory with these variables for local development.
 
 ## Development Guidelines
 
-### Component Creation
+- Use Server Components by default, only use Client Components when necessary
+- Follow the mobile-first approach for responsive design
+- Use TypeScript for type safety
+- Follow the established component patterns and naming conventions
+- Write tests for all new components and features
+- Maintain accessibility compliance (WCAG 2.1 AA)
+- Document components in Storybook
 
-- Use appropriate directory based on component type and purpose
-- Create TypeScript interfaces for props
-- Implement proper error handling
-- Include JSDoc comments for complex components
+## Learn More
 
-### TypeScript Usage
-
-- Use strict type checking
-- Create explicit interfaces for domain entities
-- Use generics for reusable components and hooks
-- Avoid `any` types whenever possible
-
-### File Naming Conventions
-
-- **Components**: PascalCase (e.g., `Button.tsx`)
-- **Hooks**: camelCase with `use` prefix (e.g., `usePoints.ts`)
-- **Utilities**: camelCase (e.g., `formatDate.ts`)
-- **Types**: PascalCase (e.g., `User.ts`)
-
-## Authentication
-
-The application uses Clerk for authentication, with protected routes in the `(platform)` route group.
-
-## Styling
-
-The application uses Tailwind CSS for styling, with a design system based on design tokens.
-
-## Available Scripts
-
-- `npm run dev`: Start the development server
-- `npm run build`: Build the application for production
-- `npm start`: Start the production server
-- `npm run lint`: Run ESLint to check for code issues
-- `npm test`: Run tests
+- [Next.js Documentation](https://nextjs.org/docs)
+- [React Documentation](https://react.dev/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [Clerk Documentation](https://clerk.com/docs)
+- [Project Documentation](../../docs)

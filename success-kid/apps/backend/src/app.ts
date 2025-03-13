@@ -1,97 +1,42 @@
-import fastify, { FastifyInstance } from 'fastify';
+import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
-import swagger from '@fastify/swagger';
-import swaggerUi from '@fastify/swagger-ui';
-import { errorHandler } from './middleware/error-handler';
-import { getPgPool, getRedisClient, checkDatabaseHealth } from './lib/db-client';
-import { env } from './config';
+import pointsRoutes from './api/points';
+import swaggerPlugin from './plugins/swagger';
 
-export async function buildApp(): Promise<FastifyInstance> {
-  const app = fastify({
+export async function buildApp(options = {}): Promise<FastifyInstance> {
+  const app = Fastify({
     logger: {
+      level: process.env.LOG_LEVEL || 'info',
       transport: {
         target: 'pino-pretty',
         options: {
           translateTime: 'HH:MM:ss Z',
           ignore: 'pid,hostname',
+          colorize: true,
         },
       },
     },
-    ajv: {
-      customOptions: {
-        removeAdditional: 'all',
-        coerceTypes: true,
-        useDefaults: true,
-      },
-    },
+    ...options,
   });
-
-  // Register error handler
-  app.setErrorHandler(errorHandler);
 
   // Register plugins
   await app.register(cors, {
-    origin: env.CORS_ORIGIN || true,
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
   });
 
-  // Register Swagger documentation
-  await app.register(swagger, {
-    openapi: {
-      info: {
-        title: 'Success Kid Community API',
-        description: 'API for the Success Kid Community Platform',
-        version: '1.0.0',
-      },
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-          },
-        },
-      },
-    },
-  });
-  
-  await app.register(swaggerUi, {
-    routePrefix: '/documentation',
-  });
+  // Register Swagger
+  await app.register(swaggerPlugin);
 
-  // Initialize database connections
-  app.addHook('onReady', async () => {
-    // Initialize database connections on startup
-    try {
-      getPgPool();
-      getRedisClient();
-      app.log.info('Database connections initialized');
-    } catch (error) {
-      app.log.error('Failed to initialize database connections', error);
-    }
-  });
-
-  // Register API routes
-  await app.register(import('./api'), { prefix: '/api/v1' });
-
-  // Register WebSocket plugin
-  await app.register(import('./websockets'));
-
-  // Enhanced health check route
+  // Register routes
   app.get('/health', async () => {
-    const dbHealth = await checkDatabaseHealth();
-    
-    const status = dbHealth.postgres && dbHealth.redis ? 'healthy' : 'degraded';
-    
-    return { 
-      status,
-      timestamp: new Date().toISOString(),
-      checks: {
-        postgres: dbHealth.postgres ? 'connected' : 'disconnected',
-        redis: dbHealth.redis ? 'connected' : 'disconnected'
-      }
-    };
+    return { status: 'ok', timestamp: new Date().toISOString() };
   });
+
+  app.register(pointsRoutes, { prefix: '/api/v1/points' });
 
   return app;
 }
+
+export default buildApp;

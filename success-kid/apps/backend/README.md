@@ -1,112 +1,184 @@
-# Success Kid Community Platform - Backend
+# Success Kid Backend
 
-## Database & Storage Architecture
+This is the backend API service for the Success Kid Community Platform, built with Node.js, Fastify, and TypeScript.
 
-This document provides information about the database and storage architecture implemented for the Success Kid Community Platform.
+## Technology Stack
 
-### Database Configuration
+- **Node.js 22.3+** - Runtime environment
+- **Fastify 5.2+** - API framework
+- **TypeScript 5.4+** - Type safety
+- **PostgreSQL 17.2+** - Primary database
+- **Redis 8.2+** - Caching, pub/sub, job queues
+- **Clerk** - Authentication provider
+- **Web3.js** - Blockchain integration
 
-The platform uses two main data stores:
+## Getting Started
 
-1. **PostgreSQL** - Primary relational database
-   - Used for storing user data, content, points, achievements, etc.
-   - Connection pooling for efficient database operations
-   - Repository pattern for clean data access abstraction
+### Prerequisites
 
-2. **Redis** - In-memory data store
-   - Used for caching, pub/sub, and session management
-   - Fast key-value operations for high-performance features
-   - Supports real-time features and websocket communication
+- Node.js 22.3+
+- PNPM 8.15.0+
+- PostgreSQL 17.2+ (or Docker)
+- Redis 8.2+ (or Docker)
 
-### Environment Configuration
+### Development
 
-Database configuration is managed through environment variables:
-
-```env
-# PostgreSQL configuration
-DATABASE_URL=postgresql://dev:dev@localhost:5432/successKidPlatform
-DATABASE_POOL_SIZE=20  # Optional, defaults to 20
-
-# Redis configuration
-REDIS_URL=redis://localhost:6379
+1. Install dependencies
+```bash
+pnpm install
 ```
 
-### Schema Migration
+2. Set up environment variables
+```bash
+cp .env.example .env.local
+# Edit .env.local with your configuration
+```
 
-Database schema is managed through SQL migration files in the `migrations` directory:
+3. Run the development server
+```bash
+pnpm dev
+```
 
-- `001_initial_schema.sql` - Initial schema with core tables
-- More migration files will be added as the schema evolves
+4. The API will be available at [http://localhost:3001](http://localhost:3001)
 
-To run migrations:
+### Available Scripts
 
 ```bash
-# Run all pending migrations
-npm run migrate
+# Start development server
+pnpm dev
 
-# Create a new migration file (replace my_migration_name with a descriptive name)
-npm run migrate:create my_migration_name
+# Build for production
+pnpm build
+
+# Start production server
+pnpm start
+
+# Run tests
+pnpm test
+
+# Run linting
+pnpm lint
+
+# Run database migrations
+pnpm migrate
+
+# Create a new migration
+pnpm migrate:create migration_name
 ```
 
-### Data Models
-
-The platform includes the following core data models:
-
-- **Users** - Core user information
-- **Profiles** - Extended user information
-- **WalletConnections** - Connected cryptocurrency wallets
-- **Content** - User-created content (posts, etc.)
-- **Comments** - Responses to content
-- **UserPoints** - Success Points earned by users
-- **Achievements** - Predefined and user achievements
-- **ContentReactions** - Likes, upvotes, reactions
-- **Referrals** - User referral tracking
-
-### Repository Pattern
-
-Data access is implemented using the repository pattern:
-
-- **BaseRepository** - Abstract base class with common CRUD operations
-- **UserRepository** - User-specific data access
-- Additional repositories for other entities
-
-Example usage:
-
-```typescript
-import { createUserRepository } from './repositories';
-
-const userRepo = createUserRepository();
-const user = await userRepo.findById('user-123');
-```
-
-### Health Monitoring
-
-Database health can be monitored through the health API endpoint:
+## Project Structure
 
 ```
-GET /api/v1/health
+backend/
+├── src/
+│   ├── api/                  # API route handlers
+│   │   ├── auth/             # Authentication endpoints
+│   │   ├── content/          # Content management endpoints
+│   │   ├── points/           # Points system endpoints
+│   │   ├── users/            # User management endpoints
+│   │   └── wallet/           # Wallet integration endpoints
+│   ├── config/               # Application configuration
+│   ├── lib/                  # Shared utilities and helpers
+│   ├── middleware/           # HTTP middleware
+│   ├── models/               # Data models and schemas
+│   ├── plugins/              # Fastify plugins
+│   ├── repositories/         # Data access layer
+│   ├── services/             # Business logic services
+│   ├── websockets/           # WebSocket handlers
+│   └── app.ts                # Fastify app setup
+├── migrations/               # Database migrations
+└── openapi/                  # OpenAPI definitions
 ```
 
-Example response:
+## API Documentation
 
+API documentation is automatically generated using OpenAPI/Swagger:
+
+1. Start the development server
+```bash
+pnpm dev
+```
+
+2. Open [http://localhost:3001/documentation](http://localhost:3001/documentation) to see the API documentation
+
+## Environment Variables
+
+The following environment variables are required:
+
+- `PORT` - Server port (default: 3001)
+- `DATABASE_URL` - PostgreSQL connection string
+- `REDIS_URL` - Redis connection string
+- `CLERK_SECRET_KEY` - Clerk authentication secret key
+- `JWT_SECRET` - Secret for JWT token generation
+- `CORS_ORIGIN` - Allowed CORS origin
+
+Create a `.env.local` file in the backend directory with these variables for local development.
+
+## Database Migrations
+
+The project uses a simple SQL-based migration system:
+
+1. Create a new migration
+```bash
+pnpm migrate:create migration_name
+```
+
+2. Edit the newly created migration file in the `migrations` directory
+
+3. Run migrations
+```bash
+pnpm migrate
+```
+
+## WebSocket Support
+
+The backend provides WebSocket support for real-time features:
+
+- Connection endpoint: `ws://localhost:3001/ws`
+- Authentication using JWT token
+- Event-based message format:
 ```json
 {
-  "status": "healthy",
-  "timestamp": "2023-01-01T00:00:00.000Z",
-  "checks": {
-    "postgres": "connected",
-    "redis": "connected"
-  }
+  "event": "event_name",
+  "data": {},
+  "timestamp": "2025-03-12T12:00:00Z"
 }
 ```
 
-### Best Practices
+## Development Guidelines
 
-When working with the database:
+- Follow the established architectural patterns (repositories, services, controllers)
+- Use TypeScript for type safety
+- Document all API endpoints with OpenAPI annotations
+- Write tests for all new endpoints and services
+- Follow consistent error handling patterns
+- Maintain backward compatibility for API changes
+- Optimize database queries for performance
 
-1. Use repositories for all data access
-2. Use transactions for multi-operation consistency
-3. Implement proper error handling
-4. Follow the established patterns for new features
-5. Add indexes for frequently queried fields
-6. Create migration files for all schema changes
+## Error Handling
+
+The API uses a standardized error response format:
+
+```json
+{
+  "data": null,
+  "meta": {
+    "timestamp": "2025-03-12T12:00:00Z",
+    "requestId": "req_123456"
+  },
+  "errors": [
+    {
+      "code": "ERROR_CODE",
+      "message": "Human-readable error message",
+      "details": []
+    }
+  ]
+}
+```
+
+## Learn More
+
+- [Fastify Documentation](https://fastify.dev/docs/latest/)
+- [Node.js Documentation](https://nodejs.org/en/docs/)
+- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
+- [Project Documentation](../../docs)
