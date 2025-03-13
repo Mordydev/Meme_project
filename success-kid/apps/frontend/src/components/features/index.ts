@@ -16,14 +16,18 @@ export * from './community';
 // Onboarding components
 export * from './onboarding';
 
+// Achievement and Gamification components
+export * from './achievements';
+export * from './levels';
+export * from './leaderboard';
+export * from './analytics';
+
+// Profile components
+export * from './profile';
+
 // Create placeholder exports for components referenced in pages
 // These will be implemented as part of feature development tasks
 
-export const PointsSummary = () => null;
 export const MarketCapTracker = () => null;
 export const RecentActivity = () => null;
-export const LeaderboardPreview = () => null;
-export const ProfileDetails = () => null;
-export const UserActivity = () => null;
-export const UserAchievements = () => null;
 export const WalletConnection = () => null;

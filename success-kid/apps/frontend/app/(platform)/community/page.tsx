@@ -1,46 +1,85 @@
-import React from 'react';
-import { DashboardHeader } from '@/components/layout';
-import { PageLayout } from '@/components/layout';
-import { CategoryBrowser, FeedContainer } from '@/components/features/community';
+'use client';
+
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { PageLayout } from '@/components/layout';
+import { DashboardHeader } from '@/components/layout';
+import { 
+  CategoryBrowser,
+  FeedContainer,
+  CategoryList
+} from '@/components/features/community';
+import { ContentFeedType } from '@/types';
+import { useCategories } from '@/hooks/queries/useCommunity';
 
 /**
- * Community Page - The main hub for user-generated content and discussions
+ * Community Page - Main hub for community discussions and content
  */
 export default function CommunityPage() {
+  const router = useRouter();
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>();
+  const [feedType, setFeedType] = useState<ContentFeedType>('latest');
+  const { data: categories = [] } = useCategories();
+  
+  // Find selected category from the id
+  const selectedCategory = selectedCategoryId 
+    ? categories.find(c => c.id === selectedCategoryId) 
+    : undefined;
+  
+  // Handle create post button click
+  const handleCreatePost = () => {
+    router.push(`/community/create${selectedCategoryId ? `?category=${selectedCategoryId}` : ''}`);
+  };
+  
   return (
     <PageLayout>
       <DashboardHeader 
         title="Community" 
         description="Connect with fellow Success Kid members"
         action={
-          <Link href="/community/create">
-            <button className="px-4 py-2 bg-primary text-primary-foreground rounded-md">
-              Create Post
-            </button>
-          </Link>
+          <button 
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+            onClick={handleCreatePost}
+          >
+            Create Post
+          </button>
         }
       />
       
-      <div className="flex flex-col md:flex-row gap-6 mt-6">
-        {/* Category sidebar */}
-        <div className="w-full md:w-64 flex-shrink-0">
-          <div className="sticky top-6">
-            <h2 className="font-medium mb-3">Categories</h2>
-            <div className="bg-card border rounded-lg p-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+        {/* Sidebar with categories */}
+        <div className="md:col-span-1">
+          <div className="border rounded-lg p-4 bg-card sticky top-24">
+            <h2 className="font-semibold mb-4">Categories</h2>
+            
+            {/* Desktop: Full category browser */}
+            <div className="hidden md:block">
               <CategoryBrowser 
-                onSelect={(categoryId) => console.log('Selected category:', categoryId)}
+                selectedId={selectedCategoryId}
+                onSelect={setSelectedCategoryId}
+              />
+            </div>
+            
+            {/* Mobile: Simplified category list */}
+            <div className="md:hidden">
+              <CategoryList 
+                categories={categories}
+                selectedId={selectedCategoryId}
+                onCategorySelect={setSelectedCategoryId}
+                compact={true}
+                limit={6}
               />
             </div>
           </div>
         </div>
         
         {/* Main content area */}
-        <div className="flex-1 min-w-0">
+        <div className="md:col-span-3">
           <FeedContainer 
-            initialFeedType="latest"
-            onCreatePost={() => window.location.href = '/community/create'}
+            initialFeedType={feedType}
+            categoryId={selectedCategoryId}
+            category={selectedCategory}
+            onCreatePost={handleCreatePost}
           />
         </div>
       </div>

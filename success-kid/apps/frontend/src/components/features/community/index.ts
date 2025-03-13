@@ -1,19 +1,7 @@
-// Export all community feature components for easy importing
-
-// Category System
+// Export all community components
 export * from './CategorySystem';
-
-// Content Feed
-export * from './ContentFeed';
-
-// Post Detail
-export * from './PostDetail';
-
-// Comment System
 export * from './CommentSystem';
-
-// Content Creation
 export * from './ContentCreation';
-
-// Moderation Tools
+export * from './ContentFeed';
 export * from './ModerationTools';
+export * from './PostDetail';
