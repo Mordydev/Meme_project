@@ -10,6 +10,12 @@ export * from './notifications';
 export * from './points';
 export * from './real-time';
 export * from './market';
+export * from './redemption';
+export * from './referral';
+export * from './community';
+export * from './content-creation';
+export * from './leaderboard';
+export * from './competitions';
 
 // Create placeholder exports for components referenced in pages
 // These will be implemented as part of feature development tasks
@@ -17,9 +23,7 @@ export * from './market';
 export const PointsSummary = () => null;
 export const MarketCapTracker = () => null;
 export const RecentActivity = () => null;
-export const LeaderboardPreview = () => null;
 export const ContentFeed = () => null;
-export const CreatePostButton = () => null;
 export const ContentFilter = () => null;
 export const ProfileDetails = () => null;
 export const UserActivity = () => null;

@@ -7,6 +7,9 @@
 export * from './points';
 export * from './community';
 export * from './market';
+export * from './notifications';
+export * from './activity-feed';
+export * from './wallet';
 
 /**
  * API response wrapper type

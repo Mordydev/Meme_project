@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { WebSocketProvider } from './WebSocketProvider';
 import { NavigationProvider } from './NavigationProvider';
+import { NotificationProvider } from './NotificationProvider';
 import { AuthProvider } from '@/components/auth/providers/AuthProvider';
 
 interface ProvidersProps {
@@ -26,7 +27,9 @@ export function Providers({ children }: ProvidersProps) {
       <AuthProvider>
         <NavigationProvider>
           <WebSocketProvider>
-            {children}
+            <NotificationProvider>
+              {children}
+            </NotificationProvider>
           </WebSocketProvider>
         </NavigationProvider>
       </AuthProvider>

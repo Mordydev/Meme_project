@@ -6,5 +6,7 @@ export * from './input';
 export * from './Spinner';
 export * from './UserButton';
 export * from './tabs';
+export * from './toast';
+export * from './badge';
 
 // Add other components as they're created

@@ -5,3 +5,7 @@ export * from './useAchievements';
 export * from './useCategories';
 export * from './useFeed';
 export * from './useWebSocket';
+export * from './useNotifications';
+export * from './useActivityFeed';
+export * from './useReducedMotion';
+export * from './usePositionAnimation';

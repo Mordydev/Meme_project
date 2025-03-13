@@ -1,39 +1,14 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { apiClient } from '@/lib/api-client';
-
-/**
- * Leaderboard period types
- */
-export type LeaderboardPeriod = 'daily' | 'weekly' | 'monthly' | 'all-time';
-
-/**
- * Leaderboard category types
- */
-export type LeaderboardCategory = 'points' | 'achievements' | 'content' | 'referrals';
-
-/**
- * User ranking data
- */
-export interface UserRanking {
-  rank: number;
-  userId: string;
-  username: string;
-  displayName: string;
-  avatarUrl?: string;
-  level: number;
-  score: number;
-  change?: number; // Position change since last period
-}
-
-/**
- * User's personal rank
- */
-export interface UserRank {
-  rank: number;
-  score: number;
-  change?: number;
-}
+import { apiClient, AppError } from '@/lib/api-client';
+import {
+  LeaderboardCategory,
+  TimeFrame,
+  RankedUser,
+  CurrentUserRank,
+  RankHistoryPoint,
+  CategoryBreakdown,
+} from '@/types/leaderboard';
 
 /**
  * Pagination data
@@ -48,22 +23,38 @@ export interface Pagination {
  * Leaderboard store state
  */
 interface LeaderboardState {
-  rankings: UserRanking[];
-  userRank: UserRank | null;
+  // Global leaderboard data
+  rankings: RankedUser[];
+  userRank: CurrentUserRank | null;
   pagination: Pagination | null;
-  period: LeaderboardPeriod;
+  
+  // Filters and view settings
+  period: TimeFrame;
   category: LeaderboardCategory;
+  
+  // Personal ranking data
+  rankingHistory: RankHistoryPoint[];
+  categoryBreakdown: CategoryBreakdown;
+  
+  // Loading and error states
   isLoading: boolean;
+  isHistoryLoading: boolean;
   error: Error | null;
   
   // Actions
   fetchLeaderboard: (options?: {
-    period?: LeaderboardPeriod;
+    period?: TimeFrame;
     category?: LeaderboardCategory;
     limit?: number;
     offset?: number;
   }) => Promise<void>;
-  setPeriod: (period: LeaderboardPeriod) => void;
+  
+  fetchRankingHistory: (options?: {
+    category?: LeaderboardCategory;
+    period?: TimeFrame;
+  }) => Promise<void>;
+  
+  setPeriod: (period: TimeFrame) => void;
   setCategory: (category: LeaderboardCategory) => void;
   setPage: (page: number) => void;
   resetError: () => void;
@@ -75,12 +66,16 @@ interface LeaderboardState {
 export const useLeaderboardStore = create<LeaderboardState>()(
   devtools(
     (set, get) => ({
+      // Initial state
       rankings: [],
       userRank: null,
       pagination: null,
       period: 'weekly',
       category: 'points',
+      rankingHistory: [],
+      categoryBreakdown: {},
       isLoading: false,
+      isHistoryLoading: false,
       error: null,
       
       // Fetch leaderboard data
@@ -104,18 +99,18 @@ export const useLeaderboardStore = create<LeaderboardState>()(
         try {
           // Prepare query parameters
           const params = new URLSearchParams({
-            period,
+            timeframe: period,
             category,
             limit: limit.toString(),
             offset: offset.toString()
           });
           
-          const response = await apiClient.get(`/api/leaderboard?${params}`);
+          const response = await apiClient.get(`/api/v1/leaderboard?${params.toString()}`);
           
           if (response.data) {
             set({
               rankings: response.data.rankings,
-              userRank: response.data.userRank,
+              userRank: response.data.currentUser,
               pagination: response.data.pagination,
               isLoading: false,
             });
@@ -125,6 +120,41 @@ export const useLeaderboardStore = create<LeaderboardState>()(
           set({ 
             isLoading: false, 
             error: error instanceof Error ? error : new Error('Failed to fetch leaderboard')
+          });
+        }
+      },
+      
+      // Fetch personal ranking history
+      fetchRankingHistory: async (options) => {
+        const state = get();
+        
+        // Apply options or use current state
+        const category = options?.category || state.category;
+        const period = options?.period || 'monthly';
+        
+        set({ isHistoryLoading: true, error: null });
+        
+        try {
+          // Prepare query parameters
+          const params = new URLSearchParams({
+            category,
+            timeframe: period,
+          });
+          
+          const response = await apiClient.get(`/api/v1/leaderboard/history?${params.toString()}`);
+          
+          if (response.data) {
+            set({
+              rankingHistory: response.data.history,
+              categoryBreakdown: response.data.categories,
+              isHistoryLoading: false,
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching ranking history:', error);
+          set({ 
+            isHistoryLoading: false, 
+            error: error instanceof Error ? error : new Error('Failed to fetch ranking history')
           });
         }
       },
@@ -158,6 +188,9 @@ export const useLeaderboardStore = create<LeaderboardState>()(
       
       // Reset error state
       resetError: () => set({ error: null }),
-    })
+    }),
+    {
+      name: 'leaderboard-store',
+    }
   )
 );

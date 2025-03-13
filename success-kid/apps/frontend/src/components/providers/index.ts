@@ -7,3 +7,4 @@
 export * from './providers';
 export * from './WebSocketProvider';
 export * from './NavigationProvider';
+export * from './NotificationProvider';

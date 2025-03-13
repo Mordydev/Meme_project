@@ -7,3 +7,5 @@ export * from './useLeaderboardStore';
 export * from './useLevelStore';
 export * from './useAchievementStore';
 export * from './useNavigationStore';
+export * from './useNotificationStore';
+export * from './useCompetitionStore';
