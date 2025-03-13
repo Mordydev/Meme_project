@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useWalletStore, WalletType } from '@/store/useWalletStore';
 import { getWalletErrorMessage, categorizeWalletError, isWalletAvailable } from '@/lib/wallet-utils';
+import { createPhantomAdapter } from '@/lib/wallet-adapters/PhantomAdapter';
 import { AppError } from '@/lib/api-client';
 
 /**
@@ -16,8 +17,8 @@ export function useWallet() {
     connectionStep,
     selectedProvider,
     connectionError,
-    connect,
-    disconnect,
+    connect: connectStore,
+    disconnect: disconnectStore,
     fetchWalletData,
     fetchTransactions,
     setConnectionStep,
@@ -74,20 +75,70 @@ export function useWallet() {
   }, [wallet?.isConnected, fetchWalletData, fetchTransactions]);
   
   // Handle connection with error catching
-  const handleConnect = useCallback(async (provider?: WalletType) => {
+  const connect = useCallback(async (provider?: WalletType) => {
     try {
       // Reset any previous error state
       setConnectionError(null);
+      setConnectionStep('connecting');
       
-      // Attempt wallet connection
-      const success = await connect(provider);
+      const selectedWalletType = provider || availableProviders[0] || 'phantom';
       
-      if (success) {
-        // Fetch transactions after successful connection
+      // Currently only support Phantom wallet
+      // In a real implementation, this would check the provider and use the appropriate adapter
+      if (selectedWalletType === 'phantom') {
+        const phantomAdapter = createPhantomAdapter();
+        
+        // Check if wallet is available
+        if (!phantomAdapter.isAvailable()) {
+          const error = new AppError(
+            'Phantom wallet is not installed',
+            'WALLET_NOT_INSTALLED',
+            { provider: selectedWalletType },
+            400
+          );
+          setConnectionError(error);
+          setConnectionStep('error');
+          return false;
+        }
+        
+        // Step 1: Connect to wallet
+        setConnectionStep('connecting');
+        await phantomAdapter.connect();
+        
+        // Step 2: Initialize connection and verify
+        setConnectionStep('verification');
+        const result = await phantomAdapter.completeConnection();
+        
+        // Step 3: Update wallet state
+        const walletData = {
+          address: result.address,
+          isConnected: true,
+          isVerified: true,
+          balance: result.balance,
+          usdValue: result.balance * 0.1,
+          isHolder: result.isHolder,
+          connectedAt: new Date().toISOString()
+        };
+        
+        // Update store with wallet data
+        await connectStore(selectedWalletType);
+        
+        // Signal success
+        setConnectionStep('success');
+        
+        // Fetch transactions
         fetchTransactions();
+        
+        return true;
+      } else {
+        console.warn(`Wallet provider ${selectedWalletType} not yet implemented`);
+        // Fall back to mock implementation
+        const success = await connectStore(selectedWalletType);
+        if (success) {
+          fetchTransactions();
+        }
+        return success;
       }
-      
-      return success;
     } catch (error) {
       console.error('Wallet connection error:', error);
       
@@ -106,21 +157,29 @@ export function useWallet() {
       setConnectionStep('error');
       return false;
     }
-  }, [connect, fetchTransactions, setConnectionError, setConnectionStep]);
+  }, [availableProviders, connectStore, fetchTransactions, setConnectionError, setConnectionStep]);
   
   // Handle disconnection with error catching
-  const handleDisconnect = useCallback(async () => {
+  const disconnect = useCallback(async () => {
     try {
-      await disconnect();
+      // In a real implementation, would use the appropriate adapter
+      if (selectedProvider === 'phantom') {
+        const phantomAdapter = createPhantomAdapter();
+        if (phantomAdapter.isAvailable() && phantomAdapter.isConnected()) {
+          await phantomAdapter.disconnect();
+        }
+      }
+      
+      await disconnectStore();
       return true;
     } catch (error) {
       console.error('Wallet disconnection error:', error);
       return false;
     }
-  }, [disconnect]);
+  }, [disconnectStore, selectedProvider]);
   
   // Handle retrying connection
-  const retryConnection = useCallback(() => {
+  const retry = useCallback(() => {
     resetConnectionState();
   }, [resetConnectionState]);
   
@@ -146,9 +205,9 @@ export function useWallet() {
     selectedProvider,
     availableProviders,
     isMobile,
-    connect: handleConnect,
-    disconnect: handleDisconnect,
-    retry: retryConnection,
+    connect,
+    disconnect,
+    retry,
     copyAddress,
     fetchTransactions,
     refreshWallet: fetchWalletData

@@ -3,6 +3,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { WebSocketProvider } from './WebSocketProvider';
+import { NotificationProvider } from './NotificationProvider';
+import { ModalProvider } from './ModalProvider';
+import { ToastNotification } from '@/components/ui/toast-notification';
 import { useAuth } from '@clerk/nextjs';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useUserStore } from '@/store/useUserStore';
@@ -49,7 +52,11 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <WebSocketProvider>
-        {children}
+        <NotificationProvider>
+          {children}
+          <ModalProvider />
+          <ToastNotification position="top-right" limit={3} />
+        </NotificationProvider>
       </WebSocketProvider>
     </QueryClientProvider>
   );

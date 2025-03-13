@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { 
   Dialog, 
@@ -12,7 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/Spinner';
-import { WalletSelectorModal } from './WalletSelectorModal';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { WalletErrorRecovery } from './WalletErrorRecovery';
+import { MobileWalletConnection } from './MobileWalletConnection';
 import { getRecoverySteps } from '@/lib/wallet-utils';
 import { categorizeWalletError } from '@/lib/wallet-utils';
 
@@ -34,8 +36,13 @@ export function WalletConnectionFlow({
     connect,
     availableProviders,
     wallet,
-    retry
+    retry,
+    isMobile
   } = useWallet();
+  
+  const [connectionTab, setConnectionTab] = useState<'desktop' | 'mobile'>(
+    isMobile ? 'mobile' : 'desktop'
+  );
   
   // Handle success case
   useEffect(() => {
@@ -45,8 +52,19 @@ export function WalletConnectionFlow({
     }
   }, [connectionStep, wallet?.isConnected, onSuccess, onClose]);
   
+  // Handle desktop connection
+  const handleDesktopConnect = (provider) => {
+    connect(provider);
+  };
+  
+  // Handle mobile connection success
+  const handleMobileConnectSuccess = () => {
+    onSuccess?.();
+    onClose();
+  };
+  
   // Render appropriate content based on connection step
-  const renderContent = () => {
+  const renderDesktopContent = () => {
     switch (connectionStep) {
       case 'initial':
         return (
@@ -62,7 +80,7 @@ export function WalletConnectionFlow({
               {availableProviders.map((provider) => (
                 <button
                   key={provider}
-                  onClick={() => connect(provider)}
+                  onClick={() => handleDesktopConnect(provider)}
                   className="flex items-center rounded-lg border p-4 hover:bg-neutral-50 transition-colors"
                 >
                   <div className="h-10 w-10 flex-shrink-0 mr-4 bg-neutral-100 rounded-full flex items-center justify-center">
@@ -153,8 +171,6 @@ export function WalletConnectionFlow({
           categorizeWalletError(connectionError) : 
           'unknown';
         
-        const recoverySteps = getRecoverySteps(errorType);
-        
         return (
           <>
             <DialogHeader>
@@ -164,14 +180,11 @@ export function WalletConnectionFlow({
               </DialogDescription>
             </DialogHeader>
             
-            <div className="py-4">
-              <h4 className="font-medium mb-2">Try these steps:</h4>
-              <ol className="list-decimal pl-5 space-y-1 text-sm">
-                {recoverySteps.map((step, index) => (
-                  <li key={index}>{step}</li>
-                ))}
-              </ol>
-            </div>
+            <WalletErrorRecovery
+              errorType={errorType}
+              onRetry={retry}
+              className="my-4"
+            />
             
             <DialogFooter className="space-x-3">
               <Button
@@ -179,12 +192,6 @@ export function WalletConnectionFlow({
                 onClick={onClose}
               >
                 Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={retry}
-              >
-                Try Again
               </Button>
             </DialogFooter>
           </>
@@ -228,7 +235,32 @@ export function WalletConnectionFlow({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
-        {renderContent()}
+        {/* Show tabs if in initial state, otherwise show content based on step */}
+        {connectionStep === 'initial' ? (
+          <Tabs 
+            value={connectionTab} 
+            onValueChange={(value) => setConnectionTab(value as 'desktop' | 'mobile')}
+            className="w-full"
+          >
+            <TabsList className="grid grid-cols-2 mb-4">
+              <TabsTrigger value="desktop">Desktop</TabsTrigger>
+              <TabsTrigger value="mobile">Mobile</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="desktop">
+              {renderDesktopContent()}
+            </TabsContent>
+            
+            <TabsContent value="mobile">
+              <MobileWalletConnection
+                onConnect={handleMobileConnectSuccess}
+                onCancel={onClose}
+              />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          renderDesktopContent()
+        )}
       </DialogContent>
     </Dialog>
   );

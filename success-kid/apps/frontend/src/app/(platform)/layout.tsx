@@ -15,6 +15,8 @@ import { PageTransition } from '@/components/layout/PageTransition';
 import { NavigationSync } from '@/components/layout/NavigationSync';
 import { Notifications } from '@/components/features/notifications';
 import { PointsDisplay } from '@/components/features/points';
+import { MarketDataProvider } from '@/components/providers/market';
+import { MarketAlerts } from '@/components/features/market';
 
 // Navigation items
 const navigationItems = [
@@ -120,36 +122,42 @@ export default function PlatformLayout({
       {/* Synchronize navigation state */}
       <NavigationSync />
       
-      {/* Main Layout */}
-      <MainLayout
-        navigation={
-          <>
-            {/* Mobile Bottom Navigation */}
-            <BottomTabBar items={bottomTabItems} />
-            
-            {/* Desktop Sidebar Navigation */}
-            <NavigationContainer>
-              <Sidebar 
-                groups={navigationItems} 
-                logo={<Logo />}
-              />
-            </NavigationContainer>
-          </>
-        }
-        header={
-          <AppHeader
-            logo={<Logo />}
-            actions={headerActions}
-          />
-        }
-      >
-        {/* Main Content with Transition */}
-        <ContentContainer>
-          <PageTransition>
-            {children}
-          </PageTransition>
-        </ContentContainer>
-      </MainLayout>
+      {/* Market Data Provider */}
+      <MarketDataProvider>
+        {/* Market Alerts */}
+        <MarketAlerts />
+        
+        {/* Main Layout */}
+        <MainLayout
+          navigation={
+            <>
+              {/* Mobile Bottom Navigation */}
+              <BottomTabBar items={bottomTabItems} />
+              
+              {/* Desktop Sidebar Navigation */}
+              <NavigationContainer>
+                <Sidebar 
+                  groups={navigationItems} 
+                  logo={<Logo />}
+                />
+              </NavigationContainer>
+            </>
+          }
+          header={
+            <AppHeader
+              logo={<Logo />}
+              actions={headerActions}
+            />
+          }
+        >
+          {/* Main Content with Transition */}
+          <ContentContainer>
+            <PageTransition>
+              {children}
+            </PageTransition>
+          </ContentContainer>
+        </MainLayout>
+      </MarketDataProvider>
     </AppShellProvider>
   );
 }

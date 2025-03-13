@@ -21,7 +21,10 @@
     "@tailwindcss/postcss": "latest",
     "framer-motion": "^10.16.0",
     "@tanstack/react-query": "^5.8.0",
-    "class-variance-authority": "^0.7.0"
+    "class-variance-authority": "^0.7.0",
+    "recharts": "^2.9.3",
+    "d3-scale": "^4.0.2",
+    "date-fns": "^2.30.0"
   },
   "devDependencies": {
     "@storybook/addon-a11y": "^7.6.0",

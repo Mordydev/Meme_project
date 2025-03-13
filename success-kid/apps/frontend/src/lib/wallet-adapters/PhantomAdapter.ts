@@ -104,7 +104,7 @@ export class PhantomAdapter {
   /**
    * Sign a message to verify wallet ownership
    */
-  async signMessage(walletAddress: string): Promise<string> {
+  async signMessage(message: string): Promise<string> {
     if (!this.provider || !this.provider.isConnected) {
       throw new AppError(
         'Wallet not connected',
@@ -115,10 +115,6 @@ export class PhantomAdapter {
     }
     
     try {
-      // Create the message to sign
-      const timestamp = Date.now();
-      const message = createVerificationMessage(walletAddress, timestamp);
-      
       // Convert message to Uint8Array
       const encodedMessage = new TextEncoder().encode(message);
       
@@ -136,6 +132,112 @@ export class PhantomAdapter {
         400
       );
     }
+  }
+  
+  /**
+   * Initialize a wallet connection and get a message to sign
+   */
+  async initializeConnection(): Promise<{ sessionId: string; message: string }> {
+    try {
+      const response = await fetch('/api/v1/wallet/initialize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            walletType: 'phantom'
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to initialize wallet connection');
+      }
+      
+      const data = await response.json();
+      return {
+        sessionId: data.data.sessionId,
+        message: data.data.message
+      };
+    } catch (error) {
+      console.error('Error initializing wallet connection:', error);
+      throw new AppError(
+        'Failed to prepare wallet connection',
+        'WALLET_INITIALIZATION_FAILED',
+        { walletType: 'phantom', originalError: error },
+        500
+      );
+    }
+  }
+  
+  /**
+   * Verify a wallet connection with signature
+   */
+  async verifyConnection(sessionId: string, address: string, signature: string): Promise<boolean> {
+    try {
+      const response = await fetch('/api/v1/wallet/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            sessionId,
+            address,
+            signature
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to verify wallet connection');
+      }
+      
+      const data = await response.json();
+      return data.data.verified;
+    } catch (error) {
+      console.error('Error verifying wallet connection:', error);
+      throw new AppError(
+        'Failed to verify wallet connection',
+        'WALLET_VERIFICATION_FAILED',
+        { walletType: 'phantom', originalError: error },
+        500
+      );
+    }
+  }
+  
+  /**
+   * Complete wallet connection flow with verification
+   */
+  async completeConnection(): Promise<{ address: string; isHolder: boolean; balance: number }> {
+    // Step 1: Connect to wallet
+    const address = await this.connect();
+    
+    // Step 2: Initialize connection with server
+    const { sessionId, message } = await this.initializeConnection();
+    
+    // Step 3: Sign message
+    const signature = await this.signMessage(message);
+    
+    // Step 4: Verify signature with server
+    const isVerified = await this.verifyConnection(sessionId, address, signature);
+    
+    if (!isVerified) {
+      throw new AppError(
+        'Wallet verification failed',
+        'WALLET_VERIFICATION_FAILED',
+        { walletType: 'phantom' },
+        400
+      );
+    }
+    
+    // For now, use mock data
+    return {
+      address,
+      isHolder: true,
+      balance: 1250.75
+    };
   }
 }
 
