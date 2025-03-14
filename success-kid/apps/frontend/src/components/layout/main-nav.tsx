@@ -15,15 +15,23 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     label: 'Dashboard',
-    href: '/(platform)/dashboard',
+    href: '/dashboard',
   },
   {
     label: 'Community',
-    href: '/(platform)/community',
+    href: '/community',
+  },
+  {
+    label: 'Discover',
+    href: '/discover',
+  },
+  {
+    label: 'Search',
+    href: '/search',
   },
   {
     label: 'Profile',
-    href: '/(platform)/profile',
+    href: '/profile',
   },
 ];
 

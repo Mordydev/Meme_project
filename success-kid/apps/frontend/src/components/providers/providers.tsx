@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { WebSocketProvider } from './WebSocketProvider';
 import { NotificationProvider } from './NotificationProvider';
 import { ModalProvider } from './ModalProvider';
+import { PerformanceProvider } from './PerformanceProvider';
 import { ToastNotification } from '@/components/ui/toast-notification';
 import { useAuth } from '@clerk/nextjs';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -51,13 +52,15 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <WebSocketProvider>
-        <NotificationProvider>
-          {children}
-          <ModalProvider />
-          <ToastNotification position="top-right" limit={3} />
-        </NotificationProvider>
-      </WebSocketProvider>
+      <PerformanceProvider>
+        <WebSocketProvider>
+          <NotificationProvider>
+            {children}
+            <ModalProvider />
+            <ToastNotification position="top-right" limit={3} />
+          </NotificationProvider>
+        </WebSocketProvider>
+      </PerformanceProvider>
     </QueryClientProvider>
   );
 }

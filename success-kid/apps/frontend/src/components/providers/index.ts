@@ -8,3 +8,4 @@ export * from './providers';
 export * from './WebSocketProvider';
 export * from './NotificationProvider';
 export * from './ModalProvider';
+export * from './PerformanceProvider';

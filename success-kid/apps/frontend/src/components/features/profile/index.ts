@@ -8,3 +8,4 @@ export * from './ProfileEdit';
 export * from './ConnectionsList';
 export * from './PostsList';
 export * from './PointsHistory';
+export * from './ReferralSection';

@@ -2,10 +2,11 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { UserButton } from '@clerk/nextjs';
 import { cn } from '@/lib/utils';
 import { useAppShell } from '../AppShell';
+import { SearchButton } from '@/components/features/search';
 
 interface AppHeaderProps {
   logo: React.ReactNode;
@@ -69,6 +70,11 @@ export function AppHeader({
       
       {/* Actions area (right side) */}
       <div className="flex items-center space-x-2">
+        {/* Search button */}
+        {showSearch && (
+          <SearchButton className="mr-2" />
+        )}
+        
         {/* Custom actions */}
         {actions}
         

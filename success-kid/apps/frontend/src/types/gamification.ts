@@ -173,3 +173,121 @@ export interface GamificationAnalytics {
     progress: number;
   }>;
 }
+
+/**
+ * Competition Status
+ */
+export type CompetitionStatus = 'active' | 'upcoming' | 'past' | 'all';
+
+/**
+ * Competition Type
+ */
+export type CompetitionType = 'individual' | 'team';
+
+/**
+ * Participation Status
+ */
+export type ParticipationStatus = 'participating' | 'eligible' | 'ineligible';
+
+/**
+ * Competition Objective Type
+ */
+export type ObjectiveType = 'posts' | 'comments' | 'reactions' | 'referrals' | 'achievements' | 'custom';
+
+/**
+ * Competition Reward Type
+ */
+export type RewardType = 'points' | 'badge' | 'token';
+
+/**
+ * Competition Objective
+ */
+export interface CompetitionObjective {
+  id: string;
+  description: string;
+  type: ObjectiveType;
+  target: number;
+  currentProgress?: number;
+  completed?: boolean;
+}
+
+/**
+ * Competition Reward
+ */
+export interface CompetitionReward {
+  rank: number | string; // number for specific rank, string for ranges like "top 10"
+  type: RewardType;
+  value: number | string;
+  description: string;
+  imageUrl?: string;
+}
+
+/**
+ * Competition Ranking Entry
+ */
+export interface CompetitionRanking {
+  rank: number;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  score: number;
+  progress: Record<string, number>; // Objective progress
+}
+
+/**
+ * Competition Entry
+ */
+export interface Competition {
+  id: string;
+  title: string;
+  description: string;
+  status: 'active' | 'upcoming' | 'past';
+  type: CompetitionType;
+  startDate: string;
+  endDate: string;
+  rules?: string;
+  objectives: CompetitionObjective[];
+  rewards: CompetitionReward[];
+  participantCount: number;
+  leaderboard?: CompetitionRanking[];
+  userStatus?: ParticipationStatus;
+  userProgress?: {
+    isParticipating: boolean;
+    currentRank?: number;
+    score?: number;
+    progress?: Record<string, number>;
+  };
+  teamBased: boolean;
+}
+
+/**
+ * Team Member
+ */
+export interface TeamMember {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  joinedAt: string;
+  contribution: number; // Percentage of team score
+  score: number;
+}
+
+/**
+ * Team
+ */
+export interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  competitionId: string;
+  members: TeamMember[];
+  memberCount: number;
+  score: number;
+  rank?: number;
+  change?: number;
+  createdAt: string;
+  createdBy: string;
+  inviteCode?: string;
+}

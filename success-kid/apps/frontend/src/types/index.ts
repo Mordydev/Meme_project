@@ -7,6 +7,7 @@
 export * from './points';
 export * from './community';
 export * from './gamification';
+export * from './search';
 
 /**
  * API response wrapper type

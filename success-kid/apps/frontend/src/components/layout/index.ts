@@ -23,3 +23,6 @@ export { DashboardHeader } from './dashboard-header';
 
 // Navigation Sync
 export { NavigationSync } from './NavigationSync';
+
+// Mobile Optimization Components
+export * from './MobileOptimization';
