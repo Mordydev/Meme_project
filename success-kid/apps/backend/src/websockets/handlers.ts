@@ -1,85 +1,107 @@
-import { FastifyRequest } from 'fastify';
+/**
+ * WebSocket Event Handlers
+ * 
+ * Handlers for different WebSocket event types.
+ */
 import { WebSocket } from 'ws';
 import { logger } from '../lib/logger';
+import { handleWebSocketError } from '../errors/handlers';
 
 /**
- * Parse and process incoming WebSocket messages
+ * Handle ping event from client
+ * 
  * @param socket WebSocket connection
- * @param userId User identifier (null if not authenticated)
- * @param message Raw message from client
+ * @param payload Ping message payload
  */
-export function processMessage(socket: WebSocket, userId: string | null, message: string) {
+export function handlePing(socket: WebSocket, payload: any): void {
   try {
-    const parsedMessage = JSON.parse(message);
-    
-    // Handle different message types
-    switch (parsedMessage.type) {
-      case 'ping':
-        // Simple ping-pong for connection health checks
-        socket.send(JSON.stringify({ type: 'pong' }));
-        break;
-        
-      case 'subscribe':
-        // Handle channel subscription for targeted updates
-        if (parsedMessage.channels && Array.isArray(parsedMessage.channels)) {
-          logger.info(`User ${userId} subscribing to channels:`, parsedMessage.channels);
-          // In a real implementation, this would register subscriptions to specific channels
-          socket.send(JSON.stringify({
-            type: 'subscribe:confirmation',
-            data: {
-              channels: parsedMessage.channels,
-              timestamp: new Date().toISOString()
-            }
-          }));
-        }
-        break;
-        
-      default:
-        logger.warn(`Unknown message type: ${parsedMessage.type}`);
-        socket.send(JSON.stringify({
-          type: 'error',
-          data: {
-            message: 'Unknown message type',
-            code: 'UNKNOWN_MESSAGE_TYPE'
-          }
-        }));
-    }
+    // Respond with pong message to maintain connection
+    socket.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
   } catch (error) {
-    logger.error('Error processing WebSocket message', error);
-    socket.send(JSON.stringify({
-      type: 'error',
-      data: { 
-        message: 'Invalid message format',
-        code: 'INVALID_FORMAT' 
-      }
-    }));
+    handleWebSocketError(socket, error);
   }
 }
 
 /**
- * Authenticate a WebSocket connection from the request
- * @param request Fastify request object
- * @returns User ID if authenticated, null otherwise
+ * Handle user typing indicator
+ * 
+ * @param socket WebSocket connection
+ * @param payload Typing indicator payload
+ * @param userId User ID from authenticated connection
  */
-export function authenticateConnection(request: FastifyRequest): string | null {
-  // In production, this would verify a token from the request
-  // and extract the user ID from it
-  
-  if (request.headers.authorization) {
-    try {
-      // This is a simplified example - in production would verify JWT token
-      const token = request.headers.authorization.replace('Bearer ', '');
-      
-      // Mock user extraction - in production would decode JWT
-      if (token && token !== 'invalid') {
-        // Simplified user extraction from token for demonstration
-        return token.includes('user_') ? token : `user_${Math.floor(Math.random() * 1000)}`;
-      }
-    } catch (error) {
-      logger.error('WebSocket authentication error', error);
-    }
+export function handleTyping(socket: WebSocket, payload: any, userId: string): void {
+  try {
+    // This would normally broadcast to other users in a chat or content thread
+    // But here we'll just log for demonstration
+    logger.debug('User typing indicator', { userId, contentId: payload.contentId, isTyping: payload.isTyping });
+  } catch (error) {
+    handleWebSocketError(socket, error);
   }
+}
 
-  // No valid authentication
-  return null;
+/**
+ * Handle content reaction
+ * 
+ * @param socket WebSocket connection
+ * @param payload Reaction payload
+ * @param userId User ID from authenticated connection
+ */
+export function handleReaction(socket: WebSocket, payload: any, userId: string): void {
+  try {
+    // This would normally store the reaction and notify other users
+    // But here we'll just log for demonstration
+    logger.debug('Content reaction', { 
+      userId, 
+      contentId: payload.contentId, 
+      reactionType: payload.reactionType 
+    });
+    
+    // Acknowledge successful reaction
+    socket.send(JSON.stringify({
+      type: 'reaction:success',
+      payload: {
+        contentId: payload.contentId,
+        reactionType: payload.reactionType
+      }
+    }));
+  } catch (error) {
+    handleWebSocketError(socket, error);
+  }
+}
+
+/**
+ * Process WebSocket message based on message type
+ * 
+ * @param socket WebSocket connection
+ * @param message Parsed message object
+ * @param userId User ID from authenticated connection
+ */
+export function processMessage(socket: WebSocket, message: any, userId: string): void {
+  // Validate message format
+  if (!message || !message.type) {
+    handleWebSocketError(socket, new Error('Invalid message format'));
+    return;
+  }
+  
+  // Route to appropriate handler based on message type
+  switch (message.type) {
+    case 'ping':
+      handlePing(socket, message.payload);
+      break;
+    
+    case 'user:typing':
+      handleTyping(socket, message.payload, userId);
+      break;
+    
+    case 'content:reaction':
+      handleReaction(socket, message.payload, userId);
+      break;
+    
+    default:
+      logger.warn(`Unknown WebSocket message type: ${message.type}`, { userId });
+      socket.send(JSON.stringify({
+        type: 'error',
+        payload: { message: `Unsupported message type: ${message.type}` }
+      }));
+  }
 }

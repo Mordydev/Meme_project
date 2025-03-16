@@ -1,61 +1,107 @@
 /**
- * Health Check Routes
+ * Health API Routes
  * 
- * Routes for checking the health of the system, including database connections.
+ * API endpoints for health checks and monitoring.
  */
-import { FastifyPluginAsync } from 'fastify';
-import { checkDatabaseHealth } from '../../lib/db-client';
+import { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from 'fastify';
+import { 
+  checkDatabaseConnection, 
+  checkRedisConnection, 
+  checkDiskSpace, 
+  checkMemoryUsage, 
+  getAppVersion 
+} from '../../health/checks';
+import { monitoringService } from '../../health/monitoring';
+import { logger } from '../../lib/logger';
 
-const healthRoutes: FastifyPluginAsync = async (fastify) => {
-  /**
-   * @openapi
-   * /api/v1/health:
-   *   get:
-   *     summary: Check system health
-   *     description: Check the health of the API, database, and Redis connections
-   *     tags: [System]
-   *     responses:
-   *       200:
-   *         description: System health information
-   *         content:
-   *           application/json:
-   *             schema:
-   *               type: object
-   *               properties:
-   *                 status:
-   *                   type: string
-   *                   enum: [healthy, degraded]
-   *                   example: healthy
-   *                 timestamp:
-   *                   type: string
-   *                   format: date-time
-   *                   example: 2023-01-01T00:00:00.000Z
-   *                 checks:
-   *                   type: object
-   *                   properties:
-   *                     postgres:
-   *                       type: string
-   *                       enum: [connected, disconnected]
-   *                       example: connected
-   *                     redis:
-   *                       type: string
-   *                       enum: [connected, disconnected]
-   *                       example: connected
-   */
-  fastify.get('/', async () => {
-    const dbHealth = await checkDatabaseHealth();
-    
-    const status = dbHealth.postgres && dbHealth.redis ? 'healthy' : 'degraded';
-    
-    return { 
-      status,
+/**
+ * Health Routes Plugin
+ */
+export default async function(fastify: FastifyInstance, options: FastifyPluginOptions): Promise<void> {
+  // Simple health check for load balancers
+  fastify.get('/health', async (request: FastifyRequest, reply: FastifyReply) => {
+    return {
+      status: 'healthy',
       timestamp: new Date().toISOString(),
-      checks: {
-        postgres: dbHealth.postgres ? 'connected' : 'disconnected',
-        redis: dbHealth.redis ? 'connected' : 'disconnected'
-      }
     };
   });
-};
-
-export default healthRoutes;
+  
+  // Detailed health check with dependency status
+  fastify.get('/health/detailed', async (request: FastifyRequest, reply: FastifyReply) => {
+    // Run all health checks in parallel
+    const [database, redis, disk, memory] = await Promise.all([
+      checkDatabaseConnection(),
+      checkRedisConnection(),
+      checkDiskSpace(),
+      checkMemoryUsage(),
+    ]);
+    
+    // Determine overall status
+    const checks = { database, redis, disk, memory };
+    const isHealthy = Object.values(checks).every(check => check.status === 'healthy');
+    
+    // Set appropriate status code
+    const statusCode = isHealthy ? 200 : 503;
+    
+    return reply.code(statusCode).send({
+      status: isHealthy ? 'healthy' : 'unhealthy',
+      version: getAppVersion(),
+      environment: process.env.NODE_ENV || 'development',
+      checks,
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    });
+  });
+  
+  // Monitoring metrics (for internal use, should be protected in production)
+  fastify.get('/metrics', async (request: FastifyRequest, reply: FastifyReply) => {
+    // In production, this should be restricted to authorized users or monitoring systems
+    if (process.env.NODE_ENV === 'production') {
+      // Check for authorization (implementation will depend on auth system)
+      const isAuthorized = request.headers['x-api-key'] === process.env.METRICS_API_KEY;
+      
+      if (!isAuthorized) {
+        return reply.code(401).send({
+          error: 'Unauthorized access to metrics',
+        });
+      }
+    }
+    
+    // Get monitoring metrics
+    const summary = monitoringService.getSummaryMetrics();
+    const routeMetrics = request.query.detailed === 'true' 
+      ? monitoringService.getAllMetrics() 
+      : undefined;
+    
+    return {
+      summary,
+      routes: routeMetrics,
+      timestamp: new Date().toISOString(),
+    };
+  });
+  
+  // Reset monitoring metrics (admin only)
+  fastify.post('/metrics/reset', async (request: FastifyRequest, reply: FastifyReply) => {
+    // In production, this should be restricted to authorized administrators
+    if (process.env.NODE_ENV === 'production') {
+      // Check for authorization (implementation will depend on auth system)
+      const isAuthorized = request.headers['x-api-key'] === process.env.ADMIN_API_KEY;
+      
+      if (!isAuthorized) {
+        return reply.code(401).send({
+          error: 'Unauthorized access to reset metrics',
+        });
+      }
+    }
+    
+    // Reset metrics
+    monitoringService.resetMetrics();
+    logger.info('Monitoring metrics reset');
+    
+    return {
+      success: true,
+      message: 'Monitoring metrics reset successfully',
+      timestamp: new Date().toISOString(),
+    };
+  });
+}

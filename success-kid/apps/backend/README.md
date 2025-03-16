@@ -1,70 +1,88 @@
-# Success Kid Backend
+# Success Kid Community Platform - Backend API
 
-This is the backend API service for the Success Kid Community Platform, built with Node.js, Fastify, and TypeScript.
+This is the backend API for the Success Kid Community Platform. It provides a robust, scalable, and secure API for the platform's frontend, designed to support high performance, real-time features, and a seamless user experience.
+
+## Features
+
+- RESTful API with WebSocket support for real-time updates
+- Points system with transaction management
+- Feature flag system for controlled feature rollout
+- Health check and monitoring for operational visibility
+- Repository pattern for data access
+- Error handling framework with standardized responses
+- Environment configuration with validation
+- Transaction verification for idempotent operations
+- Database connection pooling and Redis integration
+- Docker development environment
 
 ## Technology Stack
 
-- **Node.js 22.3+** - Runtime environment
-- **Fastify 5.2+** - API framework
-- **TypeScript 5.4+** - Type safety
-- **PostgreSQL 17.2+** - Primary database
-- **Redis 8.2+** - Caching, pub/sub, job queues
-- **Clerk** - Authentication provider
-- **Web3.js** - Blockchain integration
+- **Node.js 22.3+**: Modern JavaScript runtime
+- **Fastify 5.2+**: High-performance web framework
+- **TypeScript 5.4+**: Type-safe JavaScript
+- **PostgreSQL 17.2+**: Relational database
+- **Redis 8.2+**: Caching, pub/sub, job queues
+- **Clerk 5.3+**: Authentication
+- **Web3.js 4.0+**: Blockchain integration
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 22.3+
-- PNPM 8.15.0+
-- PostgreSQL 17.2+ (or Docker)
-- Redis 8.2+ (or Docker)
+- pnpm 9.0+
+- Docker and Docker Compose (for development environment)
 
-### Development
+### Using Docker (Recommended)
 
-1. Install dependencies
+1. Clone the repository and navigate to the project root:
+
+```bash
+git clone https://github.com/your-org/success-kid-platform.git
+cd success-kid-platform
+```
+
+2. Start the development environment:
+
+```bash
+cd docker/development
+docker-compose up
+```
+
+This will start the backend API, PostgreSQL, and Redis in containers, with hot reloading enabled for development.
+
+### Manual Setup
+
+1. Clone the repository and navigate to the project root:
+
+```bash
+git clone https://github.com/your-org/success-kid-platform.git
+cd success-kid-platform
+```
+
+2. Install dependencies:
+
 ```bash
 pnpm install
 ```
 
-2. Set up environment variables
-```bash
-cp .env.example .env.local
-# Edit .env.local with your configuration
-```
-
-3. Run the development server
-```bash
-pnpm dev
-```
-
-4. The API will be available at [http://localhost:3001](http://localhost:3001)
-
-### Available Scripts
+3. Set up environment variables:
 
 ```bash
-# Start development server
-pnpm dev
-
-# Build for production
-pnpm build
-
-# Start production server
-pnpm start
-
-# Run tests
-pnpm test
-
-# Run linting
-pnpm lint
-
-# Run database migrations
-pnpm migrate
-
-# Create a new migration
-pnpm migrate:create migration_name
+cp apps/backend/.env.example apps/backend/.env.local
 ```
+
+4. Start PostgreSQL and Redis locally or configure environment variables to point to existing instances.
+
+5. Start the development server:
+
+```bash
+pnpm --filter @success-kid/backend dev
+```
+
+## API Documentation
+
+API documentation is available at `/documentation` endpoint when the server is running. It provides an interactive Swagger UI for exploring the API.
 
 ## Project Structure
 
@@ -72,113 +90,89 @@ pnpm migrate:create migration_name
 backend/
 ├── src/
 │   ├── api/                  # API route handlers
-│   │   ├── auth/             # Authentication endpoints
-│   │   ├── content/          # Content management endpoints
-│   │   ├── points/           # Points system endpoints
-│   │   ├── users/            # User management endpoints
-│   │   └── wallet/           # Wallet integration endpoints
+│   │   ├── health/           # Health check routes
+│   │   ├── features/         # Feature flag routes
+│   │   └── points/           # Points system routes
 │   ├── config/               # Application configuration
-│   ├── lib/                  # Shared utilities and helpers
+│   │   ├── index.ts          # Configuration exports
+│   │   ├── environment.ts    # Environment variables
+│   │   ├── database.ts       # Database configuration
+│   │   └── redis.ts          # Redis configuration
+│   ├── errors/               # Error handling framework
+│   │   ├── base-error.ts     # Base error classes
+│   │   ├── api-errors.ts     # API-specific errors
+│   │   ├── handlers.ts       # Error handlers
+│   │   └── serializers.ts    # Error serialization
+│   ├── health/               # Health check and monitoring
+│   │   ├── checks.ts         # Health check implementations
+│   │   └── monitoring.ts     # System monitoring utilities
+│   ├── lib/                  # Shared utilities
+│   │   ├── db-client.ts      # Database client singletons
+│   │   └── logger.ts         # Logging utility
 │   ├── middleware/           # HTTP middleware
+│   │   ├── transaction-verification.ts  # Idempotent operations
+│   │   └── feature-flag-middleware.ts   # Feature flag checks
 │   ├── models/               # Data models and schemas
 │   ├── plugins/              # Fastify plugins
+│   │   ├── database/         # Database plugin
+│   │   ├── redis/            # Redis plugin
+│   │   └── swagger.ts        # API documentation plugin
 │   ├── repositories/         # Data access layer
+│   │   ├── base-repository.ts # Base repository class
+│   │   └── points-repository.ts # Points repository
 │   ├── services/             # Business logic services
+│   │   └── feature-flag-service.ts # Feature flag service
 │   ├── websockets/           # WebSocket handlers
-│   └── app.ts                # Fastify app setup
-├── migrations/               # Database migrations
-└── openapi/                  # OpenAPI definitions
+│   │   ├── connection-manager.ts # Connection management
+│   │   ├── auth.ts           # WebSocket authentication
+│   │   ├── handlers.ts       # WebSocket event handlers
+│   │   └── plugin.ts         # WebSocket Fastify plugin
+│   ├── app.ts                # Fastify app setup
+│   ├── server.ts             # Server entry point
+│   └── index.ts              # Application entry point
+├── test/                     # Test files
+└── package.json              # Package dependencies
 ```
 
-## API Documentation
+## Development Workflow
 
-API documentation is automatically generated using OpenAPI/Swagger:
+### Code Quality
 
-1. Start the development server
-```bash
-pnpm dev
-```
+- **Linting**: Run `pnpm lint` to check for code quality issues
+- **Type Checking**: Run `pnpm type-check` to verify TypeScript types
+- **Testing**: Run `pnpm test` to run tests
 
-2. Open [http://localhost:3001/documentation](http://localhost:3001/documentation) to see the API documentation
+### Database Migrations
 
-## Environment Variables
+Migrations are located in the `migrations` directory and can be run using:
 
-The following environment variables are required:
-
-- `PORT` - Server port (default: 3001)
-- `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string
-- `CLERK_SECRET_KEY` - Clerk authentication secret key
-- `JWT_SECRET` - Secret for JWT token generation
-- `CORS_ORIGIN` - Allowed CORS origin
-
-Create a `.env.local` file in the backend directory with these variables for local development.
-
-## Database Migrations
-
-The project uses a simple SQL-based migration system:
-
-1. Create a new migration
-```bash
-pnpm migrate:create migration_name
-```
-
-2. Edit the newly created migration file in the `migrations` directory
-
-3. Run migrations
 ```bash
 pnpm migrate
 ```
 
-## WebSocket Support
+To create a new migration:
 
-The backend provides WebSocket support for real-time features:
-
-- Connection endpoint: `ws://localhost:3001/ws`
-- Authentication using JWT token
-- Event-based message format:
-```json
-{
-  "event": "event_name",
-  "data": {},
-  "timestamp": "2025-03-12T12:00:00Z"
-}
+```bash
+pnpm migrate:create migration-name
 ```
 
-## Development Guidelines
+### API Documentation
 
-- Follow the established architectural patterns (repositories, services, controllers)
-- Use TypeScript for type safety
-- Document all API endpoints with OpenAPI annotations
-- Write tests for all new endpoints and services
-- Follow consistent error handling patterns
-- Maintain backward compatibility for API changes
-- Optimize database queries for performance
+API documentation is automatically generated using OpenAPI/Swagger annotations in the route handlers. You can access the documentation by navigating to `/documentation` when the server is running.
 
-## Error Handling
+## Environment Variables
 
-The API uses a standardized error response format:
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NODE_ENV` | Environment (development, test, production) | `development` |
+| `PORT` | Server port | `3001` |
+| `HOST` | Server host | `0.0.0.0` |
+| `CORS_ORIGIN` | CORS allowed origins | `*` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://dev:dev@localhost:5432/successKidPlatform` |
+| `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
+| `JWT_SECRET` | Secret for JWT signing | `dev-jwt-secret` (in development) |
+| `LOG_LEVEL` | Logging level | `info` in production, `debug` in development |
 
-```json
-{
-  "data": null,
-  "meta": {
-    "timestamp": "2025-03-12T12:00:00Z",
-    "requestId": "req_123456"
-  },
-  "errors": [
-    {
-      "code": "ERROR_CODE",
-      "message": "Human-readable error message",
-      "details": []
-    }
-  ]
-}
-```
+## License
 
-## Learn More
-
-- [Fastify Documentation](https://fastify.dev/docs/latest/)
-- [Node.js Documentation](https://nodejs.org/en/docs/)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
-- [Project Documentation](../../docs)
+This project is licensed under the MIT License - see the LICENSE file for details.

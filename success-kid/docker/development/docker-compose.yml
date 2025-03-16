@@ -1,59 +1,57 @@
 version: '3.8'
-
 services:
+  backend:
+    build:
+      context: ../../
+      dockerfile: docker/development/Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgresql://dev:dev@postgres:5432/successKidPlatform
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-jwt-secret
+      - CORS_ORIGIN=http://localhost:3000
+    volumes:
+      - ../../:/app
+      - /app/node_modules
+      - /app/apps/backend/node_modules
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+      - redis
+    command: pnpm --filter @success-kid/backend dev
+
   postgres:
     image: postgres:17.2
-    container_name: sk_postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-dev}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev}
-      POSTGRES_DB: ${POSTGRES_DB:-successKidPlatform}
-    ports:
-      - "5432:5432"
+      - POSTGRES_USER=dev
+      - POSTGRES_PASSWORD=dev
+      - POSTGRES_DB=successKidPlatform
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres-init:/docker-entrypoint-initdb.d
+      - ../../docker/development/init-scripts/postgres:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dev} -d ${POSTGRES_DB:-successKidPlatform}"]
+      test: ["CMD-SHELL", "pg_isready -U dev -d successKidPlatform"]
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
 
   redis:
     image: redis:8.2
-    container_name: sk_redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
-
-  # Uncomment to add pgadmin for database management
-  # pgadmin:
-  #   image: dpage/pgadmin4
-  #   container_name: sk_pgadmin
-  #   environment:
-  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@successkid.com}
-  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-  #   ports:
-  #     - "5050:80"
-  #   depends_on:
-  #     - postgres
-  #   restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
-
-networks:
-  default:
-    name: success-kid-network
