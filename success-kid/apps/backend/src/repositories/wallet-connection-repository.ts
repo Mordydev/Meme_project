@@ -147,6 +147,23 @@ export class WalletConnectionRepository extends BaseRepository<WalletConnection>
   /**
    * Count wallet connections (optionally filtered by verified status)
    */
+  /**
+   * Check if a user has any connected wallets
+   * @param userId User ID to check
+   * @returns True if the user has at least one wallet connection
+   */
+  async hasConnections(userId: string): Promise<boolean> {
+    try {
+      const query = 'SELECT EXISTS(SELECT 1 FROM wallet_connections WHERE user_id = $1) as has_connections';
+      const result = await this.db.query<{ has_connections: boolean }>(query, [userId]);
+      
+      return result.rows[0]?.has_connections || false;
+    } catch (error) {
+      logger.error('Error checking if user has wallet connections', { error, userId });
+      throw error;
+    }
+  }
+
   async countWalletConnections(
     options: { verified?: boolean; daysAgo?: number } = {}
   ): Promise<number> {

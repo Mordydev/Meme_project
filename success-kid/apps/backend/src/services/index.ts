@@ -9,3 +9,4 @@ export * from './profile-service';
 export * from './session-service';
 export * from './user-service';
 export * from './points';
+export * from './wallet';

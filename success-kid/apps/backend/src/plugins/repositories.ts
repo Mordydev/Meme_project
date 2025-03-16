@@ -22,6 +22,7 @@ import { RoleRepository } from '../repositories/role-repository';
 import { CategoryRepository } from '../repositories/category-repository';
 import { TagRepository } from '../repositories/tag-repository';
 import { ContentReportRepository } from '../repositories/content-report-repository';
+import { MediaRepository, MediaPermissionRepository } from '../repositories/media';
 
 // Declare custom types for Fastify instance
 declare module 'fastify' {
@@ -41,6 +42,8 @@ declare module 'fastify' {
         categories: CategoryRepository;
         tags: TagRepository;
         contentReports: ContentReportRepository;
+        media: MediaRepository;
+        mediaPermissions: MediaPermissionRepository;
       };
     };
   }
@@ -56,10 +59,21 @@ const repositoriesPlugin: FastifyPluginAsync = async (fastify) => {
     throw new Error('Database connection failed');
   }
   
+  // Initialize media repositories
+  const mediaRepository = new MediaRepository(db.pool);
+  const mediaPermissionRepository = new MediaPermissionRepository(db.pool);
+
+  // Extend repositories with media repositories
+  const allRepositories = {
+    ...db.repositories,
+    media: mediaRepository,
+    mediaPermissions: mediaPermissionRepository
+  };
+
   // Decorate fastify instance with database and repositories
   fastify.decorate('db', {
     pool: db.pool,
-    repositories: db.repositories
+    repositories: allRepositories
   });
   
   // Add hook to close database connection on server close

@@ -12,6 +12,8 @@ import servicesPlugin from './plugins/services';
 import websocketsPlugin from './websockets';
 import pointsRoutes from './api/points';
 import contentRoutes from './api/content';
+import mediaRoutes from './api/media';
+import marketRoutes from './api/market';
 
 export async function buildApp(options = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -106,6 +108,8 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   // Register routes
   app.register(pointsRoutes, { prefix: '/api/v1' });
   app.register(contentRoutes, { prefix: '/api/v1/content' });
+  app.register(mediaRoutes, { prefix: '/api/v1/media' });
+  app.register(marketRoutes, { prefix: '/api/v1/market' });
 
   return app;
 }

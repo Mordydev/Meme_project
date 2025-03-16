@@ -24,7 +24,13 @@ export enum EventType {
   CONTENT_REPORTED = 'content.reported',
   LEVEL_UP = 'user.levelUp',
   WALLET_CONNECTED = 'wallet.connected',
-  MILESTONE_REACHED = 'milestone.reached'
+  MILESTONE_REACHED = 'milestone.reached',
+  
+  // Market data events
+  PRICE_UPDATED = 'price.updated',
+  MARKET_CAP_UPDATED = 'marketcap.updated',
+  TRANSACTION_DETECTED = 'transaction.detected',
+  MARKET_MILESTONE_REACHED = 'market.milestone.reached'
 }
 
 /**

@@ -4,56 +4,101 @@
  */
 import { z } from 'zod';
 
-// Define the achievement difficulty enum
-export const AchievementDifficultyEnum = z.enum(['common', 'uncommon', 'rare', 'epic', 'legendary']);
+// Define achievement difficulty levels
+export const AchievementDifficultyEnum = z.enum([
+  'common',
+  'uncommon',
+  'rare',
+  'epic'
+]);
 export type AchievementDifficulty = z.infer<typeof AchievementDifficultyEnum>;
 
-// Achievement requirements schema
-export const achievementRequirementsSchema = z.object({
-  criterion: z.string(),
-  value: z.number().or(z.string()),
-  operator: z.enum(['equals', 'greater_than', 'less_than', 'contains']).optional(),
-}).array();
+// Define achievement category types
+export const AchievementCategoryEnum = z.enum([
+  'content',
+  'engagement',
+  'profile',
+  'wallet',
+  'community',
+  'referral',
+  'milestone',
+  'special'
+]);
+export type AchievementCategory = z.infer<typeof AchievementCategoryEnum>;
+
+// Achievement criteria type
+export const AchievementCriteriaTypeEnum = z.enum([
+  'count',           // Count of actions (e.g., create 10 posts)
+  'streak',          // Consecutive actions (e.g., login 7 days in a row)
+  'threshold',       // Reach a specific value (e.g., 1000 points)
+  'milestone',       // One-time event (e.g., connect wallet)
+  'combination',     // Multiple conditions (e.g., 100 points AND 5 posts)
+  'duration',        // Time-based (e.g., member for 30 days)
+  'quality',         // Quality metrics (e.g., 10 posts with 5+ upvotes)
+  'special'          // Special criteria with custom logic
+]);
+export type AchievementCriteriaType = z.infer<typeof AchievementCriteriaTypeEnum>;
+
+// Achievement trigger events
+export const AchievementTriggerEnum = z.enum([
+  'content.created',
+  'comment.created',
+  'points.awarded',
+  'points.redeemed',
+  'wallet.connected',
+  'profile.updated',
+  'user.login',
+  'user.referral',
+  'market.milestone.reached',
+  'user.levelUp',
+  'reaction.received',
+  'manual'  // For admin-triggered achievements
+]);
+export type AchievementTrigger = z.infer<typeof AchievementTriggerEnum>;
+
+// Achievement criteria schema
+export const achievementCriteriaSchema = z.object({
+  type: AchievementCriteriaTypeEnum,
+  trigger: AchievementTriggerEnum,
+  threshold: z.number().int().positive().optional(),
+  timeframe: z.number().int().optional(), // In days, if applicable
+  metadata: z.record(z.string(), z.any()).optional()
+});
+export type AchievementCriteria = z.infer<typeof achievementCriteriaSchema>;
 
 // Achievement schema with validation
 export const achievementSchema = z.object({
   id: z.string().uuid(),
-  name: z.string().min(3).max(255),
-  description: z.string().max(1000),
+  name: z.string().min(2).max(100),
+  description: z.string().max(500),
   image_url: z.string().url().nullable(),
-  points_reward: z.number().int().min(0),
+  category: AchievementCategoryEnum,
   difficulty: AchievementDifficultyEnum,
-  requirements: achievementRequirementsSchema
+  points_reward: z.number().int().nonnegative(),
+  criteria: z.array(achievementCriteriaSchema),
+  created_at: z.coerce.date(),
+  updated_at: z.coerce.date().nullable(),
+  secret: z.boolean().default(false)
 });
 
 // TypeScript type derived from schema
 export type Achievement = z.infer<typeof achievementSchema>;
 
-// User achievement schema
-export const userAchievementSchema = z.object({
-  user_id: z.string(),
-  achievement_id: z.string(),
-  unlocked_at: z.coerce.date(),
-  progress: z.record(z.string(), z.any()).optional()
-});
-
-export type UserAchievement = z.infer<typeof userAchievementSchema>;
-
 // Input DTOs with validation
-export const createAchievementSchema = achievementSchema.omit({ id: true });
+export const createAchievementSchema = achievementSchema
+  .omit({ id: true, created_at: true, updated_at: true })
+  .extend({
+    image_url: z.string().url().nullable().optional(),
+    secret: z.boolean().optional()
+  });
+
 export type CreateAchievementDto = z.infer<typeof createAchievementSchema>;
 
-export const updateAchievementSchema = createAchievementSchema.partial();
+export const updateAchievementSchema = achievementSchema
+  .omit({ id: true, created_at: true, updated_at: true })
+  .partial();
+
 export type UpdateAchievementDto = z.infer<typeof updateAchievementSchema>;
-
-// User achievement DTOs
-export const createUserAchievementSchema = userAchievementSchema.omit({ unlocked_at: true });
-export type CreateUserAchievementDto = z.infer<typeof createUserAchievementSchema>;
-
-export const updateUserAchievementProgressSchema = z.object({
-  progress: z.record(z.string(), z.any())
-});
-export type UpdateUserAchievementProgressDto = z.infer<typeof updateUserAchievementProgressSchema>;
 
 /**
  * Database column mapping - maps DB column names to TypeScript property names
@@ -63,14 +108,11 @@ export const achievementDbMapping = {
   name: 'name',
   description: 'description',
   image_url: 'image_url',
-  points_reward: 'points_reward',
+  category: 'category',
   difficulty: 'difficulty',
-  requirements: 'requirements'
-};
-
-export const userAchievementDbMapping = {
-  user_id: 'user_id',
-  achievement_id: 'achievement_id',
-  unlocked_at: 'unlocked_at',
-  progress: 'progress'
+  points_reward: 'points_reward',
+  criteria: 'criteria',
+  created_at: 'created_at',
+  updated_at: 'updated_at',
+  secret: 'secret'
 };

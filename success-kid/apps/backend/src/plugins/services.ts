@@ -10,6 +10,8 @@ import { logger } from '../lib/logger';
 // Import services
 import { PointsService } from '../services/points/points-service';
 import { ContentService } from '../services/content/content-service';
+import { MediaService } from '../services/media/media-service';
+import { WalletConnectionService } from '../services/wallet/connection-service';
 
 // Declare custom types for Fastify instance
 declare module 'fastify' {
@@ -17,7 +19,9 @@ declare module 'fastify' {
     services: {
       pointsService: PointsService;
       contentService: ContentService;
+      mediaService: MediaService;
     };
+    walletConnectionService: WalletConnectionService;
   }
   
   // For request-level DI container
@@ -48,14 +52,64 @@ const servicesPlugin: FastifyPluginAsync = async (fastify) => {
     pointsService
   );
   
+  // Initialize Media Service
+  const mediaService = new MediaService(
+    fastify.db.repositories.media,
+    fastify.db.repositories.mediaPermissions,
+    {
+      storage: {
+        provider: process.env.STORAGE_PROVIDER === 's3' ? 's3' : 'local',
+        s3: process.env.STORAGE_PROVIDER === 's3' ? {
+          region: process.env.S3_REGION || 'us-east-1',
+          bucketName: process.env.S3_BUCKET_NAME || 'media-bucket',
+          accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+          secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+          cdnBaseUrl: process.env.S3_CDN_BASE_URL
+        } : undefined,
+        local: {
+          basePath: process.env.STORAGE_LOCAL_PATH || './uploads',
+          baseUrl: process.env.BASE_URL || 'http://localhost:3000'
+        }
+      },
+      queueOptions: {
+        redis: {
+          host: process.env.REDIS_HOST || 'localhost',
+          port: parseInt(process.env.REDIS_PORT || '6379', 10),
+          password: process.env.REDIS_PASSWORD
+        },
+        prefix: 'media'
+      },
+      uploadLimits: {
+        maxSizeBytes: 10 * 1024 * 1024 // 10MB default
+      }
+    }
+  );
+  
+  // Initialize Wallet Connection Service
+  const walletConnectionService = new WalletConnectionService(
+    fastify.db.repositories.walletConnections,
+    fastify.redis
+  );
+
+  // Initialize scheduled tasks if not in test environment
+  if (process.env.NODE_ENV !== 'test') {
+    mediaService.initializeScheduledTasks()
+      .then(() => logger.info('Media maintenance tasks scheduled'))
+      .catch(err => logger.error('Failed to schedule media maintenance tasks', { error: err }));
+  }
+
   // Create services container
   const services = {
     pointsService,
-    contentService
+    contentService,
+    mediaService
   };
   
   // Decorate fastify instance with services
   fastify.decorate('services', services);
+  
+  // Decorate fastify instance with wallet connection service
+  fastify.decorate('walletConnectionService', walletConnectionService);
   
   // Add request-level DI container
   fastify.decorateRequest('diContainer', null);
@@ -68,6 +122,8 @@ const servicesPlugin: FastifyPluginAsync = async (fastify) => {
             return services;
           case 'auth':
             return { rbac: fastify.auth?.rbac };
+          case 'wallet':
+            return { walletConnectionService: fastify.walletConnectionService };
           default:
             return null;
         }

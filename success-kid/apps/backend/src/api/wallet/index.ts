@@ -6,6 +6,7 @@ import { getTransactions } from './getTransactions';
 import { disconnect } from './disconnect';
 import { mobileSession } from './mobileSession';
 import { getMobileSessionStatus } from './getMobileSessionStatus';
+import { connectionRoutes } from './connection';
 
 const wallet: FastifyPluginAsync = async (fastify) => {
   // Register wallet routes
@@ -18,6 +19,9 @@ const wallet: FastifyPluginAsync = async (fastify) => {
   // Mobile-specific endpoints
   fastify.post('/mobile/session', mobileSession);
   fastify.get('/mobile/session/:sessionId', getMobileSessionStatus);
+  
+  // New wallet connection endpoints
+  fastify.register(connectionRoutes, { prefix: '/connection' });
 };
 
 export default wallet;
