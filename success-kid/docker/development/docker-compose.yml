@@ -1,59 +1,116 @@
 version: '3.8'
-
 services:
+  backend:
+    build:
+      context: ../../
+      dockerfile: docker/development/Dockerfile.backend
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgres://dev:dev@postgres:5432/successKidPlatform
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=debug
+      - CORS_ORIGIN=http://localhost:3000,http://frontend:3000
+      - JWT_SECRET=dev-jwt-secret
+    ports:
+      - "3001:3001"
+    volumes:
+      - ../../apps/backend:/app/apps/backend
+      - ../../packages:/app/packages
+      - backend_node_modules:/app/apps/backend/node_modules
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - success-kid-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ../../
+      dockerfile: docker/development/Dockerfile.frontend
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://backend:3001
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../../apps/frontend:/app/apps/frontend
+      - ../../packages:/app/packages
+      - frontend_node_modules:/app/apps/frontend/node_modules
+    depends_on:
+      - backend
+    networks:
+      - success-kid-network
+    restart: unless-stopped
+
   postgres:
     image: postgres:17.2
-    container_name: sk_postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-dev}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev}
-      POSTGRES_DB: ${POSTGRES_DB:-successKidPlatform}
-    ports:
-      - "5432:5432"
+      - POSTGRES_USER=dev
+      - POSTGRES_PASSWORD=dev
+      - POSTGRES_DB=successKidPlatform
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres-init:/docker-entrypoint-initdb.d
+      - ../../docker/development/init-scripts/postgres:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - success-kid-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dev} -d ${POSTGRES_DB:-successKidPlatform}"]
+      test: ["CMD-SHELL", "pg_isready -U dev -d successKidPlatform"]
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+      start_period: 10s
 
   redis:
     image: redis:8.2
-    container_name: sk_redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    networks:
+      - success-kid-network
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+      start_period: 10s
 
-  # Uncomment to add pgadmin for database management
-  # pgadmin:
-  #   image: dpage/pgadmin4
-  #   container_name: sk_pgadmin
-  #   environment:
-  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@successkid.com}
-  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-  #   ports:
-  #     - "5050:80"
-  #   depends_on:
-  #     - postgres
-  #   restart: unless-stopped
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=dev@successkid.com
+      - PGADMIN_DEFAULT_PASSWORD=dev
+      - PGADMIN_LISTEN_PORT=5050
+    ports:
+      - "5050:5050"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - success-kid-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
+  pgadmin_data:
+  backend_node_modules:
+  frontend_node_modules:
 
 networks:
-  default:
-    name: success-kid-network
+  success-kid-network:
+    driver: bridge

@@ -1,40 +1,17 @@
 /**
  * Repository Exports
  * 
- * Centralizes export of all repositories and provides factory functions
- * for creating repositories with the database connection.
+ * Centralizes exports for all repositories
  */
-import { Pool } from 'pg';
-import { getPgPool } from '../lib/db-client';
-import { UserRepository } from './user-repository';
 
-// Repository factory functions
-export function createUserRepository(db?: Pool): UserRepository {
-  return new UserRepository(db || getPgPool());
-}
-
-// Export individual repositories for direct import
-export { UserRepository } from './user-repository';
-
-// Export repository base classes
-export { BaseRepository, Repository } from './base-repository';
-
-/**
- * Create a repositories object with all repositories
- * @param db Optional database connection
- * @returns Object containing all repository instances
- */
-export function createRepositories(db?: Pool) {
-  const pool = db || getPgPool();
-  
-  return {
-    users: new UserRepository(pool),
-    // Add other repositories here as they are implemented
-  };
-}
-
-// Default export of repository factory
-export default {
-  createUserRepository,
-  createRepositories,
-};
+export * from './base-repository';
+export * from './user-repository';
+export * from './profile-repository';
+export * from './content-repository';
+export * from './user-points/user-points-repository';
+export * from './organization-repository';
+export * from './role-repository';
+export * from './category-repository';
+export * from './tag-repository';
+export * from './content-report-repository';
+export * from './comment-repository';

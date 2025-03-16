@@ -1,5 +1,12 @@
 import { FastifyInstance } from 'fastify';
-import { loginHandler, registerHandler, refreshTokenHandler, logoutHandler } from './handlers';
+import { 
+  loginHandler, 
+  registerHandler, 
+  refreshTokenHandler, 
+  logoutHandler,
+  getCurrentUserHandler 
+} from './handlers';
+import { authMiddleware } from '../../middleware/auth';
 import { authSchemas } from './schemas';
 
 export default async function auth(fastify: FastifyInstance): Promise<void> {
@@ -10,7 +17,10 @@ export default async function auth(fastify: FastifyInstance): Promise<void> {
 
   // Register routes
   fastify.post('/login', { schema: { body: { $ref: 'loginRequestSchema' } } }, loginHandler);
-  fastify.post('/register', registerHandler);
+  fastify.post('/register', { schema: { body: { $ref: 'registerRequestSchema' } } }, registerHandler);
   fastify.post('/refresh', refreshTokenHandler);
   fastify.post('/logout', logoutHandler);
+  
+  // Protected routes
+  fastify.get('/me', { preHandler: authMiddleware }, getCurrentUserHandler);
 }

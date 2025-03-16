@@ -1,184 +1,145 @@
-# Success Kid Backend
+# Success Kid Community Platform - Backend
 
-This is the backend API service for the Success Kid Community Platform, built with Node.js, Fastify, and TypeScript.
+This is the backend service for the Success Kid Community Platform, providing RESTful APIs and WebSocket functionality for real-time features.
 
-## Technology Stack
+## Architecture
 
-- **Node.js 22.3+** - Runtime environment
-- **Fastify 5.2+** - API framework
-- **TypeScript 5.4+** - Type safety
-- **PostgreSQL 17.2+** - Primary database
-- **Redis 8.2+** - Caching, pub/sub, job queues
-- **Clerk** - Authentication provider
-- **Web3.js** - Blockchain integration
+The backend is built on a modern Node.js stack with:
+
+- **Fastify**: High-performance web framework
+- **TypeScript**: Type-safe development
+- **PostgreSQL**: Primary database
+- **Redis**: Caching, pub/sub, and real-time features
+- **WebSockets**: Real-time communication
+- **JWT**: Authentication and authorization
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 22.3+
-- PNPM 8.15.0+
-- PostgreSQL 17.2+ (or Docker)
-- Redis 8.2+ (or Docker)
+- Node.js 22+
+- pnpm 8+
+- Docker and Docker Compose (for local development)
 
-### Development
+### Development Setup
 
-1. Install dependencies
+The easiest way to get started is using Docker Compose:
+
 ```bash
+# Start the entire development stack
+cd docker/development
+docker-compose up -d
+
+# View logs
+docker-compose logs -f backend
+```
+
+Alternatively, you can run the backend service locally:
+
+```bash
+# Install dependencies
 pnpm install
-```
 
-2. Set up environment variables
-```bash
-cp .env.example .env.local
-# Edit .env.local with your configuration
-```
-
-3. Run the development server
-```bash
+# Start the development server
 pnpm dev
 ```
 
-4. The API will be available at [http://localhost:3001](http://localhost:3001)
+Before running locally, make sure to:
+1. Copy `.env.example` to `.env.local` and update the values
+2. Have PostgreSQL and Redis running (or use the Docker services)
 
-### Available Scripts
+### Environment Variables
+
+Key environment variables include:
+
+- `NODE_ENV`: Environment (`development`, `test`, `production`)
+- `PORT`: HTTP server port
+- `HOST`: HTTP server host
+- `DATABASE_URL`: PostgreSQL connection string
+- `REDIS_URL`: Redis connection string
+- `JWT_SECRET`: Secret key for JWT signing
+
+See `.env.example` for a complete list of supported variables.
+
+## API Documentation
+
+When running the server locally, Swagger documentation is available at:
+http://localhost:3001/documentation
+
+## Key Features
+
+- **Points System**: Award, track, and redeem points
+- **Real-time Updates**: WebSockets for live notifications and data
+- **Achievement System**: Track and award user achievements
+- **Content Management**: Create and moderate community content
+- **Wallet Integration**: Connect and verify blockchain wallets
+- **User Management**: Profiles, authentication, and authorization
+
+## Architecture Overview
+
+The backend follows a modular architecture with:
+
+- **API Layer**: RESTful endpoints and request handling
+- **Service Layer**: Business logic and feature implementations
+- **Repository Layer**: Data access and storage
+- **WebSocket Layer**: Real-time communication
+- **Security Layer**: Authentication, authorization, and validation
+
+## Testing
 
 ```bash
-# Start development server
-pnpm dev
+# Run unit tests
+pnpm test
+
+# Run tests with coverage
+pnpm test:coverage
+```
+
+## Useful Commands
+
+```bash
+# Lint code
+pnpm lint
+
+# Type check
+pnpm type-check
 
 # Build for production
 pnpm build
 
-# Start production server
+# Start production build
 pnpm start
-
-# Run tests
-pnpm test
-
-# Run linting
-pnpm lint
-
-# Run database migrations
-pnpm migrate
-
-# Create a new migration
-pnpm migrate:create migration_name
 ```
 
-## Project Structure
+## Docker Development Environment
 
-```
-backend/
-├── src/
-│   ├── api/                  # API route handlers
-│   │   ├── auth/             # Authentication endpoints
-│   │   ├── content/          # Content management endpoints
-│   │   ├── points/           # Points system endpoints
-│   │   ├── users/            # User management endpoints
-│   │   └── wallet/           # Wallet integration endpoints
-│   ├── config/               # Application configuration
-│   ├── lib/                  # Shared utilities and helpers
-│   ├── middleware/           # HTTP middleware
-│   ├── models/               # Data models and schemas
-│   ├── plugins/              # Fastify plugins
-│   ├── repositories/         # Data access layer
-│   ├── services/             # Business logic services
-│   ├── websockets/           # WebSocket handlers
-│   └── app.ts                # Fastify app setup
-├── migrations/               # Database migrations
-└── openapi/                  # OpenAPI definitions
-```
+The Docker development environment includes:
 
-## API Documentation
+- Backend service (Node.js)
+- Frontend service (Next.js)
+- PostgreSQL database
+- Redis cache
+- pgAdmin for database management
 
-API documentation is automatically generated using OpenAPI/Swagger:
+To access pgAdmin, open http://localhost:5050 and login with:
+- Email: dev@successkid.com
+- Password: dev
 
-1. Start the development server
-```bash
-pnpm dev
-```
+## Monitoring and Health Checks
 
-2. Open [http://localhost:3001/documentation](http://localhost:3001/documentation) to see the API documentation
+- Basic health check: `GET /health`
+- Detailed health status: `GET /health/detailed`
 
-## Environment Variables
+## Security Considerations
 
-The following environment variables are required:
+The backend implements multiple security layers:
 
-- `PORT` - Server port (default: 3001)
-- `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string
-- `CLERK_SECRET_KEY` - Clerk authentication secret key
-- `JWT_SECRET` - Secret for JWT token generation
-- `CORS_ORIGIN` - Allowed CORS origin
+- Input validation for all requests
+- Authentication and authorization for protected endpoints
+- Rate limiting to prevent abuse
+- Transaction verification for idempotent operations
+- Proper error handling to prevent information leakage
 
-Create a `.env.local` file in the backend directory with these variables for local development.
+## License
 
-## Database Migrations
-
-The project uses a simple SQL-based migration system:
-
-1. Create a new migration
-```bash
-pnpm migrate:create migration_name
-```
-
-2. Edit the newly created migration file in the `migrations` directory
-
-3. Run migrations
-```bash
-pnpm migrate
-```
-
-## WebSocket Support
-
-The backend provides WebSocket support for real-time features:
-
-- Connection endpoint: `ws://localhost:3001/ws`
-- Authentication using JWT token
-- Event-based message format:
-```json
-{
-  "event": "event_name",
-  "data": {},
-  "timestamp": "2025-03-12T12:00:00Z"
-}
-```
-
-## Development Guidelines
-
-- Follow the established architectural patterns (repositories, services, controllers)
-- Use TypeScript for type safety
-- Document all API endpoints with OpenAPI annotations
-- Write tests for all new endpoints and services
-- Follow consistent error handling patterns
-- Maintain backward compatibility for API changes
-- Optimize database queries for performance
-
-## Error Handling
-
-The API uses a standardized error response format:
-
-```json
-{
-  "data": null,
-  "meta": {
-    "timestamp": "2025-03-12T12:00:00Z",
-    "requestId": "req_123456"
-  },
-  "errors": [
-    {
-      "code": "ERROR_CODE",
-      "message": "Human-readable error message",
-      "details": []
-    }
-  ]
-}
-```
-
-## Learn More
-
-- [Fastify Documentation](https://fastify.dev/docs/latest/)
-- [Node.js Documentation](https://nodejs.org/en/docs/)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
-- [Project Documentation](../../docs)
+This project is licensed under the terms of the MIT license.

@@ -1,73 +1,126 @@
+/**
+ * Transaction Verification Middleware
+ * 
+ * Provides idempotency for write operations by tracking transaction IDs
+ */
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { randomUUID } from 'crypto';
-import fp from 'fastify-plugin';
-
-// Extend FastifyRequest to include transactionId
-declare module 'fastify' {
-  interface FastifyRequest {
-    transactionId: string;
-  }
-}
+import { getRedisClient } from '../lib/db-client';
+import { logger } from '../lib/logger';
+import crypto from 'crypto';
 
 /**
- * Middleware for transaction verification to ensure idempotency
- * This is essential for sensitive operations such as points transactions
+ * Transaction verification options
  */
-export default fp(async (fastify) => {
-  // Get redis instance from fastify
-  const redis = fastify.redis;
+export interface TransactionVerificationOptions {
+  /**
+   * HTTP methods to verify
+   */
+  methods: string[];
+  
+  /**
+   * Transaction ID header name
+   */
+  headerName: string;
+  
+  /**
+   * Cache expiry in seconds
+   */
+  expiry: number;
+}
 
-  fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Only apply to write operations
-    if (!['POST', 'PUT', 'DELETE'].includes(request.method)) {
+// Default options
+const defaultOptions: TransactionVerificationOptions = {
+  methods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+  headerName: 'X-Transaction-ID',
+  expiry: 300, // 5 minutes
+};
+
+/**
+ * Transaction verification middleware factory
+ */
+export function createTransactionVerification(options: Partial<TransactionVerificationOptions> = {}) {
+  // Merge with default options
+  const opts: TransactionVerificationOptions = {
+    ...defaultOptions,
+    ...options,
+  };
+  
+  // Return middleware function
+  return async function transactionVerification(
+    request: FastifyRequest, 
+    reply: FastifyReply
+  ) {
+    // Only apply to specified methods
+    if (!opts.methods.includes(request.method)) {
       return;
     }
     
+    // Get Redis client
+    const redis = getRedisClient();
+    
     // Generate transaction ID if not present
-    let transactionId = request.headers['x-transaction-id'] as string;
-    if (!transactionId) {
-      transactionId = randomUUID();
-      request.headers['x-transaction-id'] = transactionId;
+    if (!request.headers[opts.headerName.toLowerCase()]) {
+      const transactionId = crypto.randomUUID();
+      request.headers[opts.headerName.toLowerCase()] = transactionId;
     }
     
-    // Attach to request for logging and reference
-    request.transactionId = transactionId;
+    const transactionId = request.headers[opts.headerName.toLowerCase()] as string;
+    const redisKey = `transaction:${transactionId}`;
     
-    // If Redis is available, check for idempotency
-    if (redis) {
-      try {
-        const processed = await redis.get(`transaction:${transactionId}`);
-        if (processed) {
-          // Transaction already processed, return original response
-          return reply.code(200).send(JSON.parse(processed));
+    try {
+      // Check if transaction has been processed already (idempotency)
+      const processed = await redis.get(redisKey);
+      if (processed) {
+        // Transaction already processed, return original response
+        logger.info({ 
+          transactionId, 
+          path: request.url,
+          method: request.method 
+        }, 'Returning cached response for idempotent request');
+        
+        return reply.send(JSON.parse(processed));
+      }
+      
+      // Store original send function to capture response
+      const originalSend = reply.send;
+      
+      // Override send to record successful responses
+      reply.send = function(payload) {
+        // Only cache successful responses
+        if (reply.statusCode >= 200 && reply.statusCode < 300) {
+          const stringPayload = typeof payload === 'string' 
+            ? payload 
+            : JSON.stringify(payload);
+          
+          // Store response for idempotency
+          redis.set(redisKey, stringPayload, 'EX', opts.expiry)
+            .catch(err => request.log.error('Failed to store transaction', { err }));
+          
+          // Log transaction caching
+          logger.debug({ 
+            transactionId, 
+            path: request.url,
+            method: request.method,
+            expiry: opts.expiry 
+          }, 'Cached transaction response');
         }
         
-        // Store original send function to capture response
-        const originalSend = reply.send;
-        
-        // Override send to record successful responses
-        reply.send = function(payload) {
-          // Only cache successful responses
-          if (reply.statusCode >= 200 && reply.statusCode < 300) {
-            const stringPayload = typeof payload === 'string' 
-              ? payload 
-              : JSON.stringify(payload);
-            
-            // Store response for idempotency (5 minute expiry)
-            redis.set(`transaction:${transactionId}`, stringPayload, 'EX', 300)
-              .catch(err => request.log.error('Failed to store transaction', { err }));
-          }
-          
-          // Call original send
-          return originalSend.call(this, payload);
-        };
-      } catch (error) {
-        // If Redis fails, log but proceed (fail open)
-        request.log.error('Transaction verification failed', { error });
-      }
-    } else {
-      // If Redis is not available, just log a warning
-      request.log.warn('Redis not available for transaction verification');
+        // Call original send
+        return originalSend.call(this, payload);
+      };
+    } catch (error) {
+      // Log error but continue - this should not block the request
+      logger.error({ 
+        err: error, 
+        transactionId, 
+        path: request.url, 
+        method: request.method 
+      }, 'Transaction verification error');
     }
-  });
-});
+  };
+}
+
+/**
+ * Default export is middleware with default options
+ */
+export default createTransactionVerification();

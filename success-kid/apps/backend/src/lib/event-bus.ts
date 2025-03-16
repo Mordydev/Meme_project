@@ -20,6 +20,8 @@ export enum EventType {
   ACHIEVEMENT_UNLOCKED = 'achievement.unlocked',
   CONTENT_CREATED = 'content.created',
   CONTENT_COMMENTED = 'content.commented',
+  COMMENT_CREATED = 'comment.created',
+  CONTENT_REPORTED = 'content.reported',
   LEVEL_UP = 'user.levelUp',
   WALLET_CONNECTED = 'wallet.connected',
   MILESTONE_REACHED = 'milestone.reached'
