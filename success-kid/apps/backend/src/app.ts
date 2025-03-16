@@ -9,13 +9,20 @@ import { env } from './config';
 import { setupMonitoring } from './health/monitoring';
 import { registerTransactionVerification } from './middleware/transaction-verification';
 import swaggerPlugin from './plugins/swagger';
+import marketPlugin from './plugins/market';
+import achievementsPlugin from './plugins/achievements';
 import websocketPlugin, { initializeWebSocketEvents } from './websockets';
+import { getDatabase } from './database';
+import { initializeWalletModule } from './wallet';
 
 // API route imports
 import healthRoutes from './api/health';
 import featuresRoutes from './api/features';
 import pointsRoutes from './api/points';
 import contentRoutes from './api/content';
+import mediaRoutes from './api/media';
+import marketRoutes from './api/market';
+import achievementRoutes from './api/achievements';
 import registerAuth from './auth';
 
 // Configuration for rate limiting
@@ -85,11 +92,21 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   // Register API documentation with Swagger
   await app.register(swaggerPlugin);
 
+  // Register market plugin
+  await app.register(marketPlugin);
+
+  // Register achievements plugin
+  await app.register(achievementsPlugin);
+
   // Register transaction verification middleware
   registerTransactionVerification(app);
 
   // Setup monitoring
   setupMonitoring(app);
+
+  // Initialize wallet module
+  const db = getDatabase().pool;
+  initializeWalletModule({ db });
 
   // Register global error handler
   app.setErrorHandler((error, request, reply) => {
@@ -101,6 +118,9 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   app.register(featuresRoutes, { prefix: '/api/v1/features' });
   app.register(pointsRoutes, { prefix: '/api/v1/points' });
   app.register(contentRoutes, { prefix: '/api/v1/content' });
+  app.register(mediaRoutes, { prefix: '/api/v1/media' });
+  app.register(marketRoutes, { prefix: '/api/v1/market' });
+  app.register(achievementRoutes, { prefix: '/api/v1' });
 
   // Register authentication and user management
   await app.register(registerAuth);

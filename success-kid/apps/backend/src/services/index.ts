@@ -16,3 +16,6 @@ export * from './moderation';
 // Export points services
 export * from './points';
 export * from './points/redemption';
+
+// Export media services
+export * from './media';

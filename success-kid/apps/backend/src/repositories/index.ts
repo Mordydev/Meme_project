@@ -9,6 +9,7 @@ import { UserRepository } from './user-repository';
 import { ProfileRepository } from './profile-repository';
 import { PointsRepository } from './points-repository';
 import { AchievementRepository } from './achievement-repository';
+import { WalletRepository } from './wallet-repository';
 
 // Re-export repository classes
 export * from './base-repository';
@@ -16,6 +17,7 @@ export * from './user-repository';
 export * from './profile-repository';
 export * from './points-repository';
 export * from './achievement-repository';
+export * from './wallet-repository';
 
 /**
  * Repository factory - creates and provides all repositories
@@ -25,6 +27,7 @@ export class Repositories {
   private readonly profileRepository: ProfileRepository;
   private readonly pointsRepository: PointsRepository;
   private readonly achievementRepository: AchievementRepository;
+  private readonly walletRepository: WalletRepository;
   
   /**
    * Create repository factory
@@ -36,6 +39,7 @@ export class Repositories {
     this.profileRepository = new ProfileRepository(db);
     this.pointsRepository = new PointsRepository(db);
     this.achievementRepository = new AchievementRepository(db);
+    this.walletRepository = new WalletRepository(db);
   }
   
   /**
@@ -64,6 +68,13 @@ export class Repositories {
    */
   get achievements(): AchievementRepository {
     return this.achievementRepository;
+  }
+  
+  /**
+   * Get wallet repository
+   */
+  get wallets(): WalletRepository {
+    return this.walletRepository;
   }
   
   /**
