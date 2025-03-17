@@ -7,7 +7,7 @@ import { FastifyInstance } from 'fastify';
 import { logger } from '../lib/logger';
 import healthRoutes from './health';
 import featuresRoutes from './features';
-import pointsRoutes from './points';
+import registerPointsRoutes from './points/routes';
 import contentRoutes from './content';
 import mediaRoutes from './media';
 import marketRoutes from './market';
@@ -25,7 +25,7 @@ import jobRoutes from './jobs';
 export default async function apiRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.register(healthRoutes, { prefix: '/health' });
   fastify.register(featuresRoutes, { prefix: '/features' });
-  fastify.register(pointsRoutes, { prefix: '/points' });
+  fastify.register(registerPointsRoutes, { prefix: '/points' });
   fastify.register(contentRoutes, { prefix: '/content' });
   fastify.register(mediaRoutes, { prefix: '/media' });
   fastify.register(marketRoutes, { prefix: '/market' });

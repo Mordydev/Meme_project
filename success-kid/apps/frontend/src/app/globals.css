@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary-50: #E3F2FD;
+  --color-primary-100: #BBDEFB;
+  --color-primary-200: #90CAF9;
+  --color-primary-300: #64B5F6;
+  --color-primary-400: #42A5F5;
+  --color-primary-500: #1E88E5;
+  --color-primary-600: #1976D2;
+  --color-primary-700: #1565C0;
+  --color-primary-800: #0D47A1;
+  --color-primary-900: #0A2F73;
+  
+  --color-secondary-50: #FFF8E1;
+  --color-secondary-100: #FFECB3;
+  --color-secondary-200: #FFE082;
+  --color-secondary-300: #FFD54F;
+  --color-secondary-400: #FFCA28;
+  --color-secondary-500: #FFC107;
+  --color-secondary-600: #FFB300;
+  --color-secondary-700: #FFA000;
+  --color-secondary-800: #FF8F00;
+  --color-secondary-900: #FF6F00;
+  
+  --color-accent-50: #E8F5E9;
+  --color-accent-100: #C8E6C9;
+  --color-accent-200: #A5D6A7;
+  --color-accent-300: #81C784;
+  --color-accent-400: #66BB6A;
+  --color-accent-500: #4CAF50;
+  --color-accent-600: #43A047;
+  --color-accent-700: #388E3C;
+  --color-accent-800: #2E7D32;
+  --color-accent-900: #1B5E20;
+  
+  --color-alert-50: #FFEBEE;
+  --color-alert-100: #FFCDD2;
+  --color-alert-200: #EF9A9A;
+  --color-alert-300: #E57373;
+  --color-alert-400: #EF5350;
+  --color-alert-500: #F44336;
+  --color-alert-600: #E53935;
+  --color-alert-700: #D32F2F;
+  --color-alert-800: #C62828;
+  --color-alert-900: #B71C1C;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-inter), system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom utility classes */
+@layer utilities {
+  .animated-underline {
+    background-image: linear-gradient(#33333300, #33333300), linear-gradient(to right, var(--color-primary-400), var(--color-primary-600));
+    background-size: 100% 2px, 0 2px;
+    background-position: 100% 100%, 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 0.3s ease;
+  }
+  
+  .animated-underline:hover {
+    background-size: 0 2px, 100% 2px;
+  }
+}

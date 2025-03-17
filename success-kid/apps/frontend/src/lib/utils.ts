@@ -1,101 +1,70 @@
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 /**
- * Combines multiple class values into a single className string
- * using clsx and tailwind-merge to handle conflicts
+ * Merges class names with tailwind classes
  */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 /**
- * Formats a number as currency
- * @param value - The number to format
- * @param currency - The currency code (default: USD)
- * @param locale - The locale to use for formatting (default: en-US)
+ * Format a wallet address for display
  */
-export function formatCurrency(
-  value: number,
-  currency = "USD",
-  locale = "en-US"
-): string {
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency,
-  }).format(value);
+export function formatWalletAddress(address: string, length = 4): string {
+  if (!address) return '';
+  if (address.length <= length * 2) return address;
+  return `${address.slice(0, length)}...${address.slice(-length)}`;
 }
 
 /**
- * Formats a number with compact notation (e.g., 1.2k, 5.3M)
- * @param value - The number to format
- * @param locale - The locale to use for formatting (default: en-US)
+ * Simple debounce function
  */
-export function formatCompactNumber(
-  value: number,
-  locale = "en-US"
-): string {
-  return new Intl.NumberFormat(locale, {
-    notation: "compact",
-  }).format(value);
-}
-
-/**
- * Truncates a string to a specified length
- * @param str - The string to truncate
- * @param maxLength - Maximum length before truncation
- */
-export function truncate(str: string, maxLength: number): string {
-  if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength) + "...";
-}
-
-/**
- * Formats a date or timestamp into a human-readable string
- * @param date - The date to format
- * @param locale - The locale to use for formatting (default: en-US)
- */
-export function formatDate(
-  date: Date | string | number,
-  locale = "en-US"
-): string {
-  const dateObj = date instanceof Date ? date : new Date(date);
-  return dateObj.toLocaleDateString(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-/**
- * Creates a relative time string (e.g., "5 minutes ago", "2 days ago")
- * @param date - The date to format
- * @param locale - The locale to use for formatting (default: en-US)
- */
-export function timeAgo(
-  date: Date | string | number,
-  locale = "en-US"
-): string {
-  const dateObj = date instanceof Date ? date : new Date(date);
-  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+export function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout;
   
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - dateObj.getTime()) / 1000);
+  return function(...args: Parameters<T>): void {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
+/**
+ * Get browser information for device detection
+ */
+export function getBrowserInfo(): string {
+  // Only run on client side
+  if (typeof window === 'undefined') return 'unknown';
   
-  if (diffInSeconds < 60) {
-    return formatter.format(-diffInSeconds, "second");
+  const userAgent = navigator.userAgent;
+  let browserName = 'unknown';
+  
+  if (userAgent.match(/chrome|chromium|crios/i)) {
+    browserName = 'Chrome';
+  } else if (userAgent.match(/firefox|fxios/i)) {
+    browserName = 'Firefox';
+  } else if (userAgent.match(/safari/i)) {
+    browserName = 'Safari';
+  } else if (userAgent.match(/opr\//i)) {
+    browserName = 'Opera';
+  } else if (userAgent.match(/edg/i)) {
+    browserName = 'Edge';
   }
   
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) {
-    return formatter.format(-diffInMinutes, "minute");
-  }
+  return browserName;
+}
+
+/**
+ * Check if the device is mobile
+ */
+export function isMobileDevice(): boolean {
+  // Only run on client side
+  if (typeof window === 'undefined') return false;
   
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) {
-    return formatter.format(-diffInHours, "hour");
-  }
-  
-  const diffInDays = Math.floor(diffInHours / 24);
-  return formatter.format(-diffInDays, "day");
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
 }

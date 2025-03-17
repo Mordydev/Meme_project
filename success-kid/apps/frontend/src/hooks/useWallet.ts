@@ -1,100 +1,145 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useWalletStore } from '@/store/useWalletStore';
-import { WalletType, WalletConnectionSession } from '@/types/wallet';
+import { useState, useEffect, useCallback } from 'react';
 
-export const useWallet = () => {
-  const {
-    wallet,
-    isConnecting,
-    error,
-    isMobile,
-    transactions,
-    isLoadingTransactions,
-    connectionSession,
-    connect,
-    disconnect,
-    verify,
-    getTransactions,
-    clearError,
-    checkConnection,
-    createConnectionSession,
-    checkMobileWallet,
-  } = useWalletStore();
+// Define phantom wallet types
+interface PhantomProvider {
+  connect: () => Promise<{ publicKey: string }>;
+  disconnect: () => Promise<void>;
+  signMessage: (message: Uint8Array) => Promise<{ signature: Uint8Array }>;
+  isPhantom: boolean;
+  publicKey?: { toString: () => string };
+  on: (event: string, callback: (data: any) => void) => void;
+  removeListener: (event: string, callback: (data: any) => void) => void;
+}
+
+interface Window {
+  phantom?: {
+    solana?: PhantomProvider;
+  };
+  solana?: PhantomProvider;
+}
+
+/**
+ * Hook to interact with Phantom wallet
+ */
+export function useWallet() {
+  const [wallet, setWallet] = useState<PhantomProvider | null>(null);
+  const [publicKey, setPublicKey] = useState<{ toString: () => string } | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
   
-  const [isInitialized, setIsInitialized] = useState(false);
-  
-  // Check connection status on mount
-  useEffect(() => {
-    const initialize = async () => {
-      await checkConnection();
-      checkMobileWallet();
-      setIsInitialized(true);
-    };
+  // Check if Phantom is installed and available
+  const getProvider = useCallback((): PhantomProvider | null => {
+    if (typeof window === 'undefined') return null;
     
-    initialize();
-  }, [checkConnection, checkMobileWallet]);
+    const windowObj = window as unknown as Window;
+    
+    // Check multiple ways the provider might be available
+    const provider = 
+      windowObj.phantom?.solana ||
+      windowObj.solana ||
+      null;
+    
+    if (provider?.isPhantom) {
+      return provider;
+    }
+    
+    return null;
+  }, []);
   
-  // Enhanced connect function that handles mobile differently
-  const handleConnect = useCallback(async (provider: WalletType = 'phantom') => {
-    try {
-      // If mobile, we create a connection session first
-      if (isMobile) {
-        await createConnectionSession();
+  // Initialize wallet
+  useEffect(() => {
+    const provider = getProvider();
+    
+    if (provider) {
+      setWallet(provider);
+      
+      // Check if already connected
+      if (provider.publicKey) {
+        setPublicKey(provider.publicKey);
+        setConnected(true);
       }
       
-      return await connect(provider);
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      return false;
+      // Setup disconnect listener
+      const handleDisconnect = () => {
+        setPublicKey(null);
+        setConnected(false);
+      };
+      
+      provider.on('disconnect', handleDisconnect);
+      
+      return () => {
+        provider.removeListener('disconnect', handleDisconnect);
+      };
     }
-  }, [connect, createConnectionSession, isMobile]);
+  }, [getProvider]);
   
-  // Function to check if the wallet provider is installed
-  const isProviderInstalled = useCallback((provider: WalletType = 'phantom'): boolean => {
-    if (typeof window === 'undefined') return false;
+  // Connect to wallet
+  const connect = useCallback(async () => {
+    if (!wallet) {
+      window.open('https://phantom.app/', '_blank');
+      return;
+    }
     
-    switch (provider) {
-      case 'phantom':
-        return window.phantom !== undefined;
-      case 'solflare':
-        return window.solflare !== undefined;
-      default:
-        return false;
+    try {
+      setLoading(true);
+      const { publicKey } = await wallet.connect();
+      setPublicKey({ toString: () => publicKey });
+      setConnected(true);
+    } catch (error) {
+      console.error('Error connecting to wallet:', error);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [wallet]);
   
-  // Function to get installation links
-  const getProviderInstallLink = useCallback((provider: WalletType = 'phantom'): string => {
-    switch (provider) {
-      case 'phantom':
-        return 'https://phantom.app/download';
-      case 'solflare':
-        return 'https://solflare.com/download';
-      default:
-        return '';
+  // Disconnect from wallet
+  const disconnect = useCallback(async () => {
+    if (!wallet) return;
+    
+    try {
+      setLoading(true);
+      await wallet.disconnect();
+      setPublicKey(null);
+      setConnected(false);
+    } catch (error) {
+      console.error('Error disconnecting from wallet:', error);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [wallet]);
+  
+  // Sign a message
+  const signMessage = useCallback(async (message: string): Promise<string> => {
+    if (!wallet || !publicKey) {
+      throw new Error('Wallet not connected');
+    }
+    
+    try {
+      // Convert message string to Uint8Array
+      const messageBytes = new TextEncoder().encode(message);
+      
+      // Sign the message
+      const { signature } = await wallet.signMessage(messageBytes);
+      
+      // Convert signature to base58 string
+      const bs58 = await import('bs58');
+      return bs58.default.encode(signature);
+    } catch (error) {
+      console.error('Error signing message:', error);
+      throw error;
+    }
+  }, [wallet, publicKey]);
   
   return {
     wallet,
-    isConnecting,
-    isConnected: wallet?.isConnected ?? false,
-    isVerified: wallet?.isVerified ?? false,
-    isHolder: wallet?.isHolder ?? false,
-    error,
-    transactions,
-    isLoadingTransactions,
-    isMobile,
-    isInitialized,
-    connectionSession,
-    connect: handleConnect,
+    publicKey,
+    connected,
+    loading,
+    connect,
     disconnect,
-    verify,
-    getTransactions,
-    clearError,
-    isProviderInstalled,
-    getProviderInstallLink,
+    signMessage,
+    isInstalled: !!getProvider(),
   };
-};
+}

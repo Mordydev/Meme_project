@@ -6,7 +6,7 @@
  */
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { randomUUID } from 'crypto';
-import { getRedisClient } from '../lib/db-client';
+import { getRedisClient } from '../lib/redis-client';
 import { logger } from '../lib/logger';
 
 /**
@@ -21,6 +21,15 @@ export interface TransactionVerificationOptions {
   
   // Transaction ID header name
   headerName: string;
+  
+  // Routes to exclude (array of path prefixes or exact matches)
+  excludeRoutes?: string[];
+  
+  // Key namespace for Redis cache
+  namespace?: string;
+  
+  // Whether to log cache hits/misses for debugging
+  debug?: boolean;
 }
 
 /**
@@ -30,6 +39,9 @@ const defaultOptions: TransactionVerificationOptions = {
   methods: ['POST', 'PUT', 'PATCH', 'DELETE'],
   expiry: 300, // 5 minutes
   headerName: 'X-Transaction-Id',
+  excludeRoutes: ['/api/v1/health', '/docs', '/swagger'],
+  namespace: 'transaction',
+  debug: false
 };
 
 /**
@@ -49,6 +61,15 @@ export async function transactionVerificationMiddleware(
 ): Promise<void> {
   const config = { ...defaultOptions, ...options };
   
+  // Skip verification for excluded routes
+  if (config.excludeRoutes?.some(route => 
+    request.url.startsWith(route) || 
+    request.url === route ||
+    (route.includes('*') && new RegExp(route.replace('*', '.*')).test(request.url))
+  )) {
+    return;
+  }
+  
   // Only apply to specified methods
   if (!config.methods.includes(request.method)) {
     return;
@@ -66,10 +87,14 @@ export async function transactionVerificationMiddleware(
     const transactionId = randomUUID();
     headers[headerKey] = transactionId;
     request.headers[headerKey] = transactionId;
+    
+    if (config.debug) {
+      logger.debug('Generated transaction ID', { transactionId, url: request.url });
+    }
   }
   
   const transactionId = headers[headerKey];
-  const cacheKey = `transaction:${transactionId}`;
+  const cacheKey = `${config.namespace}:${transactionId}`;
   
   try {
     // Check if transaction has already been processed
@@ -77,13 +102,19 @@ export async function transactionVerificationMiddleware(
     
     if (processed) {
       // Transaction already processed, return cached response
-      logger.debug('Transaction already processed', { transactionId });
+      if (config.debug) {
+        logger.debug('Transaction cache hit', { transactionId, url: request.url });
+      }
       
       // Parse the stored response
       const cachedResponse = JSON.parse(processed);
       
       // Send the cached response
-      return reply.send(cachedResponse);
+      return reply.code(cachedResponse.statusCode || 200).send(cachedResponse.payload);
+    }
+    
+    if (config.debug) {
+      logger.debug('Transaction cache miss', { transactionId, url: request.url });
     }
     
     // Store the original send function
@@ -93,9 +124,13 @@ export async function transactionVerificationMiddleware(
     reply.send = function(payload) {
       // Only cache successful responses (2xx status codes)
       if (reply.statusCode >= 200 && reply.statusCode < 300) {
-        const stringPayload = typeof payload === 'string' 
-          ? payload 
-          : JSON.stringify(payload);
+        const cachePayload = {
+          statusCode: reply.statusCode,
+          payload: typeof payload === 'string' ? JSON.parse(payload) : payload,
+          headers: reply.getHeaders()
+        };
+        
+        const stringPayload = JSON.stringify(cachePayload);
         
         // Store response for idempotency with expiry
         redis.set(cacheKey, stringPayload, 'EX', config.expiry)
@@ -103,6 +138,14 @@ export async function transactionVerificationMiddleware(
             transactionId, 
             error: err.message 
           }));
+          
+        if (config.debug) {
+          logger.debug('Stored transaction in cache', { 
+            transactionId, 
+            url: request.url,
+            expires: `${config.expiry}s` 
+          });
+        }
       }
       
       // Call original send function

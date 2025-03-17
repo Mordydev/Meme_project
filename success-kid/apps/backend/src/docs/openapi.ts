@@ -1,180 +1,315 @@
 /**
- * OpenAPI Configuration
- * 
- * Defines the OpenAPI documentation configuration for the Success Kid Community Platform API.
+ * OpenAPI/Swagger configuration
  */
-import { FastifyInstance } from 'fastify';
-import swagger from '@fastify/swagger';
-import swaggerUi from '@fastify/swagger-ui';
-import { env } from '../config';
-import { getAppVersion } from '../health/checks';
+import { FastifyDynamicSwaggerOptions } from '@fastify/swagger';
+import { FastifySwaggerUiOptions } from '@fastify/swagger-ui';
+import { version } from '../../package.json';
 
 /**
- * OpenAPI configuration interface
+ * Swagger options for API documentation
  */
-export interface OpenApiConfig {
-  info: {
-    title: string;
-    description: string;
-    version: string;
-    contact?: {
-      name: string;
-      url: string;
-      email: string;
-    };
-  };
-  servers: Array<{
-    url: string;
-    description: string;
-  }>;
-  security?: Array<Record<string, string[]>>;
-  tags: Array<{
-    name: string;
-    description: string;
-  }>;
-}
-
-/**
- * Default OpenAPI configuration
- */
-export const defaultOpenApiConfig: OpenApiConfig = {
-  info: {
-    title: 'Success Kid Community API',
-    description: 'API documentation for the Success Kid Community Platform - A vibrant ecosystem where token value is supported by genuine utility, ongoing engagement, and community ownership.',
-    version: getAppVersion(),
-    contact: {
-      name: 'API Support',
-      url: 'https://github.com/success-kid/api/issues',
-      email: 'api@successkid.com'
-    }
-  },
-  servers: [
-    {
-      url: 'http://localhost:3001',
-      description: 'Local development server'
+export const swaggerOptions: FastifyDynamicSwaggerOptions = {
+  openapi: {
+    info: {
+      title: 'Success Kid Community Platform API',
+      description: 'API documentation for the Success Kid Community Platform',
+      version,
+      license: {
+        name: 'Proprietary',
+        url: ''
+      },
+      contact: {
+        name: 'Success Kid Team',
+        url: '',
+        email: 'support@example.com'
+      }
     },
-    {
-      url: 'https://api-staging.successkid.com',
-      description: 'Staging server'
-    },
-    {
-      url: 'https://api.successkid.com',
-      description: 'Production server'
+    servers: [
+      {
+        url: '/api',
+        description: 'Current environment API'
+      },
+      {
+        url: 'https://api.successkit.example.com',
+        description: 'Production API'
+      },
+      {
+        url: 'https://api.staging.successkit.example.com',
+        description: 'Staging API'
+      }
+    ],
+    tags: [
+      { name: 'auth', description: 'Authentication endpoints' },
+      { name: 'users', description: 'User management' },
+      { name: 'profile', description: 'User profile operations' },
+      { name: 'content', description: 'Content creation and management' },
+      { name: 'points', description: 'Success Points operations' },
+      { name: 'wallet', description: 'Wallet connections and operations' },
+      { name: 'market', description: 'Market data and transactions' },
+      { name: 'achievements', description: 'User achievements and progress' }
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT'
+        }
+      },
+      schemas: {
+        Error: {
+          type: 'object',
+          required: ['code', 'message'],
+          properties: {
+            code: {
+              type: 'string',
+              description: 'Error code'
+            },
+            message: {
+              type: 'string',
+              description: 'Error message'
+            },
+            details: {
+              type: 'object',
+              description: 'Additional error details'
+            }
+          }
+        },
+        ApiResponse: {
+          type: 'object',
+          required: ['data', 'meta'],
+          properties: {
+            data: {
+              type: 'object',
+              nullable: true,
+              description: 'Response data payload'
+            },
+            meta: {
+              type: 'object',
+              required: ['timestamp', 'requestId'],
+              properties: {
+                timestamp: {
+                  type: 'string',
+                  format: 'date-time',
+                  description: 'Response timestamp'
+                },
+                requestId: {
+                  type: 'string',
+                  description: 'Unique request ID for tracing'
+                }
+              }
+            },
+            pagination: {
+              type: 'object',
+              properties: {
+                page: {
+                  type: 'integer',
+                  minimum: 1,
+                  description: 'Current page number'
+                },
+                pageSize: {
+                  type: 'integer',
+                  minimum: 1,
+                  description: 'Number of items per page'
+                },
+                totalItems: {
+                  type: 'integer',
+                  minimum: 0,
+                  description: 'Total number of items'
+                },
+                totalPages: {
+                  type: 'integer',
+                  minimum: 0,
+                  description: 'Total number of pages'
+                }
+              }
+            },
+            errors: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/Error'
+              },
+              description: 'Errors, if any'
+            }
+          }
+        }
+      },
+      responses: {
+        BadRequest: {
+          description: 'Bad request - validation error',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: { type: 'null' },
+                  meta: {
+                    type: 'object',
+                    properties: {
+                      timestamp: { type: 'string', format: 'date-time' },
+                      requestId: { type: 'string' }
+                    }
+                  },
+                  errors: {
+                    type: 'array',
+                    items: {
+                      $ref: '#/components/schemas/Error'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        Unauthorized: {
+          description: 'Unauthorized - authentication required',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: { type: 'null' },
+                  meta: {
+                    type: 'object',
+                    properties: {
+                      timestamp: { type: 'string', format: 'date-time' },
+                      requestId: { type: 'string' }
+                    }
+                  },
+                  errors: {
+                    type: 'array',
+                    items: {
+                      $ref: '#/components/schemas/Error'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        Forbidden: {
+          description: 'Forbidden - insufficient permissions',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: { type: 'null' },
+                  meta: {
+                    type: 'object',
+                    properties: {
+                      timestamp: { type: 'string', format: 'date-time' },
+                      requestId: { type: 'string' }
+                    }
+                  },
+                  errors: {
+                    type: 'array',
+                    items: {
+                      $ref: '#/components/schemas/Error'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        NotFound: {
+          description: 'Resource not found',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: { type: 'null' },
+                  meta: {
+                    type: 'object',
+                    properties: {
+                      timestamp: { type: 'string', format: 'date-time' },
+                      requestId: { type: 'string' }
+                    }
+                  },
+                  errors: {
+                    type: 'array',
+                    items: {
+                      $ref: '#/components/schemas/Error'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        InternalError: {
+          description: 'Internal server error',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: { type: 'null' },
+                  meta: {
+                    type: 'object',
+                    properties: {
+                      timestamp: { type: 'string', format: 'date-time' },
+                      requestId: { type: 'string' }
+                    }
+                  },
+                  errors: {
+                    type: 'array',
+                    items: {
+                      $ref: '#/components/schemas/Error'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
-  ],
-  tags: [
-    { name: 'Authentication', description: 'Authentication-related endpoints' },
-    { name: 'Users', description: 'User management endpoints' },
-    { name: 'Points', description: 'Success Points system endpoints' },
-    { name: 'Content', description: 'Content management endpoints' },
-    { name: 'Market', description: 'Market data and analysis endpoints' },
-    { name: 'Wallet', description: 'Wallet integration endpoints' },
-    { name: 'Achievements', description: 'User achievements endpoints' },
-    { name: 'Notifications', description: 'User notifications endpoints' },
-    { name: 'Health', description: 'System health and monitoring endpoints' }
-  ]
+  }
 };
 
 /**
- * Setup OpenAPI documentation for a Fastify instance
- * 
- * @param app Fastify instance to setup documentation for
- * @param config OpenAPI configuration (optional, uses default if not provided)
+ * Swagger UI options for API documentation interface
  */
-export async function setupApiDocumentation(
-  app: FastifyInstance, 
-  config: Partial<OpenApiConfig> = {}
-): Promise<void> {
-  // Merge provided config with defaults
-  const apiConfig = {
-    ...defaultOpenApiConfig,
-    ...config,
-    info: {
-      ...defaultOpenApiConfig.info,
-      ...config.info
-    }
-  };
-
-  // Determine if documentation should be enabled
-  const enableDocs = env.NODE_ENV !== 'production' || env.ENABLE_API_DOCS === 'true';
-  
-  // Register Swagger
-  await app.register(swagger, {
-    openapi: {
-      info: apiConfig.info,
-      servers: apiConfig.servers,
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT'
-          }
-        },
-        schemas: await getApiSchemas()
-      },
-      tags: apiConfig.tags
-    }
-  });
-  
-  // Only register Swagger UI if enabled
-  if (enableDocs) {
-    await app.register(swaggerUi, {
-      routePrefix: '/documentation',
-      uiConfig: {
-        docExpansion: 'list',
-        deepLinking: true,
-        persistAuthorization: true,
-        defaultModelsExpandDepth: 3,
-        defaultModelExpandDepth: 3,
-        filter: true,
-        displayRequestDuration: true
-      },
-      transformStaticCSP: (header) => header,
-      staticCSP: true
-    });
-    
-    // Add redirect from /docs to /documentation for convenience
-    app.get('/docs', (_, reply) => {
-      reply.redirect('/documentation');
-    });
-    
-    app.log.info('API documentation available at /documentation');
-  } else {
-    app.log.info('API documentation disabled in production mode');
-  }
-}
+export const swaggerUiOptions: FastifySwaggerUiOptions = {
+  routePrefix: '/docs',
+  uiConfig: {
+    docExpansion: 'list',
+    deepLinking: true,
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    defaultModelsExpandDepth: 3,
+    defaultModelExpandDepth: 3,
+    tryItOutEnabled: true
+  },
+  theme: {
+    title: 'Success Kid API Documentation',
+    primaryColor: '#1E88E5',
+    secondaryColor: '#FFC107',
+    backgroundColor: '#F5F7FA',
+    textColor: '#212121',
+  },
+  staticCSP: true,
+  transformStaticCSP: (header) => header,
+};
 
 /**
- * Get all API schemas from the schemas directory
+ * Register OpenAPI/Swagger documentation with Fastify
  * 
- * @returns Object containing all schema definitions
+ * @param fastify Fastify instance
  */
-async function getApiSchemas(): Promise<Record<string, any>> {
-  // Import all schema definitions
-  const { 
-    errorSchemas, 
-    userSchemas, 
-    pointsSchemas, 
-    contentSchemas, 
-    marketSchemas, 
-    walletSchemas,
-    standardResponseSchemas
-  } = await import('./schemas');
+export async function registerOpenApi(fastify: any): Promise<void> {
+  // Register Swagger plugins
+  await fastify.register(require('@fastify/swagger'), swaggerOptions);
+  await fastify.register(require('@fastify/swagger-ui'), swaggerUiOptions);
   
-  // Combine all schemas
-  return {
-    // Standard responses
-    ...standardResponseSchemas,
-    
-    // Error schemas
-    ...errorSchemas,
-    
-    // Domain schemas
-    ...userSchemas,
-    ...pointsSchemas,
-    ...contentSchemas,
-    ...marketSchemas,
-    ...walletSchemas
-  };
+  // Add route to redirect to documentation
+  fastify.get('/api-docs', async (_, reply) => {
+    return reply.redirect('/docs');
+  });
+  
+  // Log documentation availability
+  fastify.log.info('OpenAPI documentation available at /docs');
 }

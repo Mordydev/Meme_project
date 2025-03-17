@@ -1,145 +1,85 @@
 /**
- * Redemption Models
+ * Redemption Model
  * 
- * Defines the models and schemas for the Points-to-Token redemption system.
+ * Defines the Redemption entity, validation schemas, and related data transfer objects.
+ * Redemptions convert Success Points to SKC tokens.
  */
 import { z } from 'zod';
 
-/**
- * Redemption status enumeration
- */
+// Redemption Status Enum
 export const RedemptionStatusEnum = z.enum([
-  'pending',      // Initial state, awaiting processing
-  'processing',   // Being processed by the system
-  'pending_confirmation', // Transaction sent to blockchain, awaiting confirmation
-  'completed',    // Successfully redeemed
-  'failed',       // Failed due to an error
-  'cancelled'     // Cancelled by user or admin
+  'pending',     // Initial state, waiting to be processed
+  'processing',  // Being processed (blockchain transaction in progress)
+  'completed',   // Successfully completed
+  'failed',      // Failed to process
+  'cancelled'    // Cancelled by user or admin
 ]);
 
 export type RedemptionStatus = z.infer<typeof RedemptionStatusEnum>;
 
-/**
- * Redemption record schema
- */
+// Redemption Transaction Zod Schema
 export const redemptionSchema = z.object({
   id: z.string().uuid({ message: 'Invalid redemption ID format' }),
   user_id: z.string().uuid({ message: 'Invalid user ID format' }),
-  points_amount: z.number().positive({ message: 'Points amount must be positive' }),
+  points_amount: z.number().int().positive({ message: 'Points amount must be a positive integer' })
+    .min(1000, { message: 'Minimum redemption amount is 1,000 points' }),
   token_amount: z.number().positive({ message: 'Token amount must be positive' }),
-  wallet_address: z.string().min(20, { message: 'Wallet address is too short' }),
-  status: RedemptionStatusEnum.default('pending'),
-  transaction_hash: z.string().nullable(),
+  wallet_address: z.string().min(1, { message: 'Wallet address is required' }),
+  status: RedemptionStatusEnum,
   created_at: z.coerce.date(),
   processed_at: z.coerce.date().nullable(),
-  completed_at: z.coerce.date().nullable(),
-  error: z.string().nullable(),
-  reference_id: z.string().nullable(),
-  metadata: z.record(z.string(), z.any()).default({})
+  transaction_hash: z.string().nullable(),
+  points_transaction_id: z.string().uuid().nullable(),
+  error_message: z.string().nullable(),
+  batch_id: z.string().nullable()
 });
 
+// TypeScript Redemption Type derived from Zod schema
 export type Redemption = z.infer<typeof redemptionSchema>;
 
-/**
- * Create redemption request schema
- */
-export const createRedemptionSchema = z.object({
-  user_id: z.string().uuid({ message: 'Invalid user ID format' }),
-  points_amount: z.number().positive({ message: 'Points amount must be positive' }),
-  wallet_address: z.string().min(20, { message: 'Wallet address is too short' }),
-  reference_id: z.string().optional()
+// Create Redemption Request Input Schema
+export const createRedemptionRequestSchema = z.object({
+  userId: z.string().uuid({ message: 'Invalid user ID format' }),
+  pointsAmount: z.number().int().positive({ message: 'Points amount must be a positive integer' })
+    .min(1000, { message: 'Minimum redemption amount is 1,000 points' }),
+  walletAddress: z.string().min(1, { message: 'Wallet address is required' })
 });
 
-export type CreateRedemptionDto = z.infer<typeof createRedemptionSchema>;
+// Create Redemption Request DTO Type
+export type CreateRedemptionRequestDto = z.infer<typeof createRedemptionRequestSchema>;
 
-/**
- * Update redemption schema
- */
-export const updateRedemptionSchema = z.object({
-  status: RedemptionStatusEnum.optional(),
-  transaction_hash: z.string().optional(),
-  processed_at: z.coerce.date().optional(),
-  completed_at: z.coerce.date().optional(),
-  error: z.string().optional(),
-  metadata: z.record(z.string(), z.any()).optional()
+// Update Redemption Status Input Schema
+export const updateRedemptionStatusSchema = z.object({
+  id: z.string().uuid({ message: 'Invalid redemption ID format' }),
+  status: RedemptionStatusEnum,
+  transactionHash: z.string().nullable().optional(),
+  errorMessage: z.string().nullable().optional(),
+  processedAt: z.date().optional()
 });
 
-export type UpdateRedemptionDto = z.infer<typeof updateRedemptionSchema>;
+// Update Redemption Status DTO Type
+export type UpdateRedemptionStatusDto = z.infer<typeof updateRedemptionStatusSchema>;
 
-/**
- * Redemption transaction schema
- */
-export const redemptionTransactionSchema = z.object({
-  id: z.string().uuid(),
-  redemption_id: z.string().uuid(),
-  transaction_hash: z.string().nullable(),
-  status: z.enum(['pending', 'processing', 'completed', 'failed']).default('pending'),
-  attempts: z.number().int().default(0),
-  last_attempt: z.coerce.date().nullable(),
+// Redemption Batch Input Schema
+export const redemptionBatchSchema = z.object({
+  id: z.string().uuid({ message: 'Invalid batch ID format' }),
+  status: RedemptionStatusEnum,
   created_at: z.coerce.date(),
-  completed_at: z.coerce.date().nullable(),
-  error: z.string().nullable()
+  processed_at: z.coerce.date().nullable(),
+  redemption_count: z.number().int().nonnegative(),
+  total_points: z.number().int().nonnegative(),
+  total_tokens: z.number().positive()
 });
 
-export type RedemptionTransaction = z.infer<typeof redemptionTransactionSchema>;
+// Redemption Batch Type
+export type RedemptionBatch = z.infer<typeof redemptionBatchSchema>;
 
-/**
- * Weekly redemption limit schema
- */
-export const weeklyLimitSchema = z.object({
-  user_id: z.string().uuid(),
-  week_start: z.coerce.date(),
-  week_end: z.coerce.date(),
-  total_points: z.number().default(0),
-  limit: z.number().default(10000), // Default weekly limit
-  remaining: z.number() // Calculated field
-});
-
-export type WeeklyLimit = z.infer<typeof weeklyLimitSchema>;
-
-/**
- * Redemption filter options schema
- */
-export const redemptionFilterSchema = z.object({
-  user_id: z.string().uuid().optional(),
-  status: z.array(RedemptionStatusEnum).optional(),
-  from_date: z.coerce.date().optional(),
-  to_date: z.coerce.date().optional(),
-  min_points: z.number().optional(),
-  max_points: z.number().optional(),
-  wallet_address: z.string().optional(),
-  transaction_hash: z.string().optional(),
-  page: z.number().int().min(1).default(1),
-  limit: z.number().int().min(1).max(100).default(20),
-  sort_by: z.enum(['created_at', 'points_amount', 'status']).default('created_at'),
-  sort_direction: z.enum(['asc', 'desc']).default('desc')
-});
-
-export type RedemptionFilterOptions = z.infer<typeof redemptionFilterSchema>;
-
-/**
- * Redemption eligibility response
- */
-export interface EligibilityResult {
-  eligible: boolean;
-  reasons?: string[];
-  limits?: {
-    weekly: {
-      limit: number;
-      used: number;
-      remaining: number;
-    };
-    minimum: number;
-  };
-  walletVerified?: boolean;
-  accountStatus?: string;
-}
-
-/**
- * Constants for redemption system
- */
+// Redemption Constants
 export const REDEMPTION_CONSTANTS = {
-  MINIMUM_AMOUNT: 1000, // Minimum 1,000 SP (10 SKC)
-  WEEKLY_LIMIT: 10000,  // Maximum 10,000 SP (100 SKC) per week
-  CONVERSION_RATIO: 100 // 100 SP = 1 SKC
+  CONVERSION_RATE: 100,        // 100 SP = 1 SKC
+  MINIMUM_AMOUNT: 1000,        // 1,000 SP (10 SKC)
+  WEEKLY_CAP: 10000,           // 10,000 SP per week (100 SKC)
+  PROCESSING_INTERVAL: 7,      // Process redemptions every 7 days
+  BATCH_SIZE_LIMIT: 1000,      // Maximum redemptions per batch
+  POINTS_EXPIRY_DAYS: 365      // Points expire after 365 days of inactivity
 };

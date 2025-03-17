@@ -1,24 +1,59 @@
 /**
- * Services module
+ * Services Exports
  * 
- * Centralizes and exports all service instances for the application
+ * Exports all application service instances
  */
+import { db } from '../database';
+import { redisClient } from '../lib/redis-client';
+import { eventBus } from '../lib/event-bus';
+import { PointsRepository } from '../repositories/points-repository';
+import { RedemptionRepository } from '../repositories/redemption-repository';
+import { PointsService } from './points/points-service';
+import { EnhancedPointsService } from './points/points-service-enhanced';
+import { PointsVerifier } from './points/verification/points-verifier';
+import { RedemptionService } from './redemption/redemption-service';
+import { WalletService } from './wallet/wallet-service';
+import { BlockchainService } from './blockchain/blockchain-service';
+import { ProfileService } from './profiles/profile-service';
 
-// Re-export all service instances and types
-export * from './auth-service';
-export * from './feature-flag-service';
-export * from './session-service';
-export * from './user-service';
-export * from './content';
-export * from './taxonomy';
-export * from './moderation';
+// Create service instances
+const pointsRepository = new PointsRepository(db);
+const redemptionRepository = new RedemptionRepository(db);
+const pointsVerifier = new PointsVerifier();
 
-// Export points services
-export * from './points';
-export * from './points/redemption';
+// Legacy points service
+export const pointsService = new PointsService(
+  pointsRepository,
+  eventBus,
+  pointsVerifier
+);
 
-// Export media services
-export * from './media';
+// Export services with proper types
+export const walletService = new WalletService(db, eventBus);
+export const blockchainService = new BlockchainService();
+export const profileService = new ProfileService(db);
 
-// Export referral services
-export * from './referral';
+// Enhanced points service with Redis-based cap tracking
+export const enhancedPointsService = new EnhancedPointsService(
+  pointsRepository,
+  eventBus,
+  pointsVerifier
+);
+
+// Redemption service
+export const redemptionService = new RedemptionService(
+  redemptionRepository,
+  enhancedPointsService,
+  walletService,
+  blockchainService,
+  eventBus
+);
+
+// Export other services
+export * from './points/points-service';
+export * from './points/points-service-enhanced';
+export * from './points/verification/points-verifier';
+export * from './redemption/redemption-service';
+export * from './wallet/wallet-service';
+export * from './blockchain/blockchain-service';
+export * from './profiles/profile-service';

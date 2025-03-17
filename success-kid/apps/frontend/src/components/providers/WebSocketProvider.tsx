@@ -1,94 +1,67 @@
 /**
- * WebSocket provider for global WebSocket state
+ * WebSocket Provider Component
+ * 
+ * Provides WebSocket functionality to the application with real-time notifications
+ * and connection status monitoring.
  */
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { websocketClient, WebSocketMessage } from '@/lib/websocket-client';
-import { useAuth } from '@/hooks/useAuth';
-import { initializeEvents } from '@/lib/events';
+import React, { useEffect } from 'react';
+import { NotificationSystem } from '../features/NotificationSystem';
+import { WebSocketStatus } from '../ui/WebSocketStatus';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
-// Define the context type
-type WebSocketContextType = {
-  connected: boolean;
-  subscribe: (type: string, handler: (message: WebSocketMessage) => void) => () => void;
-  send: (message: WebSocketMessage) => void;
-  isAuthenticated: boolean;
-};
-
-// Create the context with default values
-const WebSocketContext = createContext<WebSocketContextType>({
-  connected: false,
-  subscribe: () => () => {},
-  send: () => {},
-  isAuthenticated: false
-});
-
-// Hook to use the WebSocket context
-export const useWebSocketContext = () => useContext(WebSocketContext);
-
-// Provider component properties
-export interface WebSocketProviderProps {
+interface WebSocketProviderProps {
   children: React.ReactNode;
+  showConnectionStatus?: boolean;
+  showNotifications?: boolean;
 }
 
 /**
- * WebSocket provider component
- * @param props Component properties
- * @returns Provider component
+ * WebSocket Provider Component for application-wide WebSocket support
  */
-export function WebSocketProvider({ children }: WebSocketProviderProps) {
-  const [connected, setConnected] = useState(false);
-  const { user, isLoaded } = useAuth();
-  const isAuthenticated = !!user?.id;
+export function WebSocketProvider({
+  children,
+  showConnectionStatus = true,
+  showNotifications = true
+}: WebSocketProviderProps) {
+  const { status, reconnect } = useWebSocket();
   
-  // Connect to WebSocket when component mounts and auth state changes
+  // Reconnect when app regains focus
   useEffect(() => {
-    if (!isLoaded) return;
+    if (typeof window === 'undefined') return;
     
-    // Connect with authentication if possible
-    if (user?.id) {
-      websocketClient.connect(user.id);
-    } else {
-      websocketClient.connect();
-    }
-    
-    // Subscribe to connection changes
-    const unsubscribe = websocketClient.onConnectionChange(setConnected);
-    
-    // Initialize event system
-    initializeEvents();
-    
-    // Disconnect on unmount (though this is a root provider, so rarely unmounts)
-    return () => {
-      unsubscribe();
+    const handleFocus = () => {
+      // If not connected and not currently reconnecting, attempt reconnect
+      if (
+        status.state !== 'connected' && 
+        status.state !== 'connecting' && 
+        status.state !== 'reconnecting'
+      ) {
+        reconnect();
+      }
     };
-  }, [isLoaded, user?.id]);
+    
+    // Add event listeners
+    window.addEventListener('focus', handleFocus);
+    
+    // Clean up event listeners
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [status.state, reconnect]);
   
-  // Subscribe to a specific message type
-  const subscribe = useCallback((type: string, handler: (message: WebSocketMessage) => void) => {
-    return websocketClient.subscribe(type, handler);
-  }, []);
-  
-  // Send a message to the server
-  const send = useCallback((message: WebSocketMessage) => {
-    websocketClient.send(message);
-  }, []);
-  
-  // Create the value object for the context
-  const value: WebSocketContextType = {
-    connected,
-    subscribe,
-    send,
-    isAuthenticated
-  };
-  
-  // Render the provider with the value
   return (
-    <WebSocketContext.Provider value={value}>
+    <>
       {children}
-    </WebSocketContext.Provider>
+      
+      {showNotifications && <NotificationSystem />}
+      
+      {showConnectionStatus && !status.connected && (
+        <div className="fixed bottom-4 left-4 z-50">
+          <WebSocketStatus />
+        </div>
+      )}
+    </>
   );
 }
-
-export default WebSocketProvider;
