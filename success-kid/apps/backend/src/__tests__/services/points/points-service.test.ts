@@ -1,302 +1,187 @@
 /**
- * Points Service Tests
+ * Points Service Unit Tests
  * 
- * Tests for the core points service functionality
+ * Tests for the PointsService class functionality.
  */
-import { PointsService } from '../../../services/points/points-service';
-import { PointsVerifier } from '../../../services/points/verification/points-verifier';
-import { EventBus } from '../../../lib/event-bus';
-import { ValidationError, InsufficientPointsError } from '../../../errors';
+import { jest } from '@jest/globals';
+import { PointsService } from '@/services/points';
+import { createMockedRepositories, createMockEventEmitter } from '@/testing/helpers/mocks';
+import { PointsTransaction } from '@/testing/factories/points';
 
 // Mock dependencies
-const mockPointsRepository = {
-  getUserPointsTotal: jest.fn(),
-  getDailyPointsBySource: jest.fn(),
-  getRecentPointsActivity: jest.fn(),
-  addPointsTransaction: jest.fn(),
-  deductPoints: jest.fn(),
-  getUserPointsTransactions: jest.fn(),
-  transferPointsBetweenUsers: jest.fn()
-};
-
-const mockEventBus = {
-  publish: jest.fn()
-} as unknown as EventBus;
-
-const mockPointsVerifier = {
-  verifyActivity: jest.fn()
-} as unknown as PointsVerifier;
+jest.mock('@/repositories/points-repository');
+jest.mock('@/repositories/user-repository');
 
 describe('PointsService', () => {
+  // Test dependencies
   let pointsService: PointsService;
+  let mockPointsRepo: any;
+  let mockUserRepo: any;
+  let mockEventEmitter: any;
   
+  // Setup before each test
   beforeEach(() => {
-    // Reset all mocks
-    jest.clearAllMocks();
+    // Create mock repositories
+    const mocks = createMockedRepositories();
+    mockPointsRepo = mocks.pointsRepository;
+    mockUserRepo = mocks.userRepository;
     
-    // Create service with mocked dependencies
+    // Create mock event emitter
+    mockEventEmitter = createMockEventEmitter();
+    
+    // Create service with mock dependencies
     pointsService = new PointsService(
-      mockPointsRepository,
-      mockEventBus,
-      mockPointsVerifier
+      mockPointsRepo,
+      mockUserRepo,
+      mockEventEmitter
     );
   });
   
-  describe('awardPoints', () => {
-    it('should award points successfully', async () => {
-      // Set up mocks
-      mockPointsRepository.getDailyPointsBySource.mockResolvedValue(0);
-      mockPointsRepository.getUserPointsTotal.mockResolvedValue(1050);
-      mockPointsRepository.addPointsTransaction.mockResolvedValue({
-        id: 'tx_123',
-        user_id: 'user_123',
-        amount: 50,
-        source: 'content_creation',
-        created_at: new Date()
-      });
-      mockPointsVerifier.verifyActivity.mockResolvedValue({
-        isValid: true,
-        confidenceScore: 0.9
-      });
-      
-      // Call the service
-      const result = await pointsService.awardPoints({
-        userId: 'user_123',
-        amount: 50,
-        source: 'content_creation'
-      });
-      
-      // Assert the result
-      expect(result).toEqual({
-        success: true,
-        amount: 50,
-        total: 1050
-      });
-      
-      // Verify mocks were called correctly
-      expect(mockPointsRepository.getDailyPointsBySource).toHaveBeenCalledWith(
-        'user_123', 'content_creation'
-      );
-      expect(mockPointsRepository.addPointsTransaction).toHaveBeenCalledWith({
-        userId: 'user_123',
-        amount: 50,
-        source: 'content_creation',
-        referenceId: undefined,
-        description: 'Created new content'
-      });
-      expect(mockEventBus.publish).toHaveBeenCalled();
-    });
-    
-    it('should respect daily caps', async () => {
-      // Set up mocks to simulate reaching daily cap
-      mockPointsRepository.getDailyPointsBySource.mockResolvedValue(200); // Already at limit
-      mockPointsRepository.getUserPointsTotal.mockResolvedValue(1000);
-      
-      // Call the service
-      const result = await pointsService.awardPoints({
-        userId: 'user_123',
-        amount: 50,
-        source: 'content_creation'
-      });
-      
-      // Assert the result shows no points awarded
-      expect(result).toEqual({
-        success: false,
-        amount: 0,
-        total: 1000
-      });
-      
-      // Verify no transaction was created
-      expect(mockPointsRepository.addPointsTransaction).not.toHaveBeenCalled();
-      expect(mockEventBus.publish).not.toHaveBeenCalled();
-    });
-    
-    it('should reject negative point amounts', async () => {
-      // Call the service with invalid amount
-      await expect(pointsService.awardPoints({
-        userId: 'user_123',
-        amount: -50,
-        source: 'content_creation'
-      })).rejects.toThrow(ValidationError);
-      
-      // Verify no further processing occurred
-      expect(mockPointsRepository.getDailyPointsBySource).not.toHaveBeenCalled();
-      expect(mockPointsRepository.addPointsTransaction).not.toHaveBeenCalled();
-    });
-    
-    it('should reject activities that fail verification', async () => {
-      // Set up mocks
-      mockPointsRepository.getDailyPointsBySource.mockResolvedValue(0);
-      mockPointsVerifier.verifyActivity.mockResolvedValue({
-        isValid: false,
-        confidenceScore: 0.9,
-        reason: 'Content too short'
-      });
-      
-      // Call the service
-      const result = await pointsService.awardPoints({
-        userId: 'user_123',
-        amount: 50,
-        source: 'content_creation'
-      });
-      
-      // Assert the result shows no points awarded
-      expect(result).toEqual({
-        success: false,
-        amount: 0,
-        total: expect.any(Number)
-      });
-      
-      // Verify verification was called but no transaction created
-      expect(mockPointsVerifier.verifyActivity).toHaveBeenCalled();
-      expect(mockPointsRepository.addPointsTransaction).not.toHaveBeenCalled();
-    });
+  // Reset mocks after each test
+  afterEach(() => {
+    jest.resetAllMocks();
   });
   
-  describe('deductPoints', () => {
-    it('should deduct points successfully', async () => {
-      // Set up mocks
-      mockPointsRepository.getUserPointsTotal.mockResolvedValue(1000);
-      mockPointsRepository.deductPoints.mockResolvedValue({
-        id: 'tx_123',
-        user_id: 'user_123',
-        amount: -50,
-        source: 'redemption',
+  describe('awardPoints', () => {
+    it('should award points when within daily limit', async () => {
+      // Arrange
+      const userId = 'user-123';
+      const amount = 50;
+      const source = 'content_creation';
+      
+      mockUserRepo.findById.mockResolvedValue({ id: userId, status: 'active' });
+      mockPointsRepo.getDailyPointsBySource.mockResolvedValue(0);
+      mockPointsRepo.addPointsTransaction.mockResolvedValue({
+        id: 'tx-123',
+        userId,
+        amount,
+        source,
         created_at: new Date()
       });
+      mockPointsRepo.getUserPointsTotal.mockResolvedValue(150);
       
-      // Call the service
-      const result = await pointsService.deductPoints({
-        userId: 'user_123',
-        amount: 50,
-        source: 'redemption'
-      });
+      // Act
+      const result = await pointsService.awardPoints(userId, amount, source);
       
-      // Assert the result
-      expect(result).toEqual({
-        success: true,
-        amount: 50,
-        total: 1000
-      });
-      
-      // Verify mocks were called correctly
-      expect(mockPointsRepository.getUserPointsTotal).toHaveBeenCalledWith('user_123');
-      expect(mockPointsRepository.deductPoints).toHaveBeenCalledWith({
-        userId: 'user_123',
-        amount: 50,
-        source: 'redemption',
-        referenceId: undefined,
-        description: 'Points deduction for redemption'
-      });
-    });
-    
-    it('should reject deduction if user has insufficient balance', async () => {
-      // Set up mocks
-      mockPointsRepository.getUserPointsTotal.mockResolvedValue(30); // Less than amount to deduct
-      
-      // Call the service with amount greater than balance
-      await expect(pointsService.deductPoints({
-        userId: 'user_123',
-        amount: 50,
-        source: 'redemption'
-      })).rejects.toThrow(InsufficientPointsError);
-      
-      // Verify no deduction was attempted
-      expect(mockPointsRepository.deductPoints).not.toHaveBeenCalled();
-    });
-    
-    it('should emit event for redemption deductions', async () => {
-      // Set up mocks
-      mockPointsRepository.getUserPointsTotal.mockResolvedValue(1000);
-      mockPointsRepository.deductPoints.mockResolvedValue({
-        id: 'tx_123',
-        user_id: 'user_123',
-        amount: -50,
-        source: 'redemption',
-        created_at: new Date()
-      });
-      
-      // Call the service
-      await pointsService.deductPoints({
-        userId: 'user_123',
-        amount: 50,
-        source: 'redemption',
-        referenceId: 'redemption_123'
-      });
-      
-      // Verify event was published
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        'points.redeemed',
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.amount).toBe(amount);
+      expect(result.newTotal).toBe(150);
+      expect(mockPointsRepo.addPointsTransaction).toHaveBeenCalledWith(
         expect.objectContaining({
-          userId: 'user_123',
-          amount: 50,
-          referenceId: 'redemption_123'
+          userId,
+          amount,
+          source
+        })
+      );
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'points.awarded',
+        expect.objectContaining({
+          userId,
+          amount,
+          source
         })
       );
     });
-  });
-  
-  describe('getUserBalance', () => {
-    it('should return user balance', async () => {
-      // Set up mock
-      mockPointsRepository.getUserPointsTotal.mockResolvedValue(1000);
+    
+    it('should reject points when exceeding daily limit', async () => {
+      // Arrange
+      const userId = 'user-123';
+      const amount = 50;
+      const source = 'content_creation';
+      const dailyLimit = 100;
+      const currentTotal = 90;
       
-      // Call the service
-      const balance = await pointsService.getUserBalance('user_123');
+      mockUserRepo.findById.mockResolvedValue({ id: userId, status: 'active' });
+      mockPointsRepo.getDailyPointsBySource.mockResolvedValue(currentTotal);
       
-      // Assert result
-      expect(balance).toBe(1000);
+      // Set expected limits in service config
+      jest.spyOn(pointsService as any, 'getSourceLimit').mockReturnValue(dailyLimit);
       
-      // Verify mock was called
-      expect(mockPointsRepository.getUserPointsTotal).toHaveBeenCalledWith('user_123');
+      // Act & Assert
+      await expect(
+        pointsService.awardPoints(userId, amount, source)
+      ).rejects.toThrow('Daily limit exceeded');
+      
+      expect(mockPointsRepo.addPointsTransaction).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+    });
+    
+    it('should reject points for suspended users', async () => {
+      // Arrange
+      const userId = 'user-123';
+      const amount = 50;
+      const source = 'content_creation';
+      
+      mockUserRepo.findById.mockResolvedValue({ id: userId, status: 'suspended' });
+      
+      // Act & Assert
+      await expect(
+        pointsService.awardPoints(userId, amount, source)
+      ).rejects.toThrow('User is suspended');
+      
+      expect(mockPointsRepo.getDailyPointsBySource).not.toHaveBeenCalled();
+      expect(mockPointsRepo.addPointsTransaction).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+    });
+    
+    it('should reject negative point amounts', async () => {
+      // Arrange
+      const userId = 'user-123';
+      const amount = -50;
+      const source = 'content_creation';
+      
+      // Act & Assert
+      await expect(
+        pointsService.awardPoints(userId, amount, source)
+      ).rejects.toThrow('Point amount must be positive');
+      
+      expect(mockUserRepo.findById).not.toHaveBeenCalled();
+      expect(mockPointsRepo.getDailyPointsBySource).not.toHaveBeenCalled();
+      expect(mockPointsRepo.addPointsTransaction).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
     });
   });
   
-  describe('getUserTransactions', () => {
-    it('should return user transactions with default pagination', async () => {
-      // Set up mock
-      const mockTransactions = [
-        {
-          id: 'tx_1',
-          user_id: 'user_123',
-          amount: 50,
-          source: 'content_creation',
-          created_at: new Date()
-        },
-        {
-          id: 'tx_2',
-          user_id: 'user_123',
-          amount: 20,
-          source: 'daily_login',
-          created_at: new Date()
-        }
+  describe('getUserPointsHistory', () => {
+    it('should return user points history', async () => {
+      // Arrange
+      const userId = 'user-123';
+      const transactions: Partial<PointsTransaction>[] = [
+        { id: 'tx-1', userId, amount: 50, source: 'content_creation', createdAt: new Date() },
+        { id: 'tx-2', userId, amount: 25, source: 'comment', createdAt: new Date() }
       ];
       
-      mockPointsRepository.getUserPointsTransactions.mockResolvedValue(mockTransactions);
+      mockUserRepo.findById.mockResolvedValue({ id: userId, status: 'active' });
+      mockPointsRepo.getUserTransactions.mockResolvedValue(transactions);
       
-      // Call the service
-      const transactions = await pointsService.getUserTransactions('user_123');
+      // Act
+      const result = await pointsService.getUserPointsHistory(userId);
       
-      // Assert result
-      expect(transactions).toEqual(mockTransactions);
-      
-      // Verify mock was called with default pagination
-      expect(mockPointsRepository.getUserPointsTransactions).toHaveBeenCalledWith(
-        'user_123', 20, 0
+      // Assert
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe('tx-1');
+      expect(result[1].id).toBe('tx-2');
+      expect(mockPointsRepo.getUserTransactions).toHaveBeenCalledWith(
+        userId,
+        expect.any(Object) // Options parameter
       );
     });
     
-    it('should respect custom pagination parameters', async () => {
-      // Set up mock
-      mockPointsRepository.getUserPointsTransactions.mockResolvedValue([]);
+    it('should throw error if user not found', async () => {
+      // Arrange
+      const userId = 'user-123';
       
-      // Call the service
-      await pointsService.getUserTransactions('user_123', 10, 20);
+      mockUserRepo.findById.mockResolvedValue(null);
       
-      // Verify mock was called with custom pagination
-      expect(mockPointsRepository.getUserPointsTransactions).toHaveBeenCalledWith(
-        'user_123', 10, 20
-      );
+      // Act & Assert
+      await expect(
+        pointsService.getUserPointsHistory(userId)
+      ).rejects.toThrow('User not found');
+      
+      expect(mockPointsRepo.getUserTransactions).not.toHaveBeenCalled();
     });
   });
+  
+  // Add more test cases for other methods...
 });

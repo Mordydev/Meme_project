@@ -19,3 +19,6 @@ export * from './points/redemption';
 
 // Export media services
 export * from './media';
+
+// Export referral services
+export * from './referral';

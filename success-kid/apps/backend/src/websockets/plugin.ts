@@ -7,10 +7,18 @@ import fp from 'fastify-plugin';
 import { FastifyInstance } from 'fastify';
 import { WebSocket } from 'ws';
 import { connectionManager } from './connection-manager';
+import { recoveryService } from './recovery';
 import { authenticateWebSocketConnection, extractToken, mockAuthenticateToken } from './auth';
 import { processMessage } from './handlers';
 import { logger } from '../lib/logger';
 import { handleWebSocketError } from '../errors/handlers';
+
+// Declare TypeScript interface extensions
+declare module 'ws' {
+  interface WebSocket {
+    connectionId?: string;
+  }
+}
 
 /**
  * WebSocket configuration interface
@@ -48,6 +56,9 @@ export default fp(async function(fastify: FastifyInstance, options: Partial<WebS
   
   // Register WebSocket handler at configured path
   fastify.get(config.path, { websocket: true }, (connection, request) => {
+    // Generate connection ID for reconnection
+    const connectionId = request.query.connectionId || recoveryService.generateConnectionId();
+    
     // Authenticate the connection
     let userId: string | null = null;
     
@@ -72,6 +83,20 @@ export default fp(async function(fastify: FastifyInstance, options: Partial<WebS
         connection.socket.close(1008, 'Unauthorized');
         return;
       }
+      
+      // Store the connection ID on the socket
+      connection.socket.connectionId = connectionId;
+      
+      // Save authentication info for reconnection
+      recoveryService.saveConnectionState(connectionId, {
+        connectionId,
+        userId: userId,
+        subscriptions: [],
+        lastSeen: new Date(),
+        metadata: { source: 'websocket' }
+      }).catch(error => {
+        logger.error('Failed to save connection state', { error, userId, connectionId });
+      });
     } else {
       // For non-authenticated routes, use a generic user ID
       userId = 'anonymous';
@@ -83,7 +108,10 @@ export default fp(async function(fastify: FastifyInstance, options: Partial<WebS
     // Send welcome message
     connection.socket.send(JSON.stringify({
       type: 'system',
-      payload: { message: 'Connected successfully' }
+      payload: { 
+        message: 'Connected successfully',
+        connectionId: connectionId 
+      }
     }));
     
     // Setup heartbeat interval to detect disconnections
@@ -102,6 +130,19 @@ export default fp(async function(fastify: FastifyInstance, options: Partial<WebS
       try {
         // Parse message as JSON
         const parsedMessage = JSON.parse(message.toString());
+        
+        // Handle subscription requests
+        if (parsedMessage.type === 'subscribe' && connection.socket.connectionId) {
+          const channels = parsedMessage.payload?.channels || [];
+          
+          // Store subscriptions for reconnection
+          for (const channel of channels) {
+            recoveryService.addSubscription(connection.socket.connectionId, channel)
+              .catch(error => {
+                logger.error('Failed to store subscription', { error, userId, channel });
+              });
+          }
+        }
         
         // Process message
         processMessage(connection.socket, parsedMessage, userId!);

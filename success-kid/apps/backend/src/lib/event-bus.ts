@@ -15,14 +15,61 @@ export interface Event {
  * Standard event types for the platform
  */
 export enum EventType {
+  // Points events
   POINTS_AWARDED = 'points.awarded',
   POINTS_REDEEMED = 'points.redeemed',
+  
+  // Redemption events
+  REDEMPTION_CREATED = 'redemption.created',
+  REDEMPTION_PROCESSING = 'redemption.processing',
+  REDEMPTION_COMPLETED = 'redemption.completed',
+  REDEMPTION_FAILED = 'redemption.failed',
+  REDEMPTION_CANCELLED = 'redemption.cancelled',
+  
+  // Achievement events
   ACHIEVEMENT_UNLOCKED = 'achievement.unlocked',
+  
+  // Content events
   CONTENT_CREATED = 'content.created',
   CONTENT_COMMENTED = 'content.commented',
+  
+  // User events
   LEVEL_UP = 'user.levelUp',
+  
+  // Wallet events
   WALLET_CONNECTED = 'wallet.connected',
-  MILESTONE_REACHED = 'milestone.reached'
+  
+  // Milestone events
+  MILESTONE_REACHED = 'milestone.reached',
+  
+  // Notification events
+  NOTIFICATION_CREATED = 'notification.created',
+  NOTIFICATION_DELIVERED = 'notification.delivered',
+  NOTIFICATION_READ = 'notification.read',
+  NOTIFICATIONS_CLEARED = 'notifications.cleared',
+  
+  // Activity events
+  ACTIVITY_CREATED = 'activity.created',
+  FEED_ITEM_CREATED = 'feed.item.created',
+  FEED_ITEMS_READ = 'feed.items.read',
+  
+  // Presence events
+  PRESENCE_UPDATED = 'presence.updated',
+  PRESENCE_SUBSCRIBED = 'presence.subscribed',
+  
+  // Referral events
+  REFERRAL_CREATED = 'referral.created',
+  REFERRAL_STATUS_UPDATED = 'referral.status_updated',
+  REFERRAL_CODE_GENERATED = 'referral.code_generated',
+  REFERRAL_CODE_DEACTIVATED = 'referral.code_deactivated',
+  REFERRAL_LINK_VISITED = 'referral.link_visited',
+  REFERRAL_ATTRIBUTED = 'referral.attributed',
+  REFERRAL_MILESTONE_REWARDED = 'referral.milestone_rewarded',
+  REFERRAL_CAMPAIGN_CREATED = 'referral.campaign_created',
+  REFERRAL_CAMPAIGN_UPDATED = 'referral.campaign_updated',
+  REFERRAL_CAMPAIGN_ACTIVATED = 'referral.campaign_activated',
+  REFERRAL_CAMPAIGN_DEACTIVATED = 'referral.campaign_deactivated',
+  REFERRAL_CAMPAIGN_APPLIED = 'referral.campaign_applied'
 }
 
 /**

@@ -10,6 +10,11 @@ import { ProfileRepository } from './profile-repository';
 import { PointsRepository } from './points-repository';
 import { AchievementRepository } from './achievement-repository';
 import { WalletRepository } from './wallet-repository';
+import { 
+  ReferralRepository, 
+  ReferralCodeRepository, 
+  ReferralCampaignRepository 
+} from './referral';
 
 // Re-export repository classes
 export * from './base-repository';
@@ -18,6 +23,7 @@ export * from './profile-repository';
 export * from './points-repository';
 export * from './achievement-repository';
 export * from './wallet-repository';
+export * from './referral';
 
 /**
  * Repository factory - creates and provides all repositories
@@ -28,6 +34,9 @@ export class Repositories {
   private readonly pointsRepository: PointsRepository;
   private readonly achievementRepository: AchievementRepository;
   private readonly walletRepository: WalletRepository;
+  private readonly referralRepository: ReferralRepository;
+  private readonly referralCodeRepository: ReferralCodeRepository;
+  private readonly referralCampaignRepository: ReferralCampaignRepository;
   
   /**
    * Create repository factory
@@ -40,6 +49,9 @@ export class Repositories {
     this.pointsRepository = new PointsRepository(db);
     this.achievementRepository = new AchievementRepository(db);
     this.walletRepository = new WalletRepository(db);
+    this.referralRepository = new ReferralRepository(db);
+    this.referralCodeRepository = new ReferralCodeRepository(db);
+    this.referralCampaignRepository = new ReferralCampaignRepository(db);
   }
   
   /**
@@ -75,6 +87,27 @@ export class Repositories {
    */
   get wallets(): WalletRepository {
     return this.walletRepository;
+  }
+
+  /**
+   * Get referral repository
+   */
+  get referrals(): ReferralRepository {
+    return this.referralRepository;
+  }
+
+  /**
+   * Get referral code repository
+   */
+  get referralCodes(): ReferralCodeRepository {
+    return this.referralCodeRepository;
+  }
+
+  /**
+   * Get referral campaign repository
+   */
+  get referralCampaigns(): ReferralCampaignRepository {
+    return this.referralCampaignRepository;
   }
   
   /**

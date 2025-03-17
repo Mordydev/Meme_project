@@ -7,10 +7,12 @@ import { logger } from './lib/logger';
 import { handleApiError } from './errors';
 import { env } from './config';
 import { setupMonitoring } from './health/monitoring';
+import { securityService } from './security/framework/service';
 import { registerTransactionVerification } from './middleware/transaction-verification';
-import swaggerPlugin from './plugins/swagger';
+import enhancedSwaggerPlugin from './plugins/enhanced-swagger';
 import marketPlugin from './plugins/market';
 import achievementsPlugin from './plugins/achievements';
+import jobsPlugin from './plugins/jobs';
 import websocketPlugin, { initializeWebSocketEvents } from './websockets';
 import { getDatabase } from './database';
 import { initializeWalletModule } from './wallet';
@@ -23,6 +25,8 @@ import contentRoutes from './api/content';
 import mediaRoutes from './api/media';
 import marketRoutes from './api/market';
 import achievementRoutes from './api/achievements';
+import securityRoutes from './api/security';
+import complianceRoutes from './api/compliance';
 import registerAuth from './auth';
 
 // Configuration for rate limiting
@@ -89,14 +93,17 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
     auth: true, // Require authentication for WebSocket connections
   });
 
-  // Register API documentation with Swagger
-  await app.register(swaggerPlugin);
+  // Register enhanced API documentation with Swagger
+  await app.register(enhancedSwaggerPlugin);
 
   // Register market plugin
   await app.register(marketPlugin);
 
   // Register achievements plugin
   await app.register(achievementsPlugin);
+
+  // Register jobs plugin
+  await app.register(jobsPlugin);
 
   // Register transaction verification middleware
   registerTransactionVerification(app);
@@ -108,19 +115,32 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   const db = getDatabase().pool;
   initializeWalletModule({ db });
 
+  // Initialize security service
+  await securityService.initialize(app);
+
   // Register global error handler
   app.setErrorHandler((error, request, reply) => {
     return handleApiError(request, reply, error);
   });
 
-  // Register API routes
-  app.register(healthRoutes, { prefix: '/api/v1/health' });
-  app.register(featuresRoutes, { prefix: '/api/v1/features' });
-  app.register(pointsRoutes, { prefix: '/api/v1/points' });
-  app.register(contentRoutes, { prefix: '/api/v1/content' });
-  app.register(mediaRoutes, { prefix: '/api/v1/media' });
-  app.register(marketRoutes, { prefix: '/api/v1/market' });
-  app.register(achievementRoutes, { prefix: '/api/v1' });
+  // Import new API routes
+import notificationRoutes from './api/notifications';
+import activityRoutes from './api/activity';
+import presenceRoutes from './api/presence';
+
+// Register API routes
+app.register(healthRoutes, { prefix: '/api/v1/health' });
+app.register(featuresRoutes, { prefix: '/api/v1/features' });
+app.register(pointsRoutes, { prefix: '/api/v1/points' });
+app.register(contentRoutes, { prefix: '/api/v1/content' });
+app.register(mediaRoutes, { prefix: '/api/v1/media' });
+app.register(marketRoutes, { prefix: '/api/v1/market' });
+app.register(achievementRoutes, { prefix: '/api/v1' });
+app.register(notificationRoutes, { prefix: '/api/v1/notifications' });
+app.register(activityRoutes, { prefix: '/api/v1/activity' });
+app.register(presenceRoutes, { prefix: '/api/v1/presence' });
+app.register(securityRoutes, { prefix: '/api/v1/security' });
+app.register(complianceRoutes, { prefix: '/api/v1/compliance' });
 
   // Register authentication and user management
   await app.register(registerAuth);

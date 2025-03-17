@@ -6,6 +6,9 @@
 import { EventBus } from '../../lib/event-bus';
 import { ConnectionRegistry } from '../connection-registry';
 import { registerPointsEventHandlers } from './points-handlers';
+import { registerNotificationHandlers } from './notification-handlers';
+import { registerActivityHandlers } from './activity-handlers';
+import { registerPresenceHandlers } from './presence-handlers';
 
 /**
  * Register all WebSocket event handlers
@@ -20,11 +23,24 @@ export function registerAllEventHandlers(
   // Register points-related event handlers
   registerPointsEventHandlers(eventBus, connectionRegistry);
   
+  // Register notification handlers
+  registerNotificationHandlers(eventBus, connectionRegistry);
+  
+  // Register activity handlers
+  registerActivityHandlers(eventBus, connectionRegistry);
+  
+  // Register presence handlers
+  registerPresenceHandlers(eventBus, connectionRegistry);
+  
   // Register other event handlers as they're implemented
   // registerContentEventHandlers(eventBus, connectionRegistry);
   // registerMarketEventHandlers(eventBus, connectionRegistry);
-  // etc.
 }
 
 // Export individual handler registration functions
-export { registerPointsEventHandlers };
+export { 
+  registerPointsEventHandlers,
+  registerNotificationHandlers,
+  registerActivityHandlers,
+  registerPresenceHandlers
+};

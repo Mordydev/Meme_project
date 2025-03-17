@@ -1,18 +1,39 @@
+/**
+ * API Routes
+ * 
+ * Registers all API routes and middleware for the application.
+ */
 import { FastifyInstance } from 'fastify';
+import { logger } from '../lib/logger';
+import healthRoutes from './health';
+import featuresRoutes from './features';
+import pointsRoutes from './points';
+import contentRoutes from './content';
+import mediaRoutes from './media';
+import marketRoutes from './market';
+import achievementRoutes from './achievements';
+import notificationRoutes from './notifications';
+import activityRoutes from './activity';
+import presenceRoutes from './presence';
+import jobRoutes from './jobs';
 
-export default async function api(fastify: FastifyInstance): Promise<void> {
-  // Register route modules
-  fastify.register(import('./auth'), { prefix: '/auth' });
-  fastify.register(import('./content'), { prefix: '/content' });
-  fastify.register(import('./events'), { prefix: '/events' });
-  fastify.register(import('./health'), { prefix: '/health' });
-  fastify.register(import('./market'), { prefix: '/market' });
-  fastify.register(import('./points'), { prefix: '/points' });
-  fastify.register(import('./users'), { prefix: '/users' });
-  fastify.register(import('./wallet'), { prefix: '/wallet' });
-  
-  // Register root routes
-  fastify.get('/', async () => {
-    return { message: 'Success Kid Community API v1' };
-  });
+/**
+ * Register all API routes
+ * 
+ * @param fastify Fastify instance
+ */
+export default async function apiRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.register(healthRoutes, { prefix: '/health' });
+  fastify.register(featuresRoutes, { prefix: '/features' });
+  fastify.register(pointsRoutes, { prefix: '/points' });
+  fastify.register(contentRoutes, { prefix: '/content' });
+  fastify.register(mediaRoutes, { prefix: '/media' });
+  fastify.register(marketRoutes, { prefix: '/market' });
+  fastify.register(achievementRoutes, { prefix: '/' });
+  fastify.register(notificationRoutes, { prefix: '/notifications' });
+  fastify.register(activityRoutes, { prefix: '/activity' });
+  fastify.register(presenceRoutes, { prefix: '/presence' });
+  fastify.register(jobRoutes, { prefix: '/jobs' });
+
+  logger.info('API routes registered');
 }
