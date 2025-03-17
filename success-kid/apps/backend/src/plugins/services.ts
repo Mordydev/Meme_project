@@ -13,6 +13,19 @@ import { ContentService } from '../services/content/content-service';
 import { MediaService } from '../services/media/media-service';
 import { WalletConnectionService } from '../services/wallet/connection-service';
 
+// Import notification and real-time services
+import { 
+  NotificationService,
+  NotificationTemplateService,
+  NotificationPreferencesService
+} from '../services/notifications';
+import { ActivityService } from '../services/activity';
+import { PresenceService } from '../services/presence';
+import { WebSocketService } from '../websockets/websocket-service';
+
+// Import notification services plugin
+import notificationServicesPlugin from './notification-services';
+
 // Declare custom types for Fastify instance
 declare module 'fastify' {
   interface FastifyInstance {
@@ -22,6 +35,14 @@ declare module 'fastify' {
       mediaService: MediaService;
     };
     walletConnectionService: WalletConnectionService;
+    
+    // Notification and real-time services
+    notificationService: NotificationService;
+    notificationTemplateService: NotificationTemplateService;
+    notificationPreferencesService: NotificationPreferencesService;
+    activityService: ActivityService;
+    presenceService: PresenceService;
+    websockets: WebSocketService;
   }
   
   // For request-level DI container
@@ -111,6 +132,9 @@ const servicesPlugin: FastifyPluginAsync = async (fastify) => {
   // Decorate fastify instance with wallet connection service
   fastify.decorate('walletConnectionService', walletConnectionService);
   
+  // Register notification and real-time services
+  await fastify.register(notificationServicesPlugin);
+  
   // Add request-level DI container
   fastify.decorateRequest('diContainer', null);
   fastify.addHook('onRequest', async (request, reply) => {
@@ -124,6 +148,21 @@ const servicesPlugin: FastifyPluginAsync = async (fastify) => {
             return { rbac: fastify.auth?.rbac };
           case 'wallet':
             return { walletConnectionService: fastify.walletConnectionService };
+            
+          // Notification and real-time services
+          case 'notificationService':
+            return fastify.notificationService;
+          case 'notificationTemplateService':
+            return fastify.notificationTemplateService;
+          case 'notificationPreferencesService':
+            return fastify.notificationPreferencesService;
+          case 'activityService':
+            return fastify.activityService;
+          case 'presenceService':
+            return fastify.presenceService;
+          case 'websockets':
+            return fastify.websockets;
+            
           default:
             return null;
         }

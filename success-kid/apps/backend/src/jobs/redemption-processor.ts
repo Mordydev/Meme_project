@@ -1,129 +1,178 @@
 /**
  * Redemption Processor Job
  * 
- * Processes redemption requests from the queue
+ * Processes redemption requests from the queue and handles blockchain transactions
  */
 import { logger } from '../lib/logger';
 import { getRedisClient } from '../lib/db-client';
+import { getDbClient } from '../lib/db-client';
 import { eventBus, EventType } from '../lib/event-bus';
-import { RedemptionStatus, RedemptionRecord } from '../services/points/redemption-service';
+import { RedemptionService, RedemptionStatus } from '../services/points/redemption-service';
+import { TokenTransferService } from '../services/blockchain/token-transfer-service';
+import { BlockchainProviderFactory } from '../services/blockchain/providers/blockchain-provider-factory';
+import { UserPointsRepository } from '../repositories/user-points/user-points-repository';
+import { WalletConnectionRepository } from '../repositories/wallet-connection-repository';
+import { RedemptionRepository } from '../repositories/redemption-repository';
+
+// Services will be initialized in the processor
+let redemptionService: RedemptionService;
+let tokenTransferService: TokenTransferService;
 
 /**
- * Process a single redemption request
+ * Initialize services needed for processing
+ */
+async function initializeServices() {
+  if (!redemptionService) {
+    const db = getDbClient();
+    const redis = getRedisClient();
+    
+    // Create repositories
+    const userPointsRepository = new UserPointsRepository(db);
+    const walletConnectionRepository = new WalletConnectionRepository(db);
+    const redemptionRepository = new RedemptionRepository(db);
+    
+    // Create blockchain services
+    const providerFactory = new BlockchainProviderFactory(
+      process.env.BLOCKCHAIN_PROVIDER_URLS?.split(',') || [],
+      process.env.TOKEN_ADDRESS || '',
+      process.env.TREASURY_PRIVATE_KEY || ''
+    );
+    
+    tokenTransferService = new TokenTransferService(
+      providerFactory,
+      {
+        treasuryAddress: process.env.TREASURY_ADDRESS || '',
+        tokenAddress: process.env.TOKEN_ADDRESS || '',
+        tokenDecimals: parseInt(process.env.TOKEN_DECIMALS || '9', 10),
+        minConfirmations: parseInt(process.env.MIN_CONFIRMATIONS || '1', 10),
+        gasMultiplier: parseFloat(process.env.GAS_MULTIPLIER || '1.1'),
+        providerUrls: process.env.BLOCKCHAIN_PROVIDER_URLS?.split(',') || [],
+        blockExplorerUrl: process.env.BLOCK_EXPLORER_URL || '',
+        waitTimeoutMs: parseInt(process.env.TRANSACTION_WAIT_TIMEOUT || '60000', 10)
+      }
+    );
+    
+    // Create redemption service
+    redemptionService = new RedemptionService(
+      db,
+      userPointsRepository,
+      walletConnectionRepository,
+      redemptionRepository,
+      tokenTransferService,
+      {
+        conversionRate: parseInt(process.env.POINTS_TO_TOKEN_RATE || '100', 10),
+        minimumRedemptionAmount: parseInt(process.env.MIN_REDEMPTION_AMOUNT || '1000', 10),
+        weeklyRedemptionCap: parseInt(process.env.WEEKLY_REDEMPTION_CAP || '10000', 10),
+        autoApproveThreshold: parseInt(process.env.AUTO_APPROVE_THRESHOLD || '5000', 10),
+        processingTime: process.env.ESTIMATED_PROCESSING_TIME || '24 hours'
+      }
+    );
+  }
+}
+
+/**
+ * Process a single redemption request from the queue
  */
 async function processRedemption(redemptionId: string): Promise<boolean> {
-  const redis = getRedisClient();
-  
   try {
-    // Get redemption record from Redis
-    const data = await redis.get(`redemption:${redemptionId}`);
-    if (!data) {
-      logger.error('Redemption record not found', { redemptionId });
-      return false;
-    }
+    // Ensure services are initialized
+    await initializeServices();
     
-    const redemption = JSON.parse(data) as RedemptionRecord;
+    // Process the redemption
+    const result = await redemptionService.processRedemption(redemptionId);
     
-    // Skip if not in pending status
-    if (redemption.status !== RedemptionStatus.PENDING) {
-      logger.warn('Skipping non-pending redemption', { 
+    if (result.success) {
+      logger.info('Redemption processed successfully', { 
         redemptionId, 
-        status: redemption.status 
+        status: result.status,
+        transactionHash: result.transactionHash 
+      });
+      return true;
+    } else {
+      logger.warn('Redemption processing failed', { 
+        redemptionId, 
+        reason: result.reason 
       });
       return false;
     }
-    
-    // Update status to processing
-    redemption.status = RedemptionStatus.PROCESSING;
-    await redis.set(
-      `redemption:${redemptionId}`, 
-      JSON.stringify(redemption),
-      'EX',
-      60 * 60 * 24 * 7 // 7 days
-    );
-    
-    // Publish status update event
-    await eventBus.publish(EventType.POINTS_REDEEMED, {
-      userId: redemption.userId,
-      redemptionId: redemption.id,
-      status: RedemptionStatus.PROCESSING,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Simulate blockchain processing time (3-5 seconds)
-    const processingTime = 3000 + Math.random() * 2000;
-    await new Promise(resolve => setTimeout(resolve, processingTime));
-    
-    // In a real implementation, this would:
-    // 1. Submit a blockchain transaction to transfer tokens
-    // 2. Wait for transaction confirmation
-    // 3. Update redemption record with transaction hash
-    
-    // Simulate blockchain transaction
-    const transactionHash = `tx_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
-    
-    // Update redemption status to completed
-    redemption.status = RedemptionStatus.COMPLETED;
-    redemption.processedAt = new Date();
-    redemption.transactionHash = transactionHash;
-    
-    await redis.set(
-      `redemption:${redemptionId}`, 
-      JSON.stringify(redemption),
-      'EX',
-      60 * 60 * 24 * 7 // 7 days
-    );
-    
-    // Publish completion event
-    await eventBus.publish(EventType.POINTS_REDEEMED, {
-      userId: redemption.userId,
-      redemptionId: redemption.id,
-      status: RedemptionStatus.COMPLETED,
-      transactionHash,
-      timestamp: new Date().toISOString()
-    });
-    
-    logger.info('Redemption processed successfully', { 
-      redemptionId, 
-      transactionHash 
-    });
-    
-    return true;
   } catch (error) {
     logger.error('Error processing redemption', { error, redemptionId });
+    return false;
+  }
+}
+
+/**
+ * Check status of processing redemptions
+ * This runs periodically to update the status of transactions
+ * that are in processing state
+ */
+export async function checkProcessingRedemptions(): Promise<{
+  checked: number;
+  completed: number;
+  failed: number;
+  stillProcessing: number;
+}> {
+  try {
+    // Ensure services are initialized
+    await initializeServices();
     
-    // Attempt to update status to failed
-    try {
-      const data = await redis.get(`redemption:${redemptionId}`);
-      if (data) {
-        const redemption = JSON.parse(data) as RedemptionRecord;
-        redemption.status = RedemptionStatus.FAILED;
-        redemption.failureReason = error.message || 'Unknown error';
+    const redis = getRedisClient();
+    
+    // Get all processing redemption IDs
+    const processingKey = 'redemption:processing';
+    const processingIds = await redis.smembers(processingKey);
+    
+    let completed = 0;
+    let failed = 0;
+    let stillProcessing = 0;
+    
+    // Check each redemption
+    for (const redemptionId of processingIds) {
+      try {
+        // Get current status
+        const status = await redemptionService.getRedemptionStatus(redemptionId);
         
-        await redis.set(
-          `redemption:${redemptionId}`, 
-          JSON.stringify(redemption),
-          'EX',
-          60 * 60 * 24 * 7 // 7 days
-        );
+        if (!status) {
+          // Redemption not found, remove from set
+          await redis.srem(processingKey, redemptionId);
+          continue;
+        }
         
-        // Publish failure event
-        await eventBus.publish(EventType.POINTS_REDEEMED, {
-          userId: redemption.userId,
-          redemptionId: redemption.id,
-          status: RedemptionStatus.FAILED,
-          error: error.message,
-          timestamp: new Date().toISOString()
-        });
+        if (status.status === RedemptionStatus.COMPLETED) {
+          // Completed, remove from processing set
+          await redis.srem(processingKey, redemptionId);
+          completed++;
+        } else if (status.status === RedemptionStatus.FAILED) {
+          // Failed, remove from processing set
+          await redis.srem(processingKey, redemptionId);
+          failed++;
+        } else if (status.status === RedemptionStatus.PROCESSING) {
+          // Still processing, check transaction status
+          await redemptionService.checkTransactionStatus(redemptionId);
+          stillProcessing++;
+        } else {
+          // Shouldn't happen, but remove from processing set just in case
+          await redis.srem(processingKey, redemptionId);
+        }
+      } catch (error) {
+        logger.error('Error checking redemption status', { error, redemptionId });
       }
-    } catch (updateError) {
-      logger.error('Error updating failed redemption status', { 
-        error: updateError, 
-        redemptionId 
-      });
     }
     
-    return false;
+    return {
+      checked: processingIds.length,
+      completed,
+      failed,
+      stillProcessing
+    };
+  } catch (error) {
+    logger.error('Error checking processing redemptions', { error });
+    return {
+      checked: 0,
+      completed: 0,
+      failed: 0,
+      stillProcessing: 0
+    };
   }
 }
 
@@ -161,6 +210,9 @@ export async function processRedemptionBatch(batchSize: number = 10): Promise<{
       }
     }
     
+    // Check processing redemptions status
+    await checkProcessingRedemptions();
+    
     return { processed, successful, failed };
   } catch (error) {
     logger.error('Error processing redemption batch', { error });
@@ -173,12 +225,22 @@ export async function processRedemptionBatch(batchSize: number = 10): Promise<{
  */
 export function startRedemptionProcessor(
   interval: number = 60000, // Default: run every minute
-  batchSize: number = 10
+  batchSize: number = 10,
+  statusCheckInterval: number = 300000 // Check processing status every 5 minutes
 ): { stop: () => void } {
-  logger.info('Starting redemption processor', { interval, batchSize });
+  logger.info('Starting redemption processor', { 
+    interval, 
+    batchSize, 
+    statusCheckInterval 
+  });
+  
+  // Initialize services
+  initializeServices()
+    .then(() => logger.info('Redemption processor services initialized'))
+    .catch(error => logger.error('Error initializing redemption processor services', { error }));
   
   // Run the processor at the specified interval
-  const timer = setInterval(async () => {
+  const processingTimer = setInterval(async () => {
     try {
       const result = await processRedemptionBatch(batchSize);
       
@@ -194,10 +256,29 @@ export function startRedemptionProcessor(
     }
   }, interval);
   
+  // Run status check at the specified interval
+  const statusTimer = setInterval(async () => {
+    try {
+      const result = await checkProcessingRedemptions();
+      
+      if (result.checked > 0) {
+        logger.info('Checked processing redemptions', { 
+          checked: result.checked,
+          completed: result.completed,
+          failed: result.failed,
+          stillProcessing: result.stillProcessing
+        });
+      }
+    } catch (error) {
+      logger.error('Error in redemption status check interval', { error });
+    }
+  }, statusCheckInterval);
+  
   // Return a function to stop the processor
   return {
     stop: () => {
-      clearInterval(timer);
+      clearInterval(processingTimer);
+      clearInterval(statusTimer);
       logger.info('Stopped redemption processor');
     }
   };

@@ -16,3 +16,9 @@ export * from './content-reaction';
 export * from './category';
 export * from './tag';
 export * from './content-report';
+
+// Real-time & Notification Models
+export * from './notification';
+export * from './activity';
+export * from './presence';
+export * from './connection-state';

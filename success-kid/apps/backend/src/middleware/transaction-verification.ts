@@ -1,7 +1,9 @@
 /**
  * Transaction Verification Middleware
  * 
- * Provides idempotency for write operations by tracking transaction IDs
+ * Implements idempotency for API operations by tracking transaction IDs.
+ * This prevents duplicate operations from being processed, particularly
+ * important for points-related transactions and redemptions.
  */
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { getRedisClient } from '../lib/db-client';
@@ -9,118 +11,80 @@ import { logger } from '../lib/logger';
 import crypto from 'crypto';
 
 /**
- * Transaction verification options
+ * Transaction verification middleware for idempotency
  */
-export interface TransactionVerificationOptions {
-  /**
-   * HTTP methods to verify
-   */
-  methods: string[];
+export default async function transactionVerification(
+  request: FastifyRequest, 
+  reply: FastifyReply
+): Promise<void> {
+  // Only apply to write operations
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+    return;
+  }
   
-  /**
-   * Transaction ID header name
-   */
-  headerName: string;
+  const redis = getRedisClient();
   
-  /**
-   * Cache expiry in seconds
-   */
-  expiry: number;
-}
-
-// Default options
-const defaultOptions: TransactionVerificationOptions = {
-  methods: ['POST', 'PUT', 'PATCH', 'DELETE'],
-  headerName: 'X-Transaction-ID',
-  expiry: 300, // 5 minutes
-};
-
-/**
- * Transaction verification middleware factory
- */
-export function createTransactionVerification(options: Partial<TransactionVerificationOptions> = {}) {
-  // Merge with default options
-  const opts: TransactionVerificationOptions = {
-    ...defaultOptions,
-    ...options,
-  };
+  // Generate transaction ID if not present
+  let transactionId = request.headers['x-transaction-id'] as string;
+  if (!transactionId) {
+    transactionId = crypto.randomUUID();
+    request.headers['x-transaction-id'] = transactionId;
+  }
   
-  // Return middleware function
-  return async function transactionVerification(
-    request: FastifyRequest, 
-    reply: FastifyReply
-  ) {
-    // Only apply to specified methods
-    if (!opts.methods.includes(request.method)) {
-      return;
-    }
+  // Log transaction for debugging
+  request.log.debug('Transaction verification middleware', { 
+    transactionId, 
+    method: request.method,
+    url: request.url
+  });
+  
+  // Check if transaction has been processed already (idempotency)
+  const cacheKey = `transaction:${transactionId}`;
+  const processed = await redis.get(cacheKey);
+  
+  if (processed) {
+    request.log.info('Transaction already processed, returning cached result', { 
+      transactionId 
+    });
     
-    // Get Redis client
-    const redis = getRedisClient();
+    // Transaction already processed, return cached response
+    const cachedResponse = JSON.parse(processed);
     
-    // Generate transaction ID if not present
-    if (!request.headers[opts.headerName.toLowerCase()]) {
-      const transactionId = crypto.randomUUID();
-      request.headers[opts.headerName.toLowerCase()] = transactionId;
-    }
-    
-    const transactionId = request.headers[opts.headerName.toLowerCase()] as string;
-    const redisKey = `transaction:${transactionId}`;
-    
-    try {
-      // Check if transaction has been processed already (idempotency)
-      const processed = await redis.get(redisKey);
-      if (processed) {
-        // Transaction already processed, return original response
-        logger.info({ 
-          transactionId, 
-          path: request.url,
-          method: request.method 
-        }, 'Returning cached response for idempotent request');
-        
-        return reply.send(JSON.parse(processed));
-      }
-      
-      // Store original send function to capture response
-      const originalSend = reply.send;
-      
-      // Override send to record successful responses
-      reply.send = function(payload) {
-        // Only cache successful responses
-        if (reply.statusCode >= 200 && reply.statusCode < 300) {
-          const stringPayload = typeof payload === 'string' 
-            ? payload 
-            : JSON.stringify(payload);
-          
-          // Store response for idempotency
-          redis.set(redisKey, stringPayload, 'EX', opts.expiry)
-            .catch(err => request.log.error('Failed to store transaction', { err }));
-          
-          // Log transaction caching
-          logger.debug({ 
-            transactionId, 
-            path: request.url,
-            method: request.method,
-            expiry: opts.expiry 
-          }, 'Cached transaction response');
-        }
-        
-        // Call original send
-        return originalSend.call(this, payload);
+    // Return cached HTTP status code and body
+    return reply
+      .code(cachedResponse.statusCode)
+      .headers(cachedResponse.headers || {})
+      .send(cachedResponse.payload);
+  }
+  
+  // Store original send function to capture response
+  const originalSend = reply.send;
+  
+  // Override send to record successful responses
+  reply.send = function(payload) {
+    // Cache successful/idempotent responses
+    const statusCode = reply.statusCode;
+    if (
+      // Cache successful responses (2xx, 3xx)
+      (statusCode >= 200 && statusCode < 400) ||
+      // Also cache client errors that would be consistent for the same request
+      statusCode === 400 || // Bad request
+      statusCode === 403 || // Forbidden
+      statusCode === 404 || // Not found
+      statusCode === 409    // Conflict
+    ) {
+      const responseToCache = {
+        statusCode,
+        headers: reply.getHeaders(),
+        payload
       };
-    } catch (error) {
-      // Log error but continue - this should not block the request
-      logger.error({ 
-        err: error, 
-        transactionId, 
-        path: request.url, 
-        method: request.method 
-      }, 'Transaction verification error');
+      
+      // Store response for idempotency (10 minutes expiry)
+      redis.set(cacheKey, JSON.stringify(responseToCache), 'EX', 600)
+        .catch(err => request.log.error('Failed to store transaction', { err }));
     }
+    
+    // Call original send
+    return originalSend.call(this, payload);
   };
 }
-
-/**
- * Default export is middleware with default options
- */
-export default createTransactionVerification();

@@ -15,3 +15,11 @@ export * from './category-repository';
 export * from './tag-repository';
 export * from './content-report-repository';
 export * from './comment-repository';
+
+// Real-time & notifications repositories
+export * from './notification-repository';
+export * from './notification-template-repository';
+export * from './notification-preferences-repository';
+export * from './activity-repository';
+export * from './presence-repository';
+export * from './connection-state-repository';

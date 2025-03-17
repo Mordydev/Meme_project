@@ -323,7 +323,7 @@ export const redeemPointsSchema = {
             userId: { type: 'string' },
             pointsAmount: { type: 'number' },
             tokenAmount: { type: 'number' },
-            status: { type: 'string', enum: ['pending', 'processing', 'completed', 'failed'] },
+            status: { type: 'string', enum: ['pending', 'processing', 'completed', 'failed', 'flagged'] },
             estimatedCompletionTime: { type: 'string' }
           }
         },
@@ -408,6 +408,301 @@ export const leaderboardSchema = {
               }
             },
             timeframe: { type: 'string' }
+          }
+        }
+      }
+    }
+  }
+};
+
+// Admin schemas for redemption management
+export const flaggedRedemptionsSchema = {
+  description: 'Get flagged redemptions for review',
+  tags: ['Points Admin'],
+  querystring: {
+    type: 'object',
+    properties: {
+      limit: { type: 'number', description: 'Number of results to return', default: 20 },
+      offset: { type: 'number', description: 'Offset for pagination', default: 0 },
+      startDate: { type: 'string', format: 'date-time', description: 'Filter by start date' },
+      endDate: { type: 'string', format: 'date-time', description: 'Filter by end date' }
+    }
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              userId: { type: 'string' },
+              pointsAmount: { type: 'number' },
+              tokenAmount: { type: 'number' },
+              walletAddress: { type: 'string' },
+              status: { type: 'string', enum: ['flagged'] },
+              requestedAt: { type: 'string', format: 'date-time' },
+              metadata: { 
+                type: 'object',
+                nullable: true,
+                additionalProperties: true
+              }
+            }
+          }
+        },
+        pagination: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            limit: { type: 'number' },
+            offset: { type: 'number' },
+            hasMore: { type: 'boolean' }
+          }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            timestamp: { type: 'string', format: 'date-time' }
+          }
+        }
+      }
+    }
+  }
+};
+
+export const reviewRedemptionSchema = {
+  description: 'Review a flagged redemption',
+  tags: ['Points Admin'],
+  params: {
+    type: 'object',
+    required: ['id'],
+    properties: {
+      id: { type: 'string', description: 'Redemption ID' }
+    }
+  },
+  body: {
+    type: 'object',
+    required: ['action', 'reason'],
+    properties: {
+      action: { 
+        type: 'string', 
+        enum: ['approve', 'reject'],
+        description: 'Action to take on the redemption'
+      },
+      reason: { 
+        type: 'string', 
+        minLength: 5,
+        description: 'Reason for the decision'
+      }
+    }
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            redemptionId: { type: 'string' },
+            action: { type: 'string', enum: ['approve', 'reject'] },
+            status: { type: 'string', enum: ['pending', 'failed'] },
+            updatedAt: { type: 'string', format: 'date-time' }
+          }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            timestamp: { type: 'string', format: 'date-time' },
+            requestId: { type: 'string' }
+          }
+        }
+      }
+    },
+    400: {
+      type: 'object',
+      properties: {
+        data: { type: 'null' },
+        errors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              code: { type: 'string' },
+              message: { type: 'string' }
+            }
+          }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            timestamp: { type: 'string', format: 'date-time' },
+            requestId: { type: 'string' }
+          }
+        }
+      }
+    },
+    404: {
+      type: 'object',
+      properties: {
+        data: { type: 'null' },
+        errors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              code: { type: 'string' },
+              message: { type: 'string' }
+            }
+          }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            timestamp: { type: 'string', format: 'date-time' },
+            requestId: { type: 'string' }
+          }
+        }
+      }
+    }
+  }
+};
+
+export const redemptionStatsSchema = {
+  description: 'Get redemption statistics',
+  tags: ['Points Admin'],
+  querystring: {
+    type: 'object',
+    properties: {
+      startDate: { type: 'string', format: 'date-time', description: 'Filter by start date' },
+      endDate: { type: 'string', format: 'date-time', description: 'Filter by end date' }
+    }
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            totalRedemptions: { type: 'number' },
+            totalPointsRedeemed: { type: 'number' },
+            totalTokensDistributed: { type: 'number' },
+            successRate: { type: 'number' },
+            averageProcessingTime: { type: 'number' }, // in milliseconds
+            statusBreakdown: {
+              type: 'object',
+              properties: {
+                pending: { type: 'number' },
+                processing: { type: 'number' },
+                completed: { type: 'number' },
+                failed: { type: 'number' },
+                flagged: { type: 'number' }
+              }
+            }
+          }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            timestamp: { type: 'string', format: 'date-time' },
+            timeframe: {
+              type: 'object',
+              properties: {
+                startDate: { type: 'string' },
+                endDate: { type: 'string' }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
+export const redemptionByIdSchema = {
+  description: 'Get detailed redemption information',
+  tags: ['Points Admin'],
+  params: {
+    type: 'object',
+    required: ['id'],
+    properties: {
+      id: { type: 'string', description: 'Redemption ID' }
+    }
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            redemption: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                userId: { type: 'string' },
+                pointsAmount: { type: 'number' },
+                tokenAmount: { type: 'number' },
+                walletAddress: { type: 'string' },
+                status: { type: 'string', enum: ['pending', 'processing', 'completed', 'failed', 'flagged'] },
+                requestedAt: { type: 'string', format: 'date-time' },
+                processedAt: { type: 'string', format: 'date-time', nullable: true },
+                transactionHash: { type: 'string', nullable: true },
+                failureReason: { type: 'string', nullable: true },
+                metadata: { 
+                  type: 'object',
+                  nullable: true,
+                  additionalProperties: true
+                }
+              }
+            },
+            transaction: {
+              type: 'object',
+              nullable: true,
+              properties: {
+                txHash: { type: 'string' },
+                status: { type: 'string', enum: ['pending', 'confirmed', 'failed'] },
+                fromAddress: { type: 'string' },
+                toAddress: { type: 'string' },
+                amount: { type: 'number' },
+                blockNumber: { type: 'number', nullable: true },
+                confirmations: { type: 'number', nullable: true },
+                gasUsed: { type: 'number', nullable: true },
+                timestamp: { type: 'string', format: 'date-time', nullable: true }
+              }
+            }
+          }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            timestamp: { type: 'string', format: 'date-time' },
+            requestId: { type: 'string' }
+          }
+        }
+      }
+    },
+    404: {
+      type: 'object',
+      properties: {
+        data: { type: 'null' },
+        errors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              code: { type: 'string' },
+              message: { type: 'string' }
+            }
+          }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            timestamp: { type: 'string', format: 'date-time' },
+            requestId: { type: 'string' }
           }
         }
       }

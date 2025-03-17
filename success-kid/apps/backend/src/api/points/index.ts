@@ -15,7 +15,14 @@ import {
   getRedemptionEligibility,
   redeemPoints
 } from './handlers';
+import {
+  getFlaggedRedemptions,
+  reviewRedemption,
+  getRedemptionStats,
+  getRedemptionById
+} from './admin-handlers';
 import transactionVerification from '../../middleware/transaction-verification';
+import { checkAdminAccess } from '../../middleware/auth';
 
 // Request schemas
 const getUserPointsQuerySchema = z.object({
@@ -42,6 +49,27 @@ const redeemPointsSchema = z.object({
   userId: z.string(),
   amount: z.number().int().min(1000),
   walletAddress: z.string().optional()
+});
+
+const reviewRedemptionSchema = z.object({
+  action: z.enum(['approve', 'reject']),
+  reason: z.string().min(5)
+});
+
+const redemptionIdParamSchema = z.object({
+  id: z.string().uuid()
+});
+
+const flaggedRedemptionsQuerySchema = z.object({
+  limit: z.string().transform(val => parseInt(val, 10)).pipe(z.number().int().min(1).max(100)).optional(),
+  offset: z.string().transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional()
+});
+
+const redemptionStatsQuerySchema = z.object({
+  startDate: z.string().optional(),
+  endDate: z.string().optional()
 });
 
 // Route plugin
@@ -172,6 +200,69 @@ const pointsRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
   );
+  
+  // Admin routes for redemption management
+  fastify.register(async (instance) => {
+    // Add admin access check to all routes in this plugin
+    instance.addHook('preHandler', checkAdminAccess('points:admin'));
+    
+    /**
+     * GET /api/v1/admin/points/redemptions/flagged
+     * Get all flagged redemptions for admin review
+     */
+    instance.get(
+      '/admin/points/redemptions/flagged',
+      {
+        preHandler: [
+          validate(flaggedRedemptionsQuerySchema, { source: 'query' })
+        ]
+      },
+      getFlaggedRedemptions
+    );
+    
+    /**
+     * POST /api/v1/admin/points/redemptions/:id/review
+     * Review a flagged redemption (approve or reject)
+     */
+    instance.post(
+      '/admin/points/redemptions/:id/review',
+      {
+        preHandler: [
+          validate(redemptionIdParamSchema, { source: 'params' }),
+          validate(reviewRedemptionSchema)
+        ]
+      },
+      reviewRedemption
+    );
+    
+    /**
+     * GET /api/v1/admin/points/redemptions/stats
+     * Get redemption statistics
+     */
+    instance.get(
+      '/admin/points/redemptions/stats',
+      {
+        preHandler: [
+          validate(redemptionStatsQuerySchema, { source: 'query' })
+        ]
+      },
+      getRedemptionStats
+    );
+    
+    /**
+     * GET /api/v1/admin/points/redemptions/:id
+     * Get detailed redemption information
+     */
+    instance.get(
+      '/admin/points/redemptions/:id',
+      {
+        preHandler: [
+          validate(redemptionIdParamSchema, { source: 'params' })
+        ]
+      },
+      getRedemptionById
+    );
+  });
 };
 
 export default pointsRoutes;

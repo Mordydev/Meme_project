@@ -1,74 +1,182 @@
+/**
+ * Authentication Middleware
+ * 
+ * Provides middleware functions for authentication and authorization
+ */
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { verifyClerkJWT } from '../lib/clerk';
+import { getRedisClient } from '../lib/db-client';
 import { logger } from '../lib/logger';
 
 /**
- * Middleware to authenticate requests using JWT
- * Adds the authenticated user to the request object
+ * Check if a user has a specific permission
  */
-export async function authMiddleware(request: FastifyRequest, reply: FastifyReply) {
-  try {
-    const authHeader = request.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return reply.code(401).send({ 
-        error: 'Unauthorized', 
-        message: 'Authorization header missing or invalid format'
-      });
-    }
-    
-    const token = authHeader.split(' ')[1];
-    
-    const user = await verifyClerkJWT(token);
-    
-    if (!user) {
-      return reply.code(401).send({ 
-        error: 'Unauthorized', 
-        message: 'Invalid or expired token'
-      });
-    }
-    
-    // Add user to request for downstream handlers
-    request.user = user;
-  } catch (error) {
-    logger.error('Authentication failed', { error });
-    return reply.code(401).send({ 
-      error: 'Unauthorized', 
-      message: 'Authentication failed'
-    });
-  }
-}
-
-/**
- * Middleware to check if user has required roles
- * Must be used after authMiddleware
- */
-export function roleMiddleware(roles: string[]) {
+export function checkPermission(permission: string) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!request.user) {
-      return reply.code(401).send({ 
-        error: 'Unauthorized', 
-        message: 'Authentication required'
-      });
-    }
-    
-    if (!roles.includes(request.user.role)) {
-      return reply.code(403).send({ 
-        error: 'Forbidden', 
-        message: 'Insufficient permissions'
+    try {
+      // Skip for development if DISABLE_AUTH is set
+      if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+        request.log.warn('Auth check bypassed in development mode', { permission });
+        return;
+      }
+      
+      // Check if user is authenticated
+      if (!request.user) {
+        return reply.code(401).send({
+          data: null,
+          errors: [{
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required'
+          }],
+          meta: {
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+      
+      // Check if user has the required permission
+      const { rbac } = request.diContainer.resolve('auth');
+      
+      if (!rbac.can(request.user.role, permission)) {
+        return reply.code(403).send({
+          data: null,
+          errors: [{
+            code: 'FORBIDDEN',
+            message: 'Insufficient permissions'
+          }],
+          meta: {
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+    } catch (error) {
+      request.log.error('Error checking permission', { error, permission });
+      
+      return reply.code(500).send({
+        data: null,
+        errors: [{
+          code: 'SERVER_ERROR',
+          message: 'Failed to verify permissions'
+        }],
+        meta: {
+          timestamp: new Date().toISOString()
+        }
       });
     }
   };
 }
 
-// Type augmentation for Fastify
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: {
-      id: string;
-      email: string;
-      role: string;
-      [key: string]: any;
-    };
+/**
+ * Check for admin access
+ */
+export function checkAdminAccess(resource: string = 'admin') {
+  return async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      // Skip for development if DISABLE_AUTH is set
+      if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+        request.log.warn('Admin check bypassed in development mode', { resource });
+        
+        // Set admin role for testing
+        if (!request.user) {
+          request.user = {
+            id: 'dev-admin',
+            role: 'admin'
+          };
+        }
+        
+        return;
+      }
+      
+      // Check if user is authenticated
+      if (!request.user) {
+        return reply.code(401).send({
+          data: null,
+          errors: [{
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required'
+          }],
+          meta: {
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+      
+      // Check if user has admin role for the resource
+      const { rbac } = request.diContainer.resolve('auth');
+      
+      if (!rbac.can(request.user.role, `${resource}`)) {
+        return reply.code(403).send({
+          data: null,
+          errors: [{
+            code: 'FORBIDDEN',
+            message: 'Admin access required'
+          }],
+          meta: {
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+    } catch (error) {
+      request.log.error('Error checking admin access', { error, resource });
+      
+      return reply.code(500).send({
+        data: null,
+        errors: [{
+          code: 'SERVER_ERROR',
+          message: 'Failed to verify admin access'
+        }],
+        meta: {
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  };
+}
+
+/**
+ * Verify user is authenticated
+ */
+export function requireAuth(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    // Skip for development if DISABLE_AUTH is set
+    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+      request.log.warn('Auth check bypassed in development mode');
+      
+      // Set mock user for testing
+      if (!request.user) {
+        request.user = {
+          id: 'dev-user',
+          role: 'user'
+        };
+      }
+      
+      return;
+    }
+    
+    // Check if user is authenticated
+    if (!request.user) {
+      return reply.code(401).send({
+        data: null,
+        errors: [{
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required'
+        }],
+        meta: {
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  } catch (error) {
+    request.log.error('Error checking authentication', { error });
+    
+    return reply.code(500).send({
+      data: null,
+      errors: [{
+        code: 'SERVER_ERROR',
+        message: 'Failed to verify authentication'
+      }],
+      meta: {
+        timestamp: new Date().toISOString()
+      }
+    });
   }
 }

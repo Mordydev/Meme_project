@@ -1,3 +1,8 @@
+/**
+ * Enhanced WebSocket Connection Registry
+ * 
+ * Manages WebSocket connections for users with improved features
+ */
 import { WebSocket } from 'ws';
 import { logger } from '../lib/logger';
 
@@ -38,37 +43,96 @@ export class ConnectionRegistry {
   }
   
   /**
+   * Check if user has active connections
+   * @param userId User identifier
+   * @returns Whether user has any connections
+   */
+  hasConnections(userId: string): boolean {
+    const userConnections = this.connections.get(userId);
+    return !!userConnections && userConnections.size > 0;
+  }
+  
+  /**
+   * Get connections for a user
+   * @param userId User identifier
+   * @returns Set of user's WebSocket connections or null if none
+   */
+  getUserConnections(userId: string): Set<WebSocket> | null {
+    return this.connections.get(userId) || null;
+  }
+  
+  /**
    * Send a message to a specific user across all their connections
    * @param userId User identifier
    * @param message Message to send (will be stringified if not a string)
+   * @returns Number of connections message was sent to
    */
-  sendToUser(userId: string, message: any): void {
+  sendToUser(userId: string, message: any): number {
     const userConnections = this.connections.get(userId);
-    if (userConnections) {
-      const messageString = typeof message === 'string' ? message : JSON.stringify(message);
-      userConnections.forEach(socket => {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(messageString);
-        }
-      });
-      logger.debug(`Sent message to user ${userId}`);
+    if (!userConnections || userConnections.size === 0) {
+      return 0;
     }
+    
+    const messageString = typeof message === 'string' ? message : JSON.stringify(message);
+    let sentCount = 0;
+    
+    userConnections.forEach(socket => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(messageString);
+        sentCount++;
+      }
+    });
+    
+    logger.debug(`Sent message to user ${userId} on ${sentCount} connections`);
+    return sentCount;
   }
   
   /**
    * Send a message to all connected users
    * @param message Message to send (will be stringified if not a string)
+   * @returns Number of connections message was sent to
    */
-  sendToAll(message: any): void {
+  sendToAll(message: any): number {
     const messageString = typeof message === 'string' ? message : JSON.stringify(message);
-    this.connections.forEach((sockets, userId) => {
-      sockets.forEach(socket => {
+    let sentCount = 0;
+    
+    this.connections.forEach((userConnections, userId) => {
+      userConnections.forEach(socket => {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(messageString);
+          sentCount++;
         }
       });
     });
-    logger.debug(`Broadcasted message to all users. Total recipients: ${this.getUserCount()}`);
+    
+    logger.debug(`Broadcasted message to all users. Total recipients: ${sentCount}`);
+    return sentCount;
+  }
+  
+  /**
+   * Send a message to multiple users
+   * @param userIds Array of user IDs
+   * @param message Message to send
+   * @returns Number of connections message was sent to
+   */
+  sendToUsers(userIds: string[], message: any): number {
+    const messageString = typeof message === 'string' ? message : JSON.stringify(message);
+    let sentCount = 0;
+    
+    for (const userId of userIds) {
+      const userConnections = this.connections.get(userId);
+      if (userConnections && userConnections.size > 0) {
+        userConnections.forEach(socket => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(messageString);
+            sentCount++;
+          }
+        });
+      }
+    }
+    
+    logger.debug(`Sent message to ${sentCount} connections across ${userIds.length} users`);
+    return sentCount;
   }
   
   /**
@@ -77,8 +141,8 @@ export class ConnectionRegistry {
    */
   getConnectionCount(): number {
     let count = 0;
-    this.connections.forEach(sockets => {
-      count += sockets.size;
+    this.connections.forEach(userConnections => {
+      count += userConnections.size;
     });
     return count;
   }
@@ -89,5 +153,44 @@ export class ConnectionRegistry {
    */
   getUserCount(): number {
     return this.connections.size;
+  }
+  
+  /**
+   * Get all connected user IDs
+   * @returns Array of user IDs
+   */
+  getConnectedUserIds(): string[] {
+    return Array.from(this.connections.keys());
+  }
+  
+  /**
+   * Get detailed connection statistics
+   * @returns Connection statistics
+   */
+  getDetailedStats(): {
+    totalConnections: number;
+    userCount: number;
+    userConnections: Record<string, number>;
+    topUsers: Array<{userId: string; connections: number}>;
+  } {
+    const totalConnections = this.getConnectionCount();
+    const userCount = this.getUserCount();
+    
+    const userConnections: Record<string, number> = {};
+    this.connections.forEach((connections, userId) => {
+      userConnections[userId] = connections.size;
+    });
+    
+    const topUsers = Object.entries(userConnections)
+      .map(([userId, connections]) => ({ userId, connections }))
+      .sort((a, b) => b.connections - a.connections)
+      .slice(0, 10);
+    
+    return {
+      totalConnections,
+      userCount,
+      userConnections,
+      topUsers
+    };
   }
 }

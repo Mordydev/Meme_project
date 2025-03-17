@@ -2,18 +2,21 @@ import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import securityPlugin from './security';
+import compliancePlugin from './compliance';
 import { createErrorHandler, createNotFoundHandler } from './errors/handlers';
 import { runAllChecks, getVersionInfo } from './health';
 import transactionVerification from './middleware/transaction-verification';
-import swaggerPlugin from './plugins/swagger';
-import featuresPlugin from './plugins/features';
 import repositoriesPlugin from './plugins/repositories';
 import servicesPlugin from './plugins/services';
+import jobsPlugin from './plugins/jobs';
 import websocketsPlugin from './websockets';
-import pointsRoutes from './api/points';
-import contentRoutes from './api/content';
-import mediaRoutes from './api/media';
-import marketRoutes from './api/market';
+import notificationServicesPlugin from './plugins/notification-services';
+import apiPlugin from './api';
+import { registerReferralAttributionHook } from './services/referrals/attribution-hook';
+import { docsPlugin } from './docs';
+import { monitoringPlugin } from './monitoring';
+import { metricsMiddleware } from './monitoring/middleware';
 
 export async function buildApp(options = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -61,55 +64,46 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
 
   // Register global hooks
   app.addHook('preHandler', transactionVerification);
+  app.addHook('preHandler', metricsMiddleware);
 
-  // Register Swagger
-  await app.register(swaggerPlugin);
+  // Register API documentation
+  await app.register(docsPlugin);
+
+  // Register monitoring
+  await app.register(monitoringPlugin);
 
   // Register repositories plugin - must come before services
   await app.register(repositoriesPlugin);
-
-  // Register features plugin
-  await app.register(featuresPlugin);
-
-  // Register services plugin
-  await app.register(servicesPlugin);
 
   // Register WebSockets (if not testing)
   if (process.env.NODE_ENV !== 'test') {
     await app.register(websocketsPlugin);
   }
 
-  // Health check routes
-  app.get('/health', async () => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
-  });
+  // Register services plugin
+  await app.register(servicesPlugin);
 
-  app.get('/health/detailed', async (request, reply) => {
-    const checks = await runAllChecks();
-    
-    const status = Object.values(checks).every(
-      check => check.status === 'healthy'
-    ) ? 'healthy' : 'unhealthy';
-    
-    const statusCode = status === 'healthy' ? 200 : 503;
-    
-    const versionInfo = getVersionInfo();
-    
-    return reply.code(statusCode).send({
-      status,
-      checks,
-      timestamp: new Date().toISOString(),
-      version: versionInfo.version,
-      environment: versionInfo.environment,
-      uptime: process.uptime()
-    });
-  });
+  // Register jobs plugin
+  if (process.env.NODE_ENV !== 'test') {
+    await app.register(jobsPlugin);
+  }
 
-  // Register routes
-  app.register(pointsRoutes, { prefix: '/api/v1' });
-  app.register(contentRoutes, { prefix: '/api/v1/content' });
-  app.register(mediaRoutes, { prefix: '/api/v1/media' });
-  app.register(marketRoutes, { prefix: '/api/v1/market' });
+  // Register notification services plugin
+  if (process.env.NODE_ENV !== 'test') {
+    await app.register(notificationServicesPlugin);
+  }
+
+  // Register security plugin
+  await app.register(securityPlugin);
+
+  // Register compliance plugin
+  await app.register(compliancePlugin);
+
+  // Register all API routes
+  await app.register(apiPlugin);
+  
+  // Register referral attribution hook
+  registerReferralAttributionHook(app);
 
   return app;
 }

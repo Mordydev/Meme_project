@@ -4,15 +4,18 @@
  * Core service for the Success Points system, handling points awards, caps
  * enforcement, and points redemption.
  */
+import { Pool } from 'pg';
 import { UserPointsRepository } from '../../repositories/user-points/user-points-repository';
 import { WalletConnectionRepository } from '../../repositories/wallet-connection-repository';
+import { RedemptionRepository } from '../../repositories/redemption-repository';
+import { TokenTransferService } from '../blockchain/token-transfer-service';
 import { eventBus, EventType } from '../../lib/event-bus';
 import { logger } from '../../lib/logger';
 import { PointsSource, CreateUserPointsDto } from '../../models/user-points';
 import { getRedisClient } from '../../lib/db-client';
 import { VerificationService } from './verification-service';
 import { CapEnforcementService } from './cap-enforcement-service';
-import { RedemptionService } from './redemption-service';
+import { RedemptionService, RedemptionStatus, RedemptionRequest, RedemptionRecord } from './redemption-service';
 
 export interface PointsTransactionResult {
   success: boolean;
@@ -29,6 +32,8 @@ export interface PointsConfig {
   weeklyRedemptionCap: number;
   minimumRedemptionAmount: number;
   conversionRate: number; // Points to tokens ratio (e.g., 100:1)
+  autoApproveThreshold?: number; // Maximum points for auto-approval
+  processingTime?: string; // Estimated processing time
 }
 
 export class PointsService {
@@ -52,7 +57,9 @@ export class PointsService {
     defaultDailyLimit: 100,
     weeklyRedemptionCap: 10000, // 10,000 SP per week (100 tokens)
     minimumRedemptionAmount: 1000, // 1,000 SP minimum (10 tokens)
-    conversionRate: 100 // 100 SP = 1 token
+    conversionRate: 100, // 100 SP = 1 token
+    autoApproveThreshold: 5000, // Auto-approve redemptions up to 5,000 points (50 tokens)
+    processingTime: '24 hours'
   };
 
   private config: PointsConfig;
@@ -67,7 +74,10 @@ export class PointsService {
   constructor(
     private userPointsRepository: UserPointsRepository,
     private walletConnectionRepository: WalletConnectionRepository,
-    config?: Partial<PointsConfig>
+    private redemptionRepository: RedemptionRepository,
+    private tokenTransferService?: TokenTransferService,
+    config?: Partial<PointsConfig>,
+    private db?: Pool
   ) {
     this.config = { ...this.defaultConfig, ...config };
 
@@ -77,11 +87,45 @@ export class PointsService {
       this.userPointsRepository,
       this.config
     );
-    this.redemptionService = new RedemptionService(
-      this.userPointsRepository,
-      this.walletConnectionRepository,
-      this.config
-    );
+    
+    // Initialize the redemption service if we have a DB and token transfer service
+    if (this.db && this.tokenTransferService) {
+      this.redemptionService = new RedemptionService(
+        this.db,
+        this.userPointsRepository,
+        this.walletConnectionRepository,
+        this.redemptionRepository,
+        this.tokenTransferService,
+        {
+          conversionRate: this.config.conversionRate,
+          minimumRedemptionAmount: this.config.minimumRedemptionAmount,
+          weeklyRedemptionCap: this.config.weeklyRedemptionCap,
+          autoApproveThreshold: this.config.autoApproveThreshold || 5000,
+          processingTime: this.config.processingTime || '24 hours'
+        }
+      );
+    } else {
+      // Fallback to the limited redemption service without blockchain capability
+      this.redemptionService = new RedemptionService(
+        null, // No DB, will use simple in-memory or Redis-based approach
+        this.userPointsRepository,
+        this.walletConnectionRepository,
+        this.redemptionRepository,
+        null, // No token transfer service
+        {
+          conversionRate: this.config.conversionRate,
+          minimumRedemptionAmount: this.config.minimumRedemptionAmount,
+          weeklyRedemptionCap: this.config.weeklyRedemptionCap,
+          autoApproveThreshold: this.config.autoApproveThreshold || 5000,
+          processingTime: this.config.processingTime || '24 hours'
+        }
+      );
+      
+      logger.warn('Redemption service initialized without blockchain capabilities', {
+        hasDb: !!this.db,
+        hasTokenTransferService: !!this.tokenTransferService
+      });
+    }
   }
 
   /**
@@ -258,9 +302,19 @@ export class PointsService {
   async requestRedemption(
     userId: string,
     pointsAmount: number,
-    walletAddress?: string
+    walletAddress?: string,
+    metadata?: Record<string, any>,
+    ip?: string,
+    userAgent?: string
   ): Promise<any> {
-    return this.redemptionService.requestRedemption(userId, pointsAmount, walletAddress);
+    return this.redemptionService.requestRedemption({
+      userId,
+      pointsAmount,
+      walletAddress,
+      metadata,
+      ip,
+      userAgent
+    });
   }
 
   /**
@@ -268,6 +322,93 @@ export class PointsService {
    */
   async getRedemptionEligibility(userId: string): Promise<any> {
     return this.redemptionService.getEligibility(userId);
+  }
+
+  /**
+   * Get redemption status
+   */
+  async getRedemptionStatus(redemptionId: string): Promise<RedemptionRecord | null> {
+    return this.redemptionService.getRedemptionStatus(redemptionId);
+  }
+
+  /**
+   * Get redemption history
+   */
+  async getRedemptionHistory(
+    userId: string,
+    options: { 
+      limit?: number; 
+      offset?: number;
+      status?: RedemptionStatus | RedemptionStatus[];
+      startDate?: Date;
+      endDate?: Date;
+    } = {}
+  ): Promise<{
+    data: RedemptionRecord[];
+    pagination: {
+      total: number;
+      limit: number;
+      offset: number;
+      hasMore: boolean;
+    }
+  }> {
+    return this.redemptionService.getRedemptionHistory(userId, options);
+  }
+
+  /**
+   * Get flagged redemptions
+   */
+  async getFlaggedRedemptions(
+    options: { 
+      limit?: number; 
+      offset?: number;
+      startDate?: Date;
+      endDate?: Date;
+    } = {}
+  ): Promise<{
+    data: RedemptionRecord[];
+    pagination: {
+      total: number;
+      limit: number;
+      offset: number;
+      hasMore: boolean;
+    }
+  }> {
+    return this.redemptionService.getFlaggedRedemptions(options);
+  }
+
+  /**
+   * Review flagged redemption
+   */
+  async reviewFlaggedRedemption(
+    redemptionId: string,
+    action: 'approve' | 'reject',
+    reason: string,
+    reviewerId: string
+  ): Promise<RedemptionRecord> {
+    return this.redemptionService.reviewFlaggedRedemption(
+      redemptionId,
+      action,
+      reason,
+      reviewerId
+    );
+  }
+
+  /**
+   * Get redemption statistics
+   */
+  async getRedemptionStats(options: {
+    startDate?: Date;
+    endDate?: Date;
+  } = {}): Promise<{
+    totalRedemptions: number;
+    totalPointsRedeemed: number;
+    totalTokensDistributed: number;
+    successRate: number;
+    averageProcessingTime: number;
+    statusBreakdown: Record<RedemptionStatus, number>;
+  }> {
+    return this.redemptionService.getRedemptionStats(options);
   }
 
   /**

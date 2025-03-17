@@ -15,22 +15,53 @@ export interface Event {
  * Standard event types for the platform
  */
 export enum EventType {
+  // Points-related events
   POINTS_AWARDED = 'points.awarded',
   POINTS_REDEEMED = 'points.redeemed',
+  
+  // Achievement-related events
   ACHIEVEMENT_UNLOCKED = 'achievement.unlocked',
+  LEVEL_UP = 'user.levelUp',
+  
+  // Content-related events
   CONTENT_CREATED = 'content.created',
   CONTENT_COMMENTED = 'content.commented',
   COMMENT_CREATED = 'comment.created',
   CONTENT_REPORTED = 'content.reported',
-  LEVEL_UP = 'user.levelUp',
+  
+  // Wallet-related events
   WALLET_CONNECTED = 'wallet.connected',
+  
+  // Milestone-related events
   MILESTONE_REACHED = 'milestone.reached',
   
   // Market data events
   PRICE_UPDATED = 'price.updated',
   MARKET_CAP_UPDATED = 'marketcap.updated',
   TRANSACTION_DETECTED = 'transaction.detected',
-  MARKET_MILESTONE_REACHED = 'market.milestone.reached'
+  MARKET_MILESTONE_REACHED = 'market.milestone.reached',
+  
+  // Audit events
+  AUDIT_DISCREPANCIES_FOUND = 'audit.discrepancies.found',
+  AUDIT_DISCREPANCY_RESOLVED = 'audit.discrepancy.resolved',
+  AUDIT_SYSTEM_AUDIT_COMPLETE = 'audit.system.audit.complete',
+  AUDIT_RECONCILIATION_COMPLETE = 'audit.reconciliation.complete',
+  
+  // Notification events
+  NOTIFICATION_CREATED = 'notification.created',
+  NOTIFICATION_READ = 'notification.read',
+  NOTIFICATION_ALL_READ = 'notification.all.read',
+  
+  // Presence events
+  PRESENCE_UPDATED = 'presence.updated',
+  
+  // Activity events
+  ACTIVITY_CREATED = 'activity.created',
+  FEED_UPDATED = 'feed.updated',
+  
+  // Connection events
+  CONNECTION_ESTABLISHED = 'connection.established',
+  CONNECTION_CLOSED = 'connection.closed'
 }
 
 /**
@@ -143,6 +174,26 @@ export class EventBus {
         }
       });
     }
+  }
+  
+  /**
+   * Get all active subscription types
+   * @returns Array of event types with active subscriptions
+   */
+  getActiveSubscriptions(): string[] {
+    return Array.from(this.subscribers.keys());
+  }
+  
+  /**
+   * Get count of subscribers for each event type
+   * @returns Map of event types to subscriber counts
+   */
+  getSubscriberCounts(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    this.subscribers.forEach((callbacks, eventType) => {
+      counts[eventType] = callbacks.length;
+    });
+    return counts;
   }
 }
 
