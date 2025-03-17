@@ -1,242 +1,390 @@
 /**
  * Presence Service
  * 
- * Handles user presence management and real-time status updates
+ * Manages user presence and activity status across the platform
  */
-import { 
-  PresenceData, 
-  PresenceStatus,
-  PresencePreferences,
-  PresenceVisibility,
-  UpdatePresenceDto,
-  UpdatePresencePreferencesDto,
-  PresenceEventType
-} from '../../models/presence';
-import { PresenceRepository } from '../../repositories/presence-repository';
-import { WebSocketService } from '../../websockets/websocket-service';
-import { eventBus, EventType } from '../../lib/event-bus';
+import { Pool } from 'pg';
+import { Redis } from 'ioredis';
 import { logger } from '../../lib/logger';
+import { PresenceStatus } from '../../models/presence';
 
 /**
- * Service for managing user presence
+ * Presence update data
  */
-export class PresenceService {
-  private webSocketService?: WebSocketService;
+export interface PresenceUpdate {
+  /**
+   * Presence status
+   */
+  status: PresenceStatus;
   
   /**
+   * Additional metadata
+   */
+  metadata?: Record<string, any>;
+  
+  /**
+   * Whether to store presence in database
+   * Default: true
+   */
+  persist?: boolean;
+  
+  /**
+   * Room ID if in a room
+   */
+  roomId?: string;
+}
+
+/**
+ * Presence data
+ */
+export interface PresenceData {
+  /**
+   * User ID
+   */
+  userId: string;
+  
+  /**
+   * Presence status
+   */
+  status: PresenceStatus;
+  
+  /**
+   * Last activity timestamp
+   */
+  lastActivity: Date;
+  
+  /**
+   * Additional metadata
+   */
+  metadata: Record<string, any>;
+  
+  /**
+   * Room ID if in a room
+   */
+  roomId?: string;
+}
+
+/**
+ * Cache key for presence data
+ * @param userId User ID
+ * @returns Redis key
+ */
+const presenceKey = (userId: string) => `presence:${userId}`;
+
+/**
+ * Room members key
+ * @param roomId Room ID
+ * @returns Redis key
+ */
+const roomMembersKey = (roomId: string) => `room:${roomId}:members`;
+
+/**
+ * Presence service for tracking user online status
+ */
+export class PresenceService {
+  /**
    * Create presence service
-   * @param presenceRepository Repository for presence data
-   * @param webSocketService Optional WebSocket service for real-time updates
+   * @param db Database connection
+   * @param redis Redis client
    */
   constructor(
-    private presenceRepository: PresenceRepository,
-    webSocketService?: WebSocketService
-  ) {
-    this.webSocketService = webSocketService;
-  }
-
+    private readonly db: Pool,
+    private readonly redis: Redis
+  ) {}
+  
   /**
    * Update user presence
-   * 
    * @param userId User ID
-   * @param data Presence update data
-   * @returns Updated presence data
+   * @param update Presence update data
+   * @returns Success flag
    */
-  async updatePresence(userId: string, data: UpdatePresenceDto): Promise<PresenceData> {
+  async updatePresence(userId: string, update: PresenceUpdate): Promise<boolean> {
     try {
-      // Update presence in database
-      const presence = await this.presenceRepository.updatePresence(userId, data);
+      const now = new Date();
+      const key = presenceKey(userId);
       
-      // Publish event for real-time updates
-      await eventBus.publish(EventType.PRESENCE_UPDATED, {
+      // Create presence data
+      const presenceData: PresenceData = {
         userId,
-        status: presence.status,
-        lastActive: presence.lastActive
-      });
+        status: update.status,
+        lastActivity: now,
+        metadata: update.metadata || {}
+      };
       
-      // Send WebSocket update
-      if (this.webSocketService) {
-        // Get user's presence preferences
-        const preferences = await this.getPresencePreferences(userId);
+      // Add room ID if provided
+      if (update.roomId) {
+        presenceData.roomId = update.roomId;
+      }
+      
+      // Store in Redis
+      await this.redis.set(
+        key,
+        JSON.stringify(presenceData),
+        'EX',
+        60 * 30 // 30 minutes
+      );
+      
+      // Update room presence if room ID provided
+      if (update.roomId) {
+        const roomKey = roomMembersKey(update.roomId);
         
-        if (preferences.showStatus) {
-          // Broadcast presence update to followers via WebSocket
-          // This would need a follow/follower repository in a real implementation
+        if (update.status === PresenceStatus.ONLINE) {
+          // Add to room members
+          await this.redis.sadd(roomKey, userId);
           
-          // For now, just send to user's own connections
-          this.webSocketService.sendToUser(userId, {
-            type: PresenceEventType.STATUS_CHANGED,
-            data: {
-              userId,
-              status: presence.status,
-              lastActive: presence.lastActive.toISOString()
-            },
-            timestamp: new Date().toISOString()
-          });
+          // Set expiry on room members set
+          await this.redis.expire(roomKey, 60 * 60 * 24); // 24 hours
+        } else if (
+          update.status === PresenceStatus.OFFLINE ||
+          update.status === PresenceStatus.AWAY
+        ) {
+          // Remove from room members
+          await this.redis.srem(roomKey, userId);
         }
       }
       
-      return presence;
-    } catch (error) {
-      logger.error('Error updating user presence', { error, userId, data });
-      throw error;
-    }
-  }
-
-  /**
-   * Get user presence
-   * 
-   * @param userId User ID
-   * @returns Presence data
-   */
-  async getUserPresence(userId: string): Promise<PresenceData | null> {
-    try {
-      return await this.presenceRepository.getUserPresence(userId);
-    } catch (error) {
-      logger.error('Error getting user presence', { error, userId });
-      throw error;
-    }
-  }
-
-  /**
-   * Get presence for multiple users
-   * 
-   * @param userIds User IDs
-   * @returns Map of user IDs to presence data
-   */
-  async getUsersPresence(userIds: string[]): Promise<Record<string, PresenceData>> {
-    try {
-      return await this.presenceRepository.getUsersPresence(userIds);
-    } catch (error) {
-      logger.error('Error getting users presence', { error, userIds });
-      throw error;
-    }
-  }
-
-  /**
-   * Get users with specific status
-   * 
-   * @param status Presence status
-   * @param limit Maximum number of users to return
-   * @returns Array of presence data
-   */
-  async getUsersByStatus(status: PresenceStatus, limit = 100): Promise<PresenceData[]> {
-    try {
-      return await this.presenceRepository.getUsersByStatus(status, limit);
-    } catch (error) {
-      logger.error('Error getting users by status', { error, status, limit });
-      throw error;
-    }
-  }
-
-  /**
-   * Get presence preferences
-   * 
-   * @param userId User ID
-   * @returns Presence preferences
-   */
-  async getPresencePreferences(userId: string): Promise<PresencePreferences> {
-    try {
-      // This could be implemented in the presence repository
-      // For now, we'll return a default preferences object
-      
-      return {
-        userId,
-        visibility: PresenceVisibility.EVERYONE,
-        showStatus: true,
-        showLastActive: true,
-        updatedAt: new Date()
-      };
-    } catch (error) {
-      logger.error('Error getting presence preferences', { error, userId });
-      throw error;
-    }
-  }
-
-  /**
-   * Update presence preferences
-   * 
-   * @param userId User ID
-   * @param updates Preference updates
-   * @returns Updated preferences
-   */
-  async updatePresencePreferences(
-    userId: string,
-    updates: UpdatePresencePreferencesDto
-  ): Promise<PresencePreferences> {
-    try {
-      // This could be implemented in the presence repository
-      // For now, we'll return a default preferences object with updates
-      
-      const preferences = await this.getPresencePreferences(userId);
-      
-      const updatedPreferences = {
-        ...preferences,
-        ...updates,
-        updatedAt: new Date()
-      };
-      
-      return updatedPreferences;
-    } catch (error) {
-      logger.error('Error updating presence preferences', { error, userId, updates });
-      throw error;
-    }
-  }
-
-  /**
-   * Subscribe user to presence updates for other users
-   * 
-   * @param userId User ID
-   * @param targetIds Target user IDs
-   * @returns Success status
-   */
-  async subscribeToPresence(userId: string, targetIds: string[]): Promise<boolean> {
-    try {
-      if (!this.webSocketService) {
-        return false;
+      // Persist to database if enabled
+      if (update.persist !== false) {
+        await this.persistPresence(userId, update.status, now, update.metadata);
       }
       
-      // Get current presence data for targets
-      const presenceData = await this.presenceRepository.getUsersPresence(targetIds);
-      
-      // Send initial presence data
-      this.webSocketService.sendToUser(userId, {
-        type: PresenceEventType.BATCH_UPDATE,
-        data: {
-          presences: Object.entries(presenceData).reduce((acc, [targetId, data]) => {
-            acc[targetId] = {
-              status: data.status,
-              lastActive: data.lastActive.toISOString(),
-              metadata: data.metadata
-            };
-            return acc;
-          }, {})
-        },
-        timestamp: new Date().toISOString()
+      logger.debug(`Updated presence for user ${userId}`, {
+        status: update.status,
+        hasMetadata: !!update.metadata,
+        roomId: update.roomId
       });
-      
-      // Subscribe to updates
-      // In a real implementation, this would store subscription state
       
       return true;
     } catch (error) {
-      logger.error('Error subscribing to presence updates', { error, userId, targetIds });
-      throw error;
+      logger.error('Error updating presence', { error, userId });
+      return false;
     }
   }
-
+  
+  /**
+   * Get user presence
+   * @param userId User ID
+   * @returns Presence data or null if not found
+   */
+  async getPresence(userId: string): Promise<PresenceData | null> {
+    try {
+      const key = presenceKey(userId);
+      
+      // Try to get from Redis
+      const data = await this.redis.get(key);
+      
+      if (data) {
+        // Parse and return
+        return JSON.parse(data) as PresenceData;
+      }
+      
+      // Try to get from database
+      const result = await this.db.query(`
+        SELECT user_id, status, last_activity, metadata
+        FROM user_presence
+        WHERE user_id = $1
+      `, [userId]);
+      
+      if (result.rows.length > 0) {
+        const row = result.rows[0];
+        
+        // Create presence data
+        const presenceData: PresenceData = {
+          userId: row.user_id,
+          status: row.status as PresenceStatus,
+          lastActivity: row.last_activity,
+          metadata: row.metadata || {}
+        };
+        
+        // Cache in Redis
+        await this.redis.set(
+          key,
+          JSON.stringify(presenceData),
+          'EX',
+          60 * 30 // 30 minutes
+        );
+        
+        return presenceData;
+      }
+      
+      // Not found
+      return null;
+    } catch (error) {
+      logger.error('Error getting presence', { error, userId });
+      return null;
+    }
+  }
+  
+  /**
+   * Get presence for multiple users
+   * @param userIds User IDs
+   * @returns Map of user IDs to presence data
+   */
+  async getMultiplePresence(userIds: string[]): Promise<Map<string, PresenceData>> {
+    try {
+      const result = new Map<string, PresenceData>();
+      
+      if (userIds.length === 0) {
+        return result;
+      }
+      
+      // Get from Redis in batch
+      const keys = userIds.map(presenceKey);
+      const values = await this.redis.mget(...keys);
+      
+      // Process results
+      const missingUserIds: string[] = [];
+      
+      for (let i = 0; i < userIds.length; i++) {
+        const userId = userIds[i];
+        const value = values[i];
+        
+        if (value) {
+          // Parse and add to result
+          result.set(userId, JSON.parse(value) as PresenceData);
+        } else {
+          // Add to missing list
+          missingUserIds.push(userId);
+        }
+      }
+      
+      // If any missing, get from database
+      if (missingUserIds.length > 0) {
+        const dbResult = await this.db.query(`
+          SELECT user_id, status, last_activity, metadata
+          FROM user_presence
+          WHERE user_id = ANY($1)
+        `, [missingUserIds]);
+        
+        // Process database results
+        for (const row of dbResult.rows) {
+          const userId = row.user_id;
+          
+          // Create presence data
+          const presenceData: PresenceData = {
+            userId,
+            status: row.status as PresenceStatus,
+            lastActivity: row.last_activity,
+            metadata: row.metadata || {}
+          };
+          
+          // Add to result
+          result.set(userId, presenceData);
+          
+          // Cache in Redis
+          await this.redis.set(
+            presenceKey(userId),
+            JSON.stringify(presenceData),
+            'EX',
+            60 * 30 // 30 minutes
+          );
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      logger.error('Error getting multiple presence', { error, userCount: userIds.length });
+      return new Map();
+    }
+  }
+  
+  /**
+   * Get users in a room
+   * @param roomId Room ID
+   * @returns Array of user IDs in the room
+   */
+  async getRoomUsers(roomId: string): Promise<string[]> {
+    try {
+      const key = roomMembersKey(roomId);
+      
+      // Get members from Redis
+      const members = await this.redis.smembers(key);
+      
+      return members;
+    } catch (error) {
+      logger.error('Error getting room users', { error, roomId });
+      return [];
+    }
+  }
+  
+  /**
+   * Get presence for all users in a room
+   * @param roomId Room ID
+   * @returns Map of user IDs to presence data
+   */
+  async getRoomPresence(roomId: string): Promise<Map<string, PresenceData>> {
+    try {
+      // Get users in room
+      const userIds = await this.getRoomUsers(roomId);
+      
+      // Get presence for these users
+      return this.getMultiplePresence(userIds);
+    } catch (error) {
+      logger.error('Error getting room presence', { error, roomId });
+      return new Map();
+    }
+  }
+  
   /**
    * Clean up stale presence data
-   * 
-   * @param olderThan Date threshold
-   * @returns Number of records updated
+   * @param threshold Threshold date (presence older than this will be removed)
+   * @returns Number of records cleaned up
    */
-  async cleanupStalePresence(olderThan: Date): Promise<number> {
+  async cleanupStalePresence(threshold: Date): Promise<number> {
     try {
-      return await this.presenceRepository.deleteStalePresence(olderThan);
+      // Clean up database
+      const result = await this.db.query(`
+        DELETE FROM user_presence
+        WHERE last_activity < $1
+        RETURNING user_id
+      `, [threshold]);
+      
+      const removedCount = result.rowCount || 0;
+      
+      if (removedCount > 0) {
+        logger.info(`Cleaned up ${removedCount} stale presence records`);
+      }
+      
+      return removedCount;
     } catch (error) {
-      logger.error('Error cleaning up stale presence data', { error, olderThan });
-      throw error;
+      logger.error('Error cleaning up stale presence', { error });
+      return 0;
+    }
+  }
+  
+  /**
+   * Persist presence to database
+   * @param userId User ID
+   * @param status Presence status
+   * @param timestamp Timestamp
+   * @param metadata Additional metadata
+   */
+  private async persistPresence(
+    userId: string,
+    status: PresenceStatus,
+    timestamp: Date,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    try {
+      // Insert or update presence record
+      await this.db.query(`
+        INSERT INTO user_presence (
+          user_id, status, last_activity, metadata
+        )
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id) 
+        DO UPDATE SET 
+          status = EXCLUDED.status,
+          last_activity = EXCLUDED.last_activity,
+          metadata = EXCLUDED.metadata
+      `, [
+        userId,
+        status,
+        timestamp,
+        metadata ? JSON.stringify(metadata) : null
+      ]);
+    } catch (error) {
+      logger.error('Error persisting presence', { error, userId });
     }
   }
 }

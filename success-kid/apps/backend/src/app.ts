@@ -7,6 +7,7 @@ import compliancePlugin from './compliance';
 import { createErrorHandler, createNotFoundHandler } from './errors/handlers';
 import { runAllChecks, getVersionInfo } from './health';
 import transactionVerification from './middleware/transaction-verification';
+import { responseFormatter } from './middleware/response-formatter';
 import repositoriesPlugin from './plugins/repositories';
 import servicesPlugin from './plugins/services';
 import jobsPlugin from './plugins/jobs';
@@ -65,6 +66,9 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   // Register global hooks
   app.addHook('preHandler', transactionVerification);
   app.addHook('preHandler', metricsMiddleware);
+  
+  // Register response formatter middleware
+  app.addHook('preHandler', responseFormatter);
 
   // Register API documentation
   await app.register(docsPlugin);

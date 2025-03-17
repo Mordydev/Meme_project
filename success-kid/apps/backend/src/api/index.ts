@@ -1,43 +1,64 @@
 /**
- * API Routes Registration
+ * API Routes
  * 
- * Registers all API routes for the application
+ * Exports all API routes
  */
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import usersRoutes from './users';
 import pointsRoutes from './points';
-import auditRoutes from './audit';
-import referralRoutes from './referrals';
-import notificationRoutes from './notifications';
-import activityRoutes from './activity';
+import healthRoutes from './health';
+import contentRoutes from './content';
+import walletRoutes from './wallet';
+import authRoutes from './auth';
 import presenceRoutes from './presence';
+import notificationsRoutes from './notifications';
+import marketRoutes from './market';
+import leaderboardsRoutes from './leaderboards';
+import { handleApiError, notFoundHandler } from '../errors/handlers';
+import { middlewares } from '../middleware';
 
-// Root prefix for all API routes
-const API_PREFIX = '/api/v1';
-
-// API plugin that registers all routes
-const apiPlugin: FastifyPluginAsync = async (fastify) => {
-  // Register all API routes with versioned prefix
-  fastify.register(pointsRoutes, { prefix: API_PREFIX });
-  fastify.register(auditRoutes, { prefix: API_PREFIX });
-  fastify.register(referralRoutes, { prefix: `${API_PREFIX}/referrals` });
+/**
+ * API plugin
+ * @param fastify Fastify instance
+ * @param options Plugin options
+ */
+export default async function apiPlugin(
+  fastify: FastifyInstance,
+  options: FastifyPluginOptions
+): Promise<void> {
+  // Register error handler
+  fastify.setErrorHandler(handleApiError);
   
-  // Real-time and notification routes
-  fastify.register(notificationRoutes, { prefix: `${API_PREFIX}/notifications` });
-  fastify.register(activityRoutes, { prefix: `${API_PREFIX}/activity` });
-  fastify.register(presenceRoutes, { prefix: `${API_PREFIX}/presence` });
+  // Register not found handler
+  fastify.setNotFoundHandler(notFoundHandler);
   
-  // Add more routes here
-  // fastify.register(contentRoutes, { prefix: API_PREFIX });
-  // fastify.register(profileRoutes, { prefix: API_PREFIX });
+  // Register middlewares
+  fastify.register(middlewares);
   
-  // Add a root API endpoint for health check and API info
-  fastify.get(`${API_PREFIX}`, async () => {
+  // Register route handlers
+  fastify.register(healthRoutes, { prefix: '/health' });
+  fastify.register(usersRoutes, { prefix: '/users' });
+  fastify.register(pointsRoutes, { prefix: '/points' });
+  fastify.register(contentRoutes, { prefix: '/content' });
+  fastify.register(walletRoutes, { prefix: '/wallet' });
+  fastify.register(authRoutes, { prefix: '/auth' });
+  fastify.register(presenceRoutes, { prefix: '/presence' });
+  fastify.register(notificationsRoutes, { prefix: '/notifications' });
+  fastify.register(marketRoutes, { prefix: '/market' });
+  fastify.register(leaderboardsRoutes, { prefix: '/leaderboards' });
+  
+  // Add generic route for API info
+  fastify.get('/', async (request, reply) => {
     return {
-      status: 'ok',
-      version: '1.0.0',
-      documentation: '/api/docs'
+      data: {
+        name: 'Success Kid Community Platform API',
+        version: '1.0.0',
+        environment: process.env.NODE_ENV,
+        timestamp: new Date().toISOString()
+      },
+      meta: {
+        timestamp: new Date().toISOString()
+      }
     };
   });
-};
-
-export default apiPlugin;
+}

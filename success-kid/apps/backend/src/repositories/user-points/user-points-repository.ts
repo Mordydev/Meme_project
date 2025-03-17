@@ -173,19 +173,86 @@ export class UserPointsRepository extends BaseRepository<UserPoints> {
    */
   async getUserPointsHistory(
     userId: string, 
-    options: { limit?: number; offset?: number } = {}
+    options: { 
+      limit?: number; 
+      offset?: number;
+      minAmount?: number;
+      maxAmount?: number;
+      source?: PointsSource | PointsSource[];
+      startDate?: Date;
+      endDate?: Date;
+      orderBy?: 'created_at_asc' | 'created_at_desc' | 'amount_asc' | 'amount_desc';
+    } = {}
   ): Promise<UserPoints[]> {
     try {
-      const { limit = 20, offset = 0 } = options;
+      const { 
+        limit = 20, 
+        offset = 0,
+        minAmount,
+        maxAmount,
+        source,
+        startDate,
+        endDate,
+        orderBy = 'created_at_desc'
+      } = options;
       
-      const query = `
-        SELECT * FROM user_points
-        WHERE user_id = $1
-        ORDER BY created_at DESC
-        LIMIT $2 OFFSET $3
-      `;
+      let query = `SELECT * FROM user_points WHERE user_id = $1`;
+      const queryParams: any[] = [userId];
+      let paramIndex = 2;
       
-      const result = await this.db.query<UserPoints>(query, [userId, limit, offset]);
+      // Add filters
+      if (minAmount !== undefined) {
+        query += ` AND amount >= ${paramIndex++}`;
+        queryParams.push(minAmount);
+      }
+      
+      if (maxAmount !== undefined) {
+        query += ` AND amount <= ${paramIndex++}`;
+        queryParams.push(maxAmount);
+      }
+      
+      if (source) {
+        if (Array.isArray(source)) {
+          query += ` AND source = ANY(${paramIndex++}::text[])`;
+          queryParams.push(source);
+        } else {
+          query += ` AND source = ${paramIndex++}`;
+          queryParams.push(source);
+        }
+      }
+      
+      if (startDate) {
+        query += ` AND created_at >= ${paramIndex++}`;
+        queryParams.push(startDate);
+      }
+      
+      if (endDate) {
+        query += ` AND created_at <= ${paramIndex++}`;
+        queryParams.push(endDate);
+      }
+      
+      // Add order by
+      switch (orderBy) {
+        case 'created_at_asc':
+          query += ` ORDER BY created_at ASC`;
+          break;
+        case 'amount_asc':
+          query += ` ORDER BY amount ASC`;
+          break;
+        case 'amount_desc':
+          query += ` ORDER BY amount DESC`;
+          break;
+        case 'created_at_desc':
+        default:
+          query += ` ORDER BY created_at DESC`;
+          break;
+      }
+      
+      // Add pagination
+      query += ` LIMIT ${paramIndex++} OFFSET ${paramIndex++}`;
+      queryParams.push(limit, offset);
+      
+      const result = await this.db.query<UserPoints>(query, queryParams);
       return result.rows;
     } catch (error) {
       logger.error('Error getting user points history', { error, userId, options });

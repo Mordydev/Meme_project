@@ -170,24 +170,49 @@ export class RiskScoringService {
    */
   private async assessAccountAge(userId: string): Promise<RiskFactor | null> {
     try {
-      // This is placeholder logic - in a real implementation you would:
-      // 1. Query user creation date from database
-      // 2. Calculate account age in days
-      // 3. Apply appropriate risk scoring based on age
-
-      // Mock implementation - 20% chance of new account
-      const isNewAccount = Math.random() < 0.2;
+      // Get user creation date from recent points transactions
+      // We could query the user table directly, but this approach keeps the service decoupled
+      const userTransactions = await this.userPointsRepository.getUserPointsHistory(userId, { limit: 1, orderBy: 'created_at_asc' });
       
-      if (isNewAccount) {
+      if (userTransactions.length === 0) {
+        // No transactions found, treat as very new account (high risk)
         return {
           type: RiskFactorType.NEW_ACCOUNT,
-          severity: RiskSeverity.MEDIUM,
-          description: 'Account is less than 7 days old',
-          score: 20
+          severity: RiskSeverity.HIGH,
+          description: 'No previous points activity',
+          score: 30
         };
       }
       
-      return null;
+      // Calculate account age in days based on first transaction
+      const firstTransaction = userTransactions[0];
+      const accountAge = Math.floor((Date.now() - new Date(firstTransaction.created_at).getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Apply risk scoring based on account age
+      if (accountAge < 1) {
+        return {
+          type: RiskFactorType.NEW_ACCOUNT,
+          severity: RiskSeverity.HIGH,
+          description: 'Account is less than 1 day old',
+          score: 35
+        };
+      } else if (accountAge < 3) {
+        return {
+          type: RiskFactorType.NEW_ACCOUNT,
+          severity: RiskSeverity.MEDIUM,
+          description: 'Account is less than 3 days old',
+          score: 25
+        };
+      } else if (accountAge < 7) {
+        return {
+          type: RiskFactorType.NEW_ACCOUNT,
+          severity: RiskSeverity.LOW,
+          description: 'Account is less than 7 days old',
+          score: 15
+        };
+      }
+      
+      return null; // Account is older than 7 days, no risk factor
     } catch (error) {
       logger.error('Error assessing account age', { error, userId });
       return null;
@@ -241,20 +266,63 @@ export class RiskScoringService {
    */
   private async assessPointsAccumulationPattern(userId: string): Promise<RiskFactor | null> {
     try {
-      // In a real implementation, this would:
-      // 1. Analyze the user's points earning history
-      // 2. Look for unusual patterns like sudden large amounts
-      // 3. Check for concentration from a single source
-
-      // Mock implementation - 10% chance of suspicious pattern
-      const isSuspicious = Math.random() < 0.1;
+      // Get user's recent points history (last 24 hours)
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recentPositiveTransactions = await this.userPointsRepository.getUserPointsHistory(userId, { 
+        limit: 100, 
+        minAmount: 1, // Only positive transactions
+        startDate: yesterday 
+      });
       
-      if (isSuspicious) {
+      // Calculate statistics
+      if (recentPositiveTransactions.length === 0) {
+        return null; // No recent positive transactions
+      }
+      
+      // Check for suspiciously high velocity
+      if (recentPositiveTransactions.length > 40) {
         return {
           type: RiskFactorType.SUSPICIOUS_POINTS_ACTIVITY,
           severity: RiskSeverity.HIGH,
-          description: 'Unusual pattern of points accumulation detected',
-          score: 35
+          description: `High velocity: ${recentPositiveTransactions.length} point-earning activities in 24h`,
+          score: 30
+        };
+      }
+      
+      // Check for large single-source concentration
+      const pointsBySource = recentPositiveTransactions.reduce((acc, tx) => {
+        acc[tx.source] = (acc[tx.source] || 0) + tx.amount;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      // Calculate total points earned
+      const totalPoints = Object.values(pointsBySource).reduce((sum, amount) => sum + amount, 0);
+      
+      // Check if any single source accounts for more than 90% of total points
+      for (const [source, amount] of Object.entries(pointsBySource)) {
+        const percentage = (amount / totalPoints) * 100;
+        if (percentage > 90 && totalPoints > 1000) {
+          return {
+            type: RiskFactorType.SUSPICIOUS_POINTS_ACTIVITY,
+            severity: RiskSeverity.HIGH,
+            description: `${Math.round(percentage)}% of points from single source (${source})`,
+            score: 35
+          };
+        }
+      }
+      
+      // Check for unusual amount in a single transaction
+      const largestTransaction = recentPositiveTransactions.reduce(
+        (largest, tx) => tx.amount > largest.amount ? tx : largest, 
+        { amount: 0 }
+      );
+      
+      if (largestTransaction.amount > 5000) { // Very large single transaction
+        return {
+          type: RiskFactorType.SUSPICIOUS_POINTS_ACTIVITY,
+          severity: RiskSeverity.MEDIUM,
+          description: `Unusually large transaction of ${largestTransaction.amount} points`,
+          score: 20
         };
       }
       
@@ -298,20 +366,50 @@ export class RiskScoringService {
    */
   private async assessWalletRisk(walletAddress: string): Promise<RiskFactor | null> {
     try {
-      // In a real implementation, this would:
-      // 1. Check wallet age and transaction history
-      // 2. Look for connections to known suspicious wallets
-      // 3. Verify wallet hasn't been used by multiple users
+      // Check for suspicious wallet patterns
 
-      // Mock implementation - 5% chance of wallet risk
-      const isRisky = Math.random() < 0.05;
+      // 1. Check if wallet has been used for multiple redemptions by different users
+      // This requires checking if the wallet is linked to multiple user accounts
+      // We would need additional repository access for this - for now this is a simplified implementation
       
-      if (isRisky) {
+      // 2. Check previous redemption patterns with this wallet
+      const walletRedemptions = await this.redemptionRepository.findByWalletAddress(walletAddress);
+      
+      // Check if this wallet has failed redemptions
+      const failedRedemptions = walletRedemptions.filter(r => r.status === 'failed');
+      if (failedRedemptions.length >= 2) {
         return {
           type: RiskFactorType.WALLET_RISK,
           severity: RiskSeverity.HIGH,
-          description: 'Wallet address associated with suspicious activity',
-          score: 40
+          description: `Wallet has ${failedRedemptions.length} failed redemptions`,
+          score: 35
+        };
+      }
+      
+      // Check for rapid redemption velocity from this wallet
+      if (walletRedemptions.length >= 5) {
+        const last24HoursRedemptions = walletRedemptions.filter(r => {
+          const redemptionTime = new Date(r.requestedAt).getTime();
+          return (Date.now() - redemptionTime) < 24 * 60 * 60 * 1000;
+        });
+        
+        if (last24HoursRedemptions.length >= 3) {
+          return {
+            type: RiskFactorType.WALLET_RISK,
+            severity: RiskSeverity.MEDIUM,
+            description: `High velocity: ${last24HoursRedemptions.length} redemptions in 24h to this wallet`,
+            score: 25
+          };
+        }
+      }
+      
+      // 3. Check for new wallet (first time used)
+      if (walletRedemptions.length === 0) {
+        return {
+          type: RiskFactorType.WALLET_RISK,
+          severity: RiskSeverity.LOW,
+          description: 'First redemption to this wallet address',
+          score: 10
         };
       }
       

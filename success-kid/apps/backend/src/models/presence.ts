@@ -1,107 +1,160 @@
 /**
- * Presence Models
- * Defines the data structures for user presence tracking.
+ * Presence Model
+ * 
+ * Defines the data structures for user presence
  */
 
 /**
- * User presence status options
+ * User presence status
  */
 export enum PresenceStatus {
+  /**
+   * User is online and active
+   */
   ONLINE = 'online',
+  
+  /**
+   * User is online but inactive
+   */
   AWAY = 'away',
+  
+  /**
+   * User is offline
+   */
+  OFFLINE = 'offline',
+  
+  /**
+   * User is busy/do not disturb
+   */
   BUSY = 'busy',
-  OFFLINE = 'offline'
+  
+  /**
+   * User is invisible (appears offline to others)
+   */
+  INVISIBLE = 'invisible'
 }
 
 /**
  * User presence data
  */
-export interface PresenceData {
+export interface Presence {
+  /**
+   * User ID
+   */
   userId: string;
+  
+  /**
+   * Presence status
+   */
   status: PresenceStatus;
-  lastActive: Date;
+  
+  /**
+   * Last activity timestamp
+   */
+  lastActivity: Date;
+  
+  /**
+   * Last seen location in the app
+   */
+  lastLocation?: string;
+  
+  /**
+   * Custom status message
+   */
+  statusMessage?: string;
+  
+  /**
+   * Additional metadata
+   */
   metadata?: Record<string, any>;
+  
+  /**
+   * Room ID if in a room
+   */
+  roomId?: string;
+  
+  /**
+   * Created at timestamp
+   */
+  createdAt: Date;
+  
+  /**
+   * Updated at timestamp
+   */
   updatedAt: Date;
 }
 
 /**
- * Update presence request
+ * Presence update DTO
  */
-export interface UpdatePresenceDto {
+export interface PresenceUpdateDto {
+  /**
+   * Presence status
+   */
   status: PresenceStatus;
+  
+  /**
+   * Last seen location in the app
+   */
+  lastLocation?: string;
+  
+  /**
+   * Custom status message
+   */
+  statusMessage?: string;
+  
+  /**
+   * Additional metadata
+   */
   metadata?: Record<string, any>;
+  
+  /**
+   * Room ID if in a room
+   */
+  roomId?: string;
 }
 
 /**
- * Presence subscription options
+ * Presence availability levels
  */
-export interface PresenceSubscriptionOptions {
-  userIds: string[];
-  includeMetadata?: boolean;
+export enum AvailabilityLevel {
+  /**
+   * Fully available
+   */
+  AVAILABLE = 'available',
+  
+  /**
+   * Partially available
+   */
+  PARTIALLY_AVAILABLE = 'partially_available',
+  
+  /**
+   * Not available
+   */
+  UNAVAILABLE = 'unavailable'
 }
 
 /**
- * Presence visibility levels
+ * Get availability level from presence status
+ * @param status Presence status
+ * @returns Availability level
  */
-export enum PresenceVisibility {
-  EVERYONE = 'everyone',
-  FOLLOWERS = 'followers',
-  FRIENDS = 'friends',
-  NOBODY = 'nobody'
-}
-
-/**
- * Presence preferences
- */
-export interface PresencePreferences {
-  userId: string;
-  visibility: PresenceVisibility;
-  showStatus: boolean;
-  showLastActive: boolean;
-  updatedAt: Date;
-}
-
-/**
- * Update presence preferences request
- */
-export interface UpdatePresencePreferencesDto {
-  visibility?: PresenceVisibility;
-  showStatus?: boolean;
-  showLastActive?: boolean;
-}
-
-/**
- * Presence event types for WebSocket communication
- */
-export enum PresenceEventType {
-  STATUS_CHANGED = 'presence.status.changed',
-  SUBSCRIBED = 'presence.subscribed',
-  SUBSCRIPTION_CHANGED = 'presence.subscription.changed',
-  BATCH_UPDATE = 'presence.batch.update'
-}
-
-/**
- * Presence event data structure
- */
-export interface PresenceEvent {
-  type: PresenceEventType;
-  data: {
-    userId: string;
-    status?: PresenceStatus;
-    lastActive?: string;
-    metadata?: Record<string, any>;
-  };
-  timestamp: string;
-}
-
-/**
- * Batch presence data for multiple users
- */
-export interface BatchPresenceData {
-  presences: Record<string, {
-    status: PresenceStatus;
-    lastActive: string;
-    metadata?: Record<string, any>;
-  }>;
-  timestamp: string;
+export function getAvailabilityLevel(status: PresenceStatus): AvailabilityLevel {
+  switch (status) {
+    case PresenceStatus.ONLINE:
+      return AvailabilityLevel.AVAILABLE;
+      
+    case PresenceStatus.AWAY:
+      return AvailabilityLevel.PARTIALLY_AVAILABLE;
+      
+    case PresenceStatus.BUSY:
+      return AvailabilityLevel.PARTIALLY_AVAILABLE;
+      
+    case PresenceStatus.OFFLINE:
+    case PresenceStatus.INVISIBLE:
+      return AvailabilityLevel.UNAVAILABLE;
+      
+    default:
+      return AvailabilityLevel.UNAVAILABLE;
+  }
 }

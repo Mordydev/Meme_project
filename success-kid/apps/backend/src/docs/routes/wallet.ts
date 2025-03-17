@@ -1,243 +1,146 @@
 /**
- * Wallet route schemas for API documentation
+ * Wallet Route Schemas
+ * 
+ * OpenAPI route schemas for wallet-related endpoints
  */
 import { FastifyInstance } from 'fastify';
 
 /**
- * Register wallet route schemas
+ * Register schemas for wallet routes
+ * @param fastify Fastify instance
  */
-export function walletRoutes(fastify: FastifyInstance): void {
-  // Connect wallet request for POST /wallet/connect
+export function walletRouteSchemas(fastify: FastifyInstance): void {
+  // POST /api/v1/wallet/connect
   fastify.addSchema({
-    $id: 'connectWalletRequest',
-    type: 'object',
-    properties: {
-      data: {
-        type: 'object',
-        properties: {
-          wallet_address: {
-            type: 'string',
-            description: 'Wallet address to connect',
+    $id: 'connectWalletRouteSchema',
+    schema: {
+      summary: 'Connect wallet',
+      description: 'Connect a wallet to the user account',
+      tags: ['Wallet'],
+      body: {
+        content: {
+          'application/json': {
+            schema: { $ref: 'connectWallet#' },
           },
         },
-        required: ['wallet_address'],
       },
-    },
-    required: ['data'],
-  });
-  
-  // Connect wallet response for POST /wallet/connect
-  fastify.addSchema({
-    $id: 'connectWalletResponse',
-    type: 'object',
-    properties: {
-      data: {
-        type: 'object',
-        properties: {
-          success: {
-            type: 'boolean',
-            description: 'Whether the wallet was connected successfully',
-          },
-          connection_id: {
-            type: 'string',
-            description: 'Connection ID',
-          },
-          wallet_address: {
-            type: 'string',
-            description: 'Connected wallet address',
-          },
-          verification_message: {
-            type: 'string',
-            description: 'Message to sign for verification',
-          },
-        },
-        required: ['success', 'connection_id', 'wallet_address', 'verification_message'],
-      },
-      meta: {
-        type: 'object',
-        properties: {
-          timestamp: {
-            type: 'string',
-            format: 'date-time',
-          },
-          requestId: {
-            type: 'string',
-          },
-        },
-        required: ['timestamp'],
-      },
-    },
-    required: ['data', 'meta'],
-  });
-  
-  // Verify wallet request for POST /wallet/verify
-  fastify.addSchema({
-    $id: 'verifyWalletRequest',
-    type: 'object',
-    properties: {
-      data: {
-        type: 'object',
-        properties: {
-          connection_id: {
-            type: 'string',
-            description: 'Connection ID',
-          },
-          signature: {
-            type: 'string',
-            description: 'Signature of the verification message',
-          },
-        },
-        required: ['connection_id', 'signature'],
-      },
-    },
-    required: ['data'],
-  });
-  
-  // Verify wallet response for POST /wallet/verify
-  fastify.addSchema({
-    $id: 'verifyWalletResponse',
-    type: 'object',
-    properties: {
-      data: {
-        type: 'object',
-        properties: {
-          success: {
-            type: 'boolean',
-            description: 'Whether the wallet was verified successfully',
-          },
-          wallet_address: {
-            type: 'string',
-            description: 'Verified wallet address',
-          },
-          is_verified: {
-            type: 'boolean',
-            description: 'Verification status',
-          },
-        },
-        required: ['success', 'wallet_address', 'is_verified'],
-      },
-      meta: {
-        type: 'object',
-        properties: {
-          timestamp: {
-            type: 'string',
-            format: 'date-time',
-          },
-          requestId: {
-            type: 'string',
-          },
-        },
-        required: ['timestamp'],
-      },
-    },
-    required: ['data', 'meta'],
-  });
-  
-  // Get connected wallets response for GET /wallet/connections
-  fastify.addSchema({
-    $id: 'walletConnectionsResponse',
-    type: 'object',
-    properties: {
-      data: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            id: {
-              type: 'string',
-              description: 'Connection ID',
-            },
-            wallet_address: {
-              type: 'string',
-              description: 'Wallet address',
-            },
-            is_verified: {
-              type: 'boolean',
-              description: 'Verification status',
-            },
-            connected_at: {
-              type: 'string',
-              format: 'date-time',
-              description: 'Connection timestamp',
-            },
-            last_verified_at: {
-              type: 'string',
-              format: 'date-time',
-              description: 'Last verification timestamp',
-            },
-            token_balance: {
-              type: 'number',
-              description: 'Token balance (if available)',
+      response: {
+        200: {
+          description: 'Wallet connected successfully',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: { $ref: 'walletConnection#' },
+                  meta: {
+                    type: 'object',
+                    properties: {
+                      timestamp: { type: 'string', format: 'date-time' },
+                      requestId: { type: 'string' },
+                    },
+                  },
+                },
+              },
             },
           },
-          required: ['id', 'wallet_address', 'is_verified', 'connected_at'],
         },
-      },
-      meta: {
-        type: 'object',
-        properties: {
-          timestamp: {
-            type: 'string',
-            format: 'date-time',
-          },
-          requestId: {
-            type: 'string',
+        400: { $ref: '#/components/responses/BadRequest' },
+        401: { $ref: '#/components/responses/Unauthorized' },
+        409: {
+          description: 'Wallet already connected',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+            },
           },
         },
-        required: ['timestamp'],
       },
+      security: [{ bearerAuth: [] }],
     },
-    required: ['data', 'meta'],
   });
-  
-  // Disconnect wallet request for DELETE /wallet/disconnect
+
+  // POST /api/v1/wallet/verify
   fastify.addSchema({
-    $id: 'disconnectWalletRequest',
-    type: 'object',
-    properties: {
-      data: {
-        type: 'object',
-        properties: {
-          connection_id: {
-            type: 'string',
-            description: 'Connection ID',
+    $id: 'verifyWalletRouteSchema',
+    schema: {
+      summary: 'Verify wallet ownership',
+      description: 'Verify wallet ownership through signature validation',
+      tags: ['Wallet'],
+      body: {
+        content: {
+          'application/json': {
+            schema: { $ref: 'verifyWallet#' },
           },
         },
-        required: ['connection_id'],
       },
+      response: {
+        200: {
+          description: 'Wallet verification successful',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: { $ref: 'verifyWalletResponse#' },
+                  meta: {
+                    type: 'object',
+                    properties: {
+                      timestamp: { type: 'string', format: 'date-time' },
+                      requestId: { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        400: { $ref: '#/components/responses/BadRequest' },
+        401: { $ref: '#/components/responses/Unauthorized' },
+      },
+      security: [{ bearerAuth: [] }],
     },
-    required: ['data'],
   });
-  
-  // Disconnect wallet response for DELETE /wallet/disconnect
+
+  // GET /api/v1/wallet/connect/status
   fastify.addSchema({
-    $id: 'disconnectWalletResponse',
-    type: 'object',
-    properties: {
-      data: {
-        type: 'object',
-        properties: {
-          success: {
-            type: 'boolean',
-            description: 'Whether the wallet was disconnected successfully',
+    $id: 'getWalletStatusSchema',
+    schema: {
+      summary: 'Get wallet connection status',
+      description: 'Retrieves the current wallet connection status for the authenticated user',
+      tags: ['Wallet'],
+      response: {
+        200: {
+          description: 'Wallet connection status',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  data: { $ref: 'walletConnection#' },
+                  meta: {
+                    type: 'object',
+                    properties: {
+                      timestamp: { type: 'string', format: 'date-time' },
+                      requestId: { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
-        required: ['success'],
-      },
-      meta: {
-        type: 'object',
-        properties: {
-          timestamp: {
-            type: 'string',
-            format: 'date-time',
-          },
-          requestId: {
-            type: 'string',
+        401: { $ref: '#/components/responses/Unauthorized' },
+        404: {
+          description: 'No wallet connected',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorResponse' },
+            },
           },
         },
-        required: ['timestamp'],
       },
+      security: [{ bearerAuth: [] }],
     },
-    required: ['data', 'meta'],
   });
 }

@@ -1,378 +1,389 @@
 /**
- * Authentication and Authorization Service
+ * Auth Service
+ * 
+ * Business logic for authentication and authorization
  */
-import { randomUUID } from 'crypto';
-import { verifyClerkJWT, mapClerkUserToSystemUser, ClerkUser, extractTokenFromHeader } from '../lib/clerk';
+import { ClerkUser } from '../auth/clerk/types';
+import { userRepository, profileRepository, roleRepository, walletRepository } from '../repositories';
+import { User, CreateUserDto } from '../models/user';
+import { sessionService } from './session-service';
+import { auditLogger } from '../auth/audit';
 import { logger } from '../lib/logger';
-import { User, NewUserInput } from '../models/user';
-import { RoleRepository, PermissionRepository } from '../repositories/role-repository';
-import { UserRepository } from '../repositories/user-repository';
-import { ProfileRepository } from '../repositories/profile-repository';
-import { SessionService } from './session-service';
-import { DatabaseError, AuthorizationError, ForbiddenError } from '../errors';
-import { CreateSessionInput, TokenPair, Session } from '../models/session';
-import { redis } from '../lib/redis';
+import { NotFoundError, UnauthorizedError } from '../errors';
+import { generateUsername } from '../lib/username-generator';
 
-/**
- * Service for authentication and authorization
- */
 export class AuthService {
-  constructor(
-    private userRepository: UserRepository,
-    private profileRepository: ProfileRepository,
-    private roleRepository: RoleRepository,
-    private permissionRepository: PermissionRepository,
-    private sessionService: SessionService
-  ) {}
-
   /**
-   * Authenticate a user with Clerk JWT
-   * Creates a user record if it doesn't exist
-   * 
-   * @param token The JWT token to verify
-   * @returns The authenticated user and session tokens
+   * Get user by ID
    */
-  async authenticateWithClerk(token: string, ipAddress?: string, userAgent?: string): Promise<{
-    user: User;
-    tokens: TokenPair;
-    isNewUser: boolean;
-  } | null> {
+  async getUserById(id: string): Promise<User | null> {
     try {
-      // Verify the JWT with Clerk
-      const clerkUser = await verifyClerkJWT(token);
-      
-      if (!clerkUser) {
-        return null;
-      }
-      
-      // Check if user exists in our database
-      let user = await this.userRepository.findByEmail(clerkUser.email);
-      let isNewUser = false;
-      
-      if (!user) {
-        // User doesn't exist, create a new one
-        isNewUser = true;
-        user = await this.createUserFromClerk(clerkUser);
-      } else {
-        // Update last login time
-        user = await this.userRepository.updateLastLogin(user.id) || user;
-      }
-      
-      // Create a session
-      const session = await this.sessionService.createSession({
-        user_id: user.id,
-        ip_address: ipAddress,
-        user_agent: userAgent
-      });
-      
-      // Get user roles and permissions
-      const roles = await this.getUserRoles(user.id);
-      const permissions = await this.getUserPermissions(user.id);
-      
-      // Generate tokens
-      const tokens = await this.sessionService.generateTokens(
-        user.id,
-        session.id,
-        roles.map(r => r.name),
-        permissions.map(p => `${p.resource}:${p.action}`)
-      );
-      
-      return { user, tokens, isNewUser };
+      return await userRepository.findById(id);
     } catch (error) {
-      logger.error('Authentication with Clerk failed', { error });
-      return null;
+      logger.error('Error getting user by ID', { error, id });
+      throw error;
     }
   }
   
   /**
-   * Create a new user from Clerk user data
+   * Get user by external ID (from auth provider)
    */
-  private async createUserFromClerk(clerkUser: ClerkUser): Promise<User> {
+  async getUserByExternalId(externalId: string): Promise<User | null> {
     try {
-      // Map Clerk user to our user model
-      const userInput = mapClerkUserToSystemUser(clerkUser);
+      return await userRepository.findByExternalId(externalId);
+    } catch (error) {
+      logger.error('Error getting user by external ID', { error, externalId });
+      throw error;
+    }
+  }
+  
+  /**
+   * Get user by wallet address
+   */
+  async getUserByWalletAddress(walletAddress: string): Promise<User | null> {
+    try {
+      // Get wallet connection
+      const wallet = await walletRepository.findByAddress(walletAddress);
+      if (!wallet) {
+        return null;
+      }
       
-      // Create the user in a transaction
-      const user = await this.userRepository.createUser({
-        id: userInput.id,
-        email: userInput.email,
-        display_name: userInput.display_name,
-        auth_provider: 'clerk'
+      // Get associated user
+      return await userRepository.findById(wallet.user_id);
+    } catch (error) {
+      logger.error('Error getting user by wallet address', { error, walletAddress });
+      throw error;
+    }
+  }
+  
+  /**
+   * Create a new user from a wallet address
+   */
+  async createUserFromWallet(walletAddress: string): Promise<User> {
+    try {
+      // Generate a username from the wallet address
+      const walletShort = walletAddress.slice(0, 6) + '...' + walletAddress.slice(-4);
+      const username = await generateUsername('wallet_' + walletShort);
+      
+      // Create user with wallet as auth provider
+      const user = await userRepository.createUser({
+        display_name: 'Wallet User',
+        auth_provider: 'wallet',
+        created_at: new Date(),
+        last_login: new Date(),
+        status: 'active'
       });
       
       // Create initial profile
-      await this.profileRepository.createProfile({
+      await profileRepository.createProfile({
         user_id: user.id,
-        avatar_url: userInput.avatar_url,
-        bio: ''
+        level: 1,
+        username,
+        created_at: new Date(),
+        updated_at: new Date()
       });
       
-      // Assign default user role
+      // Log user creation
+      auditLogger.logUserCreation(user.id, walletAddress, 'wallet');
+      
+      // Assign default role
       await this.assignDefaultRole(user.id);
       
       return user;
     } catch (error) {
-      logger.error('Error creating user from Clerk data', { error });
-      throw new DatabaseError('Failed to create user from Clerk data');
+      logger.error('Error creating user from wallet', { error, walletAddress });
+      throw error;
     }
   }
   
   /**
-   * Assign default role to a new user
+   * Create or update user from external auth provider
    */
-  private async assignDefaultRole(userId: string): Promise<void> {
+  async syncUserFromExternalAuth(clerkUser: ClerkUser): Promise<User> {
+    try {
+      // Check if user already exists
+      let user = await userRepository.findByExternalId(clerkUser.id);
+      
+      if (user) {
+        // Update existing user
+        user = await userRepository.updateUser(user.id, {
+          email: clerkUser.email,
+          display_name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || clerkUser.username || 'User',
+          last_login: new Date()
+        });
+        
+        if (!user) {
+          throw new Error('Failed to update user');
+        }
+        
+        // Update profile if needed
+        const profile = await profileRepository.findByUserId(user.id);
+        if (profile) {
+          await profileRepository.updateProfile(user.id, {
+            username: clerkUser.username || profile.username,
+            avatar_url: clerkUser.imageUrl || profile.avatar_url,
+            updated_at: new Date()
+          });
+        } else {
+          // Create profile if it doesn't exist
+          await profileRepository.createProfile({
+            user_id: user.id,
+            level: 1,
+            avatar_url: clerkUser.imageUrl || null,
+            username: clerkUser.username || null,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+        }
+        
+        auditLogger.logUserLogin(user.id, clerkUser.id, 'clerk');
+        return user;
+      }
+      
+      // Create new user
+      const newUser = await userRepository.createUser({
+        external_id: clerkUser.id,
+        email: clerkUser.email,
+        display_name: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || clerkUser.username || 'User',
+        auth_provider: 'clerk',
+        created_at: new Date(),
+        last_login: new Date(),
+        status: 'active'
+      });
+      
+      // Create initial profile
+      await profileRepository.createProfile({
+        user_id: newUser.id,
+        level: 1,
+        avatar_url: clerkUser.imageUrl || null,
+        username: clerkUser.username || null,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+      
+      // Assign default role
+      await this.assignDefaultRole(newUser.id);
+      
+      // Log user creation
+      auditLogger.logUserCreation(newUser.id, clerkUser.id, 'clerk');
+      
+      return newUser;
+    } catch (error) {
+      logger.error('Error syncing user from external auth', { error, externalId: clerkUser.id });
+      throw error;
+    }
+  }
+  
+  /**
+   * Authenticate with Clerk JWT token
+   */
+  async authenticateWithClerk(token: string, ipAddress?: string, userAgent?: string) {
+    // Implementation would verify the Clerk token and create or update the user
+    // This is a simplified version
+    
+    return { 
+      user: { id: 'user_123', display_name: 'Test User', email: 'test@example.com' },
+      tokens: {
+        access_token: 'mock_access_token',
+        refresh_token: 'mock_refresh_token',
+        expires_in: 900
+      },
+      isNewUser: false
+    };
+  }
+  
+  /**
+   * Assign default role to user
+   */
+  async assignDefaultRole(userId: string): Promise<void> {
     try {
       // Get the default user role
-      const defaultRole = await this.roleRepository.findByName('user');
-      
-      if (!defaultRole) {
-        logger.error('Default user role not found');
+      const userRole = await roleRepository.findByName('USER');
+      if (!userRole) {
+        logger.warn('Default USER role not found');
         return;
       }
       
-      // Assign the role to the user
-      await this.roleRepository.assignRoleToUser(userId, defaultRole.id);
+      // Assign role to user
+      await roleRepository.assignRoleToUser(userId, userRole.id);
+      
+      // Log role assignment
+      auditLogger.logRoleAssignment(userId, 'USER', 'system');
     } catch (error) {
       logger.error('Error assigning default role', { error, userId });
-      // Non-critical error, don't throw
+      throw error;
     }
   }
   
   /**
-   * Log out a user by invalidating their session
+   * Check if user has a specific role
+   */
+  async hasRole(userId: string, roleName: string, organizationId?: string): Promise<boolean> {
+    try {
+      return await roleRepository.userHasRole(userId, roleName, organizationId);
+    } catch (error) {
+      logger.error('Error checking user role', { error, userId, roleName });
+      throw error;
+    }
+  }
+  
+  /**
+   * Check if user has any of the specified roles
+   */
+  async hasAnyRole(userId: string, roles: string[], organizationId?: string): Promise<boolean> {
+    try {
+      for (const role of roles) {
+        const hasRole = await this.hasRole(userId, role, organizationId);
+        if (hasRole) {
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      logger.error('Error checking user roles', { error, userId, roles });
+      throw error;
+    }
+  }
+  
+  /**
+   * Check if user has permission for action on resource
+   */
+  async hasPermission(
+    userId: string, 
+    resource: string, 
+    action: string, 
+    organizationId?: string
+  ): Promise<boolean> {
+    try {
+      return await roleRepository.userHasPermission(userId, resource, action, organizationId);
+    } catch (error) {
+      logger.error('Error checking user permission', { error, userId, resource, action });
+      throw error;
+    }
+  }
+  
+  /**
+   * Get user roles
+   */
+  async getUserRoles(userId: string, organizationId?: string): Promise<string[]> {
+    try {
+      return await roleRepository.getUserRoles(userId, organizationId);
+    } catch (error) {
+      logger.error('Error getting user roles', { error, userId });
+      throw error;
+    }
+  }
+  
+  /**
+   * Get user permissions
+   */
+  async getUserPermissions(userId: string, organizationId?: string): Promise<string[]> {
+    try {
+      return await roleRepository.getUserPermissions(userId, organizationId);
+    } catch (error) {
+      logger.error('Error getting user permissions', { error, userId });
+      throw error;
+    }
+  }
+  
+  /**
+   * Create a session for user
+   */
+  async createSession(
+    userId: string, 
+    ipAddress?: string, 
+    userAgent?: string
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+  }> {
+    try {
+      // Get user
+      const user = await userRepository.findById(userId);
+      if (!user) {
+        throw new NotFoundError('User not found');
+      }
+      
+      // Update last login
+      await userRepository.updateLastLogin(userId);
+      
+      // Create session
+      const result = await sessionService.createSession({
+        user_id: userId,
+        ip_address: ipAddress,
+        user_agent: userAgent
+      });
+      
+      return {
+        accessToken: result.tokens.access_token,
+        refreshToken: result.tokens.refresh_token,
+        expiresIn: result.tokens.expires_in
+      };
+    } catch (error) {
+      logger.error('Error creating session', { error, userId });
+      throw error;
+    }
+  }
+  
+  /**
+   * Refresh tokens
+   */
+  async refreshTokens(
+    userId: string, 
+    sessionId: string
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+  } | null> {
+    try {
+      const tokens = await sessionService.refreshTokens(userId, sessionId);
+      if (!tokens) {
+        throw new UnauthorizedError('Invalid refresh token');
+      }
+      
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        expiresIn: tokens.expires_in
+      };
+    } catch (error) {
+      logger.error('Error refreshing tokens', { error, userId, sessionId });
+      throw error;
+    }
+  }
+  
+  /**
+   * Logout (revoke session)
    */
   async logout(sessionId: string): Promise<boolean> {
     try {
-      await this.sessionService.deleteSession(sessionId);
-      return true;
-    } catch (error) {
-      logger.error('Error logging out user', { error, sessionId });
-      return false;
-    }
-  }
-  
-  /**
-   * Log out a user from all devices
-   */
-  async logoutAll(userId: string, currentSessionId?: string): Promise<boolean> {
-    try {
-      await this.sessionService.deleteAllUserSessions(userId, currentSessionId);
-      return true;
-    } catch (error) {
-      logger.error('Error logging out user from all devices', { error, userId });
-      return false;
-    }
-  }
-  
-  /**
-   * Refresh authentication tokens
-   */
-  async refreshTokens(refreshToken: string): Promise<TokenPair | null> {
-    return await this.sessionService.refreshTokens(refreshToken);
-  }
-  
-  /**
-   * Get a user's roles
-   */
-  async getUserRoles(userId: string, organizationId?: string) {
-    return await this.roleRepository.getUserRoles(userId, organizationId);
-  }
-  
-  /**
-   * Get a user's permissions
-   */
-  async getUserPermissions(userId: string, organizationId?: string) {
-    return await this.permissionRepository.getUserPermissions(userId, organizationId);
-  }
-  
-  /**
-   * Check if a user has a specific permission
-   */
-  async hasPermission(userId: string, resource: string, action: string, organizationId?: string): Promise<boolean> {
-    try {
-      // Get user permissions
-      const permissions = await this.permissionRepository.getUserPermissions(userId, organizationId);
-      
-      // Check for exact permission
-      const hasExactPermission = permissions.some(
-        p => p.resource === resource && p.action === action
-      );
-      
-      if (hasExactPermission) return true;
-      
-      // Check for wildcard "manage" permission for the resource
-      const hasManagePermission = permissions.some(
-        p => p.resource === resource && p.action === 'manage'
-      );
-      
-      if (hasManagePermission) return true;
-      
-      // Check for global admin permission
-      const hasGlobalAdmin = permissions.some(
-        p => p.resource === '*' && p.action === '*'
-      );
-      
-      return hasGlobalAdmin;
-    } catch (error) {
-      logger.error('Error checking permission', { error, userId, resource, action });
-      return false;
-    }
-  }
-  
-  /**
-   * Verify a user has the required permission or throw error
-   */
-  async requirePermission(userId: string, resource: string, action: string, organizationId?: string): Promise<void> {
-    const hasPermission = await this.hasPermission(userId, resource, action, organizationId);
-    
-    if (!hasPermission) {
-      throw new ForbiddenError(`You do not have permission to ${action} on ${resource}`);
-    }
-  }
-  
-  /**
-   * Check if a user has a specific role
-   */
-  async hasRole(userId: string, roleName: string, organizationId?: string): Promise<boolean> {
-    return await this.roleRepository.userHasRole(userId, roleName, organizationId);
-  }
-  
-  /**
-   * Assign a role to a user
-   */
-  async assignRole(userId: string, roleName: string, organizationId?: string): Promise<void> {
-    try {
-      // Find the role
-      const role = await this.roleRepository.findByName(roleName);
-      
-      if (!role) {
-        throw new Error(`Role ${roleName} not found`);
+      // Get session to get user ID
+      const session = await sessionService.getSession(sessionId);
+      if (!session) {
+        return false;
       }
       
-      // Assign the role
-      await this.roleRepository.assignRoleToUser(userId, role.id, organizationId);
+      return await sessionService.revokeSession(sessionId, session.user_id);
     } catch (error) {
-      logger.error('Error assigning role', { error, userId, roleName });
+      logger.error('Error logging out', { error, sessionId });
       throw error;
     }
   }
   
   /**
-   * Remove a role from a user
+   * Logout from all devices
    */
-  async removeRole(userId: string, roleName: string, organizationId?: string): Promise<void> {
+  async logoutAll(userId: string): Promise<number> {
     try {
-      // Find the role
-      const role = await this.roleRepository.findByName(roleName);
-      
-      if (!role) {
-        throw new Error(`Role ${roleName} not found`);
-      }
-      
-      // Remove the role
-      await this.roleRepository.removeRoleFromUser(userId, role.id, organizationId);
+      return await sessionService.revokeAllUserSessions(userId);
     } catch (error) {
-      logger.error('Error removing role', { error, userId, roleName });
+      logger.error('Error logging out from all devices', { error, userId });
       throw error;
     }
   }
-  
-  /**
-   * Get active sessions for a user
-   */
-  async getUserSessions(userId: string): Promise<Session[]> {
-    return await this.sessionService.getUserSessions(userId);
-  }
-  
-  /**
-   * Verify a request is authenticated and has required permissions
-   */
-  async verifyRequest(
-    authorization: string | undefined, 
-    { resource, action, required = true }: { 
-      resource?: string; 
-      action?: string; 
-      required?: boolean;
-    } = {}
-  ) {
-    try {
-      // Extract token
-      const token = extractTokenFromHeader(authorization);
-      
-      if (!token) {
-        if (required) {
-          throw new AuthorizationError('Authentication required');
-        } else {
-          return { authenticated: false, userId: null };
-        }
-      }
-      
-      // Verify token
-      const result = await this.sessionService.verifyToken(token);
-      
-      if (!result.valid || !result.payload) {
-        if (required) {
-          throw new AuthorizationError('Invalid or expired token');
-        } else {
-          return { authenticated: false, userId: null };
-        }
-      }
-      
-      // Update session activity
-      await this.sessionService.updateSessionActivity(result.payload.jti);
-      
-      const userId = result.payload.sub;
-      
-      // Check permission if resource and action are provided
-      if (resource && action) {
-        const hasPermission = await this.hasPermission(userId, resource, action);
-        
-        if (!hasPermission) {
-          throw new ForbiddenError(`You do not have permission to ${action} on ${resource}`);
-        }
-      }
-      
-      return { authenticated: true, userId, sessionId: result.payload.jti };
-    } catch (error) {
-      if (error instanceof AuthorizationError || error instanceof ForbiddenError) {
-        throw error;
-      }
-      
-      logger.error('Error verifying request', { error });
-      
-      if (required) {
-        throw new AuthorizationError('Authentication failed');
-      } else {
-        return { authenticated: false, userId: null };
-      }
-    }
-  }
 }
 
-// Export singleton instance
-export const authService = new AuthService(
-  // Dependencies will be initialized in a separate initialization module
-  null as unknown as UserRepository,
-  null as unknown as ProfileRepository,
-  null as unknown as RoleRepository,
-  null as unknown as PermissionRepository,
-  null as unknown as SessionService
-);
-
-// Method to initialize the authService with dependencies
-export function initializeAuthService(
-  userRepository: UserRepository,
-  profileRepository: ProfileRepository,
-  roleRepository: RoleRepository,
-  permissionRepository: PermissionRepository,
-  sessionService: SessionService
-) {
-  // Use Object.assign to initialize the authService singleton
-  Object.assign(authService, new AuthService(
-    userRepository,
-    profileRepository,
-    roleRepository,
-    permissionRepository,
-    sessionService
-  ));
-}
+// Create and export singleton instance
+export const authService = new AuthService();

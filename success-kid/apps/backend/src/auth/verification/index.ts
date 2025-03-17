@@ -1,8 +1,6 @@
 /**
  * Verification Module
  * 
- * Main export for verification functionality
+ * Export verification functionality
  */
-export * from './tokens';
-export * from './email';
-export * from './recovery';
+export * from './wallet-verification';

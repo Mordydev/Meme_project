@@ -1,20 +1,19 @@
+/**
+ * User API Routes
+ * 
+ * Registers all user-related routes
+ */
 import { FastifyInstance } from 'fastify';
+import { registerProfileRoutes } from './profile';
+import { registerWalletRoutes } from './wallet';
 
-export default async function users(fastify: FastifyInstance): Promise<void> {
-  // Get list of users
-  fastify.get('/', async () => {
-    return { message: 'Users list endpoint' };
-  });
-
-  // Get user by ID
-  fastify.get('/:id', async (request) => {
-    const { id } = request.params as { id: string };
-    return { message: `Get user endpoint for ID: ${id}` };
-  });
-
-  // Update user
-  fastify.put('/:id', async (request) => {
-    const { id } = request.params as { id: string };
-    return { message: `Update user endpoint for ID: ${id}` };
-  });
+/**
+ * Register all user routes
+ */
+export function registerUserRoutes(fastify: FastifyInstance) {
+  // Register profile routes
+  registerProfileRoutes(fastify);
+  
+  // Register wallet routes
+  registerWalletRoutes(fastify);
 }

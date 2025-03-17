@@ -1,7 +1,6 @@
 /**
  * Rate Limiting Module
  * 
- * Main export for rate limiting functionality
+ * Export rate limiting functionality
  */
-export * from './service';
-export * from './middleware';
+export * from './rate-limiter';

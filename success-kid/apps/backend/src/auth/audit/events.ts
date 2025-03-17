@@ -1,270 +1,153 @@
 /**
- * Audit Event Definitions
+ * Audit Event Types
  * 
- * Defines audit event types and formats for security logging
+ * Defines the types of events that are logged for security auditing
  */
 
 /**
  * Audit event types
  */
 export enum AuditEventType {
-  // Authentication events
-  USER_REGISTERED = 'user.registered',
-  USER_LOGIN = 'user.login',
-  USER_LOGOUT = 'user.logout',
-  USER_LOGIN_FAILED = 'user.login_failed',
-  USER_ACCOUNT_LOCKED = 'user.account_locked',
-  USER_PASSWORD_CHANGED = 'user.password_changed',
-  USER_EMAIL_CHANGED = 'user.email_changed',
-  USER_PROFILE_UPDATED = 'user.profile_updated',
+  // User events
+  USER_CREATED = 'user.created',
+  USER_UPDATED = 'user.updated',
   USER_DELETED = 'user.deleted',
   
-  // Session events
+  // Authentication events
+  USER_LOGIN_ATTEMPT = 'user.login.attempt',
+  USER_LOGIN = 'user.login',
+  USER_LOGIN_FAILED = 'user.login.failed',
+  USER_LOGOUT = 'user.logout',
   SESSION_CREATED = 'session.created',
   SESSION_REFRESHED = 'session.refreshed',
   SESSION_REVOKED = 'session.revoked',
-  SESSION_EXPIRED = 'session.expired',
+  
+  // Email verification events
+  EMAIL_VERIFICATION_SENT = 'email.verification.sent',
+  EMAIL_VERIFIED = 'email.verified',
+  
+  // Password events
+  PASSWORD_RESET_REQUESTED = 'password.reset.requested',
+  PASSWORD_RESET_COMPLETED = 'password.reset.completed',
+  PASSWORD_CHANGED = 'password.changed',
+  
+  // Role events
+  ROLE_ASSIGNED = 'role.assigned',
+  ROLE_REVOKED = 'role.revoked',
+  
+  // Permission events
+  PERMISSION_GRANTED = 'permission.granted',
+  PERMISSION_REVOKED = 'permission.revoked',
+  
+  // Content events
+  CONTENT_CREATED = 'content.created',
+  CONTENT_UPDATED = 'content.updated',
+  CONTENT_DELETED = 'content.deleted',
+  CONTENT_FLAGGED = 'content.flagged',
+  CONTENT_MODERATED = 'content.moderated',
+  
+  // Points events
+  POINTS_AWARDED = 'points.awarded',
+  POINTS_DEDUCTED = 'points.deducted',
+  POINTS_REDEEMED = 'points.redeemed',
   
   // Wallet events
   WALLET_CONNECTED = 'wallet.connected',
   WALLET_DISCONNECTED = 'wallet.disconnected',
+  WALLET_SIGNING_REQUEST = 'wallet.signing.request',
+  WALLET_SIGNATURE_VERIFIED = 'wallet.signature.verified',
+  WALLET_SIGNATURE_FAILED = 'wallet.signature.failed',
   
-  // Email events
-  EMAIL_VERIFICATION_SENT = 'email.verification_sent',
-  EMAIL_VERIFIED = 'email.verified',
-  PASSWORD_RESET_REQUESTED = 'password.reset_requested',
-  PASSWORD_RESET_COMPLETED = 'password.reset_completed',
-  
-  // Role and permission events
-  ROLE_ASSIGNED = 'role.assigned',
-  ROLE_REMOVED = 'role.removed',
-  PERMISSION_GRANTED = 'permission.granted',
-  PERMISSION_REVOKED = 'permission.revoked',
-  
-  // Organization events
-  ORGANIZATION_CREATED = 'organization.created',
-  ORGANIZATION_UPDATED = 'organization.updated',
-  ORGANIZATION_DELETED = 'organization.deleted',
-  ORGANIZATION_MEMBER_ADDED = 'organization.member_added',
-  ORGANIZATION_MEMBER_REMOVED = 'organization.member_removed',
-  ORGANIZATION_ROLE_CHANGED = 'organization.role_changed',
-  
-  // Admin actions
+  // Admin events
   ADMIN_ACTION = 'admin.action',
+  SYSTEM_CONFIGURATION_CHANGED = 'system.configuration.changed',
   
-  // Security-critical events
-  SUSPICIOUS_ACTIVITY = 'security.suspicious_activity',
+  // Security events
+  SUSPICIOUS_ACTIVITY_DETECTED = 'security.suspicious_activity',
   RATE_LIMIT_EXCEEDED = 'security.rate_limit_exceeded',
   ACCESS_DENIED = 'security.access_denied',
   
   // System events
-  SYSTEM_ERROR = 'system.error',
-  SYSTEM_CONFIGURATION_CHANGED = 'system.configuration_changed'
+  API_ERROR = 'system.api.error',
+  JOB_STARTED = 'system.job.started',
+  JOB_COMPLETED = 'system.job.completed',
+  JOB_FAILED = 'system.job.failed'
 }
 
 /**
- * Severity levels for audit events
+ * Audit event severity levels
  */
-export enum AuditSeverity {
+export enum AuditEventSeverity {
+  DEBUG = 'debug',
   INFO = 'info',
-  WARNING = 'warning',
+  WARN = 'warn',
   ERROR = 'error',
   CRITICAL = 'critical'
 }
 
 /**
- * Base audit event data
+ * Get audit event severity based on event type
  */
-export interface AuditEventBase {
-  type: AuditEventType;
-  userId?: string;
-  sessionId?: string;
-  organizationId?: string;
-  ip?: string;
-  userAgent?: string;
-  severity?: AuditSeverity;
-  metadata?: Record<string, any>;
+export function getEventSeverity(eventType: AuditEventType): AuditEventSeverity {
+  switch (eventType) {
+    // Critical security events
+    case AuditEventType.SUSPICIOUS_ACTIVITY_DETECTED:
+    case AuditEventType.USER_DELETED:
+      return AuditEventSeverity.CRITICAL;
+    
+    // Error-level events
+    case AuditEventType.USER_LOGIN_FAILED:
+    case AuditEventType.API_ERROR:
+    case AuditEventType.JOB_FAILED:
+    case AuditEventType.ACCESS_DENIED:
+    case AuditEventType.RATE_LIMIT_EXCEEDED:
+    case AuditEventType.WALLET_SIGNATURE_FAILED:
+      return AuditEventSeverity.ERROR;
+    
+    // Warning-level events
+    case AuditEventType.CONTENT_FLAGGED:
+    case AuditEventType.CONTENT_MODERATED:
+    case AuditEventType.POINTS_DEDUCTED:
+    case AuditEventType.PASSWORD_RESET_REQUESTED:
+      return AuditEventSeverity.WARN;
+    
+    // Info-level events (default for most events)
+    case AuditEventType.USER_CREATED:
+    case AuditEventType.USER_UPDATED:
+    case AuditEventType.USER_LOGIN:
+    case AuditEventType.USER_LOGOUT:
+    case AuditEventType.SESSION_CREATED:
+    case AuditEventType.SESSION_REFRESHED:
+    case AuditEventType.SESSION_REVOKED:
+    case AuditEventType.EMAIL_VERIFICATION_SENT:
+    case AuditEventType.EMAIL_VERIFIED:
+    case AuditEventType.PASSWORD_RESET_COMPLETED:
+    case AuditEventType.PASSWORD_CHANGED:
+    case AuditEventType.ROLE_ASSIGNED:
+    case AuditEventType.ROLE_REVOKED:
+    case AuditEventType.PERMISSION_GRANTED:
+    case AuditEventType.PERMISSION_REVOKED:
+    case AuditEventType.CONTENT_CREATED:
+    case AuditEventType.CONTENT_UPDATED:
+    case AuditEventType.CONTENT_DELETED:
+    case AuditEventType.POINTS_AWARDED:
+    case AuditEventType.POINTS_REDEEMED:
+    case AuditEventType.WALLET_CONNECTED:
+    case AuditEventType.WALLET_DISCONNECTED:
+    case AuditEventType.WALLET_SIGNING_REQUEST:
+    case AuditEventType.WALLET_SIGNATURE_VERIFIED:
+    case AuditEventType.ADMIN_ACTION:
+    case AuditEventType.SYSTEM_CONFIGURATION_CHANGED:
+    case AuditEventType.JOB_STARTED:
+    case AuditEventType.JOB_COMPLETED:
+      return AuditEventSeverity.INFO;
+    
+    // Debug-level events
+    case AuditEventType.USER_LOGIN_ATTEMPT:
+      return AuditEventSeverity.DEBUG;
+    
+    // Default to info level for unspecified events
+    default:
+      return AuditEventSeverity.INFO;
+  }
 }
-
-/**
- * Authentication audit event
- */
-export interface AuthenticationAuditEvent extends AuditEventBase {
-  type: AuditEventType.USER_LOGIN | AuditEventType.USER_LOGOUT | AuditEventType.USER_LOGIN_FAILED;
-  authProvider?: string;
-  reason?: string;
-  failureReason?: string;
-}
-
-/**
- * User modification audit event
- */
-export interface UserModificationAuditEvent extends AuditEventBase {
-  type: AuditEventType.USER_REGISTERED | AuditEventType.USER_PROFILE_UPDATED | AuditEventType.USER_DELETED | AuditEventType.USER_PASSWORD_CHANGED | AuditEventType.USER_EMAIL_CHANGED;
-  targetUserId?: string; // If different from the actor (userId)
-  changes?: Record<string, { before: any; after: any }>;
-}
-
-/**
- * Session audit event
- */
-export interface SessionAuditEvent extends AuditEventBase {
-  type: AuditEventType.SESSION_CREATED | AuditEventType.SESSION_REFRESHED | AuditEventType.SESSION_REVOKED | AuditEventType.SESSION_EXPIRED;
-  deviceInfo?: Record<string, any>;
-}
-
-/**
- * Email verification audit event
- */
-export interface EmailVerificationAuditEvent extends AuditEventBase {
-  type: AuditEventType.EMAIL_VERIFICATION_SENT | AuditEventType.EMAIL_VERIFIED;
-  email?: string;
-  verified?: boolean;
-}
-
-/**
- * Password reset audit event
- */
-export interface PasswordResetAuditEvent extends AuditEventBase {
-  type: AuditEventType.PASSWORD_RESET_REQUESTED | AuditEventType.PASSWORD_RESET_COMPLETED;
-  email?: string;
-  requestId?: string;
-}
-
-/**
- * Role modification audit event
- */
-export interface RoleModificationAuditEvent extends AuditEventBase {
-  type: AuditEventType.ROLE_ASSIGNED | AuditEventType.ROLE_REMOVED;
-  targetUserId: string;
-  roleName: string;
-  assignedBy?: string;
-}
-
-/**
- * Permission modification audit event
- */
-export interface PermissionModificationAuditEvent extends AuditEventBase {
-  type: AuditEventType.PERMISSION_GRANTED | AuditEventType.PERMISSION_REVOKED;
-  targetUserId: string;
-  resource: string;
-  action: string;
-  grantedBy?: string;
-}
-
-/**
- * Organization audit event
- */
-export interface OrganizationAuditEvent extends AuditEventBase {
-  type: AuditEventType.ORGANIZATION_CREATED | AuditEventType.ORGANIZATION_UPDATED | AuditEventType.ORGANIZATION_DELETED | AuditEventType.ORGANIZATION_MEMBER_ADDED | AuditEventType.ORGANIZATION_MEMBER_REMOVED | AuditEventType.ORGANIZATION_ROLE_CHANGED;
-  targetUserId?: string;
-  roleName?: string;
-  changes?: Record<string, { before: any; after: any }>;
-}
-
-/**
- * Security audit event
- */
-export interface SecurityAuditEvent extends AuditEventBase {
-  type: AuditEventType.SUSPICIOUS_ACTIVITY | AuditEventType.RATE_LIMIT_EXCEEDED | AuditEventType.ACCESS_DENIED;
-  resource?: string;
-  action?: string;
-  reason?: string;
-  attempts?: number;
-}
-
-/**
- * System audit event
- */
-export interface SystemAuditEvent extends AuditEventBase {
-  type: AuditEventType.SYSTEM_ERROR | AuditEventType.SYSTEM_CONFIGURATION_CHANGED;
-  component?: string;
-  error?: string;
-  changes?: Record<string, { before: any; after: any }>;
-}
-
-/**
- * Wallet audit event
- */
-export interface WalletAuditEvent extends AuditEventBase {
-  type: AuditEventType.WALLET_CONNECTED | AuditEventType.WALLET_DISCONNECTED;
-  walletAddress?: string;
-  walletProvider?: string;
-}
-
-/**
- * Admin action audit event
- */
-export interface AdminAuditEvent extends AuditEventBase {
-  type: AuditEventType.ADMIN_ACTION;
-  action: string;
-  targetUserId?: string;
-  targetResource?: string;
-  changes?: Record<string, { before: any; after: any }>;
-}
-
-/**
- * Union type for all audit events
- */
-export type AuditEvent =
-  | AuthenticationAuditEvent
-  | UserModificationAuditEvent
-  | SessionAuditEvent
-  | EmailVerificationAuditEvent
-  | PasswordResetAuditEvent
-  | RoleModificationAuditEvent
-  | PermissionModificationAuditEvent
-  | OrganizationAuditEvent
-  | SecurityAuditEvent
-  | SystemAuditEvent
-  | WalletAuditEvent
-  | AdminAuditEvent;
-
-/**
- * Default severity levels for event types
- */
-export const DEFAULT_SEVERITY_MAP: Record<AuditEventType, AuditSeverity> = {
-  [AuditEventType.USER_REGISTERED]: AuditSeverity.INFO,
-  [AuditEventType.USER_LOGIN]: AuditSeverity.INFO,
-  [AuditEventType.USER_LOGOUT]: AuditSeverity.INFO,
-  [AuditEventType.USER_LOGIN_FAILED]: AuditSeverity.WARNING,
-  [AuditEventType.USER_ACCOUNT_LOCKED]: AuditSeverity.WARNING,
-  [AuditEventType.USER_PASSWORD_CHANGED]: AuditSeverity.INFO,
-  [AuditEventType.USER_EMAIL_CHANGED]: AuditSeverity.INFO,
-  [AuditEventType.USER_PROFILE_UPDATED]: AuditSeverity.INFO,
-  [AuditEventType.USER_DELETED]: AuditSeverity.WARNING,
-  
-  [AuditEventType.SESSION_CREATED]: AuditSeverity.INFO,
-  [AuditEventType.SESSION_REFRESHED]: AuditSeverity.INFO,
-  [AuditEventType.SESSION_REVOKED]: AuditSeverity.INFO,
-  [AuditEventType.SESSION_EXPIRED]: AuditSeverity.INFO,
-  
-  [AuditEventType.WALLET_CONNECTED]: AuditSeverity.INFO,
-  [AuditEventType.WALLET_DISCONNECTED]: AuditSeverity.INFO,
-  
-  [AuditEventType.EMAIL_VERIFICATION_SENT]: AuditSeverity.INFO,
-  [AuditEventType.EMAIL_VERIFIED]: AuditSeverity.INFO,
-  [AuditEventType.PASSWORD_RESET_REQUESTED]: AuditSeverity.WARNING,
-  [AuditEventType.PASSWORD_RESET_COMPLETED]: AuditSeverity.WARNING,
-  
-  [AuditEventType.ROLE_ASSIGNED]: AuditSeverity.INFO,
-  [AuditEventType.ROLE_REMOVED]: AuditSeverity.INFO,
-  [AuditEventType.PERMISSION_GRANTED]: AuditSeverity.INFO,
-  [AuditEventType.PERMISSION_REVOKED]: AuditSeverity.INFO,
-  
-  [AuditEventType.ORGANIZATION_CREATED]: AuditSeverity.INFO,
-  [AuditEventType.ORGANIZATION_UPDATED]: AuditSeverity.INFO,
-  [AuditEventType.ORGANIZATION_DELETED]: AuditSeverity.WARNING,
-  [AuditEventType.ORGANIZATION_MEMBER_ADDED]: AuditSeverity.INFO,
-  [AuditEventType.ORGANIZATION_MEMBER_REMOVED]: AuditSeverity.INFO,
-  [AuditEventType.ORGANIZATION_ROLE_CHANGED]: AuditSeverity.INFO,
-  
-  [AuditEventType.ADMIN_ACTION]: AuditSeverity.WARNING,
-  
-  [AuditEventType.SUSPICIOUS_ACTIVITY]: AuditSeverity.WARNING,
-  [AuditEventType.RATE_LIMIT_EXCEEDED]: AuditSeverity.WARNING,
-  [AuditEventType.ACCESS_DENIED]: AuditSeverity.WARNING,
-  
-  [AuditEventType.SYSTEM_ERROR]: AuditSeverity.ERROR,
-  [AuditEventType.SYSTEM_CONFIGURATION_CHANGED]: AuditSeverity.WARNING
-};

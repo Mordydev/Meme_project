@@ -7,7 +7,7 @@ import { FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import fp from 'fastify-plugin';
-import { getOpenApiConfig } from './openapi';
+import { getOpenApiConfig, getSwaggerUiOptions } from './openapi';
 import * as schemas from './schemas';
 import { registerRouteSchemas } from './routes';
 
@@ -17,6 +17,7 @@ import { registerRouteSchemas } from './routes';
  */
 export const docsPlugin = fp(async function (fastify: FastifyInstance) {
   const openApiConfig = getOpenApiConfig();
+  const swaggerUiOptions = getSwaggerUiOptions();
   
   // Register Swagger
   await fastify.register(swagger, {
@@ -24,20 +25,7 @@ export const docsPlugin = fp(async function (fastify: FastifyInstance) {
   });
   
   // Register Swagger UI
-  await fastify.register(swaggerUi, {
-    routePrefix: '/documentation',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: true,
-      persistAuthorization: true,
-      displayOperationId: false,
-      defaultModelsExpandDepth: 3,
-      defaultModelExpandDepth: 3,
-      filter: true,
-    },
-    staticCSP: true,
-    transformStaticCSP: (header) => header,
-  });
+  await fastify.register(swaggerUi, swaggerUiOptions);
   
   // Register schemas for validation and documentation
   Object.entries(schemas).forEach(([name, schema]) => {

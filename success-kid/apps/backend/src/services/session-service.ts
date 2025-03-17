@@ -1,199 +1,73 @@
 /**
  * Session Service
  * 
- * Handles session management and token operations
+ * Manages user sessions and authentication state
  */
-import { SignJWT, jwtVerify } from 'jose';
 import { randomUUID } from 'crypto';
-import { redis, redisHelpers } from '../lib/redis';
+import { SessionRepository } from '../repositories/session-repository';
+import { Session, TokenPair, CreateSessionInput } from '../models/session';
+import { generateTokenPair, revokeToken } from '../auth/jwt';
+import { auditLogger } from '../auth/audit';
 import { logger } from '../lib/logger';
-import { isTokenRevoked } from '../lib/clerk';
-import { 
-  Session, 
-  TokenPair, 
-  CreateSessionInput,
-  TokenPayload,
-  TokenVerificationResult,
-  DeviceInfo
-} from '../models/session';
+import { redis } from '../lib/redis';
 import { env } from '../config/environment';
 
-// Constants for token settings
-const ACCESS_TOKEN_TTL = 15 * 60; // 15 minutes in seconds
-const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60; // 30 days in seconds
-const SESSION_TTL = REFRESH_TOKEN_TTL; // Match refresh token lifetime
+// TTL values in seconds
+const ACCESS_TOKEN_TTL = parseInt(env.ACCESS_TOKEN_TTL || '900', 10); // 15 minutes
+const REFRESH_TOKEN_TTL = parseInt(env.REFRESH_TOKEN_TTL || '2592000', 10); // 30 days
 
-// JWT signing key - in production, use a secure key management service
-const JWT_SECRET = new TextEncoder().encode(
-  env.JWT_SECRET || 'do-not-use-this-key-in-production-environment'
-);
-
-/**
- * Extracts device information from user agent
- */
-function extractDeviceInfo(userAgent?: string): DeviceInfo {
-  // Basic implementation - in production use a more robust library
-  const deviceInfo: DeviceInfo = {
-    type: 'unknown',
-    browser: 'unknown',
-    os: 'unknown'
-  };
-  
-  if (!userAgent) return deviceInfo;
-  
-  // Simple mobile detection
-  if (/mobile|android|iphone|ipad|ipod/i.test(userAgent)) {
-    deviceInfo.type = 'mobile';
-  } else if (/tablet|ipad/i.test(userAgent)) {
-    deviceInfo.type = 'tablet';
-  } else {
-    deviceInfo.type = 'desktop';
-  }
-  
-  // Simple OS detection
-  if (/windows/i.test(userAgent)) {
-    deviceInfo.os = 'Windows';
-  } else if (/macintosh|mac os/i.test(userAgent)) {
-    deviceInfo.os = 'MacOS';
-  } else if (/android/i.test(userAgent)) {
-    deviceInfo.os = 'Android';
-  } else if (/iphone|ipad|ipod/i.test(userAgent)) {
-    deviceInfo.os = 'iOS';
-  } else if (/linux/i.test(userAgent)) {
-    deviceInfo.os = 'Linux';
-  }
-  
-  // Simple browser detection
-  if (/chrome/i.test(userAgent) && !/edg/i.test(userAgent)) {
-    deviceInfo.browser = 'Chrome';
-  } else if (/firefox/i.test(userAgent)) {
-    deviceInfo.browser = 'Firefox';
-  } else if (/safari/i.test(userAgent) && !/chrome/i.test(userAgent)) {
-    deviceInfo.browser = 'Safari';
-  } else if (/edg/i.test(userAgent)) {
-    deviceInfo.browser = 'Edge';
-  } else if (/msie|trident/i.test(userAgent)) {
-    deviceInfo.browser = 'Internet Explorer';
-  }
-  
-  return deviceInfo;
-}
-
-/**
- * Session Service class
- */
 export class SessionService {
+  constructor(private sessionRepository: SessionRepository) {}
+  
   /**
-   * Create a new session
+   * Create a new session for a user
    */
-  async createSession(input: CreateSessionInput): Promise<Session> {
+  async createSession(input: CreateSessionInput): Promise<{
+    session: Session;
+    tokens: TokenPair;
+  }> {
     try {
+      // Generate session ID
       const sessionId = randomUUID();
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + SESSION_TTL * 1000);
       
-      const deviceInfo = extractDeviceInfo(input.user_agent);
+      // Calculate expiration date
+      const expiresAt = new Date();
+      expiresAt.setSeconds(expiresAt.getSeconds() + REFRESH_TOKEN_TTL);
       
-      const session: Session = {
+      // Create session in database
+      const session = await this.sessionRepository.create({
         id: sessionId,
         user_id: input.user_id,
-        created_at: now,
+        created_at: new Date(),
         expires_at: expiresAt,
-        last_active_at: now,
+        last_active_at: new Date(),
         ip_address: input.ip_address,
         user_agent: input.user_agent,
-        device_info: deviceInfo
-      };
+        device_info: this.parseUserAgent(input.user_agent)
+      });
       
-      // Store session in Redis
-      await redisHelpers.setJson(
-        `session:${sessionId}`,
-        session,
-        SESSION_TTL
+      // Generate tokens for session
+      const tokens = await generateTokenPair(
+        input.user_id, 
+        sessionId,
+        [],  // Roles - this would come from user data
+        [],  // Permissions - this would come from user data
+        ACCESS_TOKEN_TTL,
+        REFRESH_TOKEN_TTL
       );
       
-      // Add to user's sessions set
-      await redis.sadd(`user:${input.user_id}:sessions`, sessionId);
+      // Log session creation
+      auditLogger.logAuditEvent('session.created', input.user_id, {
+        sessionId,
+        ipAddress: input.ip_address,
+        userAgent: input.user_agent,
+        timestamp: new Date().toISOString()
+      });
       
-      return session;
+      return { session, tokens };
     } catch (error) {
       logger.error('Error creating session', { error, userId: input.user_id });
       throw error;
-    }
-  }
-  
-  /**
-   * Generate token pair (access and refresh tokens)
-   */
-  async generateTokens(
-    userId: string, 
-    sessionId: string, 
-    roles: string[] = [],
-    permissions: string[] = []
-  ): Promise<TokenPair> {
-    try {
-      const now = Math.floor(Date.now() / 1000);
-      
-      // Create payload for access token
-      const payload: TokenPayload = {
-        sub: userId,
-        jti: sessionId,
-        roles,
-        perms: permissions,
-        iat: now,
-        exp: now + ACCESS_TOKEN_TTL
-      };
-      
-      // Create access token
-      const accessToken = await new SignJWT(payload)
-        .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime(now + ACCESS_TOKEN_TTL)
-        .setIssuedAt(now)
-        .setJti(sessionId)
-        .sign(JWT_SECRET);
-      
-      // Create refresh token
-      const refreshToken = await new SignJWT({
-        sub: userId,
-        jti: sessionId,
-        iat: now,
-        exp: now + REFRESH_TOKEN_TTL
-      })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime(now + REFRESH_TOKEN_TTL)
-        .setIssuedAt(now)
-        .sign(JWT_SECRET);
-      
-      return {
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        expires_in: ACCESS_TOKEN_TTL
-      };
-    } catch (error) {
-      logger.error('Error generating tokens', { error, userId });
-      throw error;
-    }
-  }
-  
-  /**
-   * Verify a JWT token
-   */
-  async verifyToken(token: string): Promise<TokenVerificationResult> {
-    try {
-      const { payload } = await jwtVerify(token, JWT_SECRET);
-      
-      // Extract necessary fields
-      const tokenPayload = payload as unknown as TokenPayload;
-      
-      // Check if token has been revoked
-      if (await isTokenRevoked(tokenPayload.jti)) {
-        return { valid: false, error: 'Token has been revoked' };
-      }
-      
-      return { valid: true, payload: tokenPayload };
-    } catch (error) {
-      logger.debug('Token verification failed', { error });
-      return { valid: false, error: 'Invalid or expired token' };
     }
   }
   
@@ -202,7 +76,7 @@ export class SessionService {
    */
   async getSession(sessionId: string): Promise<Session | null> {
     try {
-      return await redisHelpers.getJson<Session>(`session:${sessionId}`);
+      return await this.sessionRepository.findById(sessionId);
     } catch (error) {
       logger.error('Error getting session', { error, sessionId });
       throw error;
@@ -210,45 +84,13 @@ export class SessionService {
   }
   
   /**
-   * Check if a session is valid
+   * Update session last active time
    */
-  async validateSession(sessionId: string): Promise<boolean> {
+  async updateSessionActivity(sessionId: string): Promise<Session | null> {
     try {
-      const session = await this.getSession(sessionId);
-      
-      if (!session) return false;
-      
-      // Check if session is expired
-      if (new Date() > new Date(session.expires_at)) {
-        await this.deleteSession(sessionId);
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      logger.error('Error validating session', { error, sessionId });
-      return false;
-    }
-  }
-  
-  /**
-   * Update session activity
-   */
-  async updateSessionActivity(sessionId: string): Promise<void> {
-    try {
-      const session = await this.getSession(sessionId);
-      
-      if (!session) return;
-      
-      // Update last active time
-      session.last_active_at = new Date();
-      
-      // Store updated session
-      await redisHelpers.setJson(
-        `session:${sessionId}`,
-        session,
-        SESSION_TTL
-      );
+      return await this.sessionRepository.update(sessionId, {
+        last_active_at: new Date()
+      });
     } catch (error) {
       logger.error('Error updating session activity', { error, sessionId });
       throw error;
@@ -256,155 +98,192 @@ export class SessionService {
   }
   
   /**
-   * Delete a session (logout)
+   * Revoke (invalidate) a session
    */
-  async deleteSession(sessionId: string): Promise<void> {
+  async revokeSession(sessionId: string, userId: string): Promise<boolean> {
     try {
-      const session = await this.getSession(sessionId);
+      // Get session
+      const session = await this.sessionRepository.findById(sessionId);
+      if (!session) {
+        return false;
+      }
       
-      if (!session) return;
+      // Revoke tokens associated with session
+      await revokeToken(sessionId, REFRESH_TOKEN_TTL);
       
-      // Remove from user sessions
-      await redis.srem(`user:${session.user_id}:sessions`, sessionId);
-      
-      // Delete session
-      await redis.del(`session:${sessionId}`);
-      
-      // Add to revoked tokens (short TTL to cover token validity period)
-      await redis.setex(`revoked:${sessionId}`, ACCESS_TOKEN_TTL, '1');
-      
-      // Publish revocation event for connected clients
-      await redis.publish('auth:events', JSON.stringify({
+      // Publish event for WebSockets to disconnect
+      await redis.publish('session:revoked', JSON.stringify({
         type: 'session_revoked',
         session_id: sessionId,
-        user_id: session.user_id,
+        user_id: userId,
         reason: 'logout',
         timestamp: new Date().toISOString()
       }));
+      
+      // Delete session from database
+      await this.sessionRepository.delete(sessionId);
+      
+      // Log session revocation
+      auditLogger.logUserLogout(userId, sessionId);
+      
+      return true;
     } catch (error) {
-      logger.error('Error deleting session', { error, sessionId });
+      logger.error('Error revoking session', { error, sessionId });
       throw error;
     }
   }
   
   /**
-   * Delete all sessions for a user (logout everywhere)
+   * Revoke all sessions for a user
    */
-  async deleteAllUserSessions(userId: string, currentSessionId?: string): Promise<void> {
+  async revokeAllUserSessions(userId: string): Promise<number> {
     try {
       // Get all user sessions
-      const sessionIds = await redis.smembers(`user:${userId}:sessions`);
+      const sessions = await this.sessionRepository.findByUserId(userId);
       
-      // Delete each session
-      for (const sessionId of sessionIds) {
-        // Skip current session if specified
-        if (currentSessionId && sessionId === currentSessionId) continue;
+      // Revoke each session
+      for (const session of sessions) {
+        await revokeToken(session.id, REFRESH_TOKEN_TTL);
         
-        await this.deleteSession(sessionId);
+        // Publish event for WebSockets to disconnect
+        await redis.publish('session:revoked', JSON.stringify({
+          type: 'session_revoked',
+          session_id: session.id,
+          user_id: userId,
+          reason: 'logout_all',
+          timestamp: new Date().toISOString()
+        }));
       }
       
-      // Clear user sessions set if no current session to keep
-      if (!currentSessionId) {
-        await redis.del(`user:${userId}:sessions`);
-      }
+      // Delete all sessions from database
+      const count = await this.sessionRepository.deleteByUserId(userId);
+      
+      // Log session revocation
+      auditLogger.logAuditEvent('user.logout.all', userId, {
+        sessionCount: sessions.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      return count;
     } catch (error) {
-      logger.error('Error deleting all user sessions', { error, userId });
+      logger.error('Error revoking all user sessions', { error, userId });
       throw error;
     }
   }
   
   /**
-   * Get all sessions for a user
+   * Refresh tokens using a refresh token
    */
-  async getUserSessions(userId: string): Promise<Session[]> {
+  async refreshTokens(userId: string, sessionId: string): Promise<TokenPair | null> {
     try {
-      // Get all user session IDs
-      const sessionIds = await redis.smembers(`user:${userId}:sessions`);
-      
-      // Get each session
-      const sessions: Session[] = [];
-      
-      for (const sessionId of sessionIds) {
-        const session = await this.getSession(sessionId);
-        if (session) {
-          sessions.push(session);
-        } else {
-          // Clean up stale session reference
-          await redis.srem(`user:${userId}:sessions`, sessionId);
-        }
-      }
-      
-      return sessions;
-    } catch (error) {
-      logger.error('Error getting user sessions', { error, userId });
-      throw error;
-    }
-  }
-  
-  /**
-   * Refresh a token pair using a refresh token
-   */
-  async refreshTokens(refreshToken: string): Promise<TokenPair | null> {
-    try {
-      // Verify refresh token
-      const result = await this.verifyToken(refreshToken);
-      
-      if (!result.valid || !result.payload) {
+      // Check if session exists and is valid
+      const session = await this.sessionRepository.findById(sessionId);
+      if (!session || session.user_id !== userId) {
         return null;
       }
       
-      const { sub: userId, jti: sessionId } = result.payload;
-      
-      // Validate session
-      const isValid = await this.validateSession(sessionId);
-      
-      if (!isValid) {
+      // Check if session is expired
+      if (session.expires_at < new Date()) {
+        await this.sessionRepository.delete(sessionId);
         return null;
       }
       
       // Update session activity
       await this.updateSessionActivity(sessionId);
       
-      // TODO: Get updated roles and permissions from role service
-      const roles: string[] = ['user'];
-      const permissions: string[] = [];
+      // Generate new token pair
+      const tokens = await generateTokenPair(
+        userId, 
+        sessionId,
+        [],  // Roles - this would come from user data
+        [],  // Permissions - this would come from user data
+        ACCESS_TOKEN_TTL,
+        REFRESH_TOKEN_TTL
+      );
       
-      // Generate new tokens
-      return await this.generateTokens(userId, sessionId, roles, permissions);
+      return tokens;
     } catch (error) {
-      logger.error('Error refreshing tokens', { error });
-      return null;
+      logger.error('Error refreshing tokens', { error, userId, sessionId });
+      throw error;
     }
   }
   
   /**
-   * Create authentication cookies for response
+   * Clean up expired sessions
    */
-  createAuthCookies(tokens: TokenPair): Record<string, string> {
-    const secureFlag = env.NODE_ENV === 'production' ? '; Secure' : '';
-    
-    return {
-      'Set-Cookie': [
-        `access_token=${tokens.access_token}; HttpOnly${secureFlag}; Path=/; Max-Age=${ACCESS_TOKEN_TTL}; SameSite=Lax`,
-        `refresh_token=${tokens.refresh_token}; HttpOnly${secureFlag}; Path=/auth/refresh; Max-Age=${REFRESH_TOKEN_TTL}; SameSite=Lax`
-      ].join(', ')
-    };
+  async cleanupExpiredSessions(): Promise<number> {
+    try {
+      const now = new Date();
+      return await this.sessionRepository.deleteExpired(now);
+    } catch (error) {
+      logger.error('Error cleaning up expired sessions', { error });
+      throw error;
+    }
   }
   
   /**
-   * Create logout cookies (empty tokens)
+   * Parse user agent to extract device info
    */
-  createLogoutCookies(): Record<string, string> {
-    const secureFlag = env.NODE_ENV === 'production' ? '; Secure' : '';
+  private parseUserAgent(userAgent?: string): { type: string; browser?: string; os?: string } {
+    if (!userAgent) {
+      return { type: 'unknown' };
+    }
     
-    return {
-      'Set-Cookie': [
-        `access_token=; HttpOnly${secureFlag}; Path=/; Max-Age=0; SameSite=Lax`,
-        `refresh_token=; HttpOnly${secureFlag}; Path=/auth/refresh; Max-Age=0; SameSite=Lax`
-      ].join(', ')
-    };
+    // This is a simplified implementation
+    // In production, consider using a proper user-agent parsing library
+    
+    const lowerUserAgent = userAgent.toLowerCase();
+    let type = 'desktop';
+    let browser;
+    let os;
+    
+    // Detect device type
+    if (lowerUserAgent.includes('mobile') || lowerUserAgent.includes('android') || lowerUserAgent.includes('iphone')) {
+      type = 'mobile';
+    } else if (lowerUserAgent.includes('ipad') || lowerUserAgent.includes('tablet')) {
+      type = 'tablet';
+    }
+    
+    // Detect browser
+    if (lowerUserAgent.includes('chrome')) {
+      browser = 'Chrome';
+    } else if (lowerUserAgent.includes('firefox')) {
+      browser = 'Firefox';
+    } else if (lowerUserAgent.includes('safari')) {
+      browser = 'Safari';
+    } else if (lowerUserAgent.includes('edge')) {
+      browser = 'Edge';
+    } else if (lowerUserAgent.includes('opera')) {
+      browser = 'Opera';
+    }
+    
+    // Detect OS
+    if (lowerUserAgent.includes('windows')) {
+      os = 'Windows';
+    } else if (lowerUserAgent.includes('mac')) {
+      os = 'macOS';
+    } else if (lowerUserAgent.includes('linux')) {
+      os = 'Linux';
+    } else if (lowerUserAgent.includes('android')) {
+      os = 'Android';
+    } else if (lowerUserAgent.includes('iphone') || lowerUserAgent.includes('ipad')) {
+      os = 'iOS';
+    }
+    
+    return { type, browser, os };
   }
 }
 
-// Export a singleton instance
-export const sessionService = new SessionService();
+// Create instance with singleton pattern
+let instance: SessionService | null = null;
+
+export function getSessionService(): SessionService {
+  if (!instance) {
+    const sessionRepository = new SessionRepository();
+    instance = new SessionService(sessionRepository);
+  }
+  return instance;
+}
+
+// Export singleton instance
+export const sessionService = getSessionService();

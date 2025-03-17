@@ -1,73 +1,109 @@
 /**
  * Presence API Handlers
  * 
- * Handles user presence API endpoints
+ * Implements route handlers for presence management
  */
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { 
-  PresenceStatus,
-  PresenceVisibility,
-  UpdatePresenceDto,
-  UpdatePresencePreferencesDto
-} from '../../models/presence';
+import { getPresenceService } from '../../services/presence';
+import { PresenceStatus } from '../../models/presence';
 import { logger } from '../../lib/logger';
+import { NotFoundError, ForbiddenError } from '../../errors/api-errors';
 
 /**
- * Get user's presence status
+ * Get user presence
  */
 export async function getUserPresence(
   request: FastifyRequest<{
-    Params: { id: string }
+    Params: { userId: string }
   }>,
   reply: FastifyReply
 ) {
-  try {
-    const { id } = request.params;
-    const presenceService = request.diContainer.resolve('presenceService');
-    
-    const presence = await presenceService.getUserPresence(id);
-    
-    if (!presence) {
-      reply.status(404).send({
-        error: 'User presence not found',
-        message: 'The specified user has no presence data'
-      });
-      return;
-    }
-    
-    // Check if requesting user has permission to view this user's presence
-    const preferences = await presenceService.getPresencePreferences(id);
-    
-    // If visibility is set to NOBODY, return offline status
-    if (preferences.visibility === PresenceVisibility.NOBODY && id !== request.user.id) {
-      reply.send({
-        data: {
-          userId: id,
-          status: PresenceStatus.OFFLINE,
-          lastActive: presence.lastActive
-        }
-      });
-      return;
-    }
-    
-    // TODO: Check for additional visibility rules (followers, etc.)
-    
-    reply.send({
-      data: presence
-    });
-  } catch (error) {
-    logger.error('Error getting user presence', { error, userId: request.params.id });
-    reply.status(500).send({
-      error: 'Failed to get user presence',
-      message: error.message
+  const { userId } = request.params;
+  const presenceService = getPresenceService();
+  
+  const presence = await presenceService.getPresence(userId);
+  
+  if (!presence) {
+    // Return offline if no presence found
+    return reply.send({
+      data: {
+        userId,
+        status: PresenceStatus.OFFLINE,
+        lastActivity: new Date().toISOString()
+      },
+      meta: {
+        timestamp: new Date().toISOString()
+      }
     });
   }
+  
+  // Format and return presence data
+  return reply.send({
+    data: {
+      userId: presence.userId,
+      status: presence.status,
+      statusMessage: presence.metadata?.statusMessage,
+      lastActivity: presence.lastActivity.toISOString(),
+      lastLocation: presence.metadata?.lastLocation
+    },
+    meta: {
+      timestamp: new Date().toISOString()
+    }
+  });
+}
+
+/**
+ * Update current user's presence
+ */
+export async function updatePresence(
+  request: FastifyRequest<{
+    Body: {
+      status: PresenceStatus;
+      statusMessage?: string;
+      lastLocation?: string;
+      metadata?: Record<string, any>;
+    }
+  }>,
+  reply: FastifyReply
+) {
+  // Ensure user is authenticated
+  if (!request.user?.id) {
+    throw new ForbiddenError('Authentication required');
+  }
+  
+  const userId = request.user.id;
+  const { status, statusMessage, lastLocation, metadata = {} } = request.body;
+  
+  // Create metadata object
+  const presenceMetadata = {
+    ...metadata,
+    statusMessage,
+    lastLocation
+  };
+  
+  // Update presence
+  const presenceService = getPresenceService();
+  const success = await presenceService.updatePresence(userId, {
+    status,
+    metadata: presenceMetadata
+  });
+  
+  // Return result
+  return reply.send({
+    data: {
+      success,
+      status
+    },
+    meta: {
+      timestamp: new Date().toISOString()
+    }
+  });
 }
 
 /**
  * Get presence for multiple users
  */
-export async function getUsersPresence(
+export async function getMultiplePresence(
   request: FastifyRequest<{
     Body: {
       userIds: string[];
@@ -75,159 +111,184 @@ export async function getUsersPresence(
   }>,
   reply: FastifyReply
 ) {
-  try {
-    const { userIds } = request.body;
-    
-    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-      reply.status(400).send({
-        error: 'Invalid request',
-        message: 'User IDs array is required'
-      });
-      return;
-    }
-    
-    const presenceService = request.diContainer.resolve('presenceService');
-    const presences = await presenceService.getUsersPresence(userIds);
-    
-    reply.send({
-      data: presences
-    });
-  } catch (error) {
-    logger.error('Error getting users presence', { error, userIds: request.body.userIds });
-    reply.status(500).send({
-      error: 'Failed to get users presence',
-      message: error.message
-    });
-  }
-}
-
-/**
- * Update user's own presence
- */
-export async function updatePresence(
-  request: FastifyRequest<{
-    Body: UpdatePresenceDto
-  }>,
-  reply: FastifyReply
-) {
-  try {
-    const userId = request.user.id;
-    const presenceUpdate = request.body;
-    
-    // Validate status
-    if (!Object.values(PresenceStatus).includes(presenceUpdate.status)) {
-      reply.status(400).send({
-        error: 'Invalid status',
-        message: 'Status must be one of: online, away, busy, offline'
-      });
-      return;
-    }
-    
-    const presenceService = request.diContainer.resolve('presenceService');
-    const presence = await presenceService.updatePresence(userId, presenceUpdate);
-    
-    reply.send({
-      data: presence,
-      message: 'Presence updated successfully'
-    });
-  } catch (error) {
-    logger.error('Error updating presence', { error, userId: request.user.id });
-    reply.status(500).send({
-      error: 'Failed to update presence',
-      message: error.message
-    });
-  }
-}
-
-/**
- * Get online users
- */
-export async function getOnlineUsers(
-  request: FastifyRequest<{
-    Querystring: {
-      limit?: string;
-    }
-  }>,
-  reply: FastifyReply
-) {
-  try {
-    const limit = request.query.limit ? parseInt(request.query.limit, 10) : 100;
-    const presenceService = request.diContainer.resolve('presenceService');
-    
-    const onlineUsers = await presenceService.getUsersByStatus(PresenceStatus.ONLINE, limit);
-    
-    reply.send({
-      data: onlineUsers,
+  const { userIds } = request.body;
+  
+  // Validate input
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return reply.send({
+      data: {},
       meta: {
-        count: onlineUsers.length
+        timestamp: new Date().toISOString(),
+        count: 0
       }
     });
-  } catch (error) {
-    logger.error('Error getting online users', { error });
-    reply.status(500).send({
-      error: 'Failed to get online users',
-      message: error.message
-    });
   }
+  
+  // Limit to 100 users max
+  const limitedUserIds = userIds.slice(0, 100);
+  
+  // Get presence for all users
+  const presenceService = getPresenceService();
+  const presenceMap = await presenceService.getMultiplePresence(limitedUserIds);
+  
+  // Format response
+  const result: Record<string, any> = {};
+  
+  // Add data for users with presence
+  for (const [userId, presence] of presenceMap.entries()) {
+    result[userId] = {
+      userId,
+      status: presence.status,
+      statusMessage: presence.metadata?.statusMessage,
+      lastActivity: presence.lastActivity.toISOString(),
+      lastLocation: presence.metadata?.lastLocation
+    };
+  }
+  
+  // Add offline status for users without presence
+  for (const userId of limitedUserIds) {
+    if (!result[userId]) {
+      result[userId] = {
+        userId,
+        status: PresenceStatus.OFFLINE,
+        lastActivity: new Date().toISOString()
+      };
+    }
+  }
+  
+  // Return result
+  return reply.send({
+    data: result,
+    meta: {
+      timestamp: new Date().toISOString(),
+      count: Object.keys(result).length
+    }
+  });
 }
 
 /**
- * Get presence preferences
+ * Get users present in a room
  */
-export async function getPresencePreferences(request: FastifyRequest, reply: FastifyReply) {
-  try {
-    const userId = request.user.id;
-    const presenceService = request.diContainer.resolve('presenceService');
-    
-    const preferences = await presenceService.getPresencePreferences(userId);
-    
-    reply.send({
-      data: preferences
-    });
-  } catch (error) {
-    logger.error('Error getting presence preferences', { error, userId: request.user.id });
-    reply.status(500).send({
-      error: 'Failed to get presence preferences',
-      message: error.message
-    });
-  }
-}
-
-/**
- * Update presence preferences
- */
-export async function updatePresencePreferences(
+export async function getRoomPresence(
   request: FastifyRequest<{
-    Body: UpdatePresencePreferencesDto
+    Params: { roomId: string }
   }>,
   reply: FastifyReply
 ) {
-  try {
-    const userId = request.user.id;
-    const preferencesUpdate = request.body;
-    
-    // Validate visibility
-    if (preferencesUpdate.visibility && 
-        !Object.values(PresenceVisibility).includes(preferencesUpdate.visibility)) {
-      reply.status(400).send({
-        error: 'Invalid visibility',
-        message: 'Visibility must be one of: everyone, followers, friends, nobody'
-      });
-      return;
+  const { roomId } = request.params;
+  
+  // Get room presence
+  const presenceService = getPresenceService();
+  const roomPresence = await presenceService.getRoomPresence(roomId);
+  
+  // Format response
+  const users = Array.from(roomPresence.values()).map(presence => ({
+    userId: presence.userId,
+    status: presence.status,
+    statusMessage: presence.metadata?.statusMessage,
+    lastActivity: presence.lastActivity.toISOString()
+  }));
+  
+  // Return result
+  return reply.send({
+    data: users,
+    meta: {
+      timestamp: new Date().toISOString(),
+      count: users.length
     }
-    
-    const presenceService = request.diContainer.resolve('presenceService');
-    const preferences = await presenceService.updatePresencePreferences(userId, preferencesUpdate);
-    
-    reply.send({
-      data: preferences,
-      message: 'Presence preferences updated successfully'
-    });
-  } catch (error) {
-    logger.error('Error updating presence preferences', { error, userId: request.user.id });
-    reply.status(500).send({
-      error: 'Failed to update presence preferences',
-      message: error.message
+  });
+}
+
+/**
+ * Join a room
+ */
+export async function joinRoom(
+  request: FastifyRequest<{
+    Params: { roomId: string }
+  }>,
+  reply: FastifyReply
+) {
+  // Ensure user is authenticated
+  if (!request.user?.id) {
+    throw new ForbiddenError('Authentication required');
+  }
+  
+  const userId = request.user.id;
+  const { roomId } = request.params;
+  
+  // Get current presence
+  const presenceService = getPresenceService();
+  const currentPresence = await presenceService.getPresence(userId);
+  
+  // Use current status or default to online
+  const status = currentPresence?.status || PresenceStatus.ONLINE;
+  
+  // Update presence with room ID
+  const success = await presenceService.updatePresence(userId, {
+    status,
+    roomId,
+    metadata: currentPresence?.metadata
+  });
+  
+  // Return result
+  return reply.send({
+    data: {
+      success,
+      roomId
+    },
+    meta: {
+      timestamp: new Date().toISOString()
+    }
+  });
+}
+
+/**
+ * Leave a room
+ */
+export async function leaveRoom(
+  request: FastifyRequest<{
+    Params: { roomId: string }
+  }>,
+  reply: FastifyReply
+) {
+  // Ensure user is authenticated
+  if (!request.user?.id) {
+    throw new ForbiddenError('Authentication required');
+  }
+  
+  const userId = request.user.id;
+  const { roomId } = request.params;
+  
+  // Get current presence
+  const presenceService = getPresenceService();
+  const currentPresence = await presenceService.getPresence(userId);
+  
+  // Check if user is in this room
+  if (!currentPresence || currentPresence.roomId !== roomId) {
+    return reply.send({
+      data: {
+        success: true // Already not in the room, so technically succeeded
+      },
+      meta: {
+        timestamp: new Date().toISOString()
+      }
     });
   }
+  
+  // Update presence to remove room ID
+  const success = await presenceService.updatePresence(userId, {
+    status: currentPresence.status,
+    roomId: undefined, // Remove room ID
+    metadata: currentPresence.metadata
+  });
+  
+  // Return result
+  return reply.send({
+    data: {
+      success
+    },
+    meta: {
+      timestamp: new Date().toISOString()
+    }
+  });
 }

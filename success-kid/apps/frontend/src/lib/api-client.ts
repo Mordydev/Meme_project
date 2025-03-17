@@ -1,37 +1,5 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-
-/**
- * Standard API error response structure based on Backend Guidelines
- */
-export interface ApiErrorResponse {
-  data: null;
-  meta: {
-    timestamp: string;
-    requestId: string;
-  };
-  errors: Array<{
-    code: string;
-    message: string;
-    details?: any[];
-  }>;
-}
-
-/**
- * Standard API success response structure based on Backend Guidelines
- */
-export interface ApiSuccessResponse<T> {
-  data: T;
-  meta: {
-    timestamp: string;
-    requestId: string;
-  };
-  pagination?: {
-    page: number;
-    pageSize: number;
-    totalItems: number;
-    totalPages: number;
-  };
-}
+import { ApiSuccessResponse, ApiErrorResponse, ErrorCode } from '@success-kid/types';
 
 /**
  * Application error with standardized structure
@@ -64,10 +32,25 @@ const axiosInstance: AxiosInstance = axios.create({
 
 // Request interceptor for adding auth token, etc.
 axiosInstance.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Add auth token if available (for client-side requests)
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('auth_token');
+      let token = localStorage.getItem('auth_token');
+      
+      // If in a browser environment, try to get token from Clerk as a backup
+      // This is in case the localStorage token is missing or expired
+      if (!token && window.Clerk?.session) {
+        try {
+          token = await window.Clerk.session.getToken();
+          // Save token to localStorage for future use
+          if (token) {
+            localStorage.setItem('auth_token', token);
+          }
+        } catch (error) {
+          console.warn('Failed to get token from Clerk:', error);
+        }
+      }
+      
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -88,6 +71,7 @@ axiosInstance.interceptors.response.use(
   (response: AxiosResponse<ApiSuccessResponse<any>>) => {
     // Extract data from standardized API response if it matches our structure
     if (response.data && 'data' in response.data) {
+      // Return the entire response but with data extracted from the standardized structure
       return { ...response, data: response.data.data };
     }
     return response;
@@ -95,6 +79,23 @@ axiosInstance.interceptors.response.use(
   (error: AxiosError<ApiErrorResponse>) => {
     // Handle API errors with our standardized structure
     const errorData = error.response?.data;
+    
+    // Handle authentication errors (redirect to sign-in)
+    if (error.response?.status === 401) {
+      // Clear token if we get an authentication error
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth_token');
+        
+        // Redirect to sign-in page if not already there
+        // This is a simplified approach - in a real app you might want to use a more sophisticated approach
+        const currentPath = window.location.pathname;
+        if (!currentPath.includes('/sign-in')) {
+          window.location.href = `/sign-in?redirect=${encodeURIComponent(currentPath)}`;
+          // Return a special promise that never resolves to prevent further processing
+          return new Promise(() => {});
+        }
+      }
+    }
     
     // Extract standardized error structure
     if (errorData?.errors?.length) {
@@ -114,9 +115,21 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(
         new AppError(
           'Network error. Please check your connection.',
-          'NETWORK_ERROR',
+          ErrorCode.NETWORK_ERROR,
           undefined,
           0
+        )
+      );
+    }
+    
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED') {
+      return Promise.reject(
+        new AppError(
+          'Request timed out. Please try again.',
+          ErrorCode.TIMEOUT_ERROR,
+          undefined,
+          408
         )
       );
     }
@@ -125,7 +138,7 @@ axiosInstance.interceptors.response.use(
     return Promise.reject(
       new AppError(
         error.message || 'An unexpected error occurred',
-        'UNKNOWN_ERROR',
+        ErrorCode.SERVER_ERROR,
         undefined,
         error.response?.status
       )
@@ -152,6 +165,12 @@ export const apiClient = {
    */
   put: <T = any>(url: string, data?: any, config?: AxiosRequestConfig) =>
     axiosInstance.put<T, AxiosResponse<T>>(url, data, config),
+  
+  /**
+   * Make a PATCH request
+   */
+  patch: <T = any>(url: string, data?: any, config?: AxiosRequestConfig) =>
+    axiosInstance.patch<T, AxiosResponse<T>>(url, data, config),
   
   /**
    * Make a DELETE request
@@ -183,4 +202,22 @@ export const getErrorMessage = (error: unknown): string => {
   }
   
   return 'An unknown error occurred';
+};
+
+/**
+ * Helper for getting the error code
+ */
+export const getErrorCode = (error: unknown): string => {
+  if (isAppError(error)) {
+    return error.code;
+  }
+  
+  return ErrorCode.SERVER_ERROR;
+};
+
+/**
+ * Check if error is a specific error code
+ */
+export const isErrorCode = (error: unknown, code: ErrorCode): boolean => {
+  return isAppError(error) && error.code === code;
 };

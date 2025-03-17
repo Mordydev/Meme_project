@@ -1,7 +1,7 @@
-// Re-export shared types here
-// This is a placeholder file that will be populated with actual types
+// Re-export shared types
+// This file exports all shared types for use across the platform
 
-// Common user types
+// Common data models
 export interface User {
   id: string;
   email: string;
@@ -44,3 +44,6 @@ export interface Content {
   updated_at?: Date;
   status: 'active' | 'deleted' | 'flagged';
 }
+
+// Re-export all API types
+export * from './api-types';

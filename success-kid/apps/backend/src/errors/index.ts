@@ -1,15 +1,13 @@
 /**
- * Error module exports
+ * Errors Module
+ * 
+ * Centralized error handling and error classes
  */
 
-// Re-export all error-related components
+// Re-export all error classes and codes
 export * from './base-error';
-export * from './error-codes';
-export * from './handlers';
 export * from './api-errors';
-export * from './wallet-errors';
+export * from './error-codes';
 
-// Export default object for convenient imports
-export default {
-  // Include any utility functions here
-};
+// Re-export error handlers
+export * from './handlers';

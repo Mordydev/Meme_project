@@ -1,37 +1,38 @@
 /**
  * OpenAPI Configuration
+ * 
+ * Defines OpenAPI specification for API documentation
  */
-import { OpenAPIObject } from 'openapi3-ts';
+import { FastifyDynamicSwaggerOptions } from '@fastify/swagger';
+import { FastifySwaggerUiOptions } from '@fastify/swagger-ui';
+import { version } from '../../package.json';
 
 /**
- * Generates the OpenAPI configuration for the application
+ * Get OpenAPI configuration
+ * @returns OpenAPI configuration
  */
-export function getOpenApiConfig(): OpenAPIObject {
+export function getOpenApiConfig(): FastifyDynamicSwaggerOptions['openapi'] {
   return {
     info: {
-      title: 'Success Kid Community API',
+      title: 'Success Kid Community Platform API',
       description: 'API for the Success Kid Community Platform',
-      version: process.env.npm_package_version || '1.0.0',
+      version,
       contact: {
-        name: 'API Support',
-        url: 'https://github.com/your-org/success-kid-platform/issues',
+        name: 'Success Kid Team',
+        url: 'https://successcommunity.io',
       },
-      license: {
-        name: 'MIT',
-        url: 'https://opensource.org/licenses/MIT',
-      },
+    },
+    externalDocs: {
+      url: 'https://docs.successcommunity.io',
+      description: 'Full API documentation',
     },
     servers: [
       {
-        url: process.env.API_URL || 'http://localhost:3001',
-        description: 'API Server',
+        url: process.env.API_BASE_URL || 'http://localhost:3000',
+        description: 'Development server',
       },
       {
-        url: 'https://api-staging.successkid.com',
-        description: 'Staging server',
-      },
-      {
-        url: 'https://api.successkid.com',
+        url: 'https://api.successcommunity.io',
         description: 'Production server',
       },
     ],
@@ -44,85 +45,198 @@ export function getOpenApiConfig(): OpenAPIObject {
         },
       },
       schemas: {
-        // Core schemas are imported from the schemas directory
+        // Common response schema
+        ApiResponse: {
+          type: 'object',
+          required: ['data', 'meta'],
+          properties: {
+            data: {
+              type: 'object',
+              description: 'Response data',
+            },
+            meta: {
+              type: 'object',
+              required: ['timestamp', 'requestId'],
+              properties: {
+                timestamp: {
+                  type: 'string',
+                  format: 'date-time',
+                  description: 'Response timestamp',
+                },
+                requestId: {
+                  type: 'string',
+                  description: 'Unique request identifier',
+                },
+              },
+            },
+            pagination: {
+              type: 'object',
+              description: 'Pagination information (if applicable)',
+              properties: {
+                page: {
+                  type: 'integer',
+                  description: 'Current page number',
+                },
+                pageSize: {
+                  type: 'integer',
+                  description: 'Number of items per page',
+                },
+                totalItems: {
+                  type: 'integer',
+                  description: 'Total number of items',
+                },
+                totalPages: {
+                  type: 'integer',
+                  description: 'Total number of pages',
+                },
+              },
+            },
+          },
+        },
+        
+        // Standard error response
+        ErrorResponse: {
+          type: 'object',
+          required: ['data', 'meta', 'errors'],
+          properties: {
+            data: {
+              type: 'null',
+              description: 'No data returned for errors',
+            },
+            meta: {
+              type: 'object',
+              required: ['timestamp', 'requestId'],
+              properties: {
+                timestamp: {
+                  type: 'string',
+                  format: 'date-time',
+                  description: 'Response timestamp',
+                },
+                requestId: {
+                  type: 'string',
+                  description: 'Unique request identifier',
+                },
+              },
+            },
+            errors: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['code', 'message'],
+                properties: {
+                  code: {
+                    type: 'string',
+                    description: 'Error code',
+                  },
+                  message: {
+                    type: 'string',
+                    description: 'Error message',
+                  },
+                  details: {
+                    type: 'array',
+                    description: 'Detailed error information',
+                    items: {
+                      type: 'object',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        
+        // Add other common schemas here
       },
       responses: {
-        Error400: {
-          description: 'Bad Request - Validation Error',
+        // Standard error responses
+        BadRequest: {
+          description: 'Bad Request',
           content: {
             'application/json': {
               schema: {
-                $ref: '#/components/schemas/Error',
+                $ref: '#/components/schemas/ErrorResponse',
               },
             },
           },
         },
-        Error401: {
-          description: 'Unauthorized - Authentication Required',
+        Unauthorized: {
+          description: 'Unauthorized',
           content: {
             'application/json': {
               schema: {
-                $ref: '#/components/schemas/Error',
+                $ref: '#/components/schemas/ErrorResponse',
               },
             },
           },
         },
-        Error403: {
-          description: 'Forbidden - Insufficient Permissions',
+        Forbidden: {
+          description: 'Forbidden',
           content: {
             'application/json': {
               schema: {
-                $ref: '#/components/schemas/Error',
+                $ref: '#/components/schemas/ErrorResponse',
               },
             },
           },
         },
-        Error404: {
-          description: 'Not Found - Resource Not Found',
+        NotFound: {
+          description: 'Not Found',
           content: {
             'application/json': {
               schema: {
-                $ref: '#/components/schemas/Error',
+                $ref: '#/components/schemas/ErrorResponse',
               },
             },
           },
         },
-        Error429: {
-          description: 'Too Many Requests - Rate Limit Exceeded',
-          content: {
-            'application/json': {
-              schema: {
-                $ref: '#/components/schemas/Error',
-              },
-            },
-          },
-        },
-        Error500: {
+        InternalServerError: {
           description: 'Internal Server Error',
           content: {
             'application/json': {
               schema: {
-                $ref: '#/components/schemas/Error',
+                $ref: '#/components/schemas/ErrorResponse',
               },
             },
           },
         },
       },
     },
-    tags: [
-      { name: 'Authentication', description: 'Authentication and authorization endpoints' },
-      { name: 'Users', description: 'User-related endpoints' },
-      { name: 'Points', description: 'Points system endpoints' },
-      { name: 'Content', description: 'Content management endpoints' },
-      { name: 'Wallet', description: 'Wallet integration endpoints' },
-      { name: 'Leaderboards', description: 'Leaderboard endpoints' },
-      { name: 'Achievements', description: 'User achievements endpoints' },
-      { name: 'System', description: 'System status and health endpoints' },
-    ],
     security: [
       {
         bearerAuth: [],
       },
     ],
+    tags: [
+      { name: 'Auth', description: 'Authentication endpoints' },
+      { name: 'Users', description: 'User management endpoints' },
+      { name: 'Content', description: 'Content management endpoints' },
+      { name: 'Points', description: 'Points system endpoints' },
+      { name: 'Wallet', description: 'Wallet integration endpoints' },
+      { name: 'Market', description: 'Market data endpoints' },
+      { name: 'Achievements', description: 'Achievement system endpoints' },
+      { name: 'Leaderboard', description: 'Leaderboard endpoints' },
+      { name: 'Referrals', description: 'Referral system endpoints' },
+    ],
+  };
+}
+
+/**
+ * Get Swagger UI options
+ * @returns Swagger UI options
+ */
+export function getSwaggerUiOptions(): FastifySwaggerUiOptions {
+  return {
+    routePrefix: '/documentation',
+    uiConfig: {
+      docExpansion: 'list',
+      deepLinking: true,
+      persistAuthorization: true,
+      displayOperationId: false,
+      defaultModelsExpandDepth: 3,
+      defaultModelExpandDepth: 3,
+      filter: true,
+    },
+    staticCSP: true,
+    transformStaticCSP: (header) => header,
   };
 }

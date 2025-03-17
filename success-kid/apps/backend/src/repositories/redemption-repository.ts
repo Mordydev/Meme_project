@@ -296,6 +296,8 @@ export class RedemptionRepository extends BaseRepository<RedemptionRecord> {
       offset?: number;
       sortBy?: string;
       sortDirection?: 'asc' | 'desc';
+      startDate?: Date;
+      endDate?: Date;
     } = {}
   ): Promise<RedemptionRecord[]> {
     try {
@@ -304,7 +306,9 @@ export class RedemptionRepository extends BaseRepository<RedemptionRecord> {
         limit = 20, 
         offset = 0, 
         sortBy = 'requested_at', 
-        sortDirection = 'desc' 
+        sortDirection = 'desc',
+        startDate,
+        endDate
       } = options;
       
       let query = `SELECT * FROM redemptions WHERE user_id = $1`;
@@ -314,14 +318,25 @@ export class RedemptionRepository extends BaseRepository<RedemptionRecord> {
       // Add status filter if provided
       if (status) {
         if (Array.isArray(status)) {
-          query += ` AND status IN (${status.map((_, i) => `$${paramIndex + i}`).join(', ')})`;
+          query += ` AND status IN (${status.map((_, i) => `${paramIndex + i}`).join(', ')})`;
           queryParams.push(...status);
           paramIndex += status.length;
         } else {
-          query += ` AND status = $${paramIndex}`;
+          query += ` AND status = ${paramIndex}`;
           queryParams.push(status);
           paramIndex += 1;
         }
+      }
+      
+      // Add date filters if provided
+      if (startDate) {
+        query += ` AND requested_at >= ${paramIndex++}`;
+        queryParams.push(startDate);
+      }
+      
+      if (endDate) {
+        query += ` AND requested_at <= ${paramIndex++}`;
+        queryParams.push(endDate);
       }
       
       // Add sorting

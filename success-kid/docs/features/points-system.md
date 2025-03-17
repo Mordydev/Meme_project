@@ -1,286 +1,353 @@
-# Points System Documentation
-
-The Success Points (SP) system is a core feature of the Success Kid Community Platform, incentivizing engagement through a token-based reward mechanism.
+# Success Points System Documentation
 
 ## Overview
 
-Success Points (SP) serve as an on-platform utility token that users earn through various engagement activities. These points can be redeemed for SKC tokens, creating tangible value from platform participation.
+The Success Points (SP) system is the core economy of the Success Kid Community Platform, designed to reward user engagement and provide a value bridge between on-platform activity and token rewards. This document outlines the implementation details, key components, API interfaces, and usage patterns.
 
-## Point Earning Activities
+## Table of Contents
 
-| Activity | Points (SP) | Daily Limit | Rationale |
-|----------|--------|-----------------|-----------|
-| **Account Creation** | 100 | Once | Welcome bonus to kickstart engagement |
-| **Daily Login** | 20 | Once per day | Encourages regular visits |
-| **Creating a Post** | 50 | Max 200/day | Core content creation |
-| **Quality Post Bonus** | 50-200 | Staff awarded | Rewards exceptional contributions |
-| **Commenting** | 15 | Max 150/day | Encourages conversation |
-| **Receiving Comment** | 5 | Max 100/day | Rewards engaging content |
-| **Upvote Received** | 5 | Max 100/day | Community validation |
-| **Upvote Given** | 1 | Max 50/day | Participation in curation |
-| **Profile Completion** | 100 | Once | Encourages complete profiles |
-| **Wallet Connection** | 50 | Once per wallet | Basic integration reward |
-| **Streak Bonus** | 10 × streak days (max 100) | Daily | Rewards consistency |
-| **Referral Signup** | 500 | Per unique referral | Rewards community growth |
+1. [System Architecture](#system-architecture)
+2. [Points Economy Rules](#points-economy-rules)
+3. [Core Components](#core-components)
+4. [API Endpoints](#api-endpoints)
+5. [Integration Patterns](#integration-patterns)
+6. [Security & Protection](#security--protection)
+7. [Testing & Validation](#testing--validation)
+8. [Operational Considerations](#operational-considerations)
 
-## Points to Token Conversion
+## System Architecture
 
-Success Points can be redeemed for SKC tokens at a fixed rate:
+The Points System follows a layered architecture design:
 
-- **Conversion Rate**: 100 SP = 1 SKC
-- **Minimum Redemption**: 1,000 SP (10 SKC)
-- **Weekly Redemption Cap**: 10,000 SP (100 SKC) per user
-- **Requirements**: Connected wallet required for redemption
-- **Processing**: Weekly processing window
+![Architecture Diagram](../assets/diagrams/points-system-architecture.png)
 
-## Technical Implementation
+### Key Layers
 
-### Data Model
+1. **API Layer**: HTTP endpoints for points operations
+2. **Service Layer**: Business logic for points management
+3. **Repository Layer**: Data access for points transactions and redemption
+4. **Security Layer**: Protection against exploitation and fraud
+5. **Event Layer**: Real-time updates and integrations
 
-```
-user_points
-├── id (PK)
-├── user_id (FK → users.id)
-├── amount
-├── source
-├── reference_id
-├── created_at
-└── description
-```
+### Data Flow
 
-### Key Components
+1. User performs activity → 
+2. Activity verification → 
+3. Cap enforcement → 
+4. Transaction processing → 
+5. Balance update → 
+6. Real-time notification → 
+7. Achievement/level triggers
 
-1. **Points Service**: Handles awarding and redeeming points
-2. **Points Repository**: Manages data persistence
-3. **Daily Limits Service**: Enforces daily caps
-4. **Redemption Queue**: Processes token conversions
-5. **Anti-Fraud System**: Prevents exploitation
+## Points Economy Rules
 
-### API Endpoints
+The Success Points economy operates on a carefully balanced set of rules:
 
-#### Award Points
+### Earning Points
 
-```
-POST /api/v1/points/award
-```
+| Activity | Points | Daily Limit | Description |
+|----------|--------|-------------|-------------|
+| Account creation | 100 | Once | One-time bonus for new accounts |
+| Daily login | 20 | Once per day | Rewards daily platform engagement |
+| Content creation | 50 | 4 times (200/day) | Posting new content |
+| Quality post bonus | 50-200 | N/A | Staff-awarded bonus for high-quality content |
+| Commenting | 15 | 10 times (150/day) | Engaging with other content |
+| Receiving comments | 5 | 20 times (100/day) | Having engaging content |
+| Upvote received | 5 | 20 times (100/day) | Community recognition |
+| Upvote given | 1 | 50 times (50/day) | Participating in curation |
+| Profile completion | 100 | Once | One-time bonus for complete profile |
+| Wallet connection | 50 | Once per wallet | Connecting verified wallet |
+| Streak bonus | 10 × streak days | 100/day max | Consecutive daily activity |
+| Referral signup | 500 | N/A | Per unique signup through referral |
 
-Request:
-```json
-{
-  "data": {
-    "amount": 50,
-    "source": "content_creation",
-    "referenceId": "post_123"
-  }
+### Redeeming Points
+
+- **Conversion Rate**: 100 SP = 1 SKC token
+- **Minimum Redemption**: 1,000 SP (10 tokens)
+- **Weekly Limit**: 10,000 SP (100 tokens) per user
+- **Requirements**: Verified wallet connection
+- **Processing Time**: Typically within 24 hours
+
+## Core Components
+
+The implementation consists of several specialized services:
+
+### 1. Points Service (`PointsService`)
+
+Central service managing points operations:
+- Point awarding and deduction
+- Balance management
+- Transaction processing
+- Redemption handling
+
+### 2. Cap Enforcement Service (`CapEnforcementService`)
+
+Enforces daily and weekly limits:
+- Per-activity daily caps
+- Weekly redemption caps
+- Special event multipliers
+- Cap override management
+
+### 3. Verification Service (`VerificationService`)
+
+Validates legitimate activity:
+- Activity verification
+- User trust levels
+- Rate limiting
+- Multi-factor verification
+
+### 4. Anomaly Detection (`AnomalyDetectionService`)
+
+Identifies suspicious patterns:
+- Velocity checks
+- Volume analysis
+- Pattern recognition
+- Behavioral profiling
+
+### 5. Redemption Service (`RedemptionService`)
+
+Manages points-to-token conversion:
+- Eligibility verification
+- Redemption request processing
+- Blockchain transaction management
+- Status tracking and updates
+
+### 6. Transaction Idempotency (`TransactionIdempotencyService`)
+
+Ensures transactional integrity:
+- Duplicate prevention
+- Transaction recovery
+- Consistent state management
+- Client request ID handling
+
+### 7. Analytics Service (`PointsAnalyticsService`)
+
+Provides insights into points economy:
+- User metrics
+- System-wide metrics
+- Activity patterns
+- Economy health indicators
+
+## API Endpoints
+
+### User Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/points/balance/:userId` | GET | Get user's points balance |
+| `/api/v1/points/history/:userId` | GET | Get user's points transaction history |
+| `/api/v1/points/caps/:userId` | GET | Get user's daily caps status |
+| `/api/v1/points/redemption/eligibility/:userId` | GET | Check redemption eligibility |
+
+### Transaction Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/points/award` | POST | Award points for activity |
+| `/api/v1/points/redemption` | POST | Request points redemption |
+| `/api/v1/points/redemption/:id` | GET | Get redemption status |
+| `/api/v1/points/redemption/history/:userId` | GET | Get redemption history |
+
+### Admin Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/points/admin/award` | POST | Admin points award |
+| `/api/v1/points/admin/deduct` | POST | Admin points deduction |
+| `/api/v1/points/admin/stats` | GET | System-wide statistics |
+| `/api/v1/points/redemption/stats` | GET | Redemption statistics |
+| `/api/v1/points/redemption/flagged` | GET | Get flagged redemptions |
+| `/api/v1/points/redemption/flagged/:id/review` | POST | Review flagged redemption |
+| `/api/v1/points/rules` | GET | Get points rules |
+| `/api/v1/points/events` | GET | Get special events |
+| `/api/v1/points/events/:id/toggle` | POST | Toggle special event |
+
+## Integration Patterns
+
+### 1. Activity Integration
+
+To award points for user activity:
+
+```typescript
+// 1. Import the event bus
+import { eventBus, EventType } from '../lib/event-bus';
+
+// 2. Emit points award event when activity occurs
+async function handleContentCreation(userId, content) {
+  // Process content creation
+  const contentId = await contentService.createContent(userId, content);
+  
+  // Award points for activity
+  eventBus.publish(EventType.AWARD_POINTS, {
+    userId,
+    amount: 50,  // From points rules
+    source: 'content_creation',
+    referenceId: contentId,
+    description: 'Created new content'
+  });
+  
+  return contentId;
 }
 ```
 
-Response:
-```json
-{
-  "data": {
-    "success": true,
-    "amount": 50,
-    "newBalance": 1050,
-    "transaction": {
-      "id": "tx_123",
-      "created_at": "2025-03-12T12:00:00Z"
+### 2. Real-time Updates Integration
+
+To receive real-time points updates:
+
+```typescript
+// Server-side WebSocket handler
+eventBus.subscribe(EventType.POINTS_AWARDED, (event) => {
+  // Send WebSocket notification to user
+  webSocketService.sendToUser(event.userId, {
+    type: 'points.update',
+    data: {
+      amount: event.amount,
+      source: event.source,
+      balance: event.balance,
+      timestamp: event.timestamp
     }
-  },
-  "meta": {
-    "timestamp": "2025-03-12T12:00:00Z"
-  }
-}
+  });
+});
 ```
 
-#### Get Points Balance
+### 3. Redemption Flow Integration
 
-```
-GET /api/v1/points/balance
-```
+To integrate with the redemption flow:
 
-Response:
-```json
-{
-  "data": {
-    "balance": 1050,
-    "transactions": [
-      {
-        "id": "tx_123",
-        "amount": 50,
-        "source": "content_creation",
-        "created_at": "2025-03-12T12:00:00Z"
-      }
-    ],
-    "today": {
-      "earned": 150,
-      "limits": {
-        "content_creation": {
-          "used": 100,
-          "limit": 200,
-          "remaining": 100
-        }
-      }
+```typescript
+// Client-side redemption request
+async function redeemPoints(amount) {
+  try {
+    // Request redemption
+    const response = await api.post('/api/v1/points/redemption', {
+      amount,
+      walletAddress: user.walletAddress
+    });
+    
+    // Handle response
+    if (response.data && response.data.redemptionId) {
+      // Set up polling for status updates
+      startRedemptionStatusPolling(response.data.redemptionId);
+      
+      // Update UI optimistically
+      updatePointsBalance(currentBalance - amount);
+      showRedemptionInProgress(response.data);
     }
-  },
-  "meta": {
-    "timestamp": "2025-03-12T12:00:00Z"
+  } catch (error) {
+    // Handle error
+    showRedemptionError(error);
   }
 }
 ```
 
-#### Redeem Points
+## Security & Protection
 
+The points system implements a multi-layered protection approach:
+
+### 1. Input Validation
+- Schema-based validation for all requests
+- Type checking and constraints
+- Proper error handling
+
+### 2. Rate Limiting
+- Per-endpoint rate limits
+- Graduated throttling
+- IP and user-based limits
+
+### 3. Daily Caps
+- Per-activity caps
+- System-wide limits
+- User-based restrictions
+
+### 4. Anomaly Detection
+- Velocity analysis
+- Pattern recognition
+- Behavioral profiling
+- Risk scoring
+
+### 5. Transaction Integrity
+- Database transactions
+- Idempotency guarantees
+- Audit logging
+- Recovery mechanisms
+
+### 6. Security Headers
+- CSRF protection
+- Content-Security-Policy
+- Rate-limiting headers
+- Request ID tracking
+
+## Testing & Validation
+
+The points system includes comprehensive testing tools:
+
+### Automated Tests
+- Unit tests for core logic
+- Integration tests for APIs
+- End-to-end testing for flows
+- Load testing for performance
+
+### Simulation Tool
+A points system tester allows simulation of various scenarios:
+- Activity generation
+- User behavior modeling
+- Exploitation attempts
+- Performance validation
+
+Run the tester with:
 ```
-POST /api/v1/points/redeem
+npx ts-node -r tsconfig-paths/register src/scripts/run-points-system-test.ts
 ```
 
-Request:
-```json
-{
-  "data": {
-    "amount": 1000
-  }
-}
-```
+### Manual Testing Guide
+1. Create test users with different profiles
+2. Perform activities to test point awarding
+3. Verify cap enforcement
+4. Test redemption flow
+5. Attempt common exploitation patterns
+6. Verify protection mechanisms
 
-Response:
-```json
-{
-  "data": {
-    "success": true,
-    "requestId": "req_123",
-    "pointsAmount": 1000,
-    "tokenAmount": 10,
-    "status": "pending",
-    "estimatedProcessingTime": "2025-03-15T00:00:00Z"
-  },
-  "meta": {
-    "timestamp": "2025-03-12T12:00:00Z"
-  }
-}
-```
+## Operational Considerations
 
-### Anti-Exploitation Measures
+### Monitoring
+Key metrics to monitor:
+- Transaction volume and latency
+- Points awarded per day
+- Redemption rate
+- Failed transactions
+- Flagged activities
+- System load during peak times
 
-The points system includes multiple layers of protection:
+### Performance Optimization
+- Use Redis caching for frequent operations
+- Implement database query optimization
+- Use batch processing for analytics
+- Distribute load across services
 
-1. **Activity Caps**: Daily limits on each point-earning activity
-2. **Rate Limiting**: Throttling of point-earning actions
-3. **Validation Rules**: Business logic to verify legitimate actions
-4. **Pattern Detection**: Algorithms to identify suspicious behavior
-5. **Manual Review**: Staff review for suspicious activities
-6. **Rollback Capability**: Ability to reverse fraudulent transactions
+### Disaster Recovery
+- Regular database backups
+- Transaction log maintenance
+- Point-in-time recovery capability
+- Reconciliation procedures
 
-## UI Components
+### Governance
+- Regular rules review committee
+- Economic balance monitoring
+- Exploitation attempt reviews
+- System health reporting
 
-### Points Display
+## Conclusion
 
-![Points Display](https://placeholder.com/ui/points-display.png)
+The Success Points system provides a robust framework for rewarding user engagement while maintaining economic balance and security. The modular architecture allows for future extensions and optimizations while ensuring current operational needs are met effectively.
 
-- Located in the top navigation
-- Shows current points balance
-- Indicator for new points earned
-- Animation for points changes
+---
 
-### Points History
+## Changelog
 
-![Points History](https://placeholder.com/ui/points-history.png)
-
-- Accessible from profile or points display
-- Lists recent transactions
-- Filters by activity type
-- Shows daily and weekly summaries
-
-### Redemption Interface
-
-![Redemption Interface](https://placeholder.com/ui/redemption.png)
-
-- Accessible from points display
-- Shows conversion preview
-- Selectable amount with slider or input
-- Wallet connection requirement
-- Clear confirmation steps
-
-## User Flows
-
-### Earning Points Flow
-
-1. User performs point-eligible activity (creates post, comments, etc.)
-2. System validates action against rules and daily caps
-3. Points are awarded and added to user's balance
-4. Real-time notification shows points earned
-5. Points history is updated
-6. Leaderboard positions may update
-
-### Redemption Flow
-
-1. User navigates to redemption interface
-2. System checks eligibility (connected wallet, minimum balance)
-3. User selects amount to redeem
-4. System validates against redemption caps
-5. User confirms redemption
-6. Request is queued for processing
-7. Points are deducted from balance
-8. Tokens are sent during next processing window
-9. User receives confirmation notification
-10. Transaction appears in redemption history
-
-## Error Handling
-
-| Error Scenario | System Response | User Message |
-|----------------|-----------------|--------------|
-| **Daily Limit Reached** | Block additional points for that activity | "You've reached your daily limit for this activity. Try again tomorrow!" |
-| **Redemption Below Minimum** | Reject redemption request | "Minimum redemption amount is 1,000 SP (10 SKC). Keep earning!" |
-| **Redemption Exceeds Cap** | Limit redemption to cap | "Weekly redemption limit is 10,000 SP (100 SKC). Adjust your amount." |
-| **No Wallet Connected** | Require wallet connection | "Please connect your wallet to redeem points for tokens." |
-| **Insufficient Balance** | Reject redemption request | "You don't have enough points for this redemption." |
-| **Suspicious Activity** | Flag for review, potentially hold points | "Your recent activity requires review. Points may be temporarily held." |
-
-## Points System Dashboard (Admin)
-
-Administrators have access to a points system dashboard that provides:
-
-- Global points statistics
-- User leaderboards
-- Redemption queue management
-- Suspicious activity flagging
-- Manual points adjustment tools
-- System configuration settings
-
-## Best Practices
-
-### For Developers
-
-1. **Always Use the Points Service**: Never modify points directly in the database
-2. **Validate Actions**: Ensure point-earning actions meet requirements
-3. **Handle Race Conditions**: Use transactions for critical operations
-4. **Log Everything**: Maintain comprehensive audit trails
-5. **Implement Idempotency**: Prevent duplicate point awards
-6. **Error Handling**: Gracefully handle and report errors
-
-### For Designers
-
-1. **Clear Feedback**: Provide visible feedback for point changes
-2. **Value Transparency**: Clearly show point values for activities
-3. **Progressive Disclosure**: Layer complex details for new users
-4. **Accessible Design**: Ensure points UI is accessible to all users
-5. **Mobile Optimization**: Design points interactions for all devices
-
-## Future Enhancements
-
-Planned enhancements to the points system include:
-
-1. **Enhanced Bonuses**: Additional multipliers for consistent engagement
-2. **Community Challenges**: Time-limited group goals with bonus rewards
-3. **Points Gifting**: Ability to gift points to other users
-4. **Advanced Analytics**: Detailed insights into points earning patterns
-5. **Variable Redemption Rates**: Special redemption events with better rates
-6. **Achievement System Integration**: Deeper integration with achievements
-
-## Related Documentation
-
-- [API Documentation](http://localhost:3001/documentation)
-- [Frontend Components](http://localhost:6006/?path=/docs/features-points)
-- [Authentication Integration](./authentication.md)
-- [Wallet Integration](./wallet-integration.md)
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0.0 | 2025-03-17 | Initial implementation |
+| 1.0.1 | 2025-03-17 | Added transaction idempotency |
+| 1.0.2 | 2025-03-17 | Enhanced anomaly detection |
+| 1.0.3 | 2025-03-17 | Added analytics service |
+| 1.0.4 | 2025-03-17 | Improved testing tools |

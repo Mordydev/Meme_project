@@ -1,27 +1,22 @@
 /**
- * Route schema registration for API documentation
+ * Route Schema Registration
+ * 
+ * Centralized registration of API route schemas for OpenAPI documentation
  */
 import { FastifyInstance } from 'fastify';
-import { healthRoutes } from './health';
-import { userRoutes } from './users';
-import { pointsRoutes } from './points';
-import { walletRoutes } from './wallet';
+import { pointsRouteSchemas } from './points';
+import { walletRouteSchemas } from './wallet';
+import { userRouteSchemas } from './user';
 
 /**
- * Register all route schemas with Fastify instance
+ * Register all route schemas for OpenAPI documentation
+ * @param fastify Fastify instance
  */
 export function registerRouteSchemas(fastify: FastifyInstance): void {
-  healthRoutes(fastify);
-  userRoutes(fastify);
-  pointsRoutes(fastify);
-  walletRoutes(fastify);
+  // Register schemas for each API category
+  pointsRouteSchemas(fastify);
+  walletRouteSchemas(fastify);
+  userRouteSchemas(fastify);
   
-  // Log the number of registered schemas
-  const routeCount = Object.keys(fastify.getSchemas()).length;
-  fastify.log.info(`Registered ${routeCount} schemas for API documentation`);
+  // Add more schema registrations here as needed
 }
-
-export { healthRoutes } from './health';
-export { userRoutes } from './users';
-export { pointsRoutes } from './points';
-export { walletRoutes } from './wallet';
