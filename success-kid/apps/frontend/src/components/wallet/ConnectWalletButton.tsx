@@ -1,89 +1,120 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { useWallet } from '@/hooks/useWallet';
+import React, { useState } from 'react';
+import { Button, ButtonProps } from '@/components/ui/button';
+import { Loader2, ExternalLink, Wallet } from 'lucide-react';
+import { useWalletContext } from '@/components/providers/WalletProvider';
 import { WalletSelectorModal } from './WalletSelectorModal';
+import { cn } from '@/lib/utils';
 
-interface ConnectWalletButtonProps {
+export interface ConnectWalletButtonProps extends Omit<ButtonProps, 'onClick' | 'onSuccess'> {
   onSuccess?: () => void;
-  size?: 'sm' | 'md' | 'lg';
-  variant?: 'primary' | 'secondary' | 'outline';
-  fullWidth?: boolean;
-  showConnectedState?: boolean;
+  hideAddress?: boolean;
+  showIcon?: boolean;
+  label?: string;
+  disconnectLabel?: string;
+  className?: string;
 }
 
 export function ConnectWalletButton({
   onSuccess,
-  size = 'md',
-  variant = 'primary',
-  fullWidth = false,
-  showConnectedState = false,
+  hideAddress = false,
+  showIcon = true,
+  label = 'Connect Wallet',
+  disconnectLabel = 'Disconnect',
+  className,
+  variant = 'default',
+  size = 'default',
+  ...props
 }: ConnectWalletButtonProps) {
-  const { wallet, isConnecting, isConnected, connect, disconnect } = useWallet();
-  const [showSelector, setShowSelector] = useState(false);
+  const { wallet, isConnecting, connectWallet, disconnectWallet, formatAddress } = useWalletContext();
+  const [showModal, setShowModal] = useState(false);
   
-  const handleOpenSelector = () => {
-    setShowSelector(true);
-  };
-  
-  const handleCloseSelector = () => {
-    setShowSelector(false);
-  };
-  
-  const handleSelectWallet = async (walletType: string) => {
-    const success = await connect(walletType as any);
-    if (success) {
-      setShowSelector(false);
-      onSuccess?.();
+  const handleConnect = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (wallet?.isConnected) {
+      await disconnectWallet();
+    } else {
+      setShowModal(true);
     }
   };
   
-  const handleDisconnect = async () => {
-    await disconnect();
+  const handleWalletSelected = async () => {
+    setShowModal(false);
+    
+    try {
+      await connectWallet();
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (error) {
+      console.error('Wallet connection failed:', error);
+    }
   };
   
-  if (isConnected && showConnectedState) {
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+  
+  // Connected state
+  if (wallet?.isConnected) {
+    return (
+      <>
+        <Button
+          variant={variant}
+          size={size}
+          className={cn(className)}
+          onClick={handleConnect}
+          {...props}
+        >
+          {showIcon && (
+            <Wallet className="mr-2 h-4 w-4" />
+          )}
+          
+          {hideAddress ? disconnectLabel : formatAddress(wallet.account.address)}
+        </Button>
+      </>
+    );
+  }
+  
+  // Connecting state
+  if (isConnecting) {
     return (
       <Button
-        variant="outline"
+        variant={variant}
         size={size}
-        onClick={handleDisconnect}
-        className={fullWidth ? 'w-full' : ''}
+        className={cn(className)}
+        disabled
+        {...props}
       >
-        <svg 
-          className="mr-2 h-4 w-4 text-success-500" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2"
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-        >
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-          <polyline points="22 4 12 14.01 9 11.01"></polyline>
-        </svg>
-        Wallet Connected
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Connecting...
       </Button>
     );
   }
   
+  // Default state
   return (
     <>
       <Button
         variant={variant}
         size={size}
-        onClick={handleOpenSelector}
-        isLoading={isConnecting}
-        className={fullWidth ? 'w-full' : ''}
+        className={cn(className)}
+        onClick={handleConnect}
+        {...props}
       >
-        {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+        {showIcon && (
+          <Wallet className="mr-2 h-4 w-4" />
+        )}
+        {label}
       </Button>
       
-      <WalletSelectorModal 
-        isOpen={showSelector} 
-        onClose={handleCloseSelector} 
-        onSelect={handleSelectWallet} 
+      <WalletSelectorModal
+        isOpen={showModal}
+        onClose={handleCloseModal}
+        onSelect={handleWalletSelected}
       />
     </>
   );

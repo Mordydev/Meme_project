@@ -1,205 +1,244 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
+import { QRCode } from 'react-qrcode-logo';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { Button } from '@/components/ui/button';
-import { useWallet } from '@/hooks/useWallet';
-import { WALLET_PROVIDERS } from '@/lib/walletProviders';
-import { WalletType } from '@/types/wallet';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
+import { Loader2, Smartphone, Copy, Check, ArrowRight, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-interface MobileWalletConnectProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onComplete: () => void;
-  walletType?: WalletType;
+export interface MobileWalletConnectProps {
+  walletType?: 'phantom' | 'solflare';
+  sessionUrl?: string;
+  deepLink?: string;
+  qrData?: string;
+  isGenerating?: boolean;
+  error?: string | null;
+  onOpenApp?: () => void;
+  onRetry?: () => void;
+  className?: string;
 }
 
 export function MobileWalletConnect({
-  isOpen,
-  onClose,
-  onComplete,
   walletType = 'phantom',
+  sessionUrl = '',
+  deepLink = '',
+  qrData = '',
+  isGenerating = false,
+  error = null,
+  onOpenApp,
+  onRetry,
+  className
 }: MobileWalletConnectProps) {
-  const { connectionSession, createConnectionSession } = useWallet();
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'pending' | 'connected' | 'failed'>('pending');
-  const [error, setError] = useState<string | null>(null);
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const [isCopied, setIsCopied] = useState(false);
+  const [effectiveQrData, setEffectiveQrData] = useState(qrData || sessionUrl);
+  const [activeTab, setActiveTab] = useState<string>(isMobile ? 'open' : 'scan');
   
-  // Create or get connection session when modal opens
+  // Update QR data when props change
   useEffect(() => {
-    if (isOpen && !connectionSession) {
-      const initSession = async () => {
-        setIsCreatingSession(true);
-        try {
-          await createConnectionSession();
-          setConnectionStatus('pending');
-        } catch (error) {
-          console.error('Error creating connection session:', error);
-          setConnectionStatus('failed');
-          setError('Failed to create connection session. Please try again.');
-        } finally {
-          setIsCreatingSession(false);
-        }
-      };
+    setEffectiveQrData(qrData || sessionUrl);
+  }, [qrData, sessionUrl]);
+  
+  // Update active tab when media query changes
+  useEffect(() => {
+    setActiveTab(isMobile ? 'open' : 'scan');
+  }, [isMobile]);
+  
+  const handleCopyLink = () => {
+    if (effectiveQrData) {
+      navigator.clipboard.writeText(effectiveQrData);
+      setIsCopied(true);
       
-      initSession();
+      // Reset after 2 seconds
+      setTimeout(() => {
+        setIsCopied(false);
+      }, 2000);
     }
-  }, [isOpen, connectionSession, createConnectionSession]);
+  };
   
-  // Poll for connection status
-  useEffect(() => {
-    if (!isOpen || !connectionSession || connectionStatus !== 'pending') {
+  const getWalletAppName = () => {
+    return walletType === 'phantom' ? 'Phantom' : 'Solflare';
+  };
+  
+  const getWalletDownloadLink = () => {
+    return walletType === 'phantom' 
+      ? 'https://phantom.app/download' 
+      : 'https://solflare.com/download';
+  };
+  
+  const handleOpenApp = () => {
+    if (onOpenApp) {
+      onOpenApp();
       return;
     }
     
-    const checkConnectionStatus = async () => {
-      // In a real implementation, we would check with the backend if the user has connected
-      // For demo purposes, we'll simulate success after 5 seconds
-      const timeout = setTimeout(() => {
-        setConnectionStatus('connected');
-        setTimeout(() => {
-          onComplete();
-        }, 1500);
-      }, 5000);
-      
-      return () => clearTimeout(timeout);
-    };
-    
-    const cleanup = checkConnectionStatus();
-    return () => {
-      if (typeof cleanup === 'function') {
-        cleanup();
+    // Default behavior - try to open the deep link
+    if (deepLink) {
+      window.location.href = deepLink;
+    } else if (walletType === 'phantom') {
+      // Universal link for Phantom
+      if (effectiveQrData) {
+        window.location.href = `https://phantom.app/ul/browse/${encodeURIComponent(effectiveQrData)}`;
+      } else {
+        window.location.href = 'https://phantom.app/ul/';
       }
-    };
-  }, [isOpen, connectionSession, connectionStatus, onComplete]);
-  
-  const handleOpenWallet = () => {
-    if (!connectionSession?.deepLink) return;
-    
-    // Open the wallet app via deep link
-    window.location.href = connectionSession.deepLink;
+    } else if (walletType === 'solflare') {
+      // Universal link for Solflare
+      if (effectiveQrData) {
+        window.location.href = `https://solflare.com/ul/${encodeURIComponent(effectiveQrData)}`;
+      } else {
+        window.location.href = 'https://solflare.com/ul/';
+      }
+    }
   };
   
-  if (!isOpen) return null;
-  
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="mx-auto w-full max-w-md overflow-hidden rounded-lg bg-white p-6 shadow-xl"
-      >
-        {isCreatingSession ? (
-          <div className="flex flex-col items-center justify-center py-8">
-            <svg className="mb-4 h-10 w-10 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-            <p className="text-gray-600">Preparing secure connection...</p>
+    <Card className={cn(className)}>
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <div 
+            className="mr-2 h-6 w-6 bg-primary/10 rounded-full flex items-center justify-center"
+          >
+            <img 
+              src={`/images/wallets/${walletType}.svg`} 
+              alt={getWalletAppName()} 
+              className="h-4 w-4"
+            />
           </div>
-        ) : connectionStatus === 'pending' && connectionSession ? (
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary-100">
-              <svg className="h-10 w-10 text-primary-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-            </div>
-            
-            <h3 className="mb-2 text-xl font-semibold text-gray-900">Connect with {WALLET_PROVIDERS[walletType].name}</h3>
-            
-            <p className="mb-6 text-gray-600">
-              Open the {WALLET_PROVIDERS[walletType].name} app on your mobile device to connect your wallet.
-            </p>
-            
-            {connectionSession.qrCodeData && (
-              <div className="mb-6 flex justify-center">
-                {/* In a real implementation, this would be an actual QR code */}
-                <div className="h-48 w-48 rounded-lg bg-gray-200 p-4 flex items-center justify-center">
-                  <div className="text-center text-sm text-gray-500">
-                    [QR Code]
-                    <br />
-                    Would render actual QR code here
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div className="flex flex-col space-y-3">
-              <Button onClick={handleOpenWallet}>
-                Open {WALLET_PROVIDERS[walletType].name} App
-              </Button>
-              <Button variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-            </div>
-            
-            <p className="mt-4 text-xs text-gray-500">
-              Connection will expire in 15 minutes. Refresh to generate a new connection code.
-            </p>
-          </div>
-        ) : connectionStatus === 'connected' ? (
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-success-100">
-              <svg className="h-10 w-10 text-success-600" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            
-            <h3 className="mb-2 text-xl font-semibold text-gray-900">Connected Successfully!</h3>
-            
-            <p className="text-gray-600">
-              Your wallet has been connected successfully.
-            </p>
-          </div>
+          Connect {getWalletAppName()}
+        </CardTitle>
+        <CardDescription>
+          {isMobile 
+            ? `Connect using your ${getWalletAppName()} wallet app` 
+            : `Scan the QR code with your ${getWalletAppName()} app`}
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="pb-2">
+        {error ? (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Connection Error</AlertTitle>
+            <AlertDescription>
+              {error}
+              {onRetry && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={onRetry}
+                  className="mt-2"
+                >
+                  Try Again
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
         ) : (
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-100">
-              <svg className="h-10 w-10 text-red-600" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="scan">Scan QR Code</TabsTrigger>
+              <TabsTrigger value="open">Open App</TabsTrigger>
+            </TabsList>
             
-            <h3 className="mb-2 text-xl font-semibold text-gray-900">Connection Failed</h3>
+            <TabsContent value="scan" className="flex flex-col items-center">
+              {isGenerating ? (
+                <div className="flex flex-col items-center justify-center h-52 w-52">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <p className="mt-4 text-sm text-neutral-500">Generating connection...</p>
+                </div>
+              ) : effectiveQrData ? (
+                <div className="mb-4">
+                  <QRCode 
+                    value={effectiveQrData}
+                    size={200}
+                    qrStyle="dots"
+                    eyeRadius={5}
+                    logoImage={walletType === 'phantom' ? '/images/wallets/phantom.svg' : '/images/wallets/solflare.svg'}
+                    logoWidth={48}
+                    logoHeight={48}
+                    quietZone={10}
+                  />
+                  
+                  <p className="text-xs text-center text-neutral-500 mt-2">
+                    Open the {getWalletAppName()} app and scan this code
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-52 w-52">
+                  <p className="text-sm text-neutral-500">No connection data available</p>
+                </div>
+              )}
+            </TabsContent>
             
-            <p className="mb-6 text-gray-600">
-              {error || 'There was an issue connecting your wallet. Please try again.'}
-            </p>
-            
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={onClose}
-                className="flex-1"
+            <TabsContent value="open" className="space-y-4">
+              <Button 
+                size="lg" 
+                onClick={handleOpenApp}
+                className="w-full"
               >
-                Cancel
+                <Smartphone className="mr-2 h-4 w-4" />
+                Open {getWalletAppName()} App
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button
-                onClick={() => {
-                  setConnectionStatus('pending');
-                  createConnectionSession();
-                }}
-                className="flex-1"
-              >
-                Retry
-              </Button>
-            </div>
-          </div>
+              
+              <div className="text-center">
+                <p className="text-sm text-neutral-500 mb-2">Don't have {getWalletAppName()}?</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(getWalletDownloadLink(), '_blank')}
+                >
+                  Download {getWalletAppName()}
+                </Button>
+              </div>
+              
+              {effectiveQrData && (
+                <div className="text-center border-t pt-4">
+                  <p className="text-xs text-neutral-500 mb-2">
+                    You can also copy the connection link:
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyLink}
+                  >
+                    {isCopied ? (
+                      <>
+                        <Check className="mr-2 h-4 w-4" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy Link
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         )}
-      </motion.div>
-    </div>
+      </CardContent>
+      
+      <CardFooter className="flex justify-center text-center">
+        <p className="text-xs text-neutral-500 max-w-xs">
+          {activeTab === 'scan' 
+            ? "Can't scan the QR code? Switch to 'Open App' to connect directly."
+            : "Having trouble? Make sure you have the latest version of the app installed."}
+        </p>
+      </CardFooter>
+    </Card>
   );
 }

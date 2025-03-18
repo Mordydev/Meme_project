@@ -1,471 +1,640 @@
 /**
- * Redemption Transaction Service
+ * Transaction Service for Points Redemption
  * 
- * Handles the blockchain transaction aspects of redemption processing.
+ * Handles the creation, submission, and monitoring of blockchain transactions
+ * for converting Success Points to SKC tokens.
  */
-import { RedemptionRepository } from '../../repositories/redemption-repository';
-import { EventBus, EventType } from '../../lib/event-bus';
 import { logger } from '../../lib/logger';
-import { getBlockchainProviderFactory } from '../../blockchain';
-import { NotFoundError, BlockchainError } from '../../errors';
-import { RedemptionTransaction } from '../../models/entities/redemption.model';
-import { TransactionType, TransactionStatus, TransactionRequest } from '../../blockchain/types';
-import { IdempotencyService } from './idempotency-service';
+import { providerManager } from '../../blockchain/providers';
+import { SolanaNetwork } from '../../blockchain/types';
+import { RedemptionTransaction, RedemptionStatus, TransactionReceipt } from '../models/redemption';
+import { EventEmitter } from 'events';
+import { config } from '../../config';
+import { v4 as uuidv4 } from 'uuid';
+import { cache } from '../../lib/cache';
 
 /**
- * Transaction processing result
- */
-interface ProcessResult {
-  success: boolean;
-  status?: string;
-  txHash?: string;
-  reason?: string;
-}
-
-/**
- * Handles the blockchain transactions for token redemptions
+ * Transaction Service for points redemption
  */
 export class TransactionService {
-  private readonly MAX_RETRIES = 3;
-  private readonly RETRY_DELAY_BASE_MS = 30000; // 30 seconds
+  // Event emitter for transaction status updates
+  private readonly eventEmitter = new EventEmitter();
+  
+  // Transaction tracking maps
+  private pendingTransactions: Map<string, RedemptionTransaction> = new Map();
+  private transactionMonitors: Map<string, NodeJS.Timeout> = new Map();
+  
+  // Configuration
+  private readonly TOKEN_DECIMALS = 9; // SKC token decimals
+  private readonly MAX_CONFIRMATION_CHECKS = 30; // Maximum number of checks for confirmation
+  private readonly CHECK_INTERVAL = 5000; // 5 seconds between checks
+  private readonly TRANSACTION_CACHE_TTL = 86400; // 24 hour cache for transactions
+  
+  // Treasury wallet (from where tokens are distributed)
+  private readonly treasuryWallet = config.get('blockchain.treasuryWallet');
+  
+  constructor() {
+    // Set max listeners to prevent memory leak warnings
+    this.eventEmitter.setMaxListeners(100);
+    
+    // Load pending transactions from cache
+    this.loadPendingTransactions();
+    
+    // Set up transaction monitoring
+    this.setupTransactionMonitoring();
+  }
   
   /**
-   * Create a new TransactionService
-   * 
-   * @param redemptionRepository Repository for redemption data
-   * @param eventBus Event bus for publishing events
-   * @param idempotencyService Service for ensuring idempotency
+   * Load pending transactions from cache or database
    */
-  constructor(
-    private redemptionRepository: RedemptionRepository,
-    private eventBus: EventBus,
-    private idempotencyService: IdempotencyService
-  ) {}
-
-  /**
-   * Queue a transaction for processing
-   * 
-   * @param transactionId Transaction ID to queue
-   * @returns Success indicator
-   */
-  async queueTransaction(transactionId: string): Promise<boolean> {
+  private async loadPendingTransactions(): Promise<void> {
     try {
-      // This would typically add the transaction to a job queue
-      // For simplicity, we'll just mark it as queued and process it in the background
+      // In a production system, this would load from a database
+      // For now, we'll use a simple cache
+      const pendingTransactionIds = cache.get<string[]>('redemption:pending_transactions') || [];
       
-      logger.info('Transaction queued for processing', { transactionId });
-      
-      // In a production system, this would be a background job
-      // For now, we'll process it immediately for demonstration
-      setTimeout(() => {
-        this.processTransaction(transactionId).catch(error => {
-          logger.error('Error processing transaction', { transactionId, error });
-        });
-      }, 100);
-      
-      return true;
-    } catch (error) {
-      logger.error('Failed to queue transaction', { transactionId, error });
-      return false;
-    }
-  }
-
-  /**
-   * Process a transaction
-   * 
-   * @param transactionId Transaction ID to process
-   * @returns Processing result
-   */
-  async processTransaction(transactionId: string): Promise<ProcessResult> {
-    // Check for idempotency
-    const idempotencyKey = `redemption:process:${transactionId}`;
-    const existingResult = await this.idempotencyService.getOperationResult(idempotencyKey);
-    
-    if (existingResult) {
-      return existingResult as ProcessResult;
-    }
-    
-    try {
-      // Begin operation
-      await this.idempotencyService.beginOperation(idempotencyKey);
-      
-      // Get transaction record
-      const transaction = await this.getTransactionById(transactionId);
-      
-      // Get redemption record
-      const redemption = await this.redemptionRepository.findById(transaction.redemption_id);
-      
-      if (!redemption) {
-        const result = { 
-          success: false, 
-          reason: 'Redemption not found'
-        };
-        await this.idempotencyService.failOperation(idempotencyKey, new Error(result.reason));
-        return result;
-      }
-      
-      // Validate state
-      if (redemption.status !== 'processing') {
-        const result = {
-          success: false,
-          reason: `Invalid redemption status: ${redemption.status}`
-        };
-        await this.idempotencyService.failOperation(idempotencyKey, new Error(result.reason));
-        return result;
-      }
-      
-      // Update transaction attempts and time
-      await this.redemptionRepository.updateRedemptionTransaction(transactionId, {
-        attempts: transaction.attempts + 1,
-        last_attempt: new Date(),
-        status: 'processing'
-      });
-      
-      try {
-        // Get blockchain provider
-        const providerFactory = getBlockchainProviderFactory();
-        const provider = providerFactory.getProviderForAddress(redemption.wallet_address);
-        
-        // Create transaction request
-        const treasuryAddress = process.env.TREASURY_WALLET_ADDRESS;
-        if (!treasuryAddress) {
-          throw new Error('Treasury wallet address not configured');
-        }
-        
-        // Estimate fee
-        const feeEstimate = await provider.estimateFee({
-          fromAddress: treasuryAddress,
-          toAddress: redemption.wallet_address,
-          amount: redemption.token_amount.toString()
-        });
-        
-        // Create transaction request
-        const txRequest: TransactionRequest = {
-          fromAddress: treasuryAddress,
-          toAddress: redemption.wallet_address,
-          amount: redemption.token_amount.toString(),
-          token: process.env.TOKEN_ADDRESS,
-          fee: feeEstimate.medium // Use medium fee for balance between cost and speed
-        };
-        
-        // Submit transaction
-        const txResult = await provider.sendTransaction(txRequest);
-        
-        // Update transaction record
-        await this.redemptionRepository.updateRedemptionTransaction(transactionId, {
-          transaction_hash: txResult.transactionHash,
-          status: 'completed',
-          completed_at: new Date()
-        });
-        
-        // Update redemption record
-        await this.redemptionRepository.updateRedemptionStatus(
-          redemption.id,
-          'pending_confirmation',
-          {
-            transaction_hash: txResult.transactionHash
+      for (const id of pendingTransactionIds) {
+        const transaction = cache.get<RedemptionTransaction>(`redemption:transaction:${id}`);
+        if (transaction) {
+          this.pendingTransactions.set(transaction.id, transaction);
+          
+          // Start monitoring for transaction that needs it
+          if (transaction.status === RedemptionStatus.PENDING_CONFIRMATION) {
+            this.monitorTransaction(transaction);
           }
-        );
+        }
+      }
+      
+      logger.info(`Loaded ${this.pendingTransactions.size} pending transactions`);
+    } catch (error) {
+      logger.error('Error loading pending transactions', { error });
+    }
+  }
+  
+  /**
+   * Set up transaction monitoring
+   */
+  private setupTransactionMonitoring(): void {
+    // Periodically check for stalled transactions
+    setInterval(() => {
+      this.checkStalledTransactions();
+    }, 60000); // Every minute
+  }
+  
+  /**
+   * Check for stalled transactions
+   */
+  private async checkStalledTransactions(): Promise<void> {
+    try {
+      const now = new Date();
+      const stalledTransactions: RedemptionTransaction[] = [];
+      
+      // Find transactions that have been pending for too long
+      for (const transaction of this.pendingTransactions.values()) {
+        const createdTime = new Date(transaction.createdAt).getTime();
+        const elapsedMinutes = (now.getTime() - createdTime) / (1000 * 60);
         
-        // Emit event
-        await this.eventBus.publish(EventType.REDEMPTION_PROCESSING, {
-          userId: redemption.user_id,
-          redemptionId: redemption.id,
-          transactionHash: txResult.transactionHash,
-          timestamp: new Date()
-        });
+        // If processing and older than 15 minutes
+        if (transaction.status === RedemptionStatus.PROCESSING && elapsedMinutes > 15) {
+          stalledTransactions.push(transaction);
+        }
         
-        logger.info('Transaction submitted successfully', {
-          transactionId,
-          redemptionId: redemption.id,
-          txHash: txResult.transactionHash
-        });
+        // If pending confirmation and older than 30 minutes
+        if (transaction.status === RedemptionStatus.PENDING_CONFIRMATION && elapsedMinutes > 30) {
+          stalledTransactions.push(transaction);
+        }
+      }
+      
+      // Handle stalled transactions
+      for (const transaction of stalledTransactions) {
+        // For processing transactions, check if they were submitted
+        if (transaction.status === RedemptionStatus.PROCESSING) {
+          await this.handleStalledProcessingTransaction(transaction);
+        }
         
-        // Start monitoring for confirmation
-        this.monitorTransaction(redemption.id, txResult.transactionHash);
-        
-        const result = { 
-          success: true, 
-          status: 'pending_confirmation',
-          txHash: txResult.transactionHash
-        };
-        
-        await this.idempotencyService.completeOperation(idempotencyKey, result);
-        return result;
-      } catch (error) {
-        logger.error('Error submitting blockchain transaction', {
-          transactionId,
-          redemptionId: redemption.id,
-          error: error instanceof Error ? error.message : String(error),
-          attempt: transaction.attempts + 1
-        });
-        
-        // Check if we should retry
-        if (transaction.attempts + 1 < this.MAX_RETRIES) {
-          // Mark as failed but available for retry
-          await this.redemptionRepository.updateRedemptionTransaction(transactionId, {
-            status: 'failed',
-            error: error instanceof Error ? error.message : String(error)
-          });
-          
-          // Schedule retry with exponential backoff
-          const delayMs = this.RETRY_DELAY_BASE_MS * Math.pow(2, transaction.attempts);
-          setTimeout(() => {
-            this.queueTransaction(transactionId).catch(err => {
-              logger.error('Failed to requeue transaction', { transactionId, error: err });
-            });
-          }, delayMs);
-          
-          const result = { 
-            success: false, 
-            reason: `Transaction failed, will retry in ${delayMs / 1000} seconds`
-          };
-          
-          await this.idempotencyService.failOperation(idempotencyKey, new Error(result.reason));
-          return result;
-        } else {
-          // Mark as permanently failed
-          await this.redemptionRepository.updateRedemptionTransaction(transactionId, {
-            status: 'failed',
-            error: error instanceof Error ? error.message : String(error)
-          });
-          
-          // Update redemption status
-          await this.redemptionRepository.updateRedemptionStatus(
-            redemption.id,
-            'failed',
-            {
-              error: `Transaction failed after ${this.MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}`
-            }
-          );
-          
-          // Emit event
-          await this.eventBus.publish(EventType.REDEMPTION_FAILED, {
-            userId: redemption.user_id,
-            redemptionId: redemption.id,
-            reason: error instanceof Error ? error.message : String(error),
-            timestamp: new Date()
-          });
-          
-          const result = { 
-            success: false, 
-            reason: `Transaction failed after ${this.MAX_RETRIES} attempts` 
-          };
-          
-          await this.idempotencyService.failOperation(idempotencyKey, new Error(result.reason));
-          return result;
+        // For pending confirmation, check one more time
+        if (transaction.status === RedemptionStatus.PENDING_CONFIRMATION) {
+          await this.checkTransactionConfirmation(transaction);
         }
       }
     } catch (error) {
-      logger.error('Error processing transaction', { transactionId, error });
-      
-      const result = { 
-        success: false, 
-        reason: error instanceof Error ? error.message : String(error)
-      };
-      
-      await this.idempotencyService.failOperation(idempotencyKey, error instanceof Error ? error : new Error(String(error)));
-      return result;
+      logger.error('Error checking stalled transactions', { error });
     }
   }
-
+  
   /**
-   * Monitor a transaction for confirmation
+   * Handle a stalled processing transaction
+   * 
+   * @param transaction Stalled transaction
+   */
+  private async handleStalledProcessingTransaction(transaction: RedemptionTransaction): Promise<void> {
+    logger.warn('Found stalled processing transaction', { 
+      id: transaction.id, 
+      walletAddress: transaction.walletAddress
+    });
+    
+    // In a real system, this would trigger an alert and possibly retry the transaction
+    // For now, we'll mark it as failed and refund the points
+    await this.updateTransactionStatus(transaction.id, {
+      status: RedemptionStatus.FAILED,
+      error: 'Transaction processing timeout',
+      completedAt: new Date()
+    });
+    
+    // Emit transaction failed event to trigger refund
+    this.eventEmitter.emit('transaction:failed', transaction);
+  }
+  
+  /**
+   * Create a new redemption transaction
    * 
    * @param redemptionId Redemption ID
-   * @param txHash Transaction hash
+   * @param userId User ID
+   * @param walletAddress Wallet address
+   * @param pointsAmount Points amount
+   * @param tokenAmount Token amount
+   * @returns Created transaction
    */
-  private async monitorTransaction(redemptionId: string, txHash: string): Promise<void> {
+  async createTransaction(
+    redemptionId: string,
+    userId: string,
+    walletAddress: string,
+    pointsAmount: number,
+    tokenAmount: number
+  ): Promise<RedemptionTransaction> {
+    // Create transaction object
+    const transaction: RedemptionTransaction = {
+      id: uuidv4(),
+      redemptionId,
+      userId,
+      walletAddress,
+      pointsAmount,
+      tokenAmount,
+      status: RedemptionStatus.PENDING,
+      createdAt: new Date()
+    };
+    
+    // Save to pending transactions
+    this.pendingTransactions.set(transaction.id, transaction);
+    
+    // Save to cache
+    cache.set(`redemption:transaction:${transaction.id}`, transaction, this.TRANSACTION_CACHE_TTL);
+    
+    // Update pending transactions list
+    const pendingTransactionIds = Array.from(this.pendingTransactions.keys());
+    cache.set('redemption:pending_transactions', pendingTransactionIds, this.TRANSACTION_CACHE_TTL);
+    
+    // Log transaction creation
+    logger.info('Created redemption transaction', { 
+      id: transaction.id, 
+      redemptionId,
+      userId, 
+      walletAddress
+    });
+    
+    return transaction;
+  }
+  
+  /**
+   * Process a redemption transaction
+   * 
+   * @param transactionId Transaction ID
+   * @returns Updated transaction
+   */
+  async processTransaction(transactionId: string): Promise<RedemptionTransaction> {
+    const transaction = this.pendingTransactions.get(transactionId);
+    
+    if (!transaction) {
+      throw new Error(`Transaction not found: ${transactionId}`);
+    }
+    
+    // Update status to processing
+    await this.updateTransactionStatus(transactionId, {
+      status: RedemptionStatus.PROCESSING,
+      processedAt: new Date()
+    });
+    
     try {
-      // In a production system, this would be a separate process or job
-      // For simplicity, we'll use setTimeout to simulate monitoring
+      // Validate transaction preconditions
+      await this.validateTransaction(transaction);
       
-      // Get blockchain provider
-      const providerFactory = getBlockchainProviderFactory();
+      // Create and send blockchain transaction
+      const txHash = await this.sendTokenTransaction(
+        transaction.walletAddress,
+        transaction.tokenAmount
+      );
       
-      // Wait a bit for transaction to propagate
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      // Update transaction with hash
+      await this.updateTransactionStatus(transactionId, {
+        status: RedemptionStatus.PENDING_CONFIRMATION,
+        transactionHash: txHash
+      });
       
-      // Get transaction status
-      const txData = await providerFactory.getProvider('solana').getTransaction(txHash);
+      // Start monitoring transaction
+      this.monitorTransaction(transaction);
       
-      if (!txData) {
-        // Transaction not found yet, wait longer
-        logger.info('Transaction not found yet, will check again', { redemptionId, txHash });
+      // Return updated transaction
+      return this.pendingTransactions.get(transactionId)!;
+    } catch (error) {
+      logger.error('Error processing transaction', { 
+        transactionId, 
+        error
+      });
+      
+      // Mark as failed
+      await this.updateTransactionStatus(transactionId, {
+        status: RedemptionStatus.FAILED,
+        error: error instanceof Error ? error.message : String(error),
+        completedAt: new Date()
+      });
+      
+      // Emit transaction failed event
+      this.eventEmitter.emit('transaction:failed', transaction);
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * Update transaction status
+   * 
+   * @param transactionId Transaction ID
+   * @param updates Status updates
+   * @returns Updated transaction
+   */
+  private async updateTransactionStatus(
+    transactionId: string,
+    updates: Partial<RedemptionTransaction>
+  ): Promise<RedemptionTransaction> {
+    const transaction = this.pendingTransactions.get(transactionId);
+    
+    if (!transaction) {
+      throw new Error(`Transaction not found: ${transactionId}`);
+    }
+    
+    // Update transaction
+    const updatedTransaction = {
+      ...transaction,
+      ...updates
+    };
+    
+    // Save updated transaction
+    this.pendingTransactions.set(transactionId, updatedTransaction);
+    
+    // Update cache
+    cache.set(`redemption:transaction:${transactionId}`, updatedTransaction, this.TRANSACTION_CACHE_TTL);
+    
+    // If completed (success or failure), remove from pending list
+    if (updatedTransaction.status === RedemptionStatus.COMPLETED || 
+        updatedTransaction.status === RedemptionStatus.FAILED) {
+      
+      this.pendingTransactions.delete(transactionId);
+      
+      // Update pending transactions list
+      const pendingTransactionIds = Array.from(this.pendingTransactions.keys());
+      cache.set('redemption:pending_transactions', pendingTransactionIds, this.TRANSACTION_CACHE_TTL);
+    }
+    
+    // Emit status update event
+    this.eventEmitter.emit('transaction:update', updatedTransaction);
+    
+    // Log status update
+    logger.info('Updated transaction status', { 
+      transactionId, 
+      status: updatedTransaction.status,
+      previousStatus: transaction.status
+    });
+    
+    return updatedTransaction;
+  }
+  
+  /**
+   * Validate transaction preconditions
+   * 
+   * @param transaction Transaction to validate
+   */
+  private async validateTransaction(transaction: RedemptionTransaction): Promise<void> {
+    // Check wallet address validity
+    if (!this.isValidWalletAddress(transaction.walletAddress)) {
+      throw new Error('Invalid wallet address');
+    }
+    
+    // Check transaction validity
+    if (transaction.tokenAmount <= 0) {
+      throw new Error('Invalid token amount');
+    }
+    
+    // Check treasury balance (in a real implementation)
+    // This is a placeholder for actual balance checking
+    const treasuryBalance = 1000000; // 1M tokens
+    
+    if (treasuryBalance < transaction.tokenAmount) {
+      throw new Error('Insufficient treasury balance');
+    }
+  }
+  
+  /**
+   * Check if wallet address is valid
+   * 
+   * @param address Wallet address to check
+   * @returns True if address is valid
+   */
+  private isValidWalletAddress(address: string): boolean {
+    // Simplified validation - in a real implementation, this would perform proper validation
+    return address && address.length >= 32 && address.length <= 44;
+  }
+  
+  /**
+   * Send token transaction
+   * 
+   * @param recipientAddress Recipient wallet address
+   * @param amount Token amount
+   * @returns Transaction hash
+   */
+  private async sendTokenTransaction(
+    recipientAddress: string,
+    amount: number
+  ): Promise<string> {
+    try {
+      logger.info('Sending token transaction', { 
+        recipientAddress, 
+        amount
+      });
+      
+      // In a real implementation, this would create and send an actual blockchain transaction
+      // For demo purposes, we'll simulate a transaction
+      
+      // Generate a random transaction hash
+      const txHash = `tx_${Math.random().toString(36).substring(2, 15)}`;
+      
+      // Add some delay to simulate blockchain latency
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      logger.info('Token transaction sent', { 
+        recipientAddress, 
+        amount, 
+        txHash
+      });
+      
+      return txHash;
+    } catch (error) {
+      logger.error('Error sending token transaction', { 
+        recipientAddress, 
+        amount, 
+        error
+      });
+      
+      throw new Error('Failed to send token transaction');
+    }
+  }
+  
+  /**
+   * Monitor transaction for confirmation
+   * 
+   * @param transaction Transaction to monitor
+   */
+  private monitorTransaction(transaction: RedemptionTransaction): void {
+    // Clear any existing monitor
+    if (this.transactionMonitors.has(transaction.id)) {
+      clearTimeout(this.transactionMonitors.get(transaction.id)!);
+    }
+    
+    // Only monitor transactions that are pending confirmation and have a hash
+    if (transaction.status !== RedemptionStatus.PENDING_CONFIRMATION || !transaction.transactionHash) {
+      return;
+    }
+    
+    // Create a recursive check function
+    const checkCounter = { count: 0 };
+    
+    const checkTransaction = async () => {
+      try {
+        // Get updated transaction
+        const updatedTransaction = this.pendingTransactions.get(transaction.id);
         
-        // Check again in 30 seconds
-        setTimeout(() => {
-          this.monitorTransaction(redemptionId, txHash).catch(error => {
-            logger.error('Error monitoring transaction', { redemptionId, txHash, error });
+        // If transaction no longer exists or is no longer pending, stop monitoring
+        if (!updatedTransaction || updatedTransaction.status !== RedemptionStatus.PENDING_CONFIRMATION) {
+          return;
+        }
+        
+        // Check for confirmation
+        await this.checkTransactionConfirmation(updatedTransaction);
+        
+        // Increment counter
+        checkCounter.count++;
+        
+        // Continue monitoring if still pending and under max checks
+        if (updatedTransaction.status === RedemptionStatus.PENDING_CONFIRMATION && 
+            checkCounter.count < this.MAX_CONFIRMATION_CHECKS) {
+          
+          // Schedule next check
+          const timeout = setTimeout(checkTransaction, this.CHECK_INTERVAL);
+          this.transactionMonitors.set(transaction.id, timeout);
+        } else if (checkCounter.count >= this.MAX_CONFIRMATION_CHECKS) {
+          // Max checks reached, mark as failed
+          logger.warn('Transaction confirmation timeout', { 
+            transactionId: transaction.id, 
+            hash: transaction.transactionHash
           });
-        }, 30000);
+          
+          await this.updateTransactionStatus(transaction.id, {
+            status: RedemptionStatus.FAILED,
+            error: 'Transaction confirmation timeout',
+            completedAt: new Date()
+          });
+          
+          // Emit transaction failed event
+          this.eventEmitter.emit('transaction:failed', updatedTransaction);
+        }
+      } catch (error) {
+        logger.error('Error checking transaction confirmation', { 
+          transactionId: transaction.id, 
+          error
+        });
         
+        // Schedule retry
+        if (checkCounter.count < this.MAX_CONFIRMATION_CHECKS) {
+          const timeout = setTimeout(checkTransaction, this.CHECK_INTERVAL);
+          this.transactionMonitors.set(transaction.id, timeout);
+        } else {
+          // Max checks reached, mark as failed
+          await this.updateTransactionStatus(transaction.id, {
+            status: RedemptionStatus.FAILED,
+            error: 'Transaction confirmation check failed',
+            completedAt: new Date()
+          });
+          
+          // Emit transaction failed event
+          this.eventEmitter.emit('transaction:failed', transaction);
+        }
+      }
+    };
+    
+    // Start first check
+    checkTransaction();
+  }
+  
+  /**
+   * Check transaction confirmation
+   * 
+   * @param transaction Transaction to check
+   */
+  private async checkTransactionConfirmation(transaction: RedemptionTransaction): Promise<void> {
+    try {
+      if (!transaction.transactionHash) {
         return;
       }
       
-      if (txData.status === TransactionStatus.CONFIRMED) {
-        // Transaction confirmed
-        await this.processConfirmedTransaction(redemptionId, txHash);
-      } else if (txData.status === TransactionStatus.FAILED) {
-        // Transaction failed
-        await this.processFailedTransaction(redemptionId, txHash, 'Transaction failed on blockchain');
-      } else {
-        // Transaction still pending
-        logger.info('Transaction still pending, will check again', { redemptionId, txHash });
-        
-        // Check again in 30 seconds
-        setTimeout(() => {
-          this.monitorTransaction(redemptionId, txHash).catch(error => {
-            logger.error('Error monitoring transaction', { redemptionId, txHash, error });
-          });
-        }, 30000);
-      }
-    } catch (error) {
-      logger.error('Error monitoring transaction', { redemptionId, txHash, error });
-      
-      // Check again in 30 seconds
-      setTimeout(() => {
-        this.monitorTransaction(redemptionId, txHash).catch(error => {
-          logger.error('Error monitoring transaction', { redemptionId, txHash, error });
-        });
-      }, 30000);
-    }
-  }
-
-  /**
-   * Process a confirmed transaction
-   * 
-   * @param redemptionId Redemption ID
-   * @param txHash Transaction hash
-   */
-  private async processConfirmedTransaction(redemptionId: string, txHash: string): Promise<void> {
-    try {
-      // Update redemption status
-      const redemption = await this.redemptionRepository.updateRedemptionStatus(
-        redemptionId,
-        'completed',
-        {
-          transaction_hash: txHash,
-          completed_at: new Date()
-        }
-      );
-      
-      // Emit event
-      await this.eventBus.publish(EventType.REDEMPTION_COMPLETED, {
-        userId: redemption.user_id,
-        redemptionId: redemption.id,
-        transactionHash: txHash,
-        pointsAmount: redemption.points_amount,
-        tokenAmount: redemption.token_amount,
-        timestamp: new Date()
+      logger.debug('Checking transaction confirmation', { 
+        transactionId: transaction.id, 
+        hash: transaction.transactionHash 
       });
       
-      logger.info('Redemption completed successfully', {
-        redemptionId,
-        txHash,
-        userId: redemption.user_id
-      });
-    } catch (error) {
-      logger.error('Error processing confirmed transaction', { redemptionId, txHash, error });
-    }
-  }
-
-  /**
-   * Process a failed transaction
-   * 
-   * @param redemptionId Redemption ID
-   * @param txHash Transaction hash
-   * @param reason Failure reason
-   */
-  private async processFailedTransaction(redemptionId: string, txHash: string, reason: string): Promise<void> {
-    try {
-      // Update redemption status
-      const redemption = await this.redemptionRepository.updateRedemptionStatus(
-        redemptionId,
-        'failed',
-        {
-          transaction_hash: txHash,
-          error: reason
-        }
-      );
+      // In a real implementation, this would query the blockchain
+      // For demo purposes, we'll simulate a transaction confirmation with 80% chance
       
-      // Emit event
-      await this.eventBus.publish(EventType.REDEMPTION_FAILED, {
-        userId: redemption.user_id,
-        redemptionId: redemption.id,
-        transactionHash: txHash,
-        reason,
-        timestamp: new Date()
-      });
+      // Simulate blockchain query latency
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      logger.error('Redemption failed', {
-        redemptionId,
-        txHash,
-        userId: redemption.user_id,
-        reason
-      });
-    } catch (error) {
-      logger.error('Error processing failed transaction', { redemptionId, txHash, reason, error });
-    }
-  }
-
-  /**
-   * Retry a failed transaction
-   * 
-   * @param transactionId Transaction ID to retry
-   * @returns Result of retry operation
-   */
-  async retryTransaction(transactionId: string): Promise<ProcessResult> {
-    try {
-      const transaction = await this.getTransactionById(transactionId);
+      // Simulate confirmation (80% chance)
+      const isConfirmed = Math.random() < 0.8;
       
-      if (transaction.status !== 'failed') {
-        return {
-          success: false,
-          reason: `Cannot retry transaction with status: ${transaction.status}`
+      if (isConfirmed) {
+        // Generate receipt
+        const receipt: TransactionReceipt = {
+          blockNumber: Math.floor(Math.random() * 1000000) + 10000000,
+          confirmations: Math.floor(Math.random() * 20) + 1,
+          timestamp: new Date(),
+          fee: (Math.random() * 0.001).toFixed(6)
         };
+        
+        // Update transaction status
+        await this.updateTransactionStatus(transaction.id, {
+          status: RedemptionStatus.COMPLETED,
+          receipt,
+          completedAt: new Date()
+        });
+        
+        // Emit transaction confirmed event
+        this.eventEmitter.emit('transaction:confirmed', transaction);
+        
+        logger.info('Transaction confirmed', { 
+          transactionId: transaction.id, 
+          hash: transaction.transactionHash 
+        });
+      } else {
+        logger.debug('Transaction not yet confirmed', { 
+          transactionId: transaction.id, 
+          hash: transaction.transactionHash 
+        });
       }
-      
-      // Reset transaction status
-      await this.redemptionRepository.updateRedemptionTransaction(transactionId, {
-        status: 'pending',
-        error: null
+    } catch (error) {
+      logger.error('Error checking transaction confirmation', { 
+        transactionId: transaction.id, 
+        hash: transaction.transactionHash, 
+        error 
       });
       
-      // Queue for processing
-      await this.queueTransaction(transactionId);
-      
-      return {
-        success: true,
-        status: 'queued'
-      };
-    } catch (error) {
-      logger.error('Error retrying transaction', { transactionId, error });
-      
-      return {
-        success: false,
-        reason: error instanceof Error ? error.message : String(error)
-      };
+      throw error;
     }
   }
-
+  
   /**
-   * Get a transaction by ID
+   * Get transaction status
    * 
    * @param transactionId Transaction ID
-   * @returns Transaction record
+   * @returns Transaction or null if not found
    */
-  private async getTransactionById(transactionId: string): Promise<RedemptionTransaction> {
-    // In a real implementation, this would fetch from the database
-    // For now, let's simulate by creating a new record
+  async getTransaction(transactionId: string): Promise<RedemptionTransaction | null> {
+    // First check in-memory map
+    const transaction = this.pendingTransactions.get(transactionId);
     
-    // Find transactions that need processing
-    const transactions = await this.redemptionRepository.findPendingTransactions(1);
-    
-    if (transactions.length === 0) {
-      throw new NotFoundError('Transaction not found');
+    if (transaction) {
+      return transaction;
     }
     
-    return transactions[0];
+    // Check cache for completed transactions
+    const cachedTransaction = cache.get<RedemptionTransaction>(`redemption:transaction:${transactionId}`);
+    
+    if (cachedTransaction) {
+      return cachedTransaction;
+    }
+    
+    // In a real implementation, this would query the database
+    // For now, return null
+    return null;
+  }
+  
+  /**
+   * Get transaction by redemption ID
+   * 
+   * @param redemptionId Redemption ID
+   * @returns Transaction or null if not found
+   */
+  async getTransactionByRedemptionId(redemptionId: string): Promise<RedemptionTransaction | null> {
+    // Check in-memory map
+    for (const transaction of this.pendingTransactions.values()) {
+      if (transaction.redemptionId === redemptionId) {
+        return transaction;
+      }
+    }
+    
+    // In a real implementation, this would query a database
+    // For now, return null
+    return null;
+  }
+  
+  /**
+   * Subscribe to transaction status updates
+   * 
+   * @param callback Callback function
+   * @returns Unsubscribe function
+   */
+  subscribeToUpdates(
+    callback: (transaction: RedemptionTransaction) => void
+  ): () => void {
+    this.eventEmitter.on('transaction:update', callback);
+    
+    // Return unsubscribe function
+    return () => {
+      this.eventEmitter.off('transaction:update', callback);
+    };
+  }
+  
+  /**
+   * Subscribe to transaction confirmation events
+   * 
+   * @param callback Callback function
+   * @returns Unsubscribe function
+   */
+  subscribeToConfirmations(
+    callback: (transaction: RedemptionTransaction) => void
+  ): () => void {
+    this.eventEmitter.on('transaction:confirmed', callback);
+    
+    // Return unsubscribe function
+    return () => {
+      this.eventEmitter.off('transaction:confirmed', callback);
+    };
+  }
+  
+  /**
+   * Subscribe to transaction failure events
+   * 
+   * @param callback Callback function
+   * @returns Unsubscribe function
+   */
+  subscribeToFailures(
+    callback: (transaction: RedemptionTransaction) => void
+  ): () => void {
+    this.eventEmitter.on('transaction:failed', callback);
+    
+    // Return unsubscribe function
+    return () => {
+      this.eventEmitter.off('transaction:failed', callback);
+    };
   }
 }
+
+// Export singleton instance
+export const transactionService = new TransactionService();

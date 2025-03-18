@@ -17,21 +17,41 @@ export * from './monitoring';
 // Export health checks
 export * from './health';
 
+// Export optimization utilities
+export * from './optimization';
+
 // Export database utilities
 import { getPool, checkDatabaseConnection, closePool } from './pool';
 import { runMigrations, createMigrationClient } from './migrations';
 import { getDatabaseMonitor, DatabaseMonitor } from './monitoring';
 import { checkDatabaseHealth, DbHealthCheckResult } from './health';
+import { 
+  createIndexes, 
+  schedulePerformanceMonitoring,
+  validateCriticalIndexes 
+} from './optimization';
 import { Pool } from 'pg';
 import { logger } from '../lib/logger';
 
 /**
  * Initialize the database connection and run migrations
  * 
- * @param runMigrations Whether to run migrations during initialization
+ * @param options Initialization options
  * @returns Promise that resolves when initialization is complete
  */
-export async function initializeDatabase(runMigrations: boolean = true): Promise<void> {
+export async function initializeDatabase(options: {
+  runMigrations?: boolean;
+  createIndexes?: boolean;
+  monitorPerformance?: boolean;
+  performanceMonitoringInterval?: number;
+} = {}): Promise<void> {
+  const {
+    runMigrations: shouldRunMigrations = true,
+    createIndexes: shouldCreateIndexes = true,
+    monitorPerformance = true,
+    performanceMonitoringInterval = 300000 // 5 minutes
+  } = options;
+  
   try {
     logger.info('Initializing database connection');
     
@@ -47,13 +67,29 @@ export async function initializeDatabase(runMigrations: boolean = true): Promise
     logger.info('Successfully connected to database');
     
     // Run migrations if enabled
-    if (runMigrations) {
+    if (shouldRunMigrations) {
       const migrationClient = createMigrationClient(pool);
       await migrationClient.runMigrations();
     }
     
+    // Create indexes if enabled
+    if (shouldCreateIndexes) {
+      await createIndexes(pool, true); // Create only critical indexes initially
+    }
+    
     // Initialize monitoring
     getDatabaseMonitor(pool);
+    
+    // Start performance monitoring if enabled
+    if (monitorPerformance) {
+      schedulePerformanceMonitoring(pool, performanceMonitoringInterval);
+    }
+    
+    // Validate critical indexes
+    const missingIndexes = await validateCriticalIndexes(pool);
+    if (missingIndexes.length > 0) {
+      logger.warn('Missing critical indexes detected', { missingIndexes });
+    }
     
     logger.info('Database initialization complete');
   } catch (error) {

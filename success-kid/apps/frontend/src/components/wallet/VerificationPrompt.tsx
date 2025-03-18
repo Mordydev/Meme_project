@@ -1,209 +1,161 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { useWalletContext } from '@/components/providers/WalletProvider';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useWallet } from '@/hooks/useWallet';
+import { Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { cn } from '@/lib/utils';
 
-interface VerificationPromptProps {
-  isOpen: boolean;
-  onComplete: () => void;
-  onCancel: () => void;
+export interface VerificationPromptProps {
+  onComplete?: (success: boolean) => void;
+  className?: string;
+  compact?: boolean;
 }
 
-export function VerificationPrompt({
-  isOpen,
-  onComplete,
-  onCancel,
+export function VerificationPrompt({ 
+  onComplete, 
+  className,
+  compact = false
 }: VerificationPromptProps) {
-  const { wallet, verify } = useWallet();
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [verificationStep, setVerificationStep] = useState<
-    'instructions' | 'verifying' | 'success' | 'error'
-  >('instructions');
-  const [error, setError] = useState<string | null>(null);
-  
-  // Reset step when opened
-  useEffect(() => {
-    if (isOpen) {
-      setVerificationStep('instructions');
-      setError(null);
-    }
-  }, [isOpen]);
+  const { wallet, verifyWallet, isVerifying, error } = useWalletContext();
+  const [verified, setVerified] = useState(wallet?.isVerified || false);
+  const prefersReducedMotion = useReducedMotion();
   
   const handleVerify = async () => {
     if (!wallet) return;
     
-    setIsVerifying(true);
-    setVerificationStep('verifying');
-    
     try {
-      // For demo purposes, we'll simulate a successful verification
-      // In a real implementation, we would sign a message and verify with the backend
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const success = await verifyWallet();
+      setVerified(success);
       
-      const success = await verify(wallet.account.address, 'signed-message');
-      
-      if (success) {
-        setVerificationStep('success');
-        setTimeout(() => {
-          onComplete();
-        }, 1500);
-      } else {
-        throw new Error('Verification failed');
+      if (onComplete) {
+        onComplete(success);
       }
     } catch (error) {
-      setVerificationStep('error');
-      setError('Failed to verify wallet ownership. Please try again.');
-    } finally {
-      setIsVerifying(false);
+      console.error('Verification failed:', error);
     }
   };
   
-  if (!isOpen) return null;
+  if (!wallet) {
+    return null;
+  }
+  
+  if (wallet.isVerified || verified) {
+    if (compact) {
+      return (
+        <div className={cn("inline-flex items-center gap-1.5 text-sm text-success-600", className)}>
+          <ShieldCheck className="h-4 w-4" />
+          <span>Verified</span>
+        </div>
+      );
+    }
+    
+    return (
+      <Card className={cn("border-success bg-success/5", className)}>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-success-700">
+            <ShieldCheck className="h-5 w-5" />
+            Wallet Verified
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-neutral-600">
+            Your wallet ownership has been verified. You can now redeem points for tokens.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  if (compact) {
+    return (
+      <div className={cn("inline-flex items-center gap-1.5", className)}>
+        <Button 
+          variant="outline"
+          size="sm"
+          onClick={handleVerify}
+          disabled={isVerifying}
+          className="h-7 px-2.5 text-xs"
+        >
+          {isVerifying ? (
+            <>
+              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+              Verifying...
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="mr-1.5 h-3 w-3" />
+              Verify Wallet
+            </>
+          )}
+        </Button>
+      </div>
+    );
+  }
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="mx-auto w-full max-w-md overflow-hidden rounded-lg bg-white p-6 shadow-xl"
-      >
-        {verificationStep === 'instructions' && (
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary-100">
-              <svg className="h-10 w-10 text-primary-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
-              </svg>
-            </div>
-            
-            <h3 className="mb-2 text-xl font-semibold text-gray-900">Verify Wallet Ownership</h3>
-            
-            <p className="mb-6 text-gray-600">
-              To complete the verification process, you'll need to sign a message with your wallet.
-              This proves you own the wallet without giving us any control over your assets.
-            </p>
-            
-            <div className="mb-6 rounded-lg bg-primary-50 p-4 text-left">
-              <h4 className="mb-2 font-medium text-gray-900">What to expect:</h4>
-              <ol className="space-y-2 text-sm text-gray-700">
-                <li className="flex">
-                  <span className="mr-2">1.</span>
-                  <span>Your wallet will ask you to sign a message</span>
-                </li>
-                <li className="flex">
-                  <span className="mr-2">2.</span>
-                  <span>Review the message in your wallet</span>
-                </li>
-                <li className="flex">
-                  <span className="mr-2">3.</span>
-                  <span>Approve the signature request</span>
-                </li>
-                <li className="flex">
-                  <span className="mr-2">4.</span>
-                  <span>Wait for verification to complete</span>
-                </li>
-              </ol>
-            </div>
-            
-            <div className="flex space-x-3">
-              <Button 
-                variant="outline" 
-                onClick={onCancel}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleVerify}
-                className="flex-1"
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
+    <Card className={cn("border-amber-200 bg-amber-50", className)}>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-amber-800">
+          <AlertCircle className="h-5 w-5" />
+          Verification Required
+        </CardTitle>
+        <CardDescription>
+          Please verify wallet ownership to enable redemption
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-neutral-600 mb-4">
+          This one-time verification ensures you own this wallet and helps secure your account.
+          You'll need to sign a message in your wallet - no tokens will be transferred.
+        </p>
         
-        {verificationStep === 'verifying' && (
-          <div className="text-center">
-            <div className="mb-4 flex justify-center">
-              <svg className="h-12 w-12 animate-spin text-primary-600" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-            </div>
-            
-            <h3 className="mb-2 text-xl font-semibold text-gray-900">Verifying Wallet Ownership</h3>
-            
-            <p className="text-gray-600">
-              Please confirm the signature request in your wallet.
-              This process may take a few moments to complete.
-            </p>
-          </div>
+        {error && (
+          <motion.div
+            initial={prefersReducedMotion ? {} : { opacity: 0, y: -10 }}
+            animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+            className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600"
+          >
+            {error}
+          </motion.div>
         )}
+      </CardContent>
+      <CardFooter>
+        <Button 
+          onClick={handleVerify}
+          disabled={isVerifying}
+          className="mr-2"
+        >
+          {isVerifying ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Verifying...
+            </>
+          ) : (
+            <>
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Verify Now
+            </>
+          )}
+        </Button>
         
-        {verificationStep === 'success' && (
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-success-100">
-              <svg className="h-10 w-10 text-success-600" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            
-            <h3 className="mb-2 text-xl font-semibold text-gray-900">Verification Successful!</h3>
-            
-            <p className="text-gray-600">
-              Your wallet has been verified. You now have access to all wallet features.
-            </p>
-          </div>
-        )}
-        
-        {verificationStep === 'error' && (
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-100">
-              <svg className="h-10 w-10 text-red-600" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            
-            <h3 className="mb-2 text-xl font-semibold text-gray-900">Verification Failed</h3>
-            
-            <p className="mb-6 text-gray-600">
-              {error || 'There was an issue verifying your wallet. Please try again.'}
-            </p>
-            
-            <div className="flex space-x-3">
-              <Button 
-                variant="outline" 
-                onClick={onCancel}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleVerify}
-                className="flex-1"
-              >
-                Retry
-              </Button>
-            </div>
-          </div>
-        )}
-      </motion.div>
-    </div>
+        <Button 
+          variant="ghost" 
+          onClick={() => onComplete && onComplete(false)}
+        >
+          Verify Later
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }

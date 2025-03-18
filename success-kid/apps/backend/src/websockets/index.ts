@@ -23,6 +23,7 @@ export { registerNotificationHandlers } from './handlers/notification-handlers';
 export { registerActivityHandlers } from './handlers/activity-handlers';
 export { registerPresenceHandlers } from './handlers/presence-handlers';
 export { registerRedemptionHandlers } from './handlers/redemption-handlers';
+export { initializeForumHandlers } from './handlers/forum-handlers';
 
 /**
  * Initialize all WebSocket functionality
@@ -33,6 +34,7 @@ export async function initializeWebSocketSystem(instance: any): Promise<void> {
   // Import necessary modules
   const { eventBus } = await import('../lib/event-bus');
   const { connectionRegistry } = await import('./connection-registry');
+  const { connectionManager } = await import('./connection-manager');
   const { registerAllEventHandlers } = await import('./handlers');
   const { registerFallbackRoutes, initializeFallbackCleanup } = await import('./fallback');
   const { logger } = await import('../lib/logger');
@@ -40,7 +42,7 @@ export async function initializeWebSocketSystem(instance: any): Promise<void> {
   
   try {
     // Register all WebSocket event handlers
-    registerAllEventHandlers(eventBus, connectionRegistry);
+    registerAllEventHandlers(eventBus, connectionRegistry, connectionManager);
     
     // Register fallback routes
     await registerFallbackRoutes(instance);
@@ -89,6 +91,15 @@ export async function initializeWebSocketSystem(instance: any): Promise<void> {
     monitoringService.recordMetric('websocket.system.initialization_error', 1);
     throw error;
   }
+}
+
+/**
+ * Initialize WebSocket event handlers
+ */
+export function initializeWebSocketEvents(): void {
+  // This function is called from the app.ts
+  // The actual initialization is done in initializeWebSocketSystem
+  // This is just a placeholder for backward compatibility
 }
 
 // Export WebSocket plugin as default

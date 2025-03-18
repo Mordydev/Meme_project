@@ -16,6 +16,7 @@ import notificationRoutes from './notifications';
 import activityRoutes from './activity';
 import presenceRoutes from './presence';
 import jobRoutes from './jobs';
+import forumRoutes from './forum';
 
 /**
  * Register all API routes
@@ -34,6 +35,7 @@ export default async function apiRoutes(fastify: FastifyInstance): Promise<void>
   fastify.register(activityRoutes, { prefix: '/activity' });
   fastify.register(presenceRoutes, { prefix: '/presence' });
   fastify.register(jobRoutes, { prefix: '/jobs' });
+  fastify.register(forumRoutes, { prefix: '/forum' });
 
   logger.info('API routes registered');
 }

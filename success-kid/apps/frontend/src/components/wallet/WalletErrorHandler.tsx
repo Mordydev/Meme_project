@@ -1,268 +1,355 @@
 'use client';
 
-import { useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
+import { useWalletContext } from '@/components/providers/WalletProvider';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { useWallet } from '@/hooks/useWallet';
-import { WalletErrorType } from '@/types/wallet';
-import { categorizeWalletError } from '@/lib/walletService';
-import { WALLET_PROVIDERS } from '@/lib/walletProviders';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { 
+  AlertCircle, 
+  RefreshCw,
+  ExternalLink,
+  Wallet,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 interface WalletErrorHandlerProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onRetry?: () => void;
-  error: any;
+  className?: string;
+  compact?: boolean;
+  showTroubleshooting?: boolean;
 }
 
-export function WalletErrorHandler({
-  isOpen,
-  onClose,
-  onRetry,
-  error,
+export function WalletErrorHandler({ 
+  className,
+  compact = false,
+  showTroubleshooting = true
 }: WalletErrorHandlerProps) {
-  const { clearError } = useWallet();
+  const { error, clearError, connectWallet, isConnecting, wallet } = useWalletContext();
+  const [showDetails, setShowDetails] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 768px)');
   
-  // Clear error on unmount
+  // Auto-hide details on mobile
   useEffect(() => {
-    return () => {
-      clearError();
-    };
-  }, [clearError]);
+    if (isMobile) {
+      setShowDetails(false);
+    }
+  }, [isMobile]);
   
-  if (!isOpen) return null;
+  // Parse and categorize error
+  const getErrorType = (): 'connection' | 'verification' | 'transaction' | 'generic' => {
+    if (!error) return 'generic';
+    
+    const lowerError = error.toLowerCase();
+    
+    if (lowerError.includes('connect') || 
+        lowerError.includes('phantom') || 
+        lowerError.includes('wallet') && lowerError.includes('not found')) {
+      return 'connection';
+    }
+    
+    if (lowerError.includes('sign') || 
+        lowerError.includes('verif') || 
+        lowerError.includes('signature')) {
+      return 'verification';
+    }
+    
+    if (lowerError.includes('transaction') || 
+        lowerError.includes('transfer') || 
+        lowerError.includes('redemption')) {
+      return 'transaction';
+    }
+    
+    return 'generic';
+  };
   
-  const categorizedError = categorizeWalletError(error);
-  
-  const getErrorContent = () => {
-    switch (categorizedError.code) {
-      case WalletErrorType.WALLET_NOT_FOUND:
-        return {
-          title: 'Wallet Not Found',
-          description: 'The wallet extension or app was not found on your device.',
-          icon: (
-            <svg className="h-10 w-10 text-primary-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7h-5m-5 0H5m10 10H5a2 2 0 01-2-2V7a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v5" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v1" />
-            </svg>
-          ),
-          steps: [
-            'Install the wallet extension from the official website',
-            'Create or import a wallet',
-            'Refresh this page and try connecting again',
-          ],
-          actions: [
-            {
-              label: 'Install Phantom',
-              action: () => {
-                window.open(WALLET_PROVIDERS.phantom.url, '_blank');
-              },
-              variant: 'primary',
-            },
-            {
-              label: 'Try Different Wallet',
-              action: onRetry,
-              variant: 'outline',
-            },
-          ],
-        };
-      
-      case WalletErrorType.CONNECTION_REFUSED:
-        return {
-          title: 'Connection Declined',
-          description: 'The connection request was declined in your wallet.',
-          icon: (
-            <svg className="h-10 w-10 text-primary-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          ),
-          steps: [
-            'Open your wallet extension',
-            'Ensure your wallet is unlocked',
-            'Try connecting again and approve the request',
-          ],
-          actions: [
-            {
-              label: 'Try Again',
-              action: onRetry,
-              variant: 'primary',
-            },
-          ],
-        };
-      
-      case WalletErrorType.NETWORK_ERROR:
-        return {
-          title: 'Network Error',
-          description: 'There was a problem connecting to the network.',
-          icon: (
-            <svg className="h-10 w-10 text-primary-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-          ),
-          steps: [
-            'Check your internet connection',
-            'Ensure your wallet is connected to the internet',
-            'Try connecting again after a moment',
-          ],
-          actions: [
-            {
-              label: 'Try Again',
-              action: onRetry,
-              variant: 'primary',
-            },
-          ],
-        };
-      
-      case WalletErrorType.SIGNATURE_DECLINED:
-        return {
-          title: 'Signature Declined',
-          description: 'The signature request was declined in your wallet.',
-          icon: (
-            <svg className="h-10 w-10 text-primary-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-          ),
-          steps: [
-            'Open your wallet extension',
-            'Ensure your wallet is unlocked',
-            'Try connecting again and approve the signature request',
-          ],
-          actions: [
-            {
-              label: 'Try Again',
-              action: onRetry,
-              variant: 'primary',
-            },
-          ],
-        };
-      
-      case WalletErrorType.WRONG_NETWORK:
-        return {
-          title: 'Wrong Network',
-          description: 'Your wallet is connected to the wrong network.',
-          icon: (
-            <svg className="h-10 w-10 text-primary-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          ),
-          steps: [
-            'Open your wallet extension',
-            'Switch to the Solana Mainnet network',
-            'Try connecting again',
-          ],
-          actions: [
-            {
-              label: 'Try Again',
-              action: onRetry,
-              variant: 'primary',
-            },
-          ],
-        };
-      
-      case WalletErrorType.TIMEOUT:
-        return {
-          title: 'Connection Timeout',
-          description: 'The connection request timed out.',
-          icon: (
-            <svg className="h-10 w-10 text-primary-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          ),
-          steps: [
-            'Check if your wallet is running and unlocked',
-            'Ensure you have a stable internet connection',
-            'Try connecting again',
-          ],
-          actions: [
-            {
-              label: 'Try Again',
-              action: onRetry,
-              variant: 'primary',
-            },
-          ],
-        };
-      
+  // Get error title
+  const getErrorTitle = (): string => {
+    const errorType = getErrorType();
+    
+    switch (errorType) {
+      case 'connection':
+        return 'Wallet Connection Error';
+      case 'verification':
+        return 'Wallet Verification Error';
+      case 'transaction':
+        return 'Transaction Error';
       default:
-        return {
-          title: 'Connection Error',
-          description: categorizedError.message || 'There was an error connecting to your wallet.',
-          icon: (
-            <svg className="h-10 w-10 text-primary-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          ),
-          steps: [
-            'Check if your wallet is running and unlocked',
-            'Refresh the page and try again',
-            'If the problem persists, try a different browser or device',
-          ],
-          actions: [
-            {
-              label: 'Try Again',
-              action: onRetry,
-              variant: 'primary',
-            },
-          ],
-        };
+        return 'Wallet Error';
     }
   };
   
-  const errorContent = getErrorContent();
+  // Get common solutions
+  const getCommonSolutions = (): { title: string; description: string; }[] => {
+    const errorType = getErrorType();
+    
+    switch (errorType) {
+      case 'connection':
+        return [
+          {
+            title: 'Check Wallet Extension',
+            description: 'Ensure your wallet extension is installed and unlocked.'
+          },
+          {
+            title: 'Browser Compatibility',
+            description: 'Some wallets work better in Chrome or Firefox. Try switching browsers.'
+          },
+          {
+            title: 'Update Extension',
+            description: 'Make sure your wallet extension is updated to the latest version.'
+          },
+          {
+            title: 'Clear Browser Cache',
+            description: 'Clearing your browser cache may resolve connection issues.'
+          }
+        ];
+      case 'verification':
+        return [
+          {
+            title: 'Check Signature Request',
+            description: 'Make sure to approve the signature request in your wallet popup.'
+          },
+          {
+            title: 'Wallet Unlocked',
+            description: 'Ensure your wallet is unlocked when signing the verification message.'
+          },
+          {
+            title: 'Try Different Device',
+            description: 'If on mobile, try from a desktop browser or vice versa.'
+          }
+        ];
+      case 'transaction':
+        return [
+          {
+            title: 'Check Gas Fees',
+            description: 'Ensure your wallet has enough balance to cover transaction fees.'
+          },
+          {
+            title: 'Network Congestion',
+            description: 'The network might be congested. Try again later.'
+          },
+          {
+            title: 'Transaction Limits',
+            description: 'Check if your transaction exceeds any wallet-imposed limits.'
+          }
+        ];
+      default:
+        return [
+          {
+            title: 'Refresh the Page',
+            description: 'Try refreshing the page and connecting again.'
+          },
+          {
+            title: 'Check Wallet Status',
+            description: 'Ensure your wallet is unlocked and properly connected.'
+          },
+          {
+            title: 'Try Again Later',
+            description: 'If the issue persists, wait a few minutes and try again.'
+          }
+        ];
+    }
+  };
   
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        className="mx-auto w-full max-w-md overflow-hidden rounded-lg bg-white p-6 shadow-xl"
-      >
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary-100">
-            {errorContent.icon}
-          </div>
-          
-          <h3 className="mb-2 text-xl font-semibold text-gray-900">{errorContent.title}</h3>
-          
-          <p className="mb-6 text-gray-600">
-            {errorContent.description}
-          </p>
-          
-          <div className="mb-6 rounded-lg bg-primary-50 p-4 text-left">
-            <h4 className="mb-2 font-medium text-gray-900">Try these steps:</h4>
-            <ol className="space-y-2 text-sm text-gray-700">
-              {errorContent.steps.map((step, index) => (
-                <li key={index} className="flex">
-                  <span className="mr-2">{index + 1}.</span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-          
-          <div className="flex space-x-3">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              className="flex-1"
+  if (!error) return null;
+  
+  // Compact version for inline use
+  if (compact) {
+    return (
+      <Alert variant="destructive" className={cn("mb-4", className)}>
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>{getErrorTitle()}</AlertTitle>
+        <AlertDescription className="flex flex-col gap-2">
+          <p>{error}</p>
+          <div className="flex flex-wrap gap-2 mt-1">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                clearError();
+                if (wallet?.isConnected) {
+                  // Action depends on error type
+                  if (getErrorType() === 'verification') {
+                    // TODO: Add verification retry handler
+                  } else {
+                    // Default to reconnect
+                    connectWallet();
+                  }
+                } else {
+                  connectWallet();
+                }
+              }}
+              disabled={isConnecting}
             >
-              Cancel
+              {isConnecting ? (
+                <>
+                  <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+                  Retrying...
+                </>
+              ) : (
+                'Try Again'
+              )}
             </Button>
             
-            {errorContent.actions.map((action, index) => (
-              <Button
-                key={index}
-                variant={action.variant as any}
-                onClick={action.action}
-                className="flex-1"
-              >
-                {action.label}
-              </Button>
-            ))}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => clearError()}
+            >
+              Dismiss
+            </Button>
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  
+  // Full version with troubleshooting
+  return (
+    <div className={cn("rounded-md border p-4", className)}>
+      <div className="flex items-start">
+        <div className="mr-3 mt-0.5">
+          <div className="bg-red-100 p-2 rounded-full">
+            <AlertCircle className="h-5 w-5 text-red-600" />
           </div>
         </div>
-      </motion.div>
+        
+        <div className="flex-1">
+          <h3 className="font-semibold text-lg text-red-600 mb-1">
+            {getErrorTitle()}
+          </h3>
+          
+          <p className="text-neutral-800 mb-3">
+            {error}
+          </p>
+          
+          <div className="flex flex-wrap gap-2 mb-3">
+            <Button 
+              onClick={() => {
+                clearError();
+                if (wallet?.isConnected) {
+                  // Action depends on error type
+                  if (getErrorType() === 'verification') {
+                    // TODO: Add verification retry handler
+                  } else {
+                    // Default to reconnect
+                    connectWallet();
+                  }
+                } else {
+                  connectWallet();
+                }
+              }}
+              disabled={isConnecting}
+              size="sm"
+            >
+              {isConnecting ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Retrying...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Try Again
+                </>
+              )}
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => clearError()}
+            >
+              Dismiss
+            </Button>
+            
+            {(getErrorType() === 'connection' || getErrorType() === 'verification') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.open('https://phantom.app/learn/troubleshooting-guide', '_blank')}
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Phantom Help
+              </Button>
+            )}
+          </div>
+          
+          {showTroubleshooting && (
+            <div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDetails(!showDetails)}
+                className="mb-2 -ml-2 text-neutral-600"
+              >
+                <HelpCircle className="mr-2 h-4 w-4" />
+                Troubleshooting
+                {showDetails ? (
+                  <ChevronUp className="ml-2 h-4 w-4" />
+                ) : (
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                )}
+              </Button>
+              
+              <AnimatePresence>
+                {showDetails && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <Accordion type="single" collapsible className="w-full">
+                      {getCommonSolutions().map((solution, index) => (
+                        <AccordionItem 
+                          key={index} 
+                          value={`solution-${index}`}
+                          className="border-b-0 last:border-b"
+                        >
+                          <AccordionTrigger className="py-2 text-sm hover:no-underline">
+                            {solution.title}
+                          </AccordionTrigger>
+                          <AccordionContent className="text-sm text-neutral-600 pb-3">
+                            {solution.description}
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                    
+                    <div className="bg-neutral-50 p-3 rounded-md mt-2 border text-sm text-neutral-600">
+                      <p className="font-medium mb-1 flex items-center">
+                        <Wallet className="mr-1.5 h-4 w-4" />
+                        Still having problems?
+                      </p>
+                      <p>
+                        Visit the <a 
+                          href="https://phantom.app/learn/troubleshooting-guide" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          Phantom troubleshooting guide
+                        </a> or try again later.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,133 +1,103 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useWallet } from '@/hooks/useWallet';
+import React, { useState, useEffect } from 'react';
+import { useWalletContext } from '@/components/providers/WalletProvider';
 import { ConnectWalletButton } from './ConnectWalletButton';
 import { WalletCard } from './WalletCard';
-import { VerificationPrompt } from './VerificationPrompt';
-import { WalletErrorHandler } from './WalletErrorHandler';
-import { MobileWalletConnect } from './MobileWalletConnect';
-import { WalletType } from '@/types/wallet';
+import { TransactionHistory } from './TransactionHistory';
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription 
+} from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { motion } from 'framer-motion';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { cn } from '@/lib/utils';
 
-interface WalletManagerProps {
-  showConnectButton?: boolean;
-  showWalletCard?: boolean;
-  onWalletConnected?: () => void;
-  compact?: boolean;
+export interface WalletManagerProps {
+  className?: string;
+  showBalance?: boolean;
+  showHistory?: boolean;
+  showTabs?: boolean;
+  limit?: number;
 }
 
-export function WalletManager({
-  showConnectButton = true,
-  showWalletCard = true,
-  onWalletConnected,
-  compact = false,
+export function WalletManager({ 
+  className,
+  showBalance = true,
+  showHistory = true,
+  showTabs = true,
+  limit = 5
 }: WalletManagerProps) {
-  const { 
-    wallet, 
-    isConnected, 
-    isVerified, 
-    error, 
-    isMobile, 
-    isInitialized,
-    connect, 
-    clearError 
-  } = useWallet();
+  const { wallet } = useWalletContext();
+  const [activeTab, setActiveTab] = useState<string>('wallet');
+  const prefersReducedMotion = useReducedMotion();
   
-  const [showVerification, setShowVerification] = useState(false);
-  const [showMobileConnect, setShowMobileConnect] = useState(false);
-  const [selectedWalletType, setSelectedWalletType] = useState<WalletType>('phantom');
-  
-  // Handle connection success
+  // If user connects wallet, switch to history tab automatically
   useEffect(() => {
-    if (isConnected && !isVerified) {
-      setShowVerification(true);
+    if (wallet?.isConnected && showTabs && showHistory) {
+      // Wait a moment to give the connection animation time to complete
+      const timer = setTimeout(() => {
+        setActiveTab('history');
+      }, 1000);
+      
+      return () => clearTimeout(timer);
     }
-  }, [isConnected, isVerified]);
+  }, [wallet?.isConnected, showTabs, showHistory]);
   
-  // Handle newly detected mobile device
-  useEffect(() => {
-    if (isMobile && !isConnected && !wallet) {
-      setShowMobileConnect(true);
-    }
-  }, [isMobile, isConnected, wallet]);
-  
-  const handleConnectSuccess = () => {
-    if (isConnected && isVerified) {
-      onWalletConnected?.();
-    }
-  };
-  
-  const handleVerificationComplete = () => {
-    setShowVerification(false);
-    onWalletConnected?.();
-  };
-  
-  const handleMobileConnectComplete = () => {
-    setShowMobileConnect(false);
-    onWalletConnected?.();
-  };
-  
-  const handleSelectWallet = (walletType: string) => {
-    setSelectedWalletType(walletType as WalletType);
-    
-    if (isMobile) {
-      setShowMobileConnect(true);
-    } else {
-      connect(walletType as WalletType);
-    }
-  };
-  
-  const handleRetryConnection = () => {
-    clearError();
-    connect(selectedWalletType);
-  };
-  
-  // Don't render until wallet state is initialized
-  if (!isInitialized) {
-    return null;
+  // If tabs are disabled, just show card stacking
+  if (!showTabs) {
+    return (
+      <div className={cn("space-y-6", className)}>
+        <WalletCard 
+          showBalance={showBalance}
+        />
+        
+        {showHistory && wallet?.isConnected && (
+          <TransactionHistory limit={limit} />
+        )}
+      </div>
+    );
   }
   
+  // With tabs for wallet and history
   return (
-    <div>
-      {showConnectButton && !isConnected && (
-        <ConnectWalletButton 
-          onSuccess={handleConnectSuccess}
-          size={compact ? "sm" : "md"}
-          fullWidth={!compact}
-        />
-      )}
-      
-      {showWalletCard && isConnected && (
-        <WalletCard 
-          showBalance={!compact}
-          showActions={!compact}
-          showTransactions={!compact}
-          maxTransactions={compact ? 2 : 3}
-        />
-      )}
-      
-      {/* Verification Modal */}
-      <VerificationPrompt
-        isOpen={showVerification}
-        onComplete={handleVerificationComplete}
-        onCancel={() => setShowVerification(false)}
-      />
-      
-      {/* Mobile Connect Modal */}
-      <MobileWalletConnect
-        isOpen={showMobileConnect}
-        onComplete={handleMobileConnectComplete}
-        onClose={() => setShowMobileConnect(false)}
-        walletType={selectedWalletType}
-      />
-      
-      {/* Error Handler */}
-      <WalletErrorHandler
-        isOpen={!!error}
-        onClose={clearError}
-        onRetry={handleRetryConnection}
-        error={error}
-      />
-    </div>
+    <Card className={className}>
+      <CardHeader>
+        <CardTitle>Wallet</CardTitle>
+        <CardDescription>
+          Connect your wallet to track tokens and redeem points
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4">
+            <TabsTrigger value="wallet">Wallet</TabsTrigger>
+            <TabsTrigger value="history" disabled={!wallet?.isConnected}>History</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="wallet">
+            <div className="-m-6 border-0 rounded-none">
+              <WalletCard 
+                showBalance={showBalance}
+                className="border-0 rounded-none shadow-none"
+              />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="history">
+            <div className="-m-6 border-0 rounded-none">
+              <TransactionHistory 
+                limit={limit}
+                className="border-0 rounded-none shadow-none"
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 }

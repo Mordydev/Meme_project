@@ -1,160 +1,212 @@
 /**
  * Blockchain Types
  * 
- * This file defines the common types used across blockchain integrations.
+ * Common interfaces and types for blockchain integration.
  */
 
 /**
- * Blockchain network types
+ * Solana Network Enum
  */
-export enum BlockchainNetwork {
-  MAINNET = 'mainnet',
-  TESTNET = 'testnet',
+export enum SolanaNetwork {
+  MAINNET = 'mainnet-beta',
   DEVNET = 'devnet',
+  TESTNET = 'testnet'
 }
 
 /**
- * Transaction type
+ * Provider Priority Enum
  */
-export enum TransactionType {
-  IN = 'in',
-  OUT = 'out',
-  SELF = 'self',
+export enum ProviderPriority {
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+  CRITICAL = 4
 }
 
 /**
- * Transaction status
+ * Provider Options Interface
  */
-export enum TransactionStatus {
-  PENDING = 'pending',
-  CONFIRMED = 'confirmed',
-  FAILED = 'failed',
-  UNKNOWN = 'unknown',
+export interface ProviderOptions {
+  priority: ProviderPriority;
+  networks: SolanaNetwork[];
+  apiKey?: string;
 }
 
 /**
- * Fee estimate type
+ * Provider Status Interface
  */
-export interface FeeEstimate {
-  low: string;
-  medium: string;
-  high: string;
-  estimatedTime: {
-    low: number; // seconds
-    medium: number;
-    high: number;
-  };
-}
-
-/**
- * Transaction request
- */
-export interface TransactionRequest {
-  fromAddress: string;
-  toAddress: string;
-  amount: string;
-  token?: string;
-  fee?: string;
-  memo?: string;
-}
-
-/**
- * Transaction result
- */
-export interface TransactionResult {
-  transactionHash: string;
-  fromAddress: string;
-  toAddress: string;
-  amount: string;
-  fee: string;
-  status: TransactionStatus;
-  blockNumber?: number;
-  timestamp?: Date;
-}
-
-/**
- * Transaction data
- */
-export interface Transaction {
-  hash: string;
-  fromAddress?: string;
-  toAddress?: string;
-  amount: string;
-  token: string;
-  type: TransactionType;
-  fee?: string;
-  status: TransactionStatus;
-  blockNumber?: number;
-  timestamp?: Date;
-}
-
-/**
- * Token data
- */
-export interface TokenData {
-  symbol: string;
+export interface ProviderStatus {
+  id: string;
   name: string;
-  logoUrl?: string;
-  decimals: number;
-  address: string;
-  price?: {
-    usd: number;
-    lastUpdated: Date;
-  };
+  isAvailable: boolean;
+  lastChecked: Date;
+  latency: number;
+  errorCount: number;
+  circuitOpen: boolean;
+  circuitResetTime: Date | null;
 }
 
 /**
- * Balance data
+ * Blockchain Provider Interface
+ * 
+ * Common interface for all blockchain data providers
  */
-export interface BalanceData {
-  token: string;
+export interface BlockchainProvider {
+  /**
+   * Get provider ID
+   */
+  getId(): string;
+  
+  /**
+   * Get provider name
+   */
+  getName(): string;
+  
+  /**
+   * Get provider priority
+   */
+  getPriority(): number;
+  
+  /**
+   * Check if provider supports a network
+   * 
+   * @param network Network to check
+   */
+  supportsNetwork(network: SolanaNetwork): boolean;
+  
+  /**
+   * Check if provider has a capability
+   * 
+   * @param capability Capability to check
+   */
+  hasCapability(capability: string): boolean;
+  
+  /**
+   * Check provider health
+   */
+  checkHealth(): Promise<boolean>;
+}
+
+/**
+ * Wallet Account Interface
+ */
+export interface WalletAccount {
+  address: string;
+  type: 'solana';
+  displayName?: string;
+}
+
+/**
+ * Token Balance Interface
+ */
+export interface TokenBalance {
+  token: {
+    address: string;
+    symbol: string;
+    name?: string;
+    decimals: number;
+    logoURI?: string;
+  };
   amount: string;
-  decimals: number;
+  amountFloat: number;
+  usdValue?: number;
+}
+
+/**
+ * Wallet Balance Interface
+ */
+export interface WalletBalance {
+  tokenAmount: number;
   usdValue?: number;
   lastUpdated: Date;
 }
 
 /**
- * Verification message data
+ * Wallet Transaction Type Enum
  */
-export interface VerificationMessageData {
-  message: string;
-  nonce: string;
-  timestamp: number;
-  expiresAt: number;
+export enum WalletTransactionType {
+  IN = 'in',
+  OUT = 'out',
+  SWAP = 'swap',
+  UNKNOWN = 'unknown'
 }
 
 /**
- * Verification result
+ * Wallet Transaction Status Enum
  */
-export interface VerificationResult {
-  verified: boolean;
-  address: string;
+export enum WalletTransactionStatus {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+  FAILED = 'failed'
+}
+
+/**
+ * Wallet Transaction Interface
+ */
+export interface WalletTransaction {
+  id: string;
+  hash: string;
+  blockNumber?: number;
   timestamp: Date;
-}
-
-/**
- * Transaction options
- */
-export interface TransactionOptions {
-  limit?: number;
-  offset?: number;
-  before?: Date;
-  after?: Date;
-  token?: string;
-  type?: TransactionType;
-  status?: TransactionStatus;
-}
-
-/**
- * Pagination result
- */
-export interface PaginatedResult<T> {
-  data: T[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-    hasMore: boolean;
+  type: WalletTransactionType;
+  status: WalletTransactionStatus;
+  from: string;
+  to: string;
+  amount: number;
+  token: {
+    address: string;
+    symbol: string;
+    decimals: number;
   };
+  fee?: string;
+  memo?: string;
+}
+
+/**
+ * Token Redemption Status Enum
+ */
+export enum RedemptionStatus {
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  PENDING_CONFIRMATION = 'pending_confirmation',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  CANCELLED = 'cancelled'
+}
+
+/**
+ * Token Redemption Interface
+ */
+export interface TokenRedemption {
+  id: string;
+  userId: string;
+  walletAddress: string;
+  pointsAmount: number;
+  tokenAmount: number;
+  status: RedemptionStatus;
+  transactionHash?: string;
+  error?: string;
+  createdAt: Date;
+  processedAt?: Date;
+  completedAt?: Date;
+}
+
+/**
+ * Wallet Provider Interface
+ */
+export interface WalletProvider {
+  name: string;
+  type: string;
+  icon?: string;
+  url: string;
+  mobile?: string;
+}
+
+/**
+ * Solana Signature Verification Payload
+ */
+export interface SignatureVerificationPayload {
+  message: string;
+  signature: string;
+  publicKey: string;
 }

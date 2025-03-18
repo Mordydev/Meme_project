@@ -1,155 +1,137 @@
 /**
- * React hook for WebSocket integration
+ * useWebSocket Hook
+ * 
+ * Custom hook for managing WebSocket connections
  */
-'use client';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from './useAuth';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { 
-  websocketClient, 
-  WebSocketMessage, 
-  ConnectionState, 
-  ConnectionEvent 
-} from '@/lib/websocket-client';
-import { useAuth } from '@/hooks/useAuth';
+// Set the WebSocket URL based on environment
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
+  (typeof window !== 'undefined' ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws` : '');
 
-/**
- * Connection status with detailed state information
- */
-export interface ConnectionStatus {
-  connected: boolean;
-  state: ConnectionState;
-  connectionId: string | null;
-  latency: number;
-  reconnectAttempt: number | null;
-  lastStateChange: number;
-  error: Error | null;
+interface WebSocketMessage {
+  type: string;
+  data: any;
 }
 
 /**
- * Default connection status
- */
-const DEFAULT_STATUS: ConnectionStatus = {
-  connected: false,
-  state: ConnectionState.DISCONNECTED,
-  connectionId: null,
-  latency: 0,
-  reconnectAttempt: null,
-  lastStateChange: Date.now(),
-  error: null
-};
-
-/**
- * Hook for WebSocket integration in React components
- * @returns WebSocket utilities and connection status
+ * Custom hook for managing WebSocket connections
  */
 export function useWebSocket() {
-  // Track connection status
-  const [status, setStatus] = useState<ConnectionStatus>(DEFAULT_STATUS);
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
+  const { isAuthenticated, getAuthToken } = useAuth();
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const maxReconnectAttempts = 5;
   
-  // Get authentication state
-  const { user, isLoaded, getToken } = useAuth();
-  
-  // Keep track of subscriptions to prevent memory leaks
-  const subscriptions = useRef<Array<() => void>>([]);
-  
-  // Initialize connection when auth state is loaded
-  useEffect(() => {
-    if (!isLoaded) return;
+  // Connect to WebSocket
+  const connect = useCallback(async () => {
+    if (typeof window === 'undefined') return;
     
-    // Configure WebSocket client with auth token getter
-    websocketClient.config = {
-      ...websocketClient.config,
-      getAuthToken: getToken,
-      refreshAuthToken: async () => {
-        try {
-          // Trigger token refresh
-          await user?.reload();
-          return getToken();
-        } catch (error) {
-          console.error('Error refreshing token:', error);
-          return null;
+    try {
+      // Get auth token if authenticated
+      let url = WS_URL;
+      if (isAuthenticated) {
+        const token = await getAuthToken();
+        if (token) {
+          url = `${WS_URL}?token=${token}`;
         }
       }
-    };
+      
+      // Create WebSocket connection
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+      
+      // Connection established
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        setIsConnected(true);
+        reconnectAttemptRef.current = 0;
+        
+        // Ping to keep connection alive
+        const pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          } else {
+            clearInterval(pingInterval);
+          }
+        }, 30000);
+      };
+      
+      // Connection closed
+      ws.onclose = () => {
+        setIsConnected(false);
+        console.log('WebSocket disconnected');
+        
+        // Attempt to reconnect
+        if (reconnectAttemptRef.current < maxReconnectAttempts) {
+          reconnectAttemptRef.current++;
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current - 1), 30000);
+          console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttemptRef.current})`);
+          
+          setTimeout(() => {
+            connect();
+          }, delay);
+        }
+      };
+      
+      // Error
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+      
+      // Receive message
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          
+          // Handle pong response
+          if (message.type === 'pong') {
+            return;
+          }
+          
+          // Set last message received
+          setLastMessage(message);
+          
+          // Dispatch event for other components to listen to
+          window.dispatchEvent(
+            new CustomEvent('websocket-message', { detail: message })
+          );
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+    } catch (error) {
+      console.error('Error connecting to WebSocket:', error);
+    }
+  }, [isAuthenticated, getAuthToken]);
+  
+  // Send message to WebSocket
+  const sendMessage = useCallback((message: WebSocketMessage) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(message));
+    } else {
+      console.warn('WebSocket not connected, unable to send message');
+    }
+  }, []);
+  
+  // Connect on mount or when auth changes
+  useEffect(() => {
+    connect();
     
-    // Connect to WebSocket
-    websocketClient.connect();
-    
-    // Subscribe to connection changes
-    const unsubscribe = websocketClient.onConnectionChange(handleConnectionChange);
-    subscriptions.current.push(unsubscribe);
-    
-    // Cleanup on unmount
+    // Cleanup
     return () => {
-      // Unsubscribe from all event handlers
-      subscriptions.current.forEach(unsub => unsub());
-      subscriptions.current = [];
-    };
-  }, [isLoaded, user, getToken]);
-  
-  /**
-   * Handle connection status changes
-   */
-  const handleConnectionChange = useCallback((event: ConnectionEvent) => {
-    setStatus({
-      connected: event.state === ConnectionState.CONNECTED,
-      state: event.state,
-      connectionId: event.connectionId || null,
-      latency: websocketClient.getLatency(),
-      reconnectAttempt: event.reconnectAttempt || null,
-      lastStateChange: event.timestamp,
-      error: event.error || null
-    });
-  }, []);
-  
-  /**
-   * Subscribe to a specific message type
-   */
-  const subscribe = useCallback((type: string, handler: (message: WebSocketMessage) => void) => {
-    const unsubscribe = websocketClient.subscribe(type, handler);
-    subscriptions.current.push(unsubscribe);
-    return unsubscribe;
-  }, []);
-  
-  /**
-   * Send a message to the server
-   */
-  const send = useCallback((message: WebSocketMessage) => {
-    return websocketClient.send(message);
-  }, []);
-  
-  /**
-   * Force reconnection to the server
-   */
-  const reconnect = useCallback(() => {
-    websocketClient.connect();
-  }, []);
-  
-  /**
-   * Update authentication token
-   */
-  const updateAuthToken = useCallback(() => {
-    getToken().then(token => {
-      if (token) {
-        websocketClient.connect(token);
+      if (wsRef.current) {
+        wsRef.current.close();
       }
-    });
-  }, [getToken]);
+    };
+  }, [connect]);
   
   return {
-    // Connection status
-    status,
-    
-    // Core functionality
-    subscribe,
-    send,
-    reconnect,
-    updateAuthToken,
-    
-    // Authentication status
-    isAuthenticated: !!user, 
-    userId: user?.id
+    isConnected,
+    lastMessage,
+    sendMessage
   };
 }
-
-export default useWebSocket;

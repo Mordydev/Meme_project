@@ -5,11 +5,13 @@
  */
 import { EventBus } from '../../lib/event-bus';
 import { ConnectionRegistry } from '../connection-registry';
+import { ConnectionManager } from '../connection-manager';
 import { registerPointsEventHandlers } from './points-handlers';
 import { registerNotificationHandlers } from './notification-handlers';
 import { registerActivityHandlers } from './activity-handlers';
 import { registerPresenceHandlers } from './presence-handlers';
 import { registerRedemptionHandlers } from './redemption-handlers';
+import { initializeForumHandlers } from './forum-handlers';
 import { logger } from '../../lib/logger';
 import { monitoringService } from '../../monitoring/service';
 
@@ -18,10 +20,12 @@ import { monitoringService } from '../../monitoring/service';
  * 
  * @param eventBus Event bus for subscribing to events
  * @param connectionRegistry Registry for sending messages to clients
+ * @param connectionManager Connection manager for message handlers
  */
 export function registerAllEventHandlers(
   eventBus: EventBus,
-  connectionRegistry: ConnectionRegistry
+  connectionRegistry: ConnectionRegistry,
+  connectionManager: ConnectionManager
 ): void {
   try {
     // Register points-related event handlers
@@ -35,6 +39,9 @@ export function registerAllEventHandlers(
     
     // Register presence handlers
     registerPresenceHandlers(eventBus, connectionRegistry);
+    
+    // Register forum handlers
+    initializeForumHandlers(connectionManager);
     
     // Register redemption handlers (if available)
     try {
@@ -60,4 +67,5 @@ export {
   registerNotificationHandlers,
   registerActivityHandlers,
   registerPresenceHandlers,
+  initializeForumHandlers
 };

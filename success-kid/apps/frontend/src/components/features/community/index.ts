@@ -1,10 +1,12 @@
-export * from './CategoryBrowser';
-export * from './CategoryCard';
-export * from './CategoryHeader';
-export * from './CategoryList';
-export * from './CategorySelector';
-export * from './ContentCard';
-export * from './CreatePostButton';
-export * from './EmptyFeedState';
-export * from './FeedContainer';
-export * from './FeedFilters';
+/**
+ * Community Component Exports
+ */
+
+export * from './ForumList';
+export * from './ForumView';
+export * from './CategoryView';
+export * from './ThreadList';
+export * from './ThreadView';
+export * from './ThreadCreate';
+export * from './ThreadReply';
+export * from './CommunityDashboard';
