@@ -1,0 +1,19 @@
+// Export all marketing components
+export { AnimatedPointsBadge } from './AnimatedPointsBadge';
+export { CallToAction } from './CallToAction';
+export { CommunityFeature } from './CommunityFeature';
+export { CommunityMetrics } from './CommunityMetrics';
+export { FeatureSection } from './FeatureSection';
+export { HeroBackground } from './HeroBackground';
+export { HeroSection } from './HeroSection';
+export { LazySection } from './LazySection';
+export { MarketMetrics } from './MarketMetrics';
+export { PointsSystemDemo } from './PointsSystemDemo';
+export { PointsSystemFeature } from './PointsSystemFeature';
+export { RegistrationForm } from './RegistrationForm';
+export { SEO } from './SEO';
+export { SecondaryCTA } from './SecondaryCTA';
+export { SocialProof } from './SocialProof';
+export { StaggeredTitle } from './StaggeredTitle';
+export { SuccessKidLogo } from './SuccessKidLogo';
+export { WalletFeature } from './WalletFeature';
