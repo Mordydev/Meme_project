@@ -1,34 +1,22 @@
-import '@/styles/globals.css';
-import { ClerkProvider } from '@clerk/nextjs';
-import type { Metadata } from 'next';
-import { Providers } from '@/components/providers';
-import { AppShell, Header, MobileNavigation, SidebarNavigation } from '@/components/layout';
+import './globals.css'
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Success Kid Community Platform',
-  description: 'A vibrant ecosystem for crypto enthusiasts and meme lovers',
-};
+  title: 'Your App',
+  description: 'Your app description',
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
-    <ClerkProvider>
-      <html lang="en" className="h-full">
-        <body className="h-full">
-          <Providers>
-            <AppShell
-              header={<Header showSearch={true} />}
-              sidebar={<SidebarNavigation />}
-              mobileNav={<MobileNavigation />}
-            >
-              {children}
-            </AppShell>
-          </Providers>
-        </body>
-      </html>
-    </ClerkProvider>
-  );
-}
+    <html lang="en">
+      <body className={inter.className}>{children}</body>
+    </html>
+  )
+} 

@@ -17,7 +17,7 @@
     "@success-kid/config": "workspace:*",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
-    "react": "^19.1.0"
+    "react": "^19.0.0"
   },
   "peerDependencies": {
     "react": "^19.0.0"

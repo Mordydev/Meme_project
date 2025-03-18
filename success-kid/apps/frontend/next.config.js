@@ -192,6 +192,7 @@ const nextConfig = {
   },
   // Configure powered by header
   poweredByHeader: false,
+  serverExternalPackages: [],
 };
 
 module.exports = nextConfig;

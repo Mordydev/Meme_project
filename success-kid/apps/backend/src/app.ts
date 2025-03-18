@@ -324,7 +324,7 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
         database: {
           status: dbHealth.isHealthy ? 'ok' : 'error',
           connections: dbHealth.connections,
-          responseTime: dbHealth.responseTime
+          responseTime: dbHealth.responseTimeMs
         },
         api: {
           status: 'ok',

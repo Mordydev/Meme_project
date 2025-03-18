@@ -48,3 +48,6 @@ pnpm-debug.log*
 
 # docker volumes
 docker/development/data
+
+# windsurf rules
+.windsurfrules

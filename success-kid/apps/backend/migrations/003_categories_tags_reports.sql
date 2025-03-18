@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS categories (
   description TEXT,
   slug VARCHAR(50) NOT NULL UNIQUE,
   parent_id UUID REFERENCES categories(id) ON DELETE SET NULL,
-  order INTEGER NOT NULL DEFAULT 0,
+  "order" INTEGER NOT NULL DEFAULT 0,
   icon VARCHAR(255),
   color VARCHAR(7),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS categories (
 -- Create indexes for category queries
 CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON categories(parent_id);
 CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug);
-CREATE INDEX IF NOT EXISTS idx_categories_order ON categories(order);
+CREATE INDEX IF NOT EXISTS idx_categories_order ON categories("order");
 
 -- Tags - For content classification
 CREATE TABLE IF NOT EXISTS tags (

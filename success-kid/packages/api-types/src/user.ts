@@ -5,20 +5,20 @@
 export interface User {
   id: string;
   email: string;
-  displayName: string;
-  createdAt: string;
-  lastLogin: string;
+  display_name: string;
+  auth_provider: string;
+  created_at: Date;
+  last_login?: Date;
   status: 'active' | 'suspended' | 'deleted';
 }
 
 export interface Profile {
-  userId: string;
-  username?: string;
+  user_id: string;
   bio?: string;
-  avatarUrl?: string;
+  avatar_url?: string;
   level: number;
   title?: string;
-  socialLinks?: Record<string, string>;
+  social_links?: Record<string, string>;
   preferences?: Record<string, any>;
 }
 
