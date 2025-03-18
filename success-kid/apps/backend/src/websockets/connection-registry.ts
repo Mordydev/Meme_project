@@ -1,196 +1,184 @@
-/**
- * Enhanced WebSocket Connection Registry
- * 
- * Manages WebSocket connections for users with improved features
- */
 import { WebSocket } from 'ws';
 import { logger } from '../lib/logger';
 
 /**
- * Manages WebSocket connections for users
- * Tracks connections by user ID and handles sending messages
+ * Registry for managing WebSocket connections
  */
 export class ConnectionRegistry {
-  private connections: Map<string, Set<WebSocket>> = new Map();
+  private connections: Map<WebSocket, Set<string>> = new Map();
+  private channels: Map<string, Set<WebSocket>> = new Map();
+  private userConnections: Map<string, Set<WebSocket>> = new Map();
   
   /**
-   * Add a WebSocket connection for a user
-   * @param userId User identifier
-   * @param socket WebSocket connection
+   * Add a socket to a specific channel
    */
-  add(userId: string, socket: WebSocket): void {
-    if (!this.connections.has(userId)) {
-      this.connections.set(userId, new Set());
+  addToChannel(socket: WebSocket, channel: string): void {
+    // Add channel to socket's subscriptions
+    if (!this.connections.has(socket)) {
+      this.connections.set(socket, new Set());
     }
-    this.connections.get(userId)!.add(socket);
-    logger.debug(`Added connection for user ${userId}. Total connections: ${this.getConnectionCount()}`);
+    this.connections.get(socket)!.add(channel);
+    
+    // Add socket to channel's subscribers
+    if (!this.channels.has(channel)) {
+      this.channels.set(channel, new Set());
+    }
+    this.channels.get(channel)!.add(socket);
+    
+    logger.debug(`Socket added to channel: ${channel}`);
   }
   
   /**
-   * Remove a WebSocket connection for a user
-   * @param userId User identifier
-   * @param socket WebSocket connection to remove
+   * Remove a socket from a specific channel
    */
-  remove(userId: string, socket: WebSocket): void {
-    const userConnections = this.connections.get(userId);
-    if (userConnections) {
-      userConnections.delete(socket);
-      if (userConnections.size === 0) {
-        this.connections.delete(userId);
+  removeFromChannel(socket: WebSocket, channel: string): void {
+    // Remove channel from socket's subscriptions
+    if (this.connections.has(socket)) {
+      this.connections.get(socket)!.delete(channel);
+    }
+    
+    // Remove socket from channel's subscribers
+    if (this.channels.has(channel)) {
+      this.channels.get(channel)!.delete(socket);
+      
+      // Clean up empty channels
+      if (this.channels.get(channel)!.size === 0) {
+        this.channels.delete(channel);
       }
-      logger.debug(`Removed connection for user ${userId}. Total connections: ${this.getConnectionCount()}`);
-    }
-  }
-  
-  /**
-   * Check if user has active connections
-   * @param userId User identifier
-   * @returns Whether user has any connections
-   */
-  hasConnections(userId: string): boolean {
-    const userConnections = this.connections.get(userId);
-    return !!userConnections && userConnections.size > 0;
-  }
-  
-  /**
-   * Get connections for a user
-   * @param userId User identifier
-   * @returns Set of user's WebSocket connections or null if none
-   */
-  getUserConnections(userId: string): Set<WebSocket> | null {
-    return this.connections.get(userId) || null;
-  }
-  
-  /**
-   * Send a message to a specific user across all their connections
-   * @param userId User identifier
-   * @param message Message to send (will be stringified if not a string)
-   * @returns Number of connections message was sent to
-   */
-  sendToUser(userId: string, message: any): number {
-    const userConnections = this.connections.get(userId);
-    if (!userConnections || userConnections.size === 0) {
-      return 0;
     }
     
-    const messageString = typeof message === 'string' ? message : JSON.stringify(message);
-    let sentCount = 0;
-    
-    userConnections.forEach(socket => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(messageString);
-        sentCount++;
-      }
-    });
-    
-    logger.debug(`Sent message to user ${userId} on ${sentCount} connections`);
-    return sentCount;
+    logger.debug(`Socket removed from channel: ${channel}`);
   }
   
   /**
-   * Send a message to all connected users
-   * @param message Message to send (will be stringified if not a string)
-   * @returns Number of connections message was sent to
+   * Register a socket as belonging to a user
    */
-  sendToAll(message: any): number {
-    const messageString = typeof message === 'string' ? message : JSON.stringify(message);
-    let sentCount = 0;
+  registerUser(socket: WebSocket, userId: string): void {
+    // Add socket to user's connections
+    if (!this.userConnections.has(userId)) {
+      this.userConnections.set(userId, new Set());
+    }
+    this.userConnections.get(userId)!.add(socket);
     
-    this.connections.forEach((userConnections, userId) => {
-      userConnections.forEach(socket => {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(messageString);
-          sentCount++;
+    // Add special user channel
+    this.addToChannel(socket, `user:${userId}`);
+    
+    logger.debug(`Socket registered for user: ${userId}`);
+  }
+  
+  /**
+   * Remove all registrations for a socket
+   */
+  removeSocket(socket: WebSocket): void {
+    // Get all channels for this socket
+    const channels = this.connections.get(socket) || new Set();
+    
+    // Remove socket from all channels
+    for (const channel of channels) {
+      if (this.channels.has(channel)) {
+        this.channels.get(channel)!.delete(socket);
+        
+        // Clean up empty channels
+        if (this.channels.get(channel)!.size === 0) {
+          this.channels.delete(channel);
         }
-      });
-    });
-    
-    logger.debug(`Broadcasted message to all users. Total recipients: ${sentCount}`);
-    return sentCount;
-  }
-  
-  /**
-   * Send a message to multiple users
-   * @param userIds Array of user IDs
-   * @param message Message to send
-   * @returns Number of connections message was sent to
-   */
-  sendToUsers(userIds: string[], message: any): number {
-    const messageString = typeof message === 'string' ? message : JSON.stringify(message);
-    let sentCount = 0;
-    
-    for (const userId of userIds) {
-      const userConnections = this.connections.get(userId);
-      if (userConnections && userConnections.size > 0) {
-        userConnections.forEach(socket => {
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(messageString);
-            sentCount++;
-          }
-        });
       }
     }
     
-    logger.debug(`Sent message to ${sentCount} connections across ${userIds.length} users`);
-    return sentCount;
+    // Remove socket from connections
+    this.connections.delete(socket);
+    
+    // Remove socket from user connections
+    for (const [userId, sockets] of this.userConnections.entries()) {
+      if (sockets.has(socket)) {
+        sockets.delete(socket);
+        
+        // Clean up empty user entries
+        if (sockets.size === 0) {
+          this.userConnections.delete(userId);
+        }
+      }
+    }
+    
+    logger.debug('Socket removed from all registrations');
   }
   
   /**
-   * Get the total number of connections across all users
-   * @returns Number of connections
+   * Send a message to all sockets in a channel
    */
-  getConnectionCount(): number {
-    let count = 0;
-    this.connections.forEach(userConnections => {
-      count += userConnections.size;
-    });
-    return count;
+  sendToChannel(channel: string, message: string): void {
+    const sockets = this.channels.get(channel) || new Set();
+    
+    for (const socket of sockets) {
+      try {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(message);
+        }
+      } catch (error) {
+        logger.error('Error sending message to socket', { error });
+      }
+    }
+    
+    logger.debug(`Sent message to channel: ${channel}`, { recipients: sockets.size });
   }
   
   /**
-   * Get the number of users with active connections
-   * @returns Number of connected users
+   * Send a message to all sockets registered for a user
    */
-  getUserCount(): number {
+  sendToUser(userId: string, message: string): void {
+    const sockets = this.userConnections.get(userId) || new Set();
+    
+    for (const socket of sockets) {
+      try {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(message);
+        }
+      } catch (error) {
+        logger.error('Error sending message to user socket', { error, userId });
+      }
+    }
+    
+    // Also send to user's channel
+    this.sendToChannel(`user:${userId}`, message);
+    
+    logger.debug(`Sent message to user: ${userId}`, { recipients: sockets.size });
+  }
+  
+  /**
+   * Broadcast a message to all connected sockets
+   */
+  broadcast(message: string): void {
+    for (const socket of this.connections.keys()) {
+      try {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(message);
+        }
+      } catch (error) {
+        logger.error('Error broadcasting message to socket', { error });
+      }
+    }
+    
+    logger.debug('Broadcasted message to all sockets', { recipients: this.connections.size });
+  }
+  
+  /**
+   * Get the total number of connections
+   */
+  get connectionCount(): number {
     return this.connections.size;
   }
   
   /**
-   * Get all connected user IDs
-   * @returns Array of user IDs
+   * Get the number of users with active connections
    */
-  getConnectedUserIds(): string[] {
-    return Array.from(this.connections.keys());
+  get userCount(): number {
+    return this.userConnections.size;
   }
   
   /**
-   * Get detailed connection statistics
-   * @returns Connection statistics
+   * Get the number of subscribers for a channel
    */
-  getDetailedStats(): {
-    totalConnections: number;
-    userCount: number;
-    userConnections: Record<string, number>;
-    topUsers: Array<{userId: string; connections: number}>;
-  } {
-    const totalConnections = this.getConnectionCount();
-    const userCount = this.getUserCount();
-    
-    const userConnections: Record<string, number> = {};
-    this.connections.forEach((connections, userId) => {
-      userConnections[userId] = connections.size;
-    });
-    
-    const topUsers = Object.entries(userConnections)
-      .map(([userId, connections]) => ({ userId, connections }))
-      .sort((a, b) => b.connections - a.connections)
-      .slice(0, 10);
-    
-    return {
-      totalConnections,
-      userCount,
-      userConnections,
-      topUsers
-    };
+  getChannelCount(channel: string): number {
+    return this.channels.get(channel)?.size || 0;
   }
 }

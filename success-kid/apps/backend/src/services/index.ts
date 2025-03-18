@@ -20,8 +20,17 @@ import { ActivityService } from './activity';
 import { PresenceService } from './presence';
 import { WebSocketService } from '../websockets/websocket-service';
 
+// Import content services
+import { ContentService } from './content/content-service';
+import { ForumService } from './content/forum-service';
+import { SearchService } from './content/search-service';
+
+// Import leaderboard service
+import { LeaderboardService } from './leaderboards/leaderboard-service';
+
 // Import repositories
 import { RepositoryFactory } from '../repositories/repository-factory';
+import { FeedRepository } from '../repositories/feed-repository';
 import { eventBus } from '../lib/event-bus';
 
 export interface ServiceContainer {
@@ -40,6 +49,14 @@ export interface ServiceContainer {
   activityService: ActivityService;
   presenceService: PresenceService;
   webSocketService: WebSocketService;
+  
+  // Content services
+  contentService: ContentService;
+  forumService: ForumService;
+  searchService: SearchService;
+  
+  // Leaderboard service
+  leaderboardService: LeaderboardService;
 }
 
 /**
@@ -67,6 +84,14 @@ export function createServiceContainer(
   const notificationPreferencesRepository = repoFactory.getNotificationPreferencesRepository();
   const activityRepository = repoFactory.getActivityRepository();
   const presenceRepository = repoFactory.getPresenceRepository();
+  
+  // Initialize repositories for content services
+  const contentRepository = repoFactory.getContentRepository();
+  const commentRepository = repoFactory.getCommentRepository();
+  const categoryRepository = repoFactory.getCategoryRepository();
+  const tagRepository = repoFactory.getTagRepository();
+  const contentReportRepository = repoFactory.getContentReportRepository();
+  const leaderboardRepository = repoFactory.getLeaderboardRepository();
   
   // Initialize blockchain services
   const providerFactory = new BlockchainProviderFactory(
@@ -168,6 +193,47 @@ export function createServiceContainer(
   
   const presenceService = new PresenceService(presenceRepository, webSocketService);
   
+  // Initialize content services
+  const contentService = new ContentService(
+    contentRepository,
+    commentRepository,
+    categoryRepository,
+    tagRepository,
+    contentReportRepository,
+    pointsService
+  );
+  
+  // Create feed repository
+  const feedRepository = new FeedRepository(db);
+  
+  // Initialize forum service
+  const forumService = new ForumService(
+    categoryRepository,
+    contentRepository,
+    commentRepository,
+    feedRepository,
+    pointsService
+  );
+  
+  // Initialize search service
+  const searchService = new SearchService(
+    db,
+    contentRepository,
+    userRepository,
+    categoryRepository,
+    tagRepository,
+    commentRepository
+  );
+  
+  // Initialize leaderboard service
+  const leaderboardService = new LeaderboardService(
+    leaderboardRepository,
+    userRepository,
+    userPointsRepository,
+    contentRepository,
+    commentRepository
+  );
+  
   return {
     authService,
     profileService,
@@ -183,6 +249,14 @@ export function createServiceContainer(
     notificationPreferencesService,
     activityService,
     presenceService,
-    webSocketService
+    webSocketService,
+    
+    // Content services
+    contentService,
+    forumService,
+    searchService,
+    
+    // Leaderboard service
+    leaderboardService
   };
 }

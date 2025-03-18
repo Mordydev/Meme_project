@@ -1,132 +1,97 @@
 /**
  * Leaderboard Service
  * 
- * Manages leaderboards for different categories and time periods
+ * Service for managing leaderboards across different categories and time periods
  */
-import { Pool } from 'pg';
-import { LeaderboardEntry, LeaderboardCategory, LeaderboardPeriod } from '../../models/leaderboard';
 import { LeaderboardRepository } from '../../repositories/leaderboard-repository';
+import { UserRepository } from '../../repositories/user-repository';
+import { UserPointsRepository } from '../../repositories/user-points/user-points-repository';
+import { ContentRepository } from '../../repositories/content-repository';
+import { CommentRepository } from '../../repositories/comment-repository';
 import { logger } from '../../lib/logger';
-import { Redis } from 'ioredis';
-import { getCacheClient } from '../../lib/cache-client';
+import { NotFoundError } from '../../errors/api-errors';
 
-export interface LeaderboardOptions {
-  limit?: number;
-  offset?: number;
-  includeCurrentUser?: boolean;
-  currentUserId?: string;
+export enum LeaderboardCategory {
+  OVERALL_POINTS = 'overall_points',
+  CONTENT_CREATION = 'content_creation',
+  COMMUNITY_ENGAGEMENT = 'community_engagement',
+  REFERRAL_CHAMPIONS = 'referral_champions',
+  TOKEN_REDEMPTION = 'token_redemption'
+}
+
+export enum LeaderboardPeriod {
+  DAY = 'day',
+  WEEK = 'week',
+  MONTH = 'month',
+  ALL_TIME = 'all_time'
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  displayName: string;
+  avatarUrl?: string;
+  score: number;
+  change?: number; // Change in rank compared to previous period
 }
 
 export interface LeaderboardResult {
+  category: LeaderboardCategory;
+  period: LeaderboardPeriod;
+  lastUpdated: Date;
   entries: LeaderboardEntry[];
-  total: number;
-  currentUserRank?: {
-    rank: number;
-    score: number;
-    displayName: string;
-    position: 'above' | 'below' | 'in-range';
-  };
-}
-
-export interface UserRank {
-  rank: number;
-  totalUsers: number;
-  percentile: number;
-  score: number;
-  distanceToNextRank?: number;
+  userRank?: LeaderboardEntry; // The requesting user's rank, if available
 }
 
 export class LeaderboardService {
-  private repository: LeaderboardRepository;
-  private cache: Redis;
-  
   constructor(
-    db: Pool,
-    repository: LeaderboardRepository,
-    cache: Redis
-  ) {
-    this.repository = repository;
-    this.cache = cache;
-  }
+    private leaderboardRepository: LeaderboardRepository,
+    private userRepository: UserRepository,
+    private userPointsRepository: UserPointsRepository,
+    private contentRepository: ContentRepository,
+    private commentRepository: CommentRepository
+  ) {}
   
   /**
-   * Get leaderboard for a specific category and period
+   * Get leaderboard data for a specific category and time period
    */
   async getLeaderboard(
     category: LeaderboardCategory,
-    period: LeaderboardPeriod,
-    options: LeaderboardOptions = {}
+    period: LeaderboardPeriod = LeaderboardPeriod.WEEK,
+    options: { 
+      limit?: number; 
+      offset?: number;
+      userId?: string; // Current user ID for personalized rank
+    } = {}
   ): Promise<LeaderboardResult> {
     try {
-      const { 
-        limit = 100, 
-        offset = 0, 
-        includeCurrentUser = false,
-        currentUserId
-      } = options;
+      const { limit = 20, offset = 0, userId } = options;
       
-      // Try to get from cache first
-      const cacheKey = `leaderboard:${category}:${period}:${limit}:${offset}`;
-      const cachedResult = await this.cache.get(cacheKey);
-      
-      if (cachedResult) {
-        const parsedResult = JSON.parse(cachedResult) as LeaderboardResult;
-        
-        // If we need current user and have user ID, add that info
-        if (includeCurrentUser && currentUserId) {
-          return this.addCurrentUserToLeaderboard(
-            parsedResult, 
-            category, 
-            period, 
-            currentUserId
-          );
-        }
-        
-        return parsedResult;
-      }
-      
-      // Generate fresh leaderboard if not cached
-      let result: LeaderboardResult;
-      
-      switch (category) {
-        case LeaderboardCategory.POINTS:
-          result = await this.repository.getPointsLeaderboard(period, { limit, offset });
-          break;
-        case LeaderboardCategory.CONTENT:
-          result = await this.repository.getContentLeaderboard(period, { limit, offset });
-          break;
-        case LeaderboardCategory.ENGAGEMENT:
-          result = await this.repository.getEngagementLeaderboard(period, { limit, offset });
-          break;
-        case LeaderboardCategory.REFERRALS:
-          result = await this.repository.getReferralLeaderboard(period, { limit, offset });
-          break;
-        case LeaderboardCategory.ACHIEVEMENTS:
-          result = await this.repository.getAchievementsLeaderboard(period, { limit, offset });
-          break;
-        default:
-          throw new Error(`Unsupported leaderboard category: ${category}`);
-      }
-      
-      // Cache the result with appropriate TTL
-      await this.cache.set(
-        cacheKey, 
-        JSON.stringify(result), 
-        'EX', 
-        this.getLeaderboardCacheTTL(period)
+      // Get leaderboard entries
+      const leaderboard = await this.leaderboardRepository.getLeaderboard(
+        category,
+        period,
+        limit,
+        offset
       );
       
-      // If we need current user and have user ID, add that info
-      if (includeCurrentUser && currentUserId) {
-        return this.addCurrentUserToLeaderboard(
-          result, 
-          category, 
-          period, 
-          currentUserId
-        );
+      // Format entries with user information
+      const formattedEntries = await this.formatLeaderboardEntries(leaderboard);
+      
+      // Get user's personal rank if requested
+      let userRank: LeaderboardEntry | undefined;
+      
+      if (userId) {
+        userRank = await this.getUserRank(userId, category, period);
       }
       
-      return result;
+      return {
+        category,
+        period,
+        lastUpdated: new Date(), // This would come from the repository in a real implementation
+        entries: formattedEntries,
+        userRank
+      };
     } catch (error) {
       logger.error('Error getting leaderboard', { error, category, period, options });
       throw error;
@@ -134,259 +99,307 @@ export class LeaderboardService {
   }
   
   /**
-   * Add current user info to leaderboard result
+   * Generate and update leaderboards (typically called by a scheduled job)
    */
-  private async addCurrentUserToLeaderboard(
-    result: LeaderboardResult,
-    category: LeaderboardCategory,
-    period: LeaderboardPeriod,
-    userId: string
-  ): Promise<LeaderboardResult> {
+  async generateLeaderboards(): Promise<boolean> {
     try {
-      // Check if user is already in the result
-      const userInResult = result.entries.find(entry => entry.userId === userId);
-      if (userInResult) {
-        // User is already in result, just add currentUserRank
-        return {
-          ...result,
-          currentUserRank: {
-            rank: userInResult.rank,
-            score: userInResult.score,
-            displayName: userInResult.displayName,
-            position: 'in-range'
-          }
-        };
-      }
+      // Generate each leaderboard type for each time period
+      const categories = Object.values(LeaderboardCategory);
+      const periods = Object.values(LeaderboardPeriod);
       
-      // Get user's rank
-      const userRank = await this.getUserRank(userId, category, period);
-      if (!userRank) {
-        // User not ranked, return original result
-        return result;
-      }
-      
-      // Determine position
-      const lowestRankInResult = result.entries.length > 0 ? 
-        result.entries[result.entries.length - 1].rank : 0;
-        
-      const highestRankInResult = result.entries.length > 0 ? 
-        result.entries[0].rank : 0;
-      
-      let position: 'above' | 'below' | 'in-range' = 'below';
-      
-      if (userRank.rank < highestRankInResult) {
-        position = 'above';
-      } else if (userRank.rank > lowestRankInResult) {
-        position = 'below';
-      } else {
-        position = 'in-range';
-      }
-      
-      // Get user displayName
-      const userEntry = await this.repository.getLeaderboardEntry(userId, category, period);
-      
-      return {
-        ...result,
-        currentUserRank: {
-          rank: userRank.rank,
-          score: userRank.score,
-          displayName: userEntry?.displayName || userId,
-          position
+      for (const category of categories) {
+        for (const period of periods) {
+          await this.generateLeaderboard(category, period);
         }
-      };
-    } catch (error) {
-      logger.error('Error adding current user to leaderboard', { 
-        error, 
-        userId, 
-        category, 
-        period 
-      });
+      }
       
-      // Return original result if error
-      return result;
+      return true;
+    } catch (error) {
+      logger.error('Error generating leaderboards', { error });
+      throw error;
     }
   }
   
   /**
-   * Get user's rank in a specific category and period
+   * Generate a specific leaderboard
    */
-  async getUserRank(
+  private async generateLeaderboard(
+    category: LeaderboardCategory,
+    period: LeaderboardPeriod
+  ): Promise<boolean> {
+    try {
+      // Define time range for the period
+      const timeRange = this.getTimeRangeForPeriod(period);
+      
+      // Generate leaderboard data based on category
+      let leaderboardData: any[] = [];
+      
+      switch (category) {
+        case LeaderboardCategory.OVERALL_POINTS:
+          leaderboardData = await this.generateOverallPointsLeaderboard(timeRange);
+          break;
+        case LeaderboardCategory.CONTENT_CREATION:
+          leaderboardData = await this.generateContentCreationLeaderboard(timeRange);
+          break;
+        case LeaderboardCategory.COMMUNITY_ENGAGEMENT:
+          leaderboardData = await this.generateCommunityEngagementLeaderboard(timeRange);
+          break;
+        case LeaderboardCategory.REFERRAL_CHAMPIONS:
+          leaderboardData = await this.generateReferralChampionsLeaderboard(timeRange);
+          break;
+        case LeaderboardCategory.TOKEN_REDEMPTION:
+          leaderboardData = await this.generateTokenRedemptionLeaderboard(timeRange);
+          break;
+        default:
+          throw new Error(`Unknown leaderboard category: ${category}`);
+      }
+      
+      // Store leaderboard in the repository
+      await this.leaderboardRepository.updateLeaderboard(
+        category,
+        period,
+        leaderboardData
+      );
+      
+      return true;
+    } catch (error) {
+      logger.error('Error generating leaderboard', { error, category, period });
+      throw error;
+    }
+  }
+  
+  /**
+   * Generate overall points leaderboard
+   */
+  private async generateOverallPointsLeaderboard(timeRange: { start: Date }): Promise<any[]> {
+    try {
+      // Query total points by user
+      const pointsData = await this.userPointsRepository.getTotalPointsByUser(timeRange.start);
+      
+      // Format and return
+      return pointsData.map((row, index) => ({
+        rank: index + 1,
+        userId: row.userId,
+        score: row.totalPoints,
+        // Additional fields would be filled in later
+      }));
+    } catch (error) {
+      logger.error('Error generating overall points leaderboard', { error, timeRange });
+      throw error;
+    }
+  }
+  
+  /**
+   * Generate content creation leaderboard
+   */
+  private async generateContentCreationLeaderboard(timeRange: { start: Date }): Promise<any[]> {
+    try {
+      // Query content creation metrics by user
+      const contentData = await this.contentRepository.getContentCountByUser(timeRange.start);
+      
+      // Format and return
+      return contentData.map((row, index) => ({
+        rank: index + 1,
+        userId: row.userId,
+        score: row.contentCount,
+        // Additional fields would be filled in later
+      }));
+    } catch (error) {
+      logger.error('Error generating content creation leaderboard', { error, timeRange });
+      throw error;
+    }
+  }
+  
+  /**
+   * Generate community engagement leaderboard
+   */
+  private async generateCommunityEngagementLeaderboard(timeRange: { start: Date }): Promise<any[]> {
+    try {
+      // Combine comments and reactions for engagement score
+      const commentCounts = await this.commentRepository.getCommentCountByUser(timeRange.start);
+      
+      // In a real implementation, we would also include reactions, upvotes, etc.
+      // For this example, we'll just use comment counts
+      
+      // Format and return
+      return commentCounts.map((row, index) => ({
+        rank: index + 1,
+        userId: row.userId,
+        score: row.commentCount,
+        // Additional fields would be filled in later
+      }));
+    } catch (error) {
+      logger.error('Error generating community engagement leaderboard', { error, timeRange });
+      throw error;
+    }
+  }
+  
+  /**
+   * Generate referral champions leaderboard
+   */
+  private async generateReferralChampionsLeaderboard(timeRange: { start: Date }): Promise<any[]> {
+    try {
+      // In a real implementation, we would query referral counts from the referral repository
+      // For this example, we'll return a placeholder
+      return [];
+    } catch (error) {
+      logger.error('Error generating referral champions leaderboard', { error, timeRange });
+      throw error;
+    }
+  }
+  
+  /**
+   * Generate token redemption leaderboard
+   */
+  private async generateTokenRedemptionLeaderboard(timeRange: { start: Date }): Promise<any[]> {
+    try {
+      // In a real implementation, we would query redemption amounts from the redemption repository
+      // For this example, we'll return a placeholder
+      return [];
+    } catch (error) {
+      logger.error('Error generating token redemption leaderboard', { error, timeRange });
+      throw error;
+    }
+  }
+  
+  /**
+   * Get time range for a period
+   */
+  private getTimeRangeForPeriod(period: LeaderboardPeriod): { start: Date; end?: Date } {
+    const now = new Date();
+    let start = new Date();
+    
+    switch (period) {
+      case LeaderboardPeriod.DAY:
+        start.setHours(0, 0, 0, 0); // Start of today
+        break;
+      case LeaderboardPeriod.WEEK:
+        start.setDate(now.getDate() - 7);
+        break;
+      case LeaderboardPeriod.MONTH:
+        start.setMonth(now.getMonth() - 1);
+        break;
+      case LeaderboardPeriod.ALL_TIME:
+        start = new Date(0); // Beginning of time
+        break;
+      default:
+        start.setDate(now.getDate() - 7); // Default to week
+    }
+    
+    return { start, end: now };
+  }
+  
+  /**
+   * Format leaderboard entries with user information
+   */
+  private async formatLeaderboardEntries(entries: any[]): Promise<LeaderboardEntry[]> {
+    try {
+      // Get user information for all entries
+      const userIds = entries.map(entry => entry.userId);
+      
+      // In a real implementation, we would efficiently fetch all users at once
+      // For this example, we'll assume only a few users and fetch them individually
+      
+      const formattedEntries: LeaderboardEntry[] = [];
+      
+      for (const entry of entries) {
+        const user = await this.userRepository.findById(entry.userId);
+        
+        if (user) {
+          const profile = await this.userRepository.getProfile(entry.userId);
+          
+          formattedEntries.push({
+            rank: entry.rank,
+            userId: entry.userId,
+            displayName: user.display_name,
+            avatarUrl: profile?.avatar_url,
+            score: entry.score,
+            change: entry.change
+          });
+        }
+      }
+      
+      return formattedEntries;
+    } catch (error) {
+      logger.error('Error formatting leaderboard entries', { error, entriesCount: entries.length });
+      throw error;
+    }
+  }
+  
+  /**
+   * Get a user's rank on a specific leaderboard
+   */
+  private async getUserRank(
     userId: string,
     category: LeaderboardCategory,
     period: LeaderboardPeriod
-  ): Promise<UserRank | null> {
+  ): Promise<LeaderboardEntry | undefined> {
     try {
-      // Try to get from cache first
-      const cacheKey = `user-rank:${userId}:${category}:${period}`;
-      const cachedRank = await this.cache.get(cacheKey);
-      
-      if (cachedRank) {
-        return JSON.parse(cachedRank) as UserRank;
-      }
-      
-      // Get user's rank from repository
-      const userRank = await this.repository.getUserRank(userId, category, period);
-      
-      if (!userRank) {
-        return null;
-      }
-      
-      // Get distance to next rank
-      const distanceToNext = await this.repository.getDistanceToNextRank(
-        userId, 
-        category, 
+      const userRank = await this.leaderboardRepository.getUserRank(
+        userId,
+        category,
         period
       );
       
-      const result = {
-        ...userRank,
-        distanceToNextRank: distanceToNext
+      if (!userRank) {
+        return undefined;
+      }
+      
+      const user = await this.userRepository.findById(userId);
+      if (!user) {
+        return undefined;
+      }
+      
+      const profile = await this.userRepository.getProfile(userId);
+      
+      return {
+        rank: userRank.rank,
+        userId,
+        displayName: user.display_name,
+        avatarUrl: profile?.avatar_url,
+        score: userRank.score,
+        change: userRank.change
       };
-      
-      // Cache the result
-      await this.cache.set(
-        cacheKey, 
-        JSON.stringify(result), 
-        'EX', 
-        this.getLeaderboardCacheTTL(period)
-      );
-      
-      return result;
     } catch (error) {
       logger.error('Error getting user rank', { error, userId, category, period });
-      throw error;
+      return undefined;
     }
   }
   
   /**
-   * Refresh all leaderboards (for scheduled job)
+   * Check if a user has reached the top of a leaderboard
+   * Used for achievement tracking
    */
-  async refreshLeaderboards(): Promise<void> {
+  async checkUserLeaderboardAchievement(
+    userId: string,
+    category: LeaderboardCategory,
+    requiredRank: number = 10
+  ): Promise<boolean> {
     try {
-      logger.info('Refreshing all leaderboards');
+      // Check across different time periods
+      const periods = [
+        LeaderboardPeriod.DAY,
+        LeaderboardPeriod.WEEK,
+        LeaderboardPeriod.MONTH
+      ];
       
-      // Reset category caches
-      await Promise.all(Object.values(LeaderboardCategory).map(async (category) => {
-        await this.refreshCategoryLeaderboards(category);
-      }));
-      
-      logger.info('Leaderboard refresh completed');
-    } catch (error) {
-      logger.error('Error refreshing leaderboards', { error });
-      throw error;
-    }
-  }
-  
-  /**
-   * Refresh leaderboards for a specific category
-   */
-  async refreshCategoryLeaderboards(category: LeaderboardCategory): Promise<void> {
-    try {
-      logger.info('Refreshing leaderboards for category', { category });
-      
-      // Force refresh for each period
-      for (const period of Object.values(LeaderboardPeriod)) {
-        await this.repository.refreshLeaderboard(category, period);
+      for (const period of periods) {
+        const userRank = await this.getUserRank(userId, category, period);
         
-        // Clear cache for this category/period
-        const cachePattern = `leaderboard:${category}:${period}:*`;
-        const keys = await this.cache.keys(cachePattern);
-        
-        if (keys.length > 0) {
-          await this.cache.del(...keys);
-        }
-        
-        // Also clear user rank caches
-        const userRankPattern = `user-rank:*:${category}:${period}`;
-        const userRankKeys = await this.cache.keys(userRankPattern);
-        
-        if (userRankKeys.length > 0) {
-          await this.cache.del(...userRankKeys);
+        if (userRank && userRank.rank <= requiredRank) {
+          return true;
         }
       }
+      
+      return false;
     } catch (error) {
-      logger.error('Error refreshing category leaderboards', { error, category });
-      throw error;
-    }
-  }
-  
-  /**
-   * Get available leaderboard categories
-   */
-  async getLeaderboardCategories(): Promise<{
-    id: LeaderboardCategory;
-    name: string;
-    description: string;
-    availablePeriods: LeaderboardPeriod[];
-  }[]> {
-    // Define all available categories
-    return [
-      {
-        id: LeaderboardCategory.POINTS,
-        name: 'Success Points',
-        description: 'Top users by Success Points earned',
-        availablePeriods: [
-          LeaderboardPeriod.DAILY,
-          LeaderboardPeriod.WEEKLY,
-          LeaderboardPeriod.MONTHLY,
-          LeaderboardPeriod.ALL_TIME
-        ]
-      },
-      {
-        id: LeaderboardCategory.CONTENT,
-        name: 'Content Creation',
-        description: 'Most active content creators',
-        availablePeriods: [
-          LeaderboardPeriod.WEEKLY,
-          LeaderboardPeriod.MONTHLY,
-          LeaderboardPeriod.ALL_TIME
-        ]
-      },
-      {
-        id: LeaderboardCategory.ENGAGEMENT,
-        name: 'Community Engagement',
-        description: 'Most engaged community members',
-        availablePeriods: [
-          LeaderboardPeriod.WEEKLY,
-          LeaderboardPeriod.MONTHLY,
-          LeaderboardPeriod.ALL_TIME
-        ]
-      },
-      {
-        id: LeaderboardCategory.REFERRALS,
-        name: 'Referrals',
-        description: 'Top community builders by referrals',
-        availablePeriods: [
-          LeaderboardPeriod.MONTHLY,
-          LeaderboardPeriod.ALL_TIME
-        ]
-      },
-      {
-        id: LeaderboardCategory.ACHIEVEMENTS,
-        name: 'Achievements',
-        description: 'Users with the most achievements unlocked',
-        availablePeriods: [
-          LeaderboardPeriod.ALL_TIME
-        ]
-      }
-    ];
-  }
-  
-  /**
-   * Get TTL for leaderboard cache based on period
-   */
-  private getLeaderboardCacheTTL(period: LeaderboardPeriod): number {
-    switch (period) {
-      case LeaderboardPeriod.DAILY:
-        return 60 * 5; // 5 minutes
-      case LeaderboardPeriod.WEEKLY:
-        return 60 * 15; // 15 minutes
-      case LeaderboardPeriod.MONTHLY:
-        return 60 * 60; // 1 hour
-      case LeaderboardPeriod.ALL_TIME:
-        return 60 * 60 * 12; // 12 hours
-      default:
-        return 60 * 15; // 15 minutes default
+      logger.error('Error checking user leaderboard achievement', { 
+        error, 
+        userId, 
+        category, 
+        requiredRank
+      });
+      return false;
     }
   }
 }

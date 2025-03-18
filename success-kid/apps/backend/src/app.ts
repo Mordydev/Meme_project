@@ -5,7 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import securityPlugin from './security';
 import compliancePlugin from './compliance';
 import { createErrorHandler, createNotFoundHandler } from './errors/handlers';
-import { runAllChecks, getVersionInfo } from './health';
+import { runAllChecks, getVersionInfo } from './monitoring/health-checks';
 import transactionVerification from './middleware/transaction-verification';
 import { responseFormatter } from './middleware/response-formatter';
 import repositoriesPlugin from './plugins/repositories';
@@ -18,20 +18,12 @@ import { registerReferralAttributionHook } from './services/referrals/attributio
 import { docsPlugin } from './docs';
 import { monitoringPlugin } from './monitoring';
 import { metricsMiddleware } from './monitoring/middleware';
+import { loggingPlugin } from './plugins/logging-plugin';
+import { logger } from './lib/logger';
 
 export async function buildApp(options = {}): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: {
-      level: process.env.LOG_LEVEL || 'info',
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          translateTime: 'HH:MM:ss Z',
-          ignore: 'pid,hostname',
-          colorize: true,
-        },
-      },
-    },
+    logger: false, // We use our own structured logger instead
     trustProxy: true,
     ...options,
   });
@@ -58,6 +50,9 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
       return trustedProxies.includes(request.ip);
     },
   });
+
+  // Register structured logging
+  await app.register(loggingPlugin);
 
   // Register error handler
   app.setErrorHandler(createErrorHandler());
@@ -108,6 +103,12 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   
   // Register referral attribution hook
   registerReferralAttributionHook(app);
+
+  // Log successful application initialization
+  logger.info('Application initialized successfully', {
+    environment: process.env.NODE_ENV,
+    version: process.env.npm_package_version
+  });
 
   return app;
 }

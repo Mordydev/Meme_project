@@ -14,6 +14,10 @@ import { AchievementRepository } from './achievement-repository';
 import { OrganizationRepository } from './organization-repository';
 import { RoleRepository } from './role-repository';
 import { RedemptionRepository } from './redemption-repository';
+import { CategoryRepository } from './category-repository';
+import { TagRepository } from './tag-repository';
+import { ContentReportRepository } from './content-report-repository';
+import { LeaderboardRepository } from './leaderboard-repository';
 
 // Real-time and notification repositories
 import { NotificationRepository } from './notification-repository';
@@ -42,6 +46,10 @@ export class RepositoryFactory {
     organization: null as OrganizationRepository | null,
     role: null as RoleRepository | null,
     redemption: null as RedemptionRepository | null,
+    category: null as CategoryRepository | null,
+    tag: null as TagRepository | null,
+    contentReport: null as ContentReportRepository | null,
+    leaderboard: null as LeaderboardRepository | null,
     
     // Real-time and notification repositories
     notification: null as NotificationRepository | null,
@@ -217,6 +225,46 @@ export class RepositoryFactory {
   }
   
   /**
+   * Get category repository instance
+   */
+  getCategoryRepository(): CategoryRepository {
+    if (!this.repositories.category) {
+      this.repositories.category = new CategoryRepository(this.pool);
+    }
+    return this.repositories.category;
+  }
+  
+  /**
+   * Get tag repository instance
+   */
+  getTagRepository(): TagRepository {
+    if (!this.repositories.tag) {
+      this.repositories.tag = new TagRepository(this.pool);
+    }
+    return this.repositories.tag;
+  }
+  
+  /**
+   * Get content report repository instance
+   */
+  getContentReportRepository(): ContentReportRepository {
+    if (!this.repositories.contentReport) {
+      this.repositories.contentReport = new ContentReportRepository(this.pool);
+    }
+    return this.repositories.contentReport;
+  }
+  
+  /**
+   * Get leaderboard repository instance
+   */
+  getLeaderboardRepository(): LeaderboardRepository {
+    if (!this.repositories.leaderboard) {
+      this.repositories.leaderboard = new LeaderboardRepository(this.pool);
+    }
+    return this.repositories.leaderboard;
+  }
+  
+  /**
    * Clear all cached repository instances
    */
   clearCache(): void {
@@ -231,6 +279,10 @@ export class RepositoryFactory {
       organization: null,
       role: null,
       redemption: null,
+      category: null,
+      tag: null,
+      contentReport: null,
+      leaderboard: null,
       
       // Real-time and notification repositories
       notification: null,

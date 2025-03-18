@@ -1,31 +1,39 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 
 /**
- * Hook that checks if the user prefers reduced motion
+ * Hook that listens for the user's reduced motion preference
  * 
- * @returns boolean True if user prefers reduced motion
+ * @returns {boolean} Whether the user prefers reduced motion
  */
 export function useReducedMotion(): boolean {
-  // Default to false (no reduced motion) if no media query match is possible
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
   
   useEffect(() => {
-    // Check if browser supports matchMedia and if the preference is set
-    const mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (!mediaQuery) return;
+    // Check if window is available (client-side)
+    if (typeof window === 'undefined') {
+      return;
+    }
     
-    // Set initial value
+    // Get initial preference
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     setPrefersReducedMotion(mediaQuery.matches);
     
-    // Add event listener for changes
-    const listener = (event: MediaQueryListEvent) => {
+    // Listen for preference changes
+    const onChange = (event: MediaQueryListEvent) => {
       setPrefersReducedMotion(event.matches);
     };
     
-    mediaQuery.addEventListener('change', listener);
-    return () => {
-      mediaQuery.removeEventListener('change', listener);
-    };
+    try {
+      // Modern browsers
+      mediaQuery.addEventListener('change', onChange);
+      return () => mediaQuery.removeEventListener('change', onChange);
+    } catch (err) {
+      // Older browsers
+      mediaQuery.addListener(onChange);
+      return () => mediaQuery.removeListener(onChange);
+    }
   }, []);
   
   return prefersReducedMotion;

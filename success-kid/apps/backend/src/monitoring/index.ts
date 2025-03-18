@@ -1,13 +1,15 @@
 /**
  * Monitoring Module
  * 
- * Provides comprehensive monitoring, metrics collection, and alerting functionality
+ * Provides comprehensive monitoring, metrics collection, logging, and alerting functionality
  */
 import { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { setupMetrics } from './metrics';
-import { configureHealthChecks } from './health';
+import { setupMetrics, recordMetric, incrementCounter, setGauge, observeHistogram, measurePerformance } from './metrics';
+import { configureHealthChecks, createHealthCheck, runAllChecks, getVersionInfo } from './health-checks';
 import { setupAlerts } from './alerts';
+import { setupErrorTracking } from './error-tracking';
+import { logger } from '../lib/logger';
 
 /**
  * Monitoring plugin for Fastify
@@ -19,16 +21,41 @@ export const monitoringPlugin = fp(async function (fastify: FastifyInstance) {
   // Configure health checks
   await configureHealthChecks(fastify);
   
+  // Setup error tracking
+  setupErrorTracking(fastify);
+  
   // Setup alerts if enabled
   if (process.env.ENABLE_ALERTS === 'true') {
     await setupAlerts(fastify);
   }
   
+  // Add version endpoint
+  fastify.get('/version', {
+    schema: {
+      hide: true, // Hide from Swagger docs
+    },
+    handler: async (request, reply) => {
+      return getVersionInfo();
+    }
+  });
+  
   // Log monitoring initialization
-  fastify.log.info('Monitoring system initialized');
+  logger.info('Monitoring system initialized');
 });
 
-export * from './types';
+// Export monitoring components
+export * from './metrics';
+export * from './health-checks';
+export * from './error-tracking';
 export { metricsMiddleware } from './middleware';
-export { recordMetric, incrementCounter, setGauge, observeHistogram } from './metrics';
-export { createHealthCheck } from './health';
+
+// Export middleware and utility functions
+export { 
+  recordMetric, 
+  incrementCounter, 
+  setGauge, 
+  observeHistogram,
+  measurePerformance,
+  createHealthCheck,
+  runAllChecks
+};

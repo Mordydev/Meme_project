@@ -40,6 +40,32 @@ import {
   reportParamsSchema
 } from './handlers';
 
+// Import forum handlers
+import {
+  getForumCategories,
+  getCategoryThreads,
+  createThread,
+  getThreadById,
+  replyToThread,
+  searchThreads,
+  getPopularThreads,
+  forumCategoryParamsSchema,
+  forumCategoryQuerySchema,
+  createThreadSchema,
+  threadParamsSchema,
+  replyToThreadSchema,
+  searchForumSchema,
+  popularThreadsQuerySchema
+} from './handlers/forum-handlers';
+
+// Import search handlers
+import {
+  advancedSearch,
+  getSearchSuggestions,
+  getTrendingSearchTerms,
+  searchQuerySchema as advancedSearchQuerySchema
+} from './handlers/search-handlers';
+
 export default async function content(fastify: FastifyInstance): Promise<void> {
   // Register transaction verification for transaction idempotency
   fastify.register(async (instance) => {
@@ -159,6 +185,35 @@ export default async function content(fastify: FastifyInstance): Promise<void> {
         ]
       },
       reviewReport
+    );
+    
+    /**
+     * POST /api/v1/content/forum/threads
+     * Create new thread
+     */
+    instance.post(
+      '/forum/threads',
+      {
+        preHandler: [
+          validate(createThreadSchema)
+        ]
+      },
+      createThread
+    );
+    
+    /**
+     * POST /api/v1/content/forum/threads/:threadId/replies
+     * Reply to thread
+     */
+    instance.post(
+      '/forum/threads/:threadId/replies',
+      {
+        preHandler: [
+          validate(threadParamsSchema, { source: 'params' }),
+          validate(replyToThreadSchema)
+        ]
+      },
+      replyToThread
     );
   });
   
@@ -304,5 +359,103 @@ export default async function content(fastify: FastifyInstance): Promise<void> {
       ]
     },
     getReportQueue
+  );
+  
+  /**
+   * GET /api/v1/content/forum/categories
+   * Get forum categories
+   */
+  fastify.get(
+    '/forum/categories',
+    getForumCategories
+  );
+  
+  /**
+   * GET /api/v1/content/forum/categories/:categoryId/threads
+   * Get threads in category
+   */
+  fastify.get(
+    '/forum/categories/:categoryId/threads',
+    {
+      preHandler: [
+        validate(forumCategoryParamsSchema, { source: 'params' }),
+        validate(forumCategoryQuerySchema, { source: 'query' })
+      ]
+    },
+    getCategoryThreads
+  );
+  
+  /**
+   * GET /api/v1/content/forum/threads/:threadId
+   * Get thread by ID
+   */
+  fastify.get(
+    '/forum/threads/:threadId',
+    {
+      preHandler: [
+        validate(threadParamsSchema, { source: 'params' })
+      ]
+    },
+    getThreadById
+  );
+  
+  /**
+   * GET /api/v1/content/forum/search
+   * Search threads
+   */
+  fastify.get(
+    '/forum/search',
+    {
+      preHandler: [
+        validate(searchForumSchema, { source: 'query' })
+      ]
+    },
+    searchThreads
+  );
+  
+  /**
+   * GET /api/v1/content/forum/popular
+   * Get popular threads
+   */
+  fastify.get(
+    '/forum/popular',
+    {
+      preHandler: [
+        validate(popularThreadsQuerySchema, { source: 'query' })
+      ]
+    },
+    getPopularThreads
+  );
+  
+  /**
+   * GET /api/v1/content/search/advanced
+   * Perform advanced search
+   */
+  fastify.get(
+    '/search/advanced',
+    {
+      preHandler: [
+        validate(advancedSearchQuerySchema, { source: 'query' })
+      ]
+    },
+    advancedSearch
+  );
+  
+  /**
+   * GET /api/v1/content/search/suggestions
+   * Get search suggestions
+   */
+  fastify.get(
+    '/search/suggestions',
+    getSearchSuggestions
+  );
+  
+  /**
+   * GET /api/v1/content/search/trending
+   * Get trending search terms
+   */
+  fastify.get(
+    '/search/trending',
+    getTrendingSearchTerms
   );
 }
