@@ -96,8 +96,8 @@ export default function HomePage() {
               {/* Staggered Title Animation */}
               <div className="mb-8">
                 <StaggeredTitle
-                  text="Turn Community Engagement Into"
-                  highlightedText="Real Crypto Rewards"
+                  text="Clench Your Fist,"
+                  highlightedText="Claim Your Success!"
                   className="text-4xl font-bold leading-tight text-gray-900 md:text-5xl"
                   delay={0.2}
                 />
@@ -110,7 +110,7 @@ export default function HomePage() {
                 transition={{ duration: 0.5, delay: 0.8 }}
                 className="mb-8 text-lg text-gray-600 max-w-lg"
               >
-                Join a vibrant ecosystem where crypto enthusiasts and meme lovers connect, engage, and create value together. Earn Success Points for every contribution and redeem them for SKC tokens.
+                Join 5,000+ members in the Success Kid community. Create content, engage with others, and turn your community contributions into real tokens—no technical knowledge required.
               </motion.p>
               
               {/* CTA Buttons with Animation */}
@@ -120,21 +120,27 @@ export default function HomePage() {
                 transition={{ duration: 0.5, delay: 1 }}
                 className="flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0"
               >
-                <Link href="/sign-up">
-                  <Button 
-                    size="lg" 
-                    className="w-full sm:w-auto group relative overflow-hidden"
-                  >
-                    {/* Subtle glow effect on hover */}
-                    <span className="absolute inset-0 bg-gradient-to-r from-primary-400 to-primary-600 opacity-0 group-hover:opacity-100 transition-opacity blur-md" />
-                    <span className="relative">Join Community</span>
-                  </Button>
-                </Link>
-                <Link href="/tokenomics">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                    Explore Tokenomics
-                  </Button>
-                </Link>
+                <Button 
+                  size="lg" 
+                  className="w-full sm:w-auto group relative overflow-hidden"
+                  as={Link}
+                  href="/sign-up"
+                >
+                  {/* Subtle glow effect on hover */}
+                  <span className="absolute inset-0 bg-gradient-to-r from-primary-400 to-primary-600 opacity-0 group-hover:opacity-100 transition-opacity blur-md" />
+                  <span className="relative">Start Earning Now</span>
+                </Button>
+                
+                <Button 
+                  size="lg" 
+                  variant="outline" 
+                  className="w-full sm:w-auto group"
+                  as={Link}
+                  href="/tokenomics"
+                >
+                  <span>See How It Works</span>
+                  <span className="ml-2 group-hover:translate-x-1 transition-transform">→</span>
+                </Button>
               </motion.div>
               
               {/* Social Proof */}
@@ -151,7 +157,7 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
-                <span><strong className="text-primary">3,500+</strong> community members already earning rewards</span>
+                <span><strong className="text-primary">5,000+</strong> community members already earning rewards</span>
               </motion.div>
             </div>
             
@@ -181,7 +187,7 @@ export default function HomePage() {
                 {/* Decorative elements */}
                 {!prefersReducedMotion && (
                   <>
-                    <motion.div
+                    <motion.span
                       animate={{ 
                         y: [0, -15, 0],
                         rotate: [0, 5, 0, -3, 0],
@@ -194,8 +200,8 @@ export default function HomePage() {
                       className="absolute -top-10 -right-10 text-4xl"
                     >
                       🚀
-                    </motion.div>
-                    <motion.div
+                    </motion.span>
+                    <motion.span
                       animate={{ 
                         y: [0, 10, 0],
                         x: [0, 5, 0, -5, 0],
@@ -209,7 +215,7 @@ export default function HomePage() {
                       className="absolute -bottom-5 -left-5 text-4xl"
                     >
                       💰
-                    </motion.div>
+                    </motion.span>
                   </>
                 )}
               </div>
@@ -218,101 +224,614 @@ export default function HomePage() {
         </div>
       </section>
       
-      {/* Feature Section */}
-      <section className="py-24 bg-white">
+      {/* How It Works Section */}
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
+            className="text-center mb-16"
           >
-            <h2 className="mb-2 text-center text-sm font-semibold uppercase tracking-wider text-primary">Platform Benefits</h2>
-            <h3 className="mb-12 text-center text-3xl font-bold text-gray-900">How Success Kid Works</h3>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-primary">Simple Process</h2>
+            <h3 className="mt-2 text-3xl font-bold text-gray-900">How Success Kid Works</h3>
+            <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-600">
+              Earn, convert, and grow with our simple three-step process
+            </p>
           </motion.div>
           
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="rounded-lg border border-gray-200 bg-white p-6 shadow-md"
-            >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-xl text-primary">
-                🏆
-              </div>
-              <h3 className="mb-2 text-xl font-semibold text-gray-900">Success Points</h3>
-              <p className="text-gray-600 mb-4">
-                Earn points for every contribution you make - create content, comment on posts, receive upvotes, and more.
-              </p>
-              <p className="text-sm text-primary font-medium">
-                100 SP = 1 SKC Token
-              </p>
-            </motion.div>
+          <div className="grid md:grid-cols-3 gap-8 relative">
+            {/* Connected steps with progress line */}
+            <div className="hidden md:block absolute top-24 left-0 right-0 h-0.5 bg-primary/20 z-0"></div>
             
+            {/* Step 1 */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="rounded-lg border border-gray-200 bg-white p-6 shadow-md"
+              className="relative z-10"
             >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-xl text-primary">
-                👥
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-md h-full">
+                <div className="flex items-center mb-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-xl text-white font-bold">
+                    1
+                  </div>
+                  <h3 className="ml-4 text-xl font-semibold text-gray-900">Participate & Earn</h3>
+                </div>
+                <p className="text-gray-600 mb-4">
+                  Create content, comment on posts, and engage with the community to earn Success Points (SP).
+                </p>
+                <div className="text-center mt-4">
+                  <span className="text-4xl">🏆</span>
+                </div>
               </div>
-              <h3 className="mb-2 text-xl font-semibold text-gray-900">Vibrant Community</h3>
-              <p className="text-gray-600 mb-4">
-                Connect with fellow members, share ideas, build relationships, and collaborate on creating value together.
-              </p>
-              <p className="text-sm text-primary font-medium">
-                50,000+ active members and growing
-              </p>
             </motion.div>
             
+            {/* Step 2 */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="rounded-lg border border-gray-200 bg-white p-6 shadow-md"
+              className="relative z-10"
             >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-xl text-primary">
-                💰
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-md h-full">
+                <div className="flex items-center mb-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-xl text-white font-bold">
+                    2
+                  </div>
+                  <h3 className="ml-4 text-xl font-semibold text-gray-900">Convert to Tokens</h3>
+                </div>
+                <p className="text-gray-600 mb-4">
+                  Redeem your Success Points for SKC tokens at a rate of 100 SP = 1 SKC.
+                </p>
+                <div className="text-center mt-4">
+                  <span className="text-4xl">💱</span>
+                </div>
               </div>
-              <h3 className="mb-2 text-xl font-semibold text-gray-900">Wallet Integration</h3>
-              <p className="text-gray-600 mb-4">
-                Connect your wallet to track your tokens, enable redemptions, and access exclusive holder features.
-              </p>
-              <p className="text-sm text-primary font-medium">
-                Simple setup in under 30 seconds
-              </p>
+            </motion.div>
+            
+            {/* Step 3 */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="relative z-10"
+            >
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-md h-full">
+                <div className="flex items-center mb-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-xl text-white font-bold">
+                    3
+                  </div>
+                  <h3 className="ml-4 text-xl font-semibold text-gray-900">Grow Your Holdings</h3>
+                </div>
+                <p className="text-gray-600 mb-4">
+                  Hold tokens as they grow in value with our expanding community.
+                </p>
+                <div className="text-center mt-4">
+                  <span className="text-4xl">📈</span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+      
+      {/* Persona Sections */}
+      <section className="py-20 bg-gray-50">
+        <div className="container mx-auto px-4">
+          {/* Crypto Enthusiast (Charlie) Section */}
+          <div className="mb-24">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="text-center mb-12"
+            >
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-primary">For Crypto Enthusiasts</h2>
+              <h3 className="mt-2 text-3xl font-bold text-gray-900">Early Access to a Token with Real Utility</h3>
+            </motion.div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+              >
+                <h4 className="text-2xl font-bold text-gray-900 mb-4">70% Locked, 50% Reserved for YOU</h4>
+                <p className="text-lg text-gray-600 mb-6">
+                  Join a meme coin movement that puts the community first with transparent and fair token distribution.
+                </p>
+                
+                <ul className="space-y-4">
+                  <li className="flex">
+                    <div className="mr-4 h-6 w-6 text-primary flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span>Complete transparency with verifiable smart contracts</span>
+                  </li>
+                  <li className="flex">
+                    <div className="mr-4 h-6 w-6 text-primary flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span>Real utility through community engagement rewards</span>
+                  </li>
+                  <li className="flex">
+                    <div className="mr-4 h-6 w-6 text-primary flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span>Clear market cap milestones with community celebrations</span>
+                  </li>
+                </ul>
+                
+                <div className="mt-8">
+                  <Link href="/sign-up?persona=crypto">
+                    <Button size="lg">
+                      Connect Your Wallet
+                    </Button>
+                  </Link>
+                </div>
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="bg-white rounded-xl p-6 shadow-lg border border-gray-100 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-primary-100 to-primary-50 rounded-bl-full z-0 opacity-50"></div>
+                <h4 className="text-xl font-bold mb-6 relative z-10">Token Distribution</h4>
+                
+                <div className="space-y-4 relative z-10">
+                  <div className="flex justify-between">
+                    <span className="font-medium">Community Rewards</span>
+                    <span className="font-bold text-primary">50%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-4">
+                    <div className="bg-primary h-4 rounded-full" style={{ width: '50%' }}></div>
+                  </div>
+                  
+                  <div className="flex justify-between mt-2">
+                    <span className="font-medium">Development</span>
+                    <span className="font-bold text-primary">20%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-4">
+                    <div className="bg-primary h-4 rounded-full" style={{ width: '20%' }}></div>
+                  </div>
+                  
+                  <div className="flex justify-between mt-2">
+                    <span className="font-medium">Public Sale</span>
+                    <span className="font-bold text-primary">30%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-4">
+                    <div className="bg-primary h-4 rounded-full" style={{ width: '30%' }}></div>
+                  </div>
+                </div>
+                
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg relative z-10">
+                  <h5 className="font-semibold mb-2">Market Cap Milestones</h5>
+                  <div className="flex items-center">
+                    <div className="h-8 flex-grow bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-primary to-primary-600 rounded-full" style={{ width: '40%' }}></div>
+                    </div>
+                    <span className="ml-4 font-semibold">$400K / $1M</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+          
+          {/* Content Creator (Mia) Section */}
+          <div className="mb-24">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="text-center mb-12"
+            >
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-secondary">For Content Creators</h2>
+              <h3 className="mt-2 text-3xl font-bold text-gray-900">Turn Your Creative Skills Into Crypto Rewards</h3>
+            </motion.div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="order-2 lg:order-1 bg-white rounded-xl p-6 shadow-lg border border-gray-100"
+              >
+                <div className="flex items-start space-x-4 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center text-secondary text-xl">
+                    👩
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold">Mia's Creator Journey</h4>
+                    <p className="text-sm text-gray-500">Content Creator, 3 months on platform</p>
+                  </div>
+                </div>
+                
+                <blockquote className="text-gray-600 italic mb-6">
+                  "I've earned over 20,000 Success Points from my content in just three months. The community engagement is incredible, and converting points to tokens has added a new revenue stream to my creative work."
+                </blockquote>
+                
+                <div className="border-t border-gray-100 pt-4 text-sm">
+                  <div className="flex justify-between">
+                    <div>
+                      <span className="text-gray-500">Content Created:</span>
+                      <span className="ml-2 font-medium">47 posts</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Tokens Earned:</span>
+                      <span className="ml-2 font-medium">200+ SKC</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="order-1 lg:order-2"
+              >
+                <h4 className="text-2xl font-bold text-gray-900 mb-4">Get Rewarded for Your Creativity</h4>
+                <p className="text-lg text-gray-600 mb-6">
+                  As a content creator, you're always looking for ways to monetize your creativity. Success Kid rewards your content directly with convertible tokens.
+                </p>
+                
+                <ul className="space-y-4">
+                  <li className="flex">
+                    <div className="mr-4 h-6 w-6 text-secondary flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span>Earn Success Points for every post, meme, or story you share</span>
+                  </li>
+                  <li className="flex">
+                    <div className="mr-4 h-6 w-6 text-secondary flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span>Connect with an engaged community that values quality content</span>
+                  </li>
+                  <li className="flex">
+                    <div className="mr-4 h-6 w-6 text-secondary flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span>Convert your earned points to SKC tokens with real market value</span>
+                  </li>
+                </ul>
+                
+                <div className="mt-8">
+                  <Link href="/sign-up?persona=creator">
+                    <Button size="lg" className="bg-secondary hover:bg-secondary-600 text-black">
+                      Start Creating & Earning
+                    </Button>
+                  </Link>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+          
+          {/* Casual Participant (Chris) Section */}
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="text-center mb-12"
+            >
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-accent">For Crypto Newcomers</h2>
+              <h3 className="mt-2 text-3xl font-bold text-gray-900">No Technical Knowledge Required</h3>
+            </motion.div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+              >
+                <h4 className="text-2xl font-bold text-gray-900 mb-4">Start Your Crypto Journey the Easy Way</h4>
+                <p className="text-lg text-gray-600 mb-6">
+                  New to crypto? No problem. Success Kid makes it easy to participate in a blockchain project without the technical complexity.
+                </p>
+                
+                <ul className="space-y-4">
+                  <li className="flex">
+                    <div className="mr-4 h-6 w-6 text-accent flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span>Simple signup with email - no wallet required to start earning</span>
+                  </li>
+                  <li className="flex">
+                    <div className="mr-4 h-6 w-6 text-accent flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span>Learn crypto concepts gradually as you participate</span>
+                  </li>
+                  <li className="flex">
+                    <div className="mr-4 h-6 w-6 text-accent flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <span>Connect a wallet at your own pace when you're ready</span>
+                  </li>
+                </ul>
+                
+                <div className="mt-8">
+                  <Link href="/sign-up?persona=casual">
+                    <Button size="lg" className="bg-accent hover:bg-accent-600">
+                      Join Without a Wallet
+                    </Button>
+                  </Link>
+                </div>
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="bg-white rounded-xl p-6 shadow-lg border border-gray-100 relative overflow-hidden"
+              >
+                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-gradient-to-tl from-accent-100 to-accent-50 rounded-tl-full z-0 opacity-50"></div>
+                
+                <h4 className="text-xl font-bold mb-6 relative z-10">Get Started in 3 Easy Steps</h4>
+                
+                <div className="space-y-6 relative z-10">
+                  <div className="flex">
+                    <div className="mr-4 h-8 w-8 rounded-full bg-accent text-white flex items-center justify-center font-bold">
+                      1
+                    </div>
+                    <div>
+                      <h5 className="font-semibold">Create Your Account</h5>
+                      <p className="text-sm text-gray-600">Sign up with your email in less than a minute</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex">
+                    <div className="mr-4 h-8 w-8 rounded-full bg-accent text-white flex items-center justify-center font-bold">
+                      2
+                    </div>
+                    <div>
+                      <h5 className="font-semibold">Join the Community</h5>
+                      <p className="text-sm text-gray-600">Create content and engage with other members</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex">
+                    <div className="mr-4 h-8 w-8 rounded-full bg-accent text-white flex items-center justify-center font-bold">
+                      3
+                    </div>
+                    <div>
+                      <h5 className="font-semibold">Earn Success Points</h5>
+                      <p className="text-sm text-gray-600">Watch your points grow with every contribution</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg relative z-10">
+                  <p className="font-medium text-center text-gray-700">
+                    Optional: Connect a wallet anytime to unlock token redemption
+                  </p>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      {/* Community Showcase Section */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-primary">Vibrant Community</h2>
+            <h3 className="mt-2 text-3xl font-bold text-gray-900">Join Our Growing Success Kid Family</h3>
+            <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-600">
+              Be part of a community that creates, collaborates, and celebrates success together
+            </p>
+          </motion.div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Community Stats */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="bg-gray-50 rounded-xl p-6 shadow-sm border border-gray-100"
+            >
+              <h4 className="text-xl font-semibold mb-6">Community Activity</h4>
+              <div className="space-y-6">
+                <div className="flex items-center">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl mr-4">
+                    👥
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold">5,000+</div>
+                    <div className="text-gray-600">Active Members</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl mr-4">
+                    📝
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold">250+</div>
+                    <div className="text-gray-600">Daily Posts</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl mr-4">
+                    🏆
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold">125,000+</div>
+                    <div className="text-gray-600">SP Earned Today</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl mr-4">
+                    💰
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold">3,200+</div>
+                    <div className="text-gray-600">Token Holders</div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+            
+            {/* Testimonials */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="lg:col-span-2"
+            >
+              <div className="bg-gray-50 rounded-xl p-6 shadow-sm border border-gray-100 h-full">
+                <h4 className="text-xl font-semibold mb-6">What Our Members Say</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white p-4 rounded-lg shadow-sm">
+                    <div className="flex items-start space-x-4 mb-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                        👨
+                      </div>
+                      <div>
+                        <div className="font-semibold">Alex K.</div>
+                        <div className="text-sm text-gray-500">Crypto Enthusiast</div>
+                      </div>
+                    </div>
+                    <p className="text-gray-600 italic">
+                      "I've earned over 10,000 SP in just my first month. The community is incredibly supportive and the token fundamentals are solid!"
+                    </p>
+                  </div>
+                  
+                  <div className="bg-white p-4 rounded-lg shadow-sm">
+                    <div className="flex items-start space-x-4 mb-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                        👩
+                      </div>
+                      <div>
+                        <div className="font-semibold">Sarah M.</div>
+                        <div className="text-sm text-gray-500">New Member</div>
+                      </div>
+                    </div>
+                    <p className="text-gray-600 italic">
+                      "As someone new to crypto, Success Kid made it easy for me to get started and earn real rewards. The step-by-step guidance was fantastic."
+                    </p>
+                  </div>
+                  
+                  <div className="bg-white p-4 rounded-lg shadow-sm">
+                    <div className="flex items-start space-x-4 mb-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                        👨
+                      </div>
+                      <div>
+                        <div className="font-semibold">Ryan T.</div>
+                        <div className="text-sm text-gray-500">Content Creator</div>
+                      </div>
+                    </div>
+                    <p className="text-gray-600 italic">
+                      "My memes and posts get way more engagement here than on traditional social media, plus I get rewarded with tokens. Win-win!"
+                    </p>
+                  </div>
+                  
+                  <div className="bg-white p-4 rounded-lg shadow-sm">
+                    <div className="flex items-start space-x-4 mb-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                        👩
+                      </div>
+                      <div>
+                        <div className="font-semibold">Jamie L.</div>
+                        <div className="text-sm text-gray-500">Moderator</div>
+                      </div>
+                    </div>
+                    <p className="text-gray-600 italic">
+                      "What makes this community special is how we all contribute to each other's success. It's not just about the token - it's about the people."
+                    </p>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           </div>
         </div>
       </section>
       
       {/* CTA Section */}
-      <section className="bg-primary/5 py-16">
-        <div className="container mx-auto px-4 text-center">
+      <section className="bg-gradient-to-br from-primary-500 to-primary-700 py-20 relative overflow-hidden">
+        {/* Background patterns */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white"></div>
+          <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-white"></div>
+        </div>
+        
+        <div className="container relative z-10 mx-auto px-4 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <h2 className="mb-6 text-3xl font-bold text-gray-900">
-              Ready to join the Success Kid community?
+            <h2 className="mb-6 text-3xl font-bold text-white">
+              Clench Your Fist, Claim Your Success Today!
             </h2>
-            <p className="mx-auto mb-8 max-w-2xl text-lg text-gray-600">
-              Create your account, set up your profile, and start earning rewards today.
+            <p className="mx-auto mb-8 max-w-2xl text-lg text-white/90">
+              Join over 5,000 members already earning Success Points and converting them to valuable SKC tokens. Takes less than 2 minutes to get started.
             </p>
-            <Link href="/sign-up">
-              <Button size="lg" className="relative overflow-hidden group">
-                <span className="absolute inset-0 bg-gradient-to-r from-primary-400 to-primary-600 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-md"></span>
-                <span className="relative">Get Started Now</span>
-              </Button>
-            </Link>
+            
+            <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+              <Link href="/sign-up">
+                <Button size="lg" className="bg-white text-primary-700 hover:bg-white/90 w-full sm:w-auto">
+                  Create Free Account
+                </Button>
+              </Link>
+              <Link href="/about">
+                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10 w-full sm:w-auto">
+                  Learn More First
+                </Button>
+              </Link>
+            </div>
+            
+            <p className="mt-6 text-sm text-white/80">
+              No credit card required. No technical knowledge needed.
+            </p>
           </motion.div>
         </div>
       </section>

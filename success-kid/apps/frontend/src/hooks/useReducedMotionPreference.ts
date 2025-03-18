@@ -1,37 +1,52 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 
 /**
- * Custom hook to detect if user prefers reduced motion
- * This is used to disable or reduce animations for users who have this preference
+ * Hook that detects if the user prefers reduced motion
+ * Follows accessibility guidelines to respect user preferences
  * 
- * @returns {boolean} True if user prefers reduced motion, false otherwise
+ * @returns Boolean indicating if reduced motion is preferred
  */
 export function useReducedMotionPreference(): boolean {
-  // Default to false server-side or during initial rendering
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
+  // Default to false but will check for media query match
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
+  
   useEffect(() => {
-    // Check for the media query support
+    // Check if window is available (client-side)
+    if (typeof window === 'undefined') return;
+    
+    // Create media query list to detect user preference
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     
-    // Set initial value
+    // Set initial value based on current state
     setPrefersReducedMotion(mediaQuery.matches);
     
-    // Create event handler
-    const handleChange = (event: MediaQueryListEvent) => {
+    // Create event listener callback
+    const onChange = (event: MediaQueryListEvent) => {
       setPrefersReducedMotion(event.matches);
     };
     
-    // Add listener for changes in preference
-    mediaQuery.addEventListener('change', handleChange);
+    // Add event listener for changes in preference
+    // Use the correct method based on browser support
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', onChange);
+    } else {
+      // Older browsers support the deprecated addListener method
+      // @ts-ignore - for backwards compatibility
+      mediaQuery.addListener(onChange);
+    }
     
-    // Clean up
+    // Clean up event listener on unmount
     return () => {
-      mediaQuery.removeEventListener('change', handleChange);
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', onChange);
+      } else {
+        // @ts-ignore - for backwards compatibility
+        mediaQuery.removeListener(onChange);
+      }
     };
   }, []);
-
+  
   return prefersReducedMotion;
 }
+
+export default useReducedMotionPreference;

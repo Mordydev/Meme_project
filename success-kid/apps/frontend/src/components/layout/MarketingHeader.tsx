@@ -9,10 +9,8 @@ import tokens from '@/theme/tokens';
 
 const navLinks = [
   { name: 'Home', href: '/' },
-  { name: 'Features', href: '/features' },
-  { name: 'Metrics', href: '/metrics' },
   { name: 'About', href: '/about' },
-  { name: 'Tokenomics', href: '/tokenomics' },
+  { name: 'Market', href: '/tokenomics' }, // Keeping the same URL for now, rename page later
   { name: 'FAQ', href: '/faq' },
   { name: 'Community', href: '/community' },
 ];
@@ -45,17 +43,17 @@ export function MarketingHeader() {
 
   return (
     <header 
-      className={`sticky top-0 z-40 w-full transition-colors duration-300 ${
+      className={`sticky top-0 z-40 w-full transition-all duration-300 ${
         isScrolled 
-          ? 'bg-white shadow-sm dark:bg-gray-900 dark:border-b dark:border-gray-800' 
+          ? 'bg-white/90 backdrop-blur-md shadow-sm dark:bg-gray-900/90 dark:border-b dark:border-gray-800' 
           : 'bg-transparent dark:bg-transparent'
       }`}
     >
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="text-2xl font-bold text-primary">Success Kid</span>
+          <Link href="/" className="flex items-center space-x-2 group">
+            <span className="text-2xl font-bold text-primary group-hover:text-primary-600 transition-colors">Success Kid</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -67,7 +65,7 @@ export function MarketingHeader() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`relative font-medium text-sm transition-colors ${
+                  className={`relative font-medium text-sm transition-colors hover:scale-105 ${
                     isActive
                       ? 'text-primary-700 dark:text-primary-400'
                       : 'text-gray-700 hover:text-primary-600 dark:text-gray-300 dark:hover:text-primary-400'
@@ -76,7 +74,7 @@ export function MarketingHeader() {
                   {link.name}
                   {isActive && (
                     <motion.div
-                      className="absolute -bottom-1.5 left-0 right-0 h-0.5 bg-primary"
+                      className="absolute -bottom-1.5 left-0 right-0 h-0.5 bg-gradient-to-r from-primary to-primary-600"
                       layoutId="activeNavIndicator"
                       transition={{ 
                         type: "spring", 
@@ -91,12 +89,15 @@ export function MarketingHeader() {
           </nav>
 
           {/* Auth Buttons */}
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-4 ml-4">
             <Link href="/sign-in">
-              <Button variant="outline">Sign In</Button>
+              <Button variant="outline" className="hover:scale-105 transition-transform">Sign In</Button>
             </Link>
             <Link href="/sign-up">
-              <Button>Join Now</Button>
+              <Button className="relative overflow-hidden group hover:scale-105 transition-transform">
+                <span className="absolute inset-0 bg-gradient-to-r from-primary-400 to-primary-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-md"></span>
+                <span className="relative">Join Now</span>
+              </Button>
             </Link>
           </div>
 
@@ -136,10 +137,10 @@ export function MarketingHeader() {
             transition={{ duration: 0.2 }}
           >
             <div className="container mx-auto h-full flex flex-col">
-              <div className="flex items-center justify-between h-16 px-4">
-                <Link href="/" className="flex items-center space-x-2">
-                  <span className="text-2xl font-bold text-primary">Success Kid</span>
-                </Link>
+            <div className="flex items-center justify-between h-16 px-4">
+            <Link href="/" className="flex items-center space-x-2 group">
+            <span className="text-2xl font-bold text-primary group-hover:text-primary-600 transition-colors">Success Kid</span>
+            </Link>
                 <button
                   className="p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -186,10 +187,13 @@ export function MarketingHeader() {
               <div className="px-4 py-8 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex flex-col space-y-4">
                   <Link href="/sign-in" className="w-full">
-                    <Button variant="outline" className="w-full">Sign In</Button>
+                    <Button variant="outline" className="w-full hover:scale-102 transition-transform">Sign In</Button>
                   </Link>
                   <Link href="/sign-up" className="w-full">
-                    <Button className="w-full">Join Now</Button>
+                    <Button className="w-full relative overflow-hidden group">
+                    <span className="absolute inset-0 bg-gradient-to-r from-primary-400 to-primary-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-md"></span>
+                    <span className="relative">Join Now</span>
+                  </Button>
                   </Link>
                 </div>
               </div>

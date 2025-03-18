@@ -1,20 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Enable SWC minification instead of Terser for faster builds and smaller bundles
-  swcMinify: true,
+  // SWC minification is now enabled by default
+  // swcMinify: true, // Removing deprecated option
   // Enable experimental features
   experimental: {
-    // Enable server components feature
-    serverComponentsExternalPackages: ['@prisma/client'],
+    // Updated to packageJsonResolution from serverExternalPackages/serverComponentsExternalPackages
+    // serverExternalPackages: ['@prisma/client'], // This option is deprecated in Next.js 15+
     // Enable server actions with larger body size limit for content uploads
     serverActions: {
       bodySizeLimit: '2mb',
     },
     // Enable optimistic updates for server actions
     optimisticClientCache: true,
-    // Enable streaming SSR for improved TTFB and user experience
-    streaming: true,
+    // Experimental View Transitions support
+    viewTransition: true,
   },
   // Configure image optimization
   images: {
@@ -39,11 +39,11 @@ const nextConfig = {
         // Apply to all routes
         source: '/:path*',
         headers: [
-          // Enable HTTP/2 Server Push
-          {
-            key: 'Link',
-            value: '</fonts/inter.woff2>; rel=preload; as=font; crossorigin=anonymous',
-          },
+        // Enable HTTP/2 Server Push - removing this to resolve font loading issues
+        // {
+        //  key: 'Link',
+        //  value: '</fonts/inter.woff2>; rel=preload; as=font; crossorigin=anonymous',
+        // },
           // Improve security
           {
             key: 'X-DNS-Prefetch-Control',
@@ -169,8 +169,8 @@ const nextConfig = {
     
     return config;
   },
-  // Configure runtime options
-  runtime: 'nodejs',
+  // runtime option is now deprecated
+  // runtime: 'nodejs', // Removing deprecated option
   // Configure production monitoring
   productionBrowserSourceMaps: process.env.NODE_ENV === 'production' && process.env.SOURCE_MAPS === 'true',
   // Configure environment variables
@@ -192,7 +192,6 @@ const nextConfig = {
   },
   // Configure powered by header
   poweredByHeader: false,
-  serverExternalPackages: [],
 };
 
 module.exports = nextConfig;

@@ -1,0 +1,49 @@
+// This file contains the corrected configurations for route registration
+// Fix for featuresRoutes
+app.register(featuresRoutes, { 
+  prefix: '/api/v1/features',
+  onRequest: createCacheMiddleware({ ttl: 3600 }) // 1 hour cache for features
+});
+
+// Fix for contentRoutes
+app.register(contentRoutes, { 
+  prefix: '/api/v1/content',
+  onRequest: createContentCacheMiddleware(60) // 1 minute cache for content
+});
+
+// Fix for mediaRoutes
+app.register(mediaRoutes, { 
+  prefix: '/api/v1/media',
+  onRequest: createCacheMiddleware({ ttl: 86400 }) // 24 hours cache for media
+});
+
+// Fix for marketRoutes
+app.register(marketRoutes, { 
+  prefix: '/api/v1/market',
+  onRequest: createMarketDataCacheMiddleware(30) // 30 seconds cache for market data
+});
+
+// Fix for activityRoutes
+app.register(activityRoutes, { 
+  prefix: '/api/v1/activity',
+  onRequest: createCacheMiddleware({ ttl: 60 }) // 1 minute cache for activity
+});
+
+// Fix for forumRoutes
+app.register(forumRoutes, { 
+  prefix: '/api/v1/forum',
+  onRequest: createCacheMiddleware({ ttl: 120 }) // 2 minutes cache for forum
+});
+
+// Note: For these changes to work correctly, the middleware functions should be
+// modified to return a hook function rather than a middleware function.
+// If the middleware functions expect to be used as preHandlers, you can also use:
+
+/*
+app.register(featuresRoutes, { 
+  prefix: '/api/v1/features',
+  hooks: {
+    onRequest: [createCacheMiddleware({ ttl: 3600 })]
+  }
+});
+*/

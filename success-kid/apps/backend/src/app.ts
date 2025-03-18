@@ -252,7 +252,9 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   
   app.register(featuresRoutes, { 
     prefix: '/api/v1/features',
-    preHandler: createCacheMiddleware({ ttl: 3600 }) // 1 hour cache for features
+    hooks: {
+      onRequest: [createCacheMiddleware({ ttl: 3600 })] // 1 hour cache for features
+    }
   });
   
   app.register(pointsRoutes, { 
@@ -262,17 +264,23 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   
   app.register(contentRoutes, { 
     prefix: '/api/v1/content',
-    preHandler: createContentCacheMiddleware(60) // 1 minute cache for content
+    hooks: {
+      onRequest: [createContentCacheMiddleware(60)] // 1 minute cache for content
+    }
   });
   
   app.register(mediaRoutes, { 
     prefix: '/api/v1/media',
-    preHandler: createCacheMiddleware({ ttl: 86400 }) // 24 hours cache for media
+    hooks: {
+      onRequest: [createCacheMiddleware({ ttl: 86400 })] // 24 hours cache for media
+    }
   });
   
   app.register(marketRoutes, { 
     prefix: '/api/v1/market',
-    preHandler: createMarketDataCacheMiddleware(30) // 30 seconds cache for market data
+    hooks: {
+      onRequest: [createMarketDataCacheMiddleware(30)] // 30 seconds cache for market data
+    }
   });
   
   app.register(achievementRoutes, { 
@@ -287,7 +295,9 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   
   app.register(activityRoutes, { 
     prefix: '/api/v1/activity',
-    preHandler: createCacheMiddleware({ ttl: 60 }) // 1 minute cache for activity
+    hooks: {
+      onRequest: [createCacheMiddleware({ ttl: 60 })] // 1 minute cache for activity
+    }
   });
   
   app.register(presenceRoutes, { 
@@ -307,7 +317,9 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   
   app.register(forumRoutes, { 
     prefix: '/api/v1/forum',
-    preHandler: createCacheMiddleware({ ttl: 120 }) // 2 minutes cache for forum
+    hooks: {
+      onRequest: [createCacheMiddleware({ ttl: 120 })] // 2 minutes cache for forum
+    }
   });
 
   // Register authentication and user management

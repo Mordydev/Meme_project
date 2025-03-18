@@ -1,7 +1,7 @@
 import './globals.css';
 import { Providers } from '@/components/providers/Providers';
 import { Inter } from 'next/font/google';
-import { Metadata } from 'next';
+import { Metadata, Viewport } from 'next';
 
 // Initialize Inter font
 const inter = Inter({
@@ -16,12 +16,17 @@ export const metadata: Metadata = {
     default: 'Success Kid Platform',
   },
   description: 'A vibrant ecosystem for crypto enthusiasts and meme lovers',
-  viewport: 'width=device-width, initial-scale=1',
   robots: {
     index: true,
     follow: true,
   },
 };
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 
 export default function RootLayout({
   children,

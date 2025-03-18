@@ -18,6 +18,7 @@ export interface DbHealthCheckResult {
   replicationLag?: number;
   details?: Record<string, any>;
   error?: string;
+  connections?: number;
 }
 
 /**

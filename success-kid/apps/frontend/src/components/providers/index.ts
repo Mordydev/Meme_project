@@ -1,10 +1,2 @@
-/**
- * Provider exports
- * 
- * This file exports all provider components for easier imports.
- */
-
-export * from './providers';
-export * from './WebSocketProvider';
-export * from './NavigationProvider';
-export * from './NotificationProvider';
+export * from './Providers';
+export * from './AuthProvider';
