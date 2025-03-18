@@ -1,18 +1,10 @@
-import pino from 'pino';
+/**
+ * Logger export file
+ * 
+ * This file provides a simple export of the logger for backward compatibility.
+ * New code should use the more comprehensive logging system in lib/logging.
+ */
+import { logger as structuredLogger } from './logging/logger';
 
-// Create a logger instance with appropriate log level based on environment
-const logLevel = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
-
-export const logger = pino({
-  level: logLevel,
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-    },
-  },
-  base: {
-    pid: false,
-  },
-  timestamp: () => `,"time":"${new Date().toISOString()}"`,
-});
+export { logger as default } from './logging/logger';
+export const logger = structuredLogger;

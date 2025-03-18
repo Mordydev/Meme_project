@@ -9,6 +9,8 @@ export * from './metrics';
 export * from './alerts';
 export * from './health';
 export * from './dashboards';
+export * from './error-tracking';
+export * from './service';
 
 // Default export for convenient imports
 export default {
@@ -16,4 +18,6 @@ export default {
   alerts: require('./alerts').default,
   health: require('./health').default,
   dashboards: require('./dashboards').default,
+  errorTracking: require('./error-tracking').default,
+  service: require('./service').monitoringService,
 };

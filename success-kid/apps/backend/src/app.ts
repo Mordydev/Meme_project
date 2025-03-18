@@ -4,10 +4,15 @@ import cors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import { logger } from './lib/logger';
-import { handleApiError } from './errors';
+import { logger } from './lib/logging/logger';
+import { handleApiError, setupGlobalErrorHandlers } from './errors/handlers';
 import { env } from './config';
-import { setupMonitoring } from './health/monitoring';
+import { monitoringService } from './monitoring/service';
+import { setupMetrics } from './monitoring/metrics';
+import { setupAlerts, defaultAlertRules } from './monitoring/alerts';
+import { setupHealthChecks, createDatabaseHealthCheck, createRedisHealthCheck } from './monitoring/health';
+import { setupErrorTracking } from './monitoring/error-tracking';
+import { registerLoggingMiddleware } from './middleware/logging-middleware';
 import { securityService } from './security/framework/service';
 import { registerTransactionVerification } from './middleware/transaction-verification';
 import { registerResponseFormatter } from './middleware/response-formatter';
@@ -20,6 +25,7 @@ import jobsPlugin from './plugins/jobs';
 import forumPlugin from './plugins/forum';
 import websocketPlugin, { initializeWebSocketEvents } from './websockets';
 import { getDatabase, schedulePerformanceMonitoring } from './database';
+import { getRedisClient } from './lib/redis-client';
 import { initializeWalletModule } from './wallet';
 import { 
   createCacheMiddleware, 
@@ -54,22 +60,15 @@ const rateLimitConfig = {
 };
 
 export async function buildApp(options = {}): Promise<FastifyInstance> {
+  // Set up global error handlers for uncaught exceptions and unhandled rejections
+  setupGlobalErrorHandlers();
+  
   // Create Fastify instance with logging
   const app = Fastify({
-    logger: {
-      level: env.NODE_ENV === 'production' ? 'info' : 'debug',
-      transport: env.NODE_ENV !== 'production' ? {
-        target: 'pino-pretty',
-        options: {
-          translateTime: 'HH:MM:ss Z',
-          ignore: 'pid,hostname',
-          colorize: true,
-        },
-      } : undefined,
-    },
+    logger: false, // Disable default Fastify logger, we'll use our own
     trustProxy: true, // Trust X-Forwarded-For header for client IP
     // Performance optimizations
-    disableRequestLogging: env.NODE_ENV === 'production', // Reduce overhead in production
+    disableRequestLogging: true, // We'll use our own request logging middleware
     connectionTimeout: 30000, // 30s connection timeout
     keepAliveTimeout: 5000, // 5s keep-alive
     maxParamLength: 100, // Limit param length for security
@@ -114,6 +113,19 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
     max: rateLimitConfig.max,
     timeWindow: rateLimitConfig.timeWindow,
     allowList: rateLimitConfig.allowList,
+    onRateLimit: (request, reply) => {
+      // Log rate limit exceeded events
+      logger.warn('Rate limit exceeded', {
+        ip: request.ip,
+        method: request.method,
+        url: request.url,
+      });
+      
+      monitoringService.recordMetric('ratelimit.exceeded', 1, {
+        method: request.method,
+        path: request.routerPath || 'unknown',
+      });
+    },
   });
 
   // Register WebSocket support
@@ -141,12 +153,50 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   // Register forum plugin
   await app.register(forumPlugin);
 
+  // Register logging middleware (must come before other middleware)
+  registerLoggingMiddleware(app);
+
+  // Set up monitoring and observability
+  const db = getDatabase().pool;
+  const redis = getRedisClient();
+  
+  // Set up Prometheus metrics
+  setupMetrics(app, {
+    defaultLabels: {
+      app: 'success-kid-api',
+      environment: process.env.NODE_ENV || 'development',
+      version: process.env.APP_VERSION || '1.0.0',
+    },
+    enableDefaultMetrics: true,
+  });
+  
+  // Set up health checks
+  setupHealthChecks(app, {
+    checks: [
+      createDatabaseHealthCheck(db),
+      createRedisHealthCheck(redis),
+      // Other health checks can be added here
+    ],
+  });
+  
+  // Set up alerting
+  setupAlerts(app, monitoringService, {
+    initialRules: defaultAlertRules,
+    checkIntervalMs: 15000, // Check alerts every 15 seconds
+  });
+  
+  // Set up error tracking
+  setupErrorTracking(app, {
+    endpoint: '/admin/errors' // Admin-only endpoint for error tracking
+  });
+
   // Register standardized middleware
   registerResponseFormatter(app, {
     wrapAll: false, // Only wrap responses that aren't already in the standard format
     metaGenerator: (request) => ({
       // Add any additional metadata here
       path: request.url,
+      requestId: request.id,
     })
   });
   
@@ -161,11 +211,7 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   
   registerErrorHandler(app);
 
-  // Setup monitoring
-  setupMonitoring(app);
-
   // Initialize database monitoring
-  const db = getDatabase().pool;
   // Schedule database performance monitoring every 5 minutes
   schedulePerformanceMonitoring(db, 300000);
 
@@ -186,22 +232,12 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
       const [seconds, nanoseconds] = process.hrtime(request.locals.startTime);
       const responseTimeMs = (seconds * 1000) + (nanoseconds / 1000000);
       
-      // Log slow responses (>200ms)
-      if (responseTimeMs > 200) {
-        logger.warn(`Slow response detected`, {
-          method: request.method,
-          url: request.url,
-          responseTime: responseTimeMs,
-          statusCode: reply.statusCode
-        });
-      } else {
-        logger.debug(`Response time`, {
-          method: request.method,
-          url: request.url,
-          responseTime: responseTimeMs,
-          statusCode: reply.statusCode
-        });
-      }
+      // Record metrics
+      monitoringService.recordMetric('http.response_time', responseTimeMs, {
+        method: request.method,
+        route: request.routerPath || request.url,
+        status: reply.statusCode.toString(),
+      });
       
       // Send response time as header if not in production
       if (env.NODE_ENV !== 'production') {
@@ -300,6 +336,12 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
 
   // Add 404 handler
   app.setNotFoundHandler((request, reply) => {
+    // Record metric for 404 errors
+    monitoringService.recordMetric('http.not_found', 1, {
+      method: request.method,
+      path: request.url,
+    });
+    
     reply.code(404).send({
       data: null,
       meta: {
@@ -324,6 +366,12 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
     try {
       await warmCache();
       logger.info('Cache warming completed');
+      
+      // Record application start metric
+      monitoringService.recordMetric('app.start', 1, { 
+        version: process.env.APP_VERSION || '1.0.0',
+        environment: process.env.NODE_ENV || 'development'
+      });
     } catch (error) {
       logger.error('Failed to warm cache', {
         error: error instanceof Error ? error.message : String(error)

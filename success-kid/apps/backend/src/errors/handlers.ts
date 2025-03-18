@@ -3,10 +3,14 @@
  * 
  * Centralized error handling for application components
  */
+import { FastifyReply, FastifyRequest } from 'fastify';
 import { WebSocket } from 'ws';
-import { logger } from '../lib/logger';
-import { monitoringService } from '../monitoring/service';
+import { logger } from '@/lib/logger';
+import { monitoringService } from '@/monitoring/service';
 import { WebSocketEventType } from '@success-kid/api-types';
+import { serializeError, serializeUnknownError, serializeValidationError } from './serializers';
+import { errorTrackingService, extractErrorContextFromRequest } from '@/monitoring/error-tracking';
+import { AppError } from './base-error';
 
 /**
  * Error classification types
@@ -48,35 +52,65 @@ export enum ErrorCode {
 }
 
 /**
- * Application error base class
+ * Handle API errors and format consistent responses
+ * 
+ * @param request Fastify request
+ * @param reply Fastify reply
+ * @param error Error that occurred
+ * @returns Fastify reply with formatted error response
  */
-export class AppError extends Error {
-  public readonly category: ErrorCategory;
-  public readonly code: ErrorCode;
-  public readonly statusCode: number;
-  public readonly details?: any;
-  public readonly isOperational: boolean;
-  
-  constructor(
-    message: string,
-    category: ErrorCategory = ErrorCategory.UNKNOWN,
-    code: ErrorCode = ErrorCode.UNKNOWN_ERROR,
-    statusCode: number = 500,
-    details?: any,
-    isOperational: boolean = true
-  ) {
-    super(message);
-    this.name = this.constructor.name;
-    this.category = category;
-    this.code = code;
-    this.statusCode = statusCode;
-    this.details = details;
-    this.isOperational = isOperational;
+export async function handleApiError(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  error: any
+): Promise<FastifyReply> {
+  try {
+    // Track error with context
+    const errorContext = extractErrorContextFromRequest(request);
+    errorTrackingService.captureError(error, errorContext);
     
-    // Maintain proper stack trace (V8 engines)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, this.constructor);
+    // Handle Fastify validation errors
+    if (error.validation) {
+      const response = serializeValidationError(error.validation, request.id);
+      return reply.code(400).send(response);
     }
+    
+    // Handle AppError with standardized format
+    if (error instanceof AppError) {
+      const response = serializeError(error, request.id);
+      return reply.code(error.statusCode).send(response);
+    }
+    
+    // Handle unknown errors
+    const statusCode = error.statusCode || error.status || 500;
+    const response = serializeUnknownError(error, request.id);
+    
+    // Record error metrics
+    monitoringService.recordMetric('http.errors', 1, {
+      method: request.method,
+      route: request.routerPath || request.url,
+      status: String(statusCode)
+    });
+    
+    return reply.code(statusCode).send(response);
+  } catch (handlingError) {
+    // Last resort error handling if error handler itself fails
+    logger.error('Error in error handler', { 
+      originalError: error,
+      handlingError
+    });
+    
+    return reply.code(500).send({
+      data: null,
+      meta: {
+        timestamp: new Date().toISOString(),
+        requestId: request.id
+      },
+      errors: [{
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred while processing your request'
+      }]
+    });
   }
 }
 
@@ -91,12 +125,14 @@ export class WebSocketError extends AppError {
   ) {
     super(
       message,
-      ErrorCategory.WEBSOCKET,
       code,
       500,
-      details,
-      true
+      details
     );
+    
+    this.name = 'WebSocketError';
+    // Ensure prototype chain is properly maintained
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
@@ -114,8 +150,17 @@ export function handleWebSocketError(socket: WebSocket, error: any): void {
     // Log the error
     logger.error('WebSocket error', { 
       error: normalizedError,
-      connectionId: socket.connectionId,
-      userId: socket.userId
+      connectionId: (socket as any).connectionId,
+      userId: (socket as any).userId
+    });
+    
+    // Track error
+    errorTrackingService.captureError(error, {
+      userId: (socket as any).userId,
+      component: 'WebSocket',
+      metadata: {
+        connectionId: (socket as any).connectionId
+      }
     });
     
     // Only send error response if socket is still open
@@ -174,7 +219,7 @@ export function handleWebSocketError(socket: WebSocket, error: any): void {
 export function normalizeError(error: any): {
   message: string;
   category: ErrorCategory;
-  code: ErrorCode;
+  code: ErrorCode | string;
   details?: any;
   isOperational: boolean;
 } {
@@ -182,10 +227,10 @@ export function normalizeError(error: any): {
   if (error instanceof AppError) {
     return {
       message: error.message,
-      category: error.category,
-      code: error.code,
+      category: inferErrorCategory(error),
+      code: error.code as ErrorCode,
       details: error.details,
-      isOperational: error.isOperational
+      isOperational: true
     };
   }
   
@@ -226,7 +271,12 @@ export function normalizeError(error: any): {
  * @param error Error object
  * @returns Error category
  */
-function inferErrorCategory(error: Error): ErrorCategory {
+export function inferErrorCategory(error: Error | AppError): ErrorCategory {
+  // Use existing category if available
+  if ('category' in error && error.category) {
+    return error.category;
+  }
+  
   const message = error.message.toLowerCase();
   const name = error.name.toLowerCase();
   
@@ -267,7 +317,7 @@ function inferErrorCategory(error: Error): ErrorCategory {
  * @param error Error object
  * @returns Error code
  */
-function inferErrorCode(error: Error): ErrorCode {
+export function inferErrorCode(error: Error): ErrorCode {
   const message = error.message.toLowerCase();
   
   if (message.includes('invalid')) {
@@ -329,7 +379,7 @@ function inferErrorCode(error: Error): ErrorCode {
  */
 function getCloseCodeForError(error: {
   category: ErrorCategory;
-  code: ErrorCode;
+  code: ErrorCode | string;
 }): number {
   switch (error.category) {
     case ErrorCategory.AUTHENTICATION:
@@ -356,4 +406,68 @@ function getCloseCodeForError(error: {
     default:
       return 1000; // Normal closure
   }
+}
+
+/**
+ * Create a global error handler for Node.js uncaught errors
+ */
+export function setupGlobalErrorHandlers(): void {
+  // Handle uncaught exceptions
+  process.on('uncaughtException', (error) => {
+    try {
+      logger.error('Uncaught exception', { error });
+      
+      // Track error
+      errorTrackingService.captureError(error, {
+        component: 'Node.js Process',
+        tags: {
+          type: 'uncaughtException'
+        }
+      });
+      
+      // Record metric
+      monitoringService.recordMetric('process.uncaught_exception', 1);
+    } catch (handlingError) {
+      // Last resort logging if error tracking fails
+      console.error('CRITICAL: Error handling uncaught exception', handlingError);
+      console.error('Original error:', error);
+    }
+    
+    // For uncaught exceptions, we should exit the process
+    // as the state may be corrupted
+    if (process.env.NODE_ENV === 'production') {
+      // Allow time for logging before exit
+      setTimeout(() => {
+        process.exit(1);
+      }, 1000);
+    }
+  });
+  
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    try {
+      logger.error('Unhandled promise rejection', { reason });
+      
+      // Track error
+      errorTrackingService.captureError(
+        reason instanceof Error ? reason : new Error(String(reason)),
+        {
+          component: 'Node.js Process',
+          tags: {
+            type: 'unhandledRejection'
+          }
+        }
+      );
+      
+      // Record metric
+      monitoringService.recordMetric('process.unhandled_rejection', 1);
+    } catch (handlingError) {
+      // Last resort logging if error tracking fails
+      console.error('CRITICAL: Error handling unhandled rejection', handlingError);
+      console.error('Original reason:', reason);
+    }
+    
+    // We don't exit the process for unhandled rejections
+    // as they may be handled later and are less likely to corrupt state
+  });
 }
