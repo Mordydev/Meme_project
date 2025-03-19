@@ -4,15 +4,15 @@ import { cn } from '@/lib/utils';
 
 // Button variants following the design system from the Frontend Guidelines
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300 disabled:pointer-events-none disabled:opacity-50 shadow-sm transition-shadow",
   {
     variants: {
       variant: {
-        primary: "bg-primary text-white hover:bg-primary-600 active:bg-primary-700",
-        secondary: "bg-secondary text-black hover:bg-secondary-600 active:bg-secondary-700",
+        primary: "bg-primary text-white hover:bg-primary-600 active:bg-primary-700 shadow-md hover:shadow-lg shadow-primary-500/20",
+        secondary: "bg-secondary text-black hover:bg-secondary-600 active:bg-secondary-700 shadow-md hover:shadow-lg shadow-secondary-500/20",
         outline: "border border-neutral-200 bg-transparent hover:bg-neutral-100 active:bg-neutral-200",
         ghost: "bg-transparent hover:bg-neutral-100 active:bg-neutral-200",
-        link: "bg-transparent underline-offset-4 hover:underline",
+        link: "bg-transparent underline-offset-4 hover:underline shadow-none",
       },
       size: {
         sm: "h-9 px-3 text-sm",

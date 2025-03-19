@@ -54,7 +54,7 @@ export function Badge({
     default: 'bg-neutral-500 text-white',
     primary: 'bg-primary-500 text-white',
     secondary: 'bg-secondary-500 text-black',
-    success: 'bg-success-500 text-white',
+    success: 'bg-accent-500 text-white',
     warning: 'bg-secondary-500 text-black',
     danger: 'bg-alert-500 text-white',
     info: 'bg-primary-300 text-primary-900'

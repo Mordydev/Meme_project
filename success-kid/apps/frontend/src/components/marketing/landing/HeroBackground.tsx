@@ -41,39 +41,39 @@ export function HeroBackground({
     switch (colorScheme) {
       case 'secondary':
         return {
-          gradient: 'bg-gradient-to-b from-white to-secondary/5',
-          blob1: 'bg-secondary/5',
-          blob2: 'bg-primary/5', 
-          blob3: 'bg-secondary/10',
-          particle: 'bg-secondary/20',
-          glowParticle: 'bg-secondary/30 shadow-lg shadow-secondary/20'
+          gradient: 'bg-gradient-to-b from-white to-secondary-500/5',
+          blob1: 'bg-secondary-500/5',
+          blob2: 'bg-primary-500/5', 
+          blob3: 'bg-secondary-500/10',
+          particle: 'bg-secondary-500/20',
+          glowParticle: 'bg-secondary-500/30 shadow-lg shadow-secondary-500/20'
         };
       case 'accent':
         return {
-          gradient: 'bg-gradient-to-b from-white to-accent/5',
-          blob1: 'bg-accent/5',
-          blob2: 'bg-primary/5',
-          blob3: 'bg-accent/10',
-          particle: 'bg-accent/20',
-          glowParticle: 'bg-accent/30 shadow-lg shadow-accent/20'
+          gradient: 'bg-gradient-to-b from-white to-accent-500/5',
+          blob1: 'bg-accent-500/5',
+          blob2: 'bg-primary-500/5',
+          blob3: 'bg-accent-500/10',
+          particle: 'bg-accent-500/20',
+          glowParticle: 'bg-accent-500/30 shadow-lg shadow-accent-500/20'
         };
       case 'gradient':
         return {
-          gradient: 'bg-gradient-to-b from-white via-primary/5 to-secondary/5',
-          blob1: 'bg-primary/5',
-          blob2: 'bg-secondary/5',
-          blob3: 'bg-accent/5',
-          particle: 'bg-primary/20',
-          glowParticle: 'bg-secondary/30 shadow-lg shadow-secondary/20'
+          gradient: 'bg-gradient-to-b from-white via-primary-500/5 to-secondary-500/5',
+          blob1: 'bg-primary-500/5',
+          blob2: 'bg-secondary-500/5',
+          blob3: 'bg-accent-500/5',
+          particle: 'bg-primary-500/20',
+          glowParticle: 'bg-secondary-500/30 shadow-lg shadow-secondary-500/20'
         };
       default: // primary
         return {
-          gradient: 'bg-gradient-to-b from-white to-primary/5',
-          blob1: 'bg-primary/5',
-          blob2: 'bg-secondary/5',
-          blob3: 'bg-primary/10',
-          particle: 'bg-primary/20',
-          glowParticle: 'bg-primary/30 shadow-lg shadow-primary/20'
+          gradient: 'bg-gradient-to-b from-white to-primary-500/5',
+          blob1: 'bg-primary-500/5',
+          blob2: 'bg-secondary-500/5',
+          blob3: 'bg-primary-500/10',
+          particle: 'bg-primary-500/20',
+          glowParticle: 'bg-primary-500/30 shadow-lg shadow-primary-500/20'
         };
     }
   };

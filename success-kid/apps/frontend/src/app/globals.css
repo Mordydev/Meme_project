@@ -112,11 +112,11 @@
 
 @layer base {
   * {
-    @apply border-border;
+    /* Remove the border-border class that's causing errors */
   }
   
   body {
-    @apply bg-background text-foreground;
+    @apply bg-white text-gray-900;
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

@@ -24,7 +24,7 @@ export function AnimatedPointsBadge({
   variant = 'default',
   size = 'md',
   animation = 'drop',
-  pointsColor = 'text-primary'
+  pointsColor = 'text-primary-500'
 }: AnimatedPointsBadgeProps) {
   const prefersReducedMotion = useReducedMotion();
   
@@ -41,7 +41,7 @@ export function AnimatedPointsBadge({
       case 'outline':
         return "bg-transparent border border-gray-200 text-gray-800";
       case 'filled':
-        return "bg-primary/10 text-primary";
+        return "bg-primary-500/10 text-primary-500";
       case 'minimal':
         return "bg-transparent shadow-none";
       default: // default

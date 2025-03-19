@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 interface GlowingEffectProps {
   children: React.ReactNode;
-  color?: string;
+  color?: 'primary' | 'secondary' | 'accent' | 'alert' | 'white';
   size?: 'sm' | 'md' | 'lg' | 'xl';
   intensity?: 'light' | 'medium' | 'strong';
   pulseEffect?: boolean;
@@ -41,8 +42,23 @@ export function GlowingEffect({
     strong: 'opacity-30',
   };
   
-  // Calculate color class
-  const colorClass = `bg-${color}`;
+  // Map color to the correct Tailwind class
+  const getColorClass = () => {
+    switch (color) {
+      case 'primary':
+        return 'bg-primary';
+      case 'secondary':
+        return 'bg-secondary';
+      case 'accent':
+        return 'bg-accent';
+      case 'alert':
+        return 'bg-alert';
+      case 'white':
+        return 'bg-white';
+      default:
+        return 'bg-primary';
+    }
+  };
   
   // Handle mouse move to update glow position
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -74,14 +90,20 @@ export function GlowingEffect({
   return (
     <div 
       ref={elementRef}
-      className={`relative overflow-hidden ${className}`}
+      className={cn("relative overflow-hidden", className)}
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
       {/* Glowing effect */}
       <motion.div
-        className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full ${sizeMapping[size].className} ${sizeMapping[size].blur} ${colorClass} ${intensityMapping[intensity]} pointer-events-none transition-opacity z-0`}
+        className={cn(
+          "absolute -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-opacity z-0",
+          sizeMapping[size].className,
+          sizeMapping[size].blur,
+          getColorClass(),
+          intensityMapping[intensity]
+        )}
         animate={isHovering ? 'hover' : 'rest'}
         variants={glowVariants}
         style={{
