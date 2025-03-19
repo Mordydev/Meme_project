@@ -6,6 +6,19 @@ import { motion, useAnimation, useInView, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button';
 import tokens from '@/theme/tokens';
 
+export interface HeroSectionProps {
+  title?: string;
+  subtitle?: string;
+  ctaText?: string;
+  ctaLink?: string;
+  secondaryCtaText?: string;
+  secondaryCtaLink?: string;
+  showFistIcon?: boolean;
+  showFloatingCoins?: boolean;
+  showMetrics?: boolean;
+  className?: string;
+}
+
 // SVG component for the fist icon with animation
 const AnimatedFistIcon = () => {
   return (
@@ -210,7 +223,18 @@ const FloatingCoins = () => {
   );
 };
 
-export const HeroSection = () => {
+export const HeroSection = ({
+  title = "Clench Your Fist, Claim Your Success!",
+  subtitle = "Join a vibrant ecosystem where crypto enthusiasts and meme lovers connect, engage, and create real value together. Earn rewards for every contribution while building a thriving community.",
+  ctaText = "Join the Community",
+  ctaLink = "/sign-up",
+  secondaryCtaText = "Learn More",
+  secondaryCtaLink = "/about",
+  showFistIcon = true,
+  showFloatingCoins = true,
+  showMetrics = true,
+  className = ''
+}: HeroSectionProps) => {
   const controls = useAnimation();
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true });
@@ -272,16 +296,20 @@ export const HeroSection = () => {
     }
   };
 
+  // Parse title to separate main title and highlighted part if title contains a pipe character
+  const [mainTitle, highlightedTitle] = title.split('|').map(t => t.trim());
+  const displayTitle = highlightedTitle ? mainTitle : title;
+  
   return (
     <section 
       ref={ref}
-      className="relative overflow-hidden pt-16 pb-24 md:pt-24 md:pb-32"
+      className={`relative overflow-hidden pt-16 pb-24 md:pt-24 md:pb-32 ${className}`}
     >
       {/* Animated background */}
       <AnimatedBackground />
       
       {/* Floating cryptocurrency coins effect */}
-      <FloatingCoins />
+      {showFloatingCoins && <FloatingCoins />}
       
       {/* Main content */}
       <div className="container relative mx-auto px-4">
@@ -300,30 +328,30 @@ export const HeroSection = () => {
               className="font-display text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl lg:text-7xl"
               variants={itemVariants}
             >
-              <span className="block">Clench Your Fist,</span>
-              <motion.span 
-                className="mt-2 block bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
-                variants={itemVariants}
-                animate={{
-                  backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
-                }}
-                transition={{
-                  duration: 8,
-                  ease: 'linear',
-                  repeat: Infinity,
-                }}
-              >
-                Claim Your Success!
-              </motion.span>
+              <span className="block">{displayTitle}</span>
+              {highlightedTitle && (
+                <motion.span 
+                  className="mt-2 block bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
+                  variants={itemVariants}
+                  animate={{
+                    backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
+                  }}
+                  transition={{
+                    duration: 8,
+                    ease: 'linear',
+                    repeat: Infinity,
+                  }}
+                >
+                  {highlightedTitle}
+                </motion.span>
+              )}
             </motion.h1>
             
             <motion.p
               className="mt-6 max-w-md text-lg leading-relaxed text-gray-600 sm:text-xl md:mt-8 md:max-w-lg"
               variants={itemVariants}
             >
-              Join a vibrant ecosystem where crypto enthusiasts and meme lovers 
-              connect, engage, and create real value together. Earn rewards for 
-              every contribution while building a thriving community.
+              {subtitle}
             </motion.p>
             
             <motion.div
@@ -335,173 +363,179 @@ export const HeroSection = () => {
                 whileHover="hover"
                 whileTap="tap"
               >
-                <Link href="/sign-up">
+                <Link href={ctaLink}>
                   <Button 
                     size="lg" 
                     className="w-full px-8 py-4 sm:w-auto"
                   >
-                    Join the Community
+                    {ctaText}
                   </Button>
                 </Link>
               </motion.div>
               
-              <motion.div
-                variants={buttonVariants}
-                whileHover="hover"
-                whileTap="tap"
-              >
-                <Link href="/about">
-                  <Button 
-                    size="lg" 
-                    variant="outline" 
-                    className="w-full px-8 py-4 sm:w-auto"
-                  >
-                    Learn More
-                  </Button>
-                </Link>
-              </motion.div>
+              {secondaryCtaText && secondaryCtaLink && (
+                <motion.div
+                  variants={buttonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
+                >
+                  <Link href={secondaryCtaLink}>
+                    <Button 
+                      size="lg" 
+                      variant="outline" 
+                      className="w-full px-8 py-4 sm:w-auto"
+                    >
+                      {secondaryCtaText}
+                    </Button>
+                  </Link>
+                </motion.div>
+              )}
             </motion.div>
             
             {/* Key metrics preview */}
-            <motion.div 
-              className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-4"
-              variants={itemVariants}
-            >
-              {[
-                { label: 'Community Members', value: '50,000+' },
-                { label: 'Points Awarded', value: '2.8M+' },
-                { label: 'Daily Engagements', value: '27,500+' },
-                { label: 'Token Value', value: 'Growing' },
-              ].map((stat, index) => (
-                <motion.div 
-                  key={index}
-                  className="rounded-lg bg-white/80 p-3 shadow-sm backdrop-blur-sm"
-                  variants={itemVariants}
-                  whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                >
-                  <p className="font-display text-lg font-bold text-primary sm:text-xl">
-                    {stat.value}
-                  </p>
-                  <p className="text-xs text-gray-500 sm:text-sm">
-                    {stat.label}
-                  </p>
-                </motion.div>
-              ))}
-            </motion.div>
+            {showMetrics && (
+              <motion.div 
+                className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-4"
+                variants={itemVariants}
+              >
+                {[
+                  { label: 'Community Members', value: '50,000+' },
+                  { label: 'Points Awarded', value: '2.8M+' },
+                  { label: 'Daily Engagements', value: '27,500+' },
+                  { label: 'Token Value', value: 'Growing' },
+                ].map((stat, index) => (
+                  <motion.div 
+                    key={index}
+                    className="rounded-lg bg-white/80 p-3 shadow-sm backdrop-blur-sm"
+                    variants={itemVariants}
+                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                  >
+                    <p className="font-display text-lg font-bold text-primary sm:text-xl">
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-gray-500 sm:text-sm">
+                      {stat.label}
+                    </p>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
           </motion.div>
           
           {/* Visual element - Custom animated SVG */}
-          <motion.div
-            className="relative mt-12 w-64 md:w-96 lg:mt-0 lg:w-[500px]"
-            variants={itemVariants}
-          >
-            <div className="relative flex aspect-square items-center justify-center rounded-full bg-gradient-to-b from-primary-100/80 to-primary-200/30 shadow-xl backdrop-blur-sm">
-              <motion.div
-                className="absolute inset-0 rounded-full"
-                animate={{
-                  boxShadow: [
-                    '0 0 0 0 rgba(66, 165, 245, 0)',
-                    '0 0 0 20px rgba(66, 165, 245, 0.2)',
-                    '0 0 0 40px rgba(66, 165, 245, 0)',
-                  ],
-                }}
-                transition={{
-                  duration: 2.5,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
-              />
-              
-              <div className="relative z-10 h-3/4 w-3/4">
-                <AnimatedFistIcon />
-              </div>
-            </div>
-            
-            {/* Points animation - Small particles shooting from fist */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              {[...Array(12)].map((_, i) => (
+          {showFistIcon && (
+            <motion.div
+              className="relative mt-12 w-64 md:w-96 lg:mt-0 lg:w-[500px]"
+              variants={itemVariants}
+            >
+              <div className="relative flex aspect-square items-center justify-center rounded-full bg-gradient-to-b from-primary-100/80 to-primary-200/30 shadow-xl backdrop-blur-sm">
                 <motion.div
-                  key={`particle-${i}`}
-                  className="absolute h-2 w-2 rounded-full bg-secondary shadow-md shadow-secondary/40"
-                  initial={{ x: 0, y: 0, opacity: 0 }}
+                  className="absolute inset-0 rounded-full"
                   animate={{
-                    x: [0, (Math.cos(i * 30 * Math.PI / 180) * 150)],
-                    y: [0, (Math.sin(i * 30 * Math.PI / 180) * 150)],
-                    opacity: [0, 1, 0],
-                    scale: [0.5, 1, 0.5]
+                    boxShadow: [
+                      '0 0 0 0 rgba(66, 165, 245, 0)',
+                      '0 0 0 20px rgba(66, 165, 245, 0.2)',
+                      '0 0 0 40px rgba(66, 165, 245, 0)',
+                    ],
                   }}
                   transition={{
-                    duration: 2,
+                    duration: 2.5,
                     repeat: Infinity,
-                    delay: 1 + i * 0.1,
-                    repeatDelay: i * 0.2,
-                    ease: [0.2, 0.65, 0.3, 0.9]
+                    ease: 'easeInOut',
                   }}
                 />
-              ))}
-            </div>
-            
-            {/* Interactive demo element */}
-            <motion.div
-              className="absolute -right-4 bottom-10 rounded-xl bg-white/90 p-3 shadow-lg backdrop-blur-sm lg:-right-12"
-              initial={{ opacity: 0, x: -20, scale: 0.9 }}
-              animate={{ 
-                opacity: 1, 
-                x: 0, 
-                scale: 1,
-                transition: { 
-                  delay: 1.5, 
-                  duration: 0.5,
-                  ease: tokens.animation.easings.emphatic
-                }
-              }}
-              whileHover={{ 
-                y: -5, 
-                scale: 1.05,
-                transition: { duration: 0.2 } 
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
-                  <span className="text-accent">+123</span>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-900">Points Earned</p>
-                  <p className="text-xs text-gray-500">Just now</p>
+                
+                <div className="relative z-10 h-3/4 w-3/4">
+                  <AnimatedFistIcon />
                 </div>
               </div>
-            </motion.div>
-            
-            <motion.div
-              className="absolute -left-4 top-10 rounded-xl bg-white/90 p-3 shadow-lg backdrop-blur-sm lg:-left-12"
-              initial={{ opacity: 0, x: 20, scale: 0.9 }}
-              animate={{ 
-                opacity: 1, 
-                x: 0, 
-                scale: 1,
-                transition: { 
-                  delay: 1.8, 
-                  duration: 0.5,
-                  ease: tokens.animation.easings.emphatic
-                }
-              }}
-              whileHover={{ 
-                y: -5, 
-                scale: 1.05,
-                transition: { duration: 0.2 } 
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10">
-                  <span className="text-secondary">🏆</span>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-gray-900">Achievement Unlocked</p>
-                  <p className="text-xs text-gray-500">First Contribution</p>
-                </div>
+              
+              {/* Points animation - Small particles shooting from fist */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                {[...Array(12)].map((_, i) => (
+                  <motion.div
+                    key={`particle-${i}`}
+                    className="absolute h-2 w-2 rounded-full bg-secondary shadow-md shadow-secondary/40"
+                    initial={{ x: 0, y: 0, opacity: 0 }}
+                    animate={{
+                      x: [0, (Math.cos(i * 30 * Math.PI / 180) * 150)],
+                      y: [0, (Math.sin(i * 30 * Math.PI / 180) * 150)],
+                      opacity: [0, 1, 0],
+                      scale: [0.5, 1, 0.5]
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: 1 + i * 0.1,
+                      repeatDelay: i * 0.2,
+                      ease: [0.2, 0.65, 0.3, 0.9]
+                    }}
+                  />
+                ))}
               </div>
+              
+              {/* Interactive demo element */}
+              <motion.div
+                className="absolute -right-4 bottom-10 rounded-xl bg-white/90 p-3 shadow-lg backdrop-blur-sm lg:-right-12"
+                initial={{ opacity: 0, x: -20, scale: 0.9 }}
+                animate={{ 
+                  opacity: 1, 
+                  x: 0, 
+                  scale: 1,
+                  transition: { 
+                    delay: 1.5, 
+                    duration: 0.5,
+                    ease: tokens.animation.easings.emphatic
+                  }
+                }}
+                whileHover={{ 
+                  y: -5, 
+                  scale: 1.05,
+                  transition: { duration: 0.2 } 
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/10">
+                    <span className="text-accent">+123</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-900">Points Earned</p>
+                    <p className="text-xs text-gray-500">Just now</p>
+                  </div>
+                </div>
+              </motion.div>
+              
+              <motion.div
+                className="absolute -left-4 top-10 rounded-xl bg-white/90 p-3 shadow-lg backdrop-blur-sm lg:-left-12"
+                initial={{ opacity: 0, x: 20, scale: 0.9 }}
+                animate={{ 
+                  opacity: 1, 
+                  x: 0, 
+                  scale: 1,
+                  transition: { 
+                    delay: 1.8, 
+                    duration: 0.5,
+                    ease: tokens.animation.easings.emphatic
+                  }
+                }}
+                whileHover={{ 
+                  y: -5, 
+                  scale: 1.05,
+                  transition: { duration: 0.2 } 
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10">
+                    <span className="text-secondary">🏆</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-900">Achievement Unlocked</p>
+                    <p className="text-xs text-gray-500">First Contribution</p>
+                  </div>
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
+          )}
         </motion.div>
       </div>
       
@@ -527,3 +561,5 @@ export const HeroSection = () => {
     </section>
   );
 };
+
+export default HeroSection;

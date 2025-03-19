@@ -1,13 +1,39 @@
 import './globals.css';
 import { Providers } from '@/components/providers/Providers';
-import { Inter } from 'next/font/google';
+import { Montserrat, Inter, Roboto_Mono, Rubik } from 'next/font/google';
 import { Metadata, Viewport } from 'next';
 
-// Initialize Inter font
+// Initialize fonts with subsets and display settings
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-montserrat',
+  preload: true,
+  weight: ['400', '500', '600', '700'],
+});
+
 const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-inter',
+  preload: true,
+  weight: ['400', '500', '600', '700'],
+});
+
+const robotoMono = Roboto_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-mono',
+  preload: false,
+  weight: ['400', '500'],
+});
+
+const rubik = Rubik({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-rubik',
+  preload: false,
+  weight: ['400', '500', '600'],
 });
 
 export const metadata: Metadata = {
@@ -36,8 +62,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-gray-50 flex flex-col">
+    <html 
+      lang="en" 
+      className={`${montserrat.variable} ${inter.variable} ${robotoMono.variable} ${rubik.variable}`}
+    >
+      <body className="min-h-screen bg-background flex flex-col">
         <Providers>
           <main className="flex-1">{children}</main>
         </Providers>
