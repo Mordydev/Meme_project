@@ -52,16 +52,30 @@ export function ParticleEffect({
     // Start the animation for each particle
     controls.start((i) => {
       const angle = Math.random() * Math.PI * 2;
-      const distance = Math.random() * spread;
+      const distance = Math.random() * spread * (0.7 + Math.random() * 0.4); // More varied distance
       
       return {
         x: Math.cos(angle) * distance,
         y: Math.sin(angle) * distance,
-        scale: [1, 0],
+        scale: [1, Math.random() * 0.8 + 0.2], // Ensure particles don't get too small
         opacity: [1, 0],
+        rotate: [-20, 20],
+        boxShadow: [
+          '0 0 0px rgba(30, 136, 229, 0)',
+          '0 0 5px rgba(30, 136, 229, 0.3)',
+          '0 0 0px rgba(30, 136, 229, 0)'
+        ],
         transition: { 
-          duration: duration * (0.7 + Math.random() * 0.3), 
-          ease: ['easeOut'] 
+          duration: duration * (0.7 + Math.random() * 0.6), 
+          ease: ['easeOut'],
+          rotate: {
+            duration: duration * 0.5,
+            ease: 'easeInOut'
+          },
+          boxShadow: {
+            duration: duration * 0.4,
+            ease: 'easeInOut'
+          }
         }
       };
     });

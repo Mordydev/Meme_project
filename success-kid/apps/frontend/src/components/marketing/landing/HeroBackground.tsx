@@ -17,7 +17,7 @@ export function HeroBackground({
   animate = true
 }: HeroBackgroundProps) {
   const prefersReducedMotion = useReducedMotion();
-  const particleCount = density === 'low' ? 10 : density === 'medium' ? 20 : 30;
+  const particleCount = density === 'low' ? 15 : density === 'medium' ? 30 : 45;
   
   // Deterministic particle positions to avoid hydration errors
   const getParticlePosition = (index: number, total: number) => {
@@ -59,19 +59,19 @@ export function HeroBackground({
         };
       case 'gradient':
         return {
-          gradient: 'bg-gradient-to-b from-white via-primary-500/5 to-secondary-500/5',
-          blob1: 'bg-primary-500/5',
-          blob2: 'bg-secondary-500/5',
-          blob3: 'bg-accent-500/5',
+          gradient: 'bg-gradient-to-br from-white via-primary-500/10 to-secondary-500/10',
+          blob1: 'bg-primary-500/10',
+          blob2: 'bg-secondary-500/10',
+          blob3: 'bg-accent-500/10',
           particle: 'bg-primary-500/20',
           glowParticle: 'bg-secondary-500/30 shadow-lg shadow-secondary-500/20'
         };
       default: // primary
         return {
-          gradient: 'bg-gradient-to-b from-white to-primary-500/5',
-          blob1: 'bg-primary-500/5',
-          blob2: 'bg-secondary-500/5',
-          blob3: 'bg-primary-500/10',
+          gradient: 'bg-gradient-to-br from-white via-primary-300/10 to-primary-500/10',
+          blob1: 'bg-primary-500/10',
+          blob2: 'bg-secondary-500/10',
+          blob3: 'bg-primary-500/15',
           particle: 'bg-primary-500/20',
           glowParticle: 'bg-primary-500/30 shadow-lg shadow-primary-500/20'
         };
@@ -82,18 +82,65 @@ export function HeroBackground({
 
   return (
     <div className={`absolute inset-0 overflow-hidden ${className}`}>
-      {/* Background gradient */}
-      <div className={`absolute inset-0 ${colors.gradient}`}></div>
+      {/* Background gradient with subtle animation */}
+      {animate ? (
+        <motion.div 
+          className={`absolute inset-0 ${colors.gradient}`}
+          animate={{
+            backgroundPosition: ['0% 0%', '100% 100%'],
+            boxShadow: [
+              'inset 0 0 50px rgba(30,136,229,0.05)',
+              'inset 0 0 100px rgba(30,136,229,0.1)',
+              'inset 0 0 50px rgba(30,136,229,0.05)'
+            ]
+          }}
+          transition={{
+            backgroundPosition: {
+              duration: 15,
+              ease: 'linear',
+              repeat: Infinity,
+              repeatType: 'reverse'
+            },
+            boxShadow: {
+              duration: 8,
+              ease: 'easeInOut',
+              repeat: Infinity,
+              repeatType: 'reverse'
+            }
+          }}
+          style={{ 
+            backgroundSize: '200% 200%',
+            boxShadow: 'inset 0 0 50px rgba(30,136,229,0.05)'
+          }}
+        />
+      ) : (
+        <div className={`absolute inset-0 ${colors.gradient}`}></div>
+      )}
       
       {/* Animated blobs - use motion.div only if animation is enabled */}
       {animate ? (
         <>
           <motion.div
             className={`absolute -top-1/4 -left-1/4 w-1/2 h-1/2 rounded-full ${colors.blob1} blur-3xl`}
+            style={{ 
+              backgroundImage: 'radial-gradient(circle, rgba(30,136,229,0.10) 0%, rgba(30,136,229,0.02) 70%)',
+              boxShadow: '0 0 80px 10px rgba(30,136,229,0.10)'
+            }}
             animate={!prefersReducedMotion ? {
               x: [0, 50, 0],
               y: [0, 30, 0],
-              scale: [1, 1.1, 1]
+              scale: [1, 1.1, 1],
+              rotate: [0, 3, 0, -2, 0],
+              background: [
+                'radial-gradient(circle, rgba(30,136,229,0.10) 0%, rgba(30,136,229,0.02) 70%)',
+                'radial-gradient(circle, rgba(30,136,229,0.15) 0%, rgba(30,136,229,0.04) 70%)',
+                'radial-gradient(circle, rgba(30,136,229,0.10) 0%, rgba(30,136,229,0.02) 70%)'
+              ],
+              boxShadow: [
+                '0 0 80px 10px rgba(30,136,229,0.10)',
+                '0 0 100px 20px rgba(30,136,229,0.15)',
+                '0 0 80px 10px rgba(30,136,229,0.10)'
+              ]
             } : undefined}
             transition={{
               duration: 20,
@@ -104,10 +151,25 @@ export function HeroBackground({
           
           <motion.div
             className={`absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 rounded-full ${colors.blob2} blur-3xl`}
+            style={{ 
+              backgroundImage: 'radial-gradient(circle, rgba(255,193,7,0.10) 0%, rgba(255,193,7,0.02) 70%)',
+              boxShadow: '0 0 80px 10px rgba(255,193,7,0.10)'
+            }}
             animate={!prefersReducedMotion ? {
               x: [0, -50, 0],
               y: [0, -30, 0],
-              scale: [1, 1.2, 1]
+              scale: [1, 1.2, 1],
+              rotate: [0, -3, 0, 2, 0],
+              background: [
+                'radial-gradient(circle, rgba(255,193,7,0.10) 0%, rgba(255,193,7,0.02) 70%)',
+                'radial-gradient(circle, rgba(255,193,7,0.15) 0%, rgba(255,193,7,0.04) 70%)',
+                'radial-gradient(circle, rgba(255,193,7,0.10) 0%, rgba(255,193,7,0.02) 70%)'
+              ],
+              boxShadow: [
+                '0 0 80px 10px rgba(255,193,7,0.10)',
+                '0 0 100px 20px rgba(255,193,7,0.15)',
+                '0 0 80px 10px rgba(255,193,7,0.10)'
+              ]
             } : undefined}
             transition={{
               duration: 15,
@@ -117,26 +179,19 @@ export function HeroBackground({
             }}
           />
           
-          <motion.div
-            className={`absolute top-1/3 right-1/4 w-1/3 h-1/3 rounded-full ${colors.blob3} blur-3xl`}
-            animate={!prefersReducedMotion ? {
-              x: [0, 40, 0],
-              y: [0, -20, 0],
-              scale: [1, 1.15, 1]
-            } : undefined}
-            transition={{
-              duration: 18,
-              repeat: Infinity,
-              repeatType: 'reverse',
-              delay: 2
-            }}
-          />
+          {/* Third blob removed */}
         </>
       ) : (
         <>
-          <div className={`absolute -top-1/4 -left-1/4 w-1/2 h-1/2 rounded-full ${colors.blob1} blur-3xl`} />
-          <div className={`absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 rounded-full ${colors.blob2} blur-3xl`} />
-          <div className={`absolute top-1/3 right-1/4 w-1/3 h-1/3 rounded-full ${colors.blob3} blur-3xl`} />
+          <div className={`absolute -top-1/4 -left-1/4 w-1/2 h-1/2 rounded-full ${colors.blob1} blur-3xl`} style={{ 
+              backgroundImage: 'radial-gradient(circle, rgba(30,136,229,0.10) 0%, rgba(30,136,229,0.02) 70%)',
+              boxShadow: '0 0 80px 10px rgba(30,136,229,0.10)'
+            }} />
+          <div className={`absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 rounded-full ${colors.blob2} blur-3xl`} style={{ 
+              backgroundImage: 'radial-gradient(circle, rgba(255,193,7,0.10) 0%, rgba(255,193,7,0.02) 70%)',
+              boxShadow: '0 0 80px 10px rgba(255,193,7,0.10)'
+            }} />
+          {/* Third blob removed */}
         </>
       )}
       

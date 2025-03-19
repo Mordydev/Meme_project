@@ -11,21 +11,25 @@ interface TypewriterEffectProps {
   className?: string;
   cursorClassName?: string;
   infiniteLoop?: boolean;
+  onComplete?: () => void;
 }
 
 export function TypewriterEffect({
   phrases,
-  typingSpeed = 100,
-  deletingSpeed = 50,
-  delayBetweenPhrases = 2000,
+  typingSpeed = 80, // Faster typing for better effect
+  deletingSpeed = 40, // Faster deleting for better effect
+  delayBetweenPhrases = 3000,
   className = '',
   cursorClassName = '',
   infiniteLoop = true,
+  onComplete,
 }: TypewriterEffectProps) {
   const [displayText, setDisplayText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [isBlinking, setIsBlinking] = useState(true);
+  // Always show cursor with consistent blinking
+  const showCursor = true;
   
   // Use a ref to track if the component is still mounted
   const isMounted = useRef(true);
@@ -51,6 +55,10 @@ export function TypewriterEffect({
       } else if (!isDeleting && displayText.length === currentPhrase.length) {
         // Delay before deleting
         setIsBlinking(true);
+        // Call the completion callback if provided
+        if (onComplete) {
+          onComplete();
+        }
         setTimeout(() => {
           if (isMounted.current) {
             setIsDeleting(true);
@@ -88,14 +96,14 @@ export function TypewriterEffect({
       {displayText}
       <motion.span
         className={`inline-block ${cursorClassName || 'text-primary font-bold'}`}
-        animate={{ opacity: isBlinking ? [1, 0, 1] : 1 }}
+        animate={{ opacity: [1, 0, 1] }}
         transition={{
           duration: 0.8,
-          repeat: isBlinking ? Infinity : 0,
+          repeat: Infinity,
           repeatType: 'loop',
         }}
       >
-        _
+        |
       </motion.span>
     </span>
   );

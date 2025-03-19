@@ -96,11 +96,59 @@ export function AnimatedPointsBadge({
   return (
     <motion.div
       {...getAnimationProps()}
-      className={`inline-flex items-center rounded-full ${sizeClasses[size]} ${getVariantClasses()} ${className}`}
+      className={`inline-flex items-center rounded-full ${sizeClasses[size]} ${getVariantClasses()} ${className} relative overflow-hidden group`}
+      whileHover={{
+        scale: 1.05,
+        boxShadow: "0px 5px 10px rgba(0, 0, 0, 0.1)",
+      }}
     >
-      {icon && <span className="mr-1">{icon}</span>}
+      {/* Subtle gradient animation inside the badge */}
+      <motion.div 
+        className="absolute inset-0 bg-gradient-to-r from-primary-200/20 to-transparent"
+        animate={{ x: ['-100%', '100%'] }}
+        transition={{ repeat: Infinity, duration: 3, ease: 'linear', repeatDelay: 1 }}
+        style={{ opacity: 0.5 }}
+      />
+      
+      {icon && (
+        <motion.span 
+          className="mr-1"
+          whileHover={{ rotate: [0, -10, 10, 0] }}
+          transition={{ duration: 0.5 }}
+        >
+          {icon}
+        </motion.span>
+      )}
       <span className="mr-2 text-gray-700">{label}</span>
-      <span className={`font-semibold ${pointsColor}`}>+{points} SP</span>
+      <motion.span 
+        className={`font-semibold ${pointsColor} flex items-center`}
+        whileHover={{
+          scale: 1.1,
+          transition: { duration: 0.2 }
+        }}
+      >
+        <span className="mr-0.5">+</span>
+        <motion.span
+          initial={{ opacity: 0, y: 10 }}
+          animate={{
+            opacity: 1,
+            y: 0,
+            transition: { delay: delay + 0.3, duration: 0.3 }
+          }}
+        >
+          {points}
+        </motion.span>
+        <motion.span
+          initial={{ opacity: 0 }}
+          animate={{
+            opacity: 1,
+            transition: { delay: delay + 0.5, duration: 0.3 }
+          }}
+          className="ml-1"
+        >
+          SP
+        </motion.span>
+      </motion.span>
     </motion.div>
   );
 }

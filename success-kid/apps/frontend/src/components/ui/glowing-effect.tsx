@@ -74,15 +74,36 @@ export function GlowingEffect({
   // Add animation variants for the glowing effect
   const glowVariants = {
     rest: { 
-      opacity: pulseEffect ? 0.1 : 0, 
-      scale: 0.85, 
-    },
-    hover: { 
-      opacity: pulseEffect ? [0.2, 0.3, 0.2] : 0.25, 
-      scale: 1,
+      opacity: pulseEffect ? [0.25, 0.35, 0.25] : 0.3, 
+      scale: 0.85,
+      rotate: [0, 2, 0, -2, 0],
+      boxShadow: [
+        '0 0 20px rgba(30, 136, 229, 0.2)',
+        '0 0 30px rgba(30, 136, 229, 0.3)',
+        '0 0 20px rgba(30, 136, 229, 0.2)'
+      ],
       transition: {
         opacity: { repeat: pulseEffect ? Infinity : 0, duration: 2 },
-        scale: { duration: 0.3 }
+        rotate: { repeat: Infinity, duration: 8, ease: "easeInOut" },
+        boxShadow: { repeat: Infinity, duration: 3, ease: "easeInOut" }
+      }
+    },
+    hover: { 
+      opacity: pulseEffect ? [0.4, 0.6, 0.4] : 0.55, 
+      scale: 1.15,
+      rotate: [0, 5, -5, 0],
+      filter: ['brightness(1)', 'brightness(1.2)', 'brightness(1)'],
+      boxShadow: [
+        '0 0 30px rgba(30, 136, 229, 0.4)',
+        '0 0 50px rgba(30, 136, 229, 0.6)',
+        '0 0 30px rgba(30, 136, 229, 0.4)'
+      ],
+      transition: {
+        opacity: { repeat: pulseEffect ? Infinity : 0, duration: 1.2 },
+        scale: { duration: 0.3, type: 'spring', stiffness: 400, damping: 10 },
+        rotate: { repeat: pulseEffect ? Infinity : 0, duration: 6, ease: "easeInOut" },
+        filter: { repeat: pulseEffect ? Infinity : 0, duration: 2 },
+        boxShadow: { repeat: Infinity, duration: 2, ease: "easeInOut" }
       }
     },
   };
