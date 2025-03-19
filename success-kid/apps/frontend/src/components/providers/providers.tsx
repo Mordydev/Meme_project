@@ -33,7 +33,9 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <>
       {isClerkConfigured ? (
-        <ClerkProvider>
+        <ClerkProvider
+          fallbackRedirectUrl="/dashboard"
+        >
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <AuthErrorHandler>

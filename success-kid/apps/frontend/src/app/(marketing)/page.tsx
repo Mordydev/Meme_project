@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Button, ClientMotion, AnimateOnMount, GlowingEffect, ParticleEffect, GradientBorder } from '@/components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReducedMotionPreference } from '@/hooks/useReducedMotionPreference';
 import { 
@@ -93,58 +93,91 @@ export default function HomePage() {
                 </AnimatePresence>
               </div>
               
-              {/* Staggered Title Animation */}
+              {/* Typewriter Title Animation */}
               <div className="mb-8">
                 <StaggeredTitle
                   text="Clench Your Fist,"
                   highlightedText="Claim Your Success!"
                   className="text-4xl font-bold leading-tight text-gray-900 md:text-5xl"
                   delay={0.2}
+                  useTypewriter={true}
                 />
               </div>
               
               {/* Subheading with Animation */}
-              <motion.p
+              <ClientMotion
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.8 }}
                 className="mb-8 text-lg text-gray-600 max-w-lg"
+                type="p"
               >
                 Join 5,000+ members in the Success Kid community. Create content, engage with others, and turn your community contributions into real tokens—no technical knowledge required.
-              </motion.p>
+              </ClientMotion>
               
               {/* CTA Buttons with Animation */}
-              <motion.div
+              <ClientMotion
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 1 }}
                 className="flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0"
               >
-                <Button 
-                  size="lg" 
-                  className="w-full sm:w-auto group relative overflow-hidden"
-                  as={Link}
-                  href="/sign-up"
-                >
-                  {/* Subtle glow effect on hover */}
-                  <span className="absolute inset-0 bg-gradient-to-r from-primary-400 to-primary-600 opacity-0 group-hover:opacity-100 transition-opacity blur-md" />
-                  <span className="relative">Start Earning Now</span>
-                </Button>
+                {/* Primary Button with GlowingEffect */}
+                <div className="w-full sm:w-auto">
+                  <GlowingEffect 
+                    color="primary" 
+                    size="lg" 
+                    intensity="medium" 
+                    pulseEffect={true}
+                  >
+                    <Button 
+                      size="lg" 
+                      className="w-full sm:w-auto group relative overflow-hidden"
+                      as={Link}
+                      href="/sign-up"
+                    >
+                      {/* Subtle glow effect on hover */}
+                      <span className="absolute inset-0 bg-gradient-to-r from-primary-400 to-primary-600 opacity-0 group-hover:opacity-100 transition-opacity blur-md" />
+                      <span className="relative flex items-center">
+                        <span>Start Earning Now</span>
+                        <ParticleEffect 
+                          count={10} 
+                          color="white" 
+                          size={4} 
+                          spread={30} 
+                          duration={1.5} 
+                          trigger="hover" 
+                          className="ml-2"
+                        />
+                      </span>
+                    </Button>
+                  </GlowingEffect>
+                </div>
                 
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="w-full sm:w-auto group"
-                  as={Link}
-                  href="/tokenomics"
+                {/* Secondary Button with Gradient Border */}
+                <GradientBorder 
+                  animate={true} 
+                  borderWidth={1} 
+                  gradientFrom="from-secondary" 
+                  gradientTo="to-primary-300" 
+                  borderRadius="rounded-md"
+                  className="w-full sm:w-auto"
                 >
-                  <span>See How It Works</span>
-                  <span className="ml-2 group-hover:translate-x-1 transition-transform">→</span>
-                </Button>
-              </motion.div>
+                  <Button 
+                    size="lg" 
+                    variant="outline" 
+                    className="w-full sm:w-auto group border-0"
+                    as={Link}
+                    href="/tokenomics"
+                  >
+                    <span>See How It Works</span>
+                    <span className="ml-2 group-hover:translate-x-1 transition-transform">→</span>
+                  </Button>
+                </GradientBorder>
+              </ClientMotion>
               
-              {/* Social Proof */}
-              <motion.div
+              {/* Social Proof with Enhanced Hover Effects */}
+              <ClientMotion
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5, delay: 1.2 }}
@@ -152,72 +185,163 @@ export default function HomePage() {
               >
                 <div className="flex -space-x-2 mr-2">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="w-8 h-8 rounded-full bg-primary/10 border border-white flex items-center justify-center text-xs">
-                      👤
-                    </div>
+                    <AnimateOnMount key={i}>
+                      <ClientMotion 
+                        className="w-8 h-8 rounded-full bg-primary/10 border border-white flex items-center justify-center text-xs relative"
+                        whileHover={{ 
+                          scale: 1.2, 
+                          zIndex: 10,
+                          boxShadow: '0 0 0 2px rgba(30, 136, 229, 0.3)'
+                        }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+                      >
+                        👤
+                        <ClientMotion
+                          className="absolute -inset-1 bg-primary/5 rounded-full z-[-1]"
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          whileHover={{ opacity: 1, scale: 1.1 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <div className="w-full h-full" />
+                        </ClientMotion>
+                      </ClientMotion>
+                    </AnimateOnMount>
                   ))}
                 </div>
-                <span><strong className="text-primary">5,000+</strong> community members already earning rewards</span>
-              </motion.div>
+                <div className="flex flex-col">
+                  <span>
+                    <ClientMotion 
+                      className="text-primary font-bold"
+                      whileHover={{ scale: 1.05 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+                      type="span"
+                    >
+                      5,000+
+                    </ClientMotion> community members
+                  </span>
+                  <span className="text-xs text-gray-400">already earning rewards daily</span>
+                </div>
+              </ClientMotion>
             </div>
             
             {/* Right Column: Visual Elements */}
             <div className="flex flex-col items-center justify-center">
               <div className="relative">
-                {/* Animated Logo */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 1 }}
-                  className="mb-6"
-                >
-                  <SuccessKidLogo size={200} />
-                </motion.div>
-                
-                {/* Interactive Demo Component */}
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.8 }}
-                  className="w-full max-w-md"
-                >
-                  <PointsSystemDemo className="z-10" />
-                </motion.div>
-                
-                {/* Decorative elements */}
-                {!prefersReducedMotion && (
-                  <>
-                    <motion.span
-                      animate={{ 
-                        y: [0, -15, 0],
-                        rotate: [0, 5, 0, -3, 0],
+                {/* Animated Logo with Enhanced Effects */}
+                <AnimateOnMount>
+                  <ClientMotion
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 1 }}
+                    className="mb-6 relative"
+                    whileHover={{
+                      scale: 1.05,
+                      rotate: [0, -3, 3, -2, 0],
+                      transition: { duration: 0.5 }
+                    }}
+                  >
+                    <ClientMotion
+                      className="absolute inset-0 bg-gradient-to-r from-primary-300/40 to-secondary-300/40 rounded-full blur-xl"
+                      animate={{
+                        scale: [1, 1.1, 1],
+                        opacity: [0.5, 0.7, 0.5]
                       }}
-                      transition={{ 
-                        duration: 8, 
+                      transition={{
+                        duration: 3,
                         repeat: Infinity,
                         repeatType: 'reverse'
                       }}
-                      className="absolute -top-10 -right-10 text-4xl"
                     >
-                      🚀
-                    </motion.span>
-                    <motion.span
-                      animate={{ 
-                        y: [0, 10, 0],
-                        x: [0, 5, 0, -5, 0],
-                      }}
-                      transition={{ 
-                        duration: 10, 
-                        repeat: Infinity,
-                        repeatType: 'reverse',
-                        delay: 1
-                      }}
-                      className="absolute -bottom-5 -left-5 text-4xl"
-                    >
-                      💰
-                    </motion.span>
-                  </>
-                )}
+                      <div className="w-full h-full" />
+                    </ClientMotion>
+                    <div className="relative">
+                      <SuccessKidLogo size={200} />
+                      
+                      {/* Sparkle effects */}
+                      <ClientMotion
+                        className="absolute top-0 right-0 h-4 w-4 rounded-full bg-white shadow-lg shadow-primary/20"
+                        animate={{
+                          scale: [0, 1, 0],
+                          opacity: [0, 1, 0]
+                        }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          delay: 1,
+                          repeatDelay: 3
+                        }}
+                      >
+                        <div className="w-full h-full" />
+                      </ClientMotion>
+                      <ClientMotion
+                        className="absolute bottom-1/4 left-0 h-3 w-3 rounded-full bg-white shadow-lg shadow-secondary/20"
+                        animate={{
+                          scale: [0, 1, 0],
+                          opacity: [0, 1, 0]
+                        }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          delay: 2.5,
+                          repeatDelay: 4
+                        }}
+                      >
+                        <div className="w-full h-full" />
+                      </ClientMotion>
+                    </div>
+                  </ClientMotion>
+                </AnimateOnMount>
+                
+                {/* Interactive Demo Component */}
+                <AnimateOnMount>
+                  <ClientMotion
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.8 }}
+                    className="w-full max-w-md"
+                  >
+                    <PointsSystemDemo className="z-10" />
+                  </ClientMotion>
+                </AnimateOnMount>
+                
+                {/* Decorative elements */}
+                <AnimateOnMount>
+                  {!prefersReducedMotion && (
+                    <>
+                      <ClientMotion 
+                        type="span"
+                        animate={{ 
+                          y: [0, -15, 0],
+                          rotate: [0, 5, 0, -3, 0],
+                        }}
+                        transition={{ 
+                          duration: 8, 
+                          repeat: Infinity,
+                          repeatType: 'reverse'
+                        }}
+                        className="absolute -top-10 -right-10 text-4xl"
+                      >
+                        🚀
+                      </ClientMotion>
+                      <ClientMotion 
+                        type="span"
+                        animate={{ 
+                          y: [0, 10, 0],
+                          x: [0, 5, 0, -5, 0],
+                        }}
+                        transition={{ 
+                          duration: 10, 
+                          repeat: Infinity,
+                          repeatType: 'reverse',
+                          delay: 1
+                        }}
+                        className="absolute -bottom-5 -left-5 text-4xl"
+                      >
+                        💰
+                      </ClientMotion>
+                    </>
+                  )}
+                </AnimateOnMount>
               </div>
             </div>
           </div>
@@ -796,10 +920,63 @@ export default function HomePage() {
       
       {/* CTA Section */}
       <section className="bg-gradient-to-br from-primary-500 to-primary-700 py-20 relative overflow-hidden">
-        {/* Background patterns */}
+        {/* Enhanced background patterns */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white"></div>
           <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-white"></div>
+          
+          {/* All animations handled client-side only */}
+          <AnimateOnMount>
+            {/* Animated rays */}
+            <ClientMotion 
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/30 to-transparent"
+              animate={{
+                scale: [1, 1.2, 1],
+                opacity: [0.1, 0.15, 0.1],
+              }}
+              transition={{
+                duration: 8,
+                repeat: Infinity,
+                repeatType: 'reverse',
+              }}
+            >
+              <div className="w-full h-full" />
+            </ClientMotion>
+              
+            {/* Small floating particles - client side only with consistent keys */}
+            {Array.from({ length: 15 }).map((_, i) => {
+              // Use seeded random values to avoid hydration mismatches
+              const width = 8;
+              const height = 8;
+              const left = `${10 + (i * 5) % 80}%`;
+              const top = `${5 + (i * 7) % 90}%`;
+              
+              return (
+                <ClientMotion
+                  key={`particle-${i}`}
+                  className="absolute rounded-full bg-white/30"
+                  style={{
+                    width,
+                    height,
+                    left,
+                    top,
+                  }}
+                  animate={{
+                    y: [0, -30, 0],
+                    x: [0, 10, 0],
+                    opacity: [0, 0.6, 0],
+                  }}
+                  transition={{
+                    duration: 5 + (i % 5),
+                    repeat: Infinity,
+                    delay: i * 0.3,
+                  }}
+                >
+                  <div className="w-full h-full" />
+                </ClientMotion>
+              );
+            })}
+          </AnimateOnMount>
         </div>
         
         <div className="container relative z-10 mx-auto px-4 text-center">
@@ -817,21 +994,65 @@ export default function HomePage() {
             </p>
             
             <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-              <Link href="/sign-up">
-                <Button size="lg" className="bg-white text-primary-700 hover:bg-white/90 w-full sm:w-auto">
-                  Create Free Account
-                </Button>
-              </Link>
-              <Link href="/about">
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10 w-full sm:w-auto">
-                  Learn More First
-                </Button>
-              </Link>
+              <div className="w-full sm:w-auto">
+                <GlowingEffect 
+                  color="white" 
+                  size="lg" 
+                  intensity="light" 
+                  pulseEffect={true}
+                >
+                  <Link href="/sign-up" className="w-full sm:w-auto">
+                    <Button 
+                      size="lg" 
+                      className="bg-white text-primary-700 hover:bg-white/90 w-full sm:w-auto group relative overflow-hidden"
+                    >
+                      <span className="absolute inset-0 bg-gradient-to-r from-white to-white/70 opacity-0 group-hover:opacity-100 transition-opacity blur-md"></span>
+                      <span className="relative flex items-center">
+                        Create Free Account
+                        <ParticleEffect 
+                          count={8} 
+                          color="primary" 
+                          size={4} 
+                          spread={20} 
+                          duration={1.2} 
+                          trigger="hover" 
+                          className="ml-2"
+                        />
+                      </span>
+                    </Button>
+                  </Link>
+                </GlowingEffect>
+              </div>
+              
+              <GradientBorder 
+                animate={true} 
+                borderWidth={1} 
+                gradientFrom="from-white" 
+                gradientTo="to-white/70" 
+                borderRadius="rounded-md"
+                className="w-full sm:w-auto"
+                padding="p-[1px]"
+              >
+                <Link href="/about" className="w-full sm:w-auto">
+                  <Button 
+                    size="lg" 
+                    variant="outline" 
+                    className="border-transparent text-white hover:bg-white/10 w-full sm:w-auto"
+                  >
+                    <span>Learn More First</span>
+                    <span className="ml-2 group-hover:translate-x-1 transition-transform">→</span>
+                  </Button>
+                </Link>
+              </GradientBorder>
             </div>
             
-            <p className="mt-6 text-sm text-white/80">
+            <motion.p 
+              className="mt-6 text-sm text-white/80"
+              animate={{ opacity: [0.8, 1, 0.8] }}
+              transition={{ duration: 3, repeat: Infinity }}
+            >
               No credit card required. No technical knowledge needed.
-            </p>
+            </motion.p>
           </motion.div>
         </div>
       </section>

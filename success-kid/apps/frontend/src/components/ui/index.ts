@@ -1,12 +1,29 @@
-// Core UI components
+// Export all UI components
+
+// Core UI
 export * from './button';
 export * from './card';
-export * from './dialog';
 export * from './input';
-export * from './Spinner';
-export * from './UserButton';
-export * from './tabs';
-export * from './toast';
+export * from './label'; // Re-enabled
+export * from './textarea';
+// export * from './select'; // Commented out until implemented
+// export * from './checkbox'; // Commented out until implemented
+// export * from './radio'; // Commented out until implemented
+// export * from './switch'; // Commented out until implemented
+export * from './avatar';
 export * from './badge';
+// export * from './progress'; // Commented out until implemented
+export * from './dialog-simple'; // Using simple dialog without Radix UI
+// export * from './tabs'; // Commented out until implemented
+// export * from './tooltip'; // Commented out until implemented
 
-// Add other components as they're created
+// Enhanced UI with Animation
+export * from './typewriter-effect';
+export * from './glowing-effect';
+export * from './particle-effect';
+export * from './gradient-border';
+export * from './ClientParticles';
+export * from './AnimateOnMount';
+export * from './ClientMotion';
+
+// Add more exports as needed

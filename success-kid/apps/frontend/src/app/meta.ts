@@ -40,8 +40,8 @@ export const baseMetadata: Metadata = {
     creator: '@successkid',
     site: '@successkid',
   },
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=5',
-  themeColor: '#1E88E5', // Primary color
+  // Note: viewport and themeColor should be configured in the viewport export instead of metadata
+  // See app/layout.tsx for the correct implementation
   category: 'technology',
 };
 

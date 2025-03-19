@@ -43,7 +43,7 @@ export function MarketingFooter() {
           {/* Brand and Newsletter */}
           <div className="lg:col-span-4 flex flex-col">
             <div className="mb-4">
-              <Link href="/" className="flex items-center space-x-2 group">
+              <Link href="/home" className="flex items-center space-x-2 group">
                 <span className="text-2xl font-bold text-primary group-hover:text-primary-600 transition-colors">Success Kid</span>
               </Link>
               <p className="mt-4 text-gray-600 dark:text-gray-400 max-w-md">

@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useReducedMotionPreference } from '@/hooks/useReducedMotionPreference';
+import { TypewriterEffect } from '@/components/ui/typewriter-effect';
 
 interface StaggeredTitleProps {
   text: string;
@@ -11,6 +12,7 @@ interface StaggeredTitleProps {
   highlightColor?: string;
   className?: string;
   delay?: number;
+  useTypewriter?: boolean;
 }
 
 export function StaggeredTitle({ 
@@ -19,7 +21,8 @@ export function StaggeredTitle({
   as = 'h1', 
   highlightColor = 'text-primary', 
   className = '',
-  delay = 0
+  delay = 0,
+  useTypewriter = false
 }: StaggeredTitleProps) {
   const prefersReducedMotion = useReducedMotionPreference();
   
@@ -58,6 +61,28 @@ export function StaggeredTitle({
   // Determine which component to render based on the 'as' prop
   const Component = as;
   
+  // If using typewriter effect
+  if (useTypewriter) {
+    const phrases = highlightedText 
+      ? [`${text} ${highlightedText}`] 
+      : [text];
+      
+    return (
+      <Component className={className}>
+        <TypewriterEffect 
+          phrases={phrases}
+          typingSpeed={80}
+          deletingSpeed={40}
+          delayBetweenPhrases={1500}
+          infiniteLoop={true}
+          className="font-bold"
+          cursorClassName={highlightColor}
+        />
+      </Component>
+    );
+  }
+  
+  // Otherwise, use the staggered word animation
   return (
     <Component className={className}>
       <motion.span

@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import tokens from '@/theme/tokens';
 
 const navLinks = [
-  { name: 'Home', href: '/' },
+  { name: 'Home', href: '/home' },
   { name: 'About', href: '/about' },
   { name: 'Market', href: '/tokenomics' }, // Keeping the same URL for now, rename page later
   { name: 'FAQ', href: '/faq' },
@@ -52,7 +52,7 @@ export function MarketingHeader() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2 group">
+          <Link href="/home" className="flex items-center space-x-2 group">
             <span className="text-2xl font-bold text-primary group-hover:text-primary-600 transition-colors">Success Kid</span>
           </Link>
 
@@ -138,7 +138,7 @@ export function MarketingHeader() {
           >
             <div className="container mx-auto h-full flex flex-col">
             <div className="flex items-center justify-between h-16 px-4">
-            <Link href="/" className="flex items-center space-x-2 group">
+            <Link href="/home" className="flex items-center space-x-2 group">
             <span className="text-2xl font-bold text-primary group-hover:text-primary-600 transition-colors">Success Kid</span>
             </Link>
                 <button

@@ -34,7 +34,7 @@ import {
   createLeaderboardCacheMiddleware,
   createMarketDataCacheMiddleware,
   warmCache 
-} from './services/cache';
+} from './middleware/cache-middleware';
 
 // API route imports
 import healthRoutes from './api/health';
@@ -113,7 +113,8 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
     max: rateLimitConfig.max,
     timeWindow: rateLimitConfig.timeWindow,
     allowList: rateLimitConfig.allowList,
-    onRateLimit: (request, reply) => {
+    hook: 'onRequest',
+    errorResponseBuilder: (request, reply) => {
       // Log rate limit exceeded events
       logger.warn('Rate limit exceeded', {
         ip: request.ip,
@@ -125,7 +126,13 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
         method: request.method,
         path: request.routerPath || 'unknown',
       });
-    },
+      
+      return {
+        statusCode: 429,
+        error: 'Too Many Requests',
+        message: 'Rate limit exceeded, please try again later'
+      };
+    }
   });
 
   // Register WebSocket support
@@ -179,8 +186,16 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
     ],
   });
   
+  // Create a MetricsService adapter from MonitoringService to satisfy type constraints
+  const metricsServiceAdapter = {
+    getMetricValue: async (name: string, labels: Record<string, string> = {}) => {
+      return monitoringService.getMetric(name, labels) as number;
+    },
+    getRegistry: () => monitoringService.getRegistry()
+  };
+  
   // Set up alerting
-  setupAlerts(app, monitoringService, {
+  setupAlerts(app, metricsServiceAdapter, {
     initialRules: defaultAlertRules,
     checkIntervalMs: 15000, // Check alerts every 15 seconds
   });
@@ -250,10 +265,11 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
   // Register API routes with appropriate caching middleware
   app.register(healthRoutes, { prefix: '/api/v1/health' });
   
+  // Register features routes with 1 hour cache
   app.register(featuresRoutes, { 
     prefix: '/api/v1/features',
     hooks: {
-      onRequest: [createCacheMiddleware({ ttl: 3600 })] // 1 hour cache for features
+      onRequest: [createCacheMiddleware({ ttl: 3600 })]
     }
   });
   
@@ -262,24 +278,27 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
     // No cache for points routes as they're frequently updated
   });
   
+  // Register content routes with 1 minute cache
   app.register(contentRoutes, { 
     prefix: '/api/v1/content',
     hooks: {
-      onRequest: [createContentCacheMiddleware(60)] // 1 minute cache for content
+      onRequest: [createContentCacheMiddleware(60)]
     }
   });
   
+  // Register media routes with 24 hour cache
   app.register(mediaRoutes, { 
     prefix: '/api/v1/media',
     hooks: {
-      onRequest: [createCacheMiddleware({ ttl: 86400 })] // 24 hours cache for media
+      onRequest: [createCacheMiddleware({ ttl: 86400 })]
     }
   });
   
+  // Register market routes with 30 second cache
   app.register(marketRoutes, { 
     prefix: '/api/v1/market',
     hooks: {
-      onRequest: [createMarketDataCacheMiddleware(30)] // 30 seconds cache for market data
+      onRequest: [createMarketDataCacheMiddleware(30)]
     }
   });
   
@@ -293,13 +312,15 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
     // No cache for notifications as they're user-specific and time-sensitive
   });
   
+  // Register activity routes with 1 minute cache
   app.register(activityRoutes, { 
     prefix: '/api/v1/activity',
     hooks: {
-      onRequest: [createCacheMiddleware({ ttl: 60 })] // 1 minute cache for activity
+      onRequest: [createCacheMiddleware({ ttl: 60 })]
     }
   });
   
+  // Routes without cache
   app.register(presenceRoutes, { 
     prefix: '/api/v1/presence'
     // No cache for presence as it's real-time
@@ -315,10 +336,11 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
     // No cache for compliance routes
   });
   
+  // Register forum routes with 2 minute cache
   app.register(forumRoutes, { 
     prefix: '/api/v1/forum',
     hooks: {
-      onRequest: [createCacheMiddleware({ ttl: 120 })] // 2 minutes cache for forum
+      onRequest: [createCacheMiddleware({ ttl: 120 })]
     }
   });
 

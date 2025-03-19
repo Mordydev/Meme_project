@@ -90,5 +90,4 @@ export const CardFooter = forwardRef<HTMLDivElement, CardFooterProps>(
 );
 CardFooter.displayName = "CardFooter";
 
-// Export all components
-export { CardHeader, CardTitle, CardDescription, CardContent, CardFooter };
+// All components are already exported at their definitions

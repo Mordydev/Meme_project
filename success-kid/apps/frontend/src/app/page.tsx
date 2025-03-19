@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { baseMetadata } from './meta';
-import MarketingPage from './(marketing)/page';
+import { redirect } from 'next/navigation';
 
 // Export metadata
 export const metadata: Metadata = {
@@ -21,6 +21,7 @@ export const metadata: Metadata = {
   },
 };
 
-// Use the Marketing Page directly
-export default MarketingPage;
-
+// Root page that redirects to marketing layout pages
+export default function HomePage() {
+  redirect('/home');
+}
