@@ -11,8 +11,17 @@ COPY package.json pnpm-workspace.yaml ./
 COPY apps/backend/package.json ./apps/backend/
 COPY packages ./packages/
 
-# Install dependencies
+# Install dependencies - two step process for better workspace resolution
 RUN pnpm install --no-frozen-lockfile
+
+# Build shared packages first
+RUN pnpm --filter="@success-kid/config" build
+RUN pnpm --filter="@success-kid/types" build
+RUN pnpm --filter="@success-kid/utils" build
+
+# Verify nodemon installation
+RUN ls -la /app/apps/backend/node_modules/nodemon/bin/
+RUN test -f /app/apps/backend/node_modules/nodemon/bin/nodemon.js || (echo "Nodemon binary not found" && exit 1)
 
 # Copy application source code
 COPY apps/backend ./apps/backend

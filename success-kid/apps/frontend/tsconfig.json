@@ -1,5 +1,5 @@
 {
-  "extends": "@success-kid/config/typescript/nextjs.json",
+  "extends": "../../packages/config/typescript/nextjs.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {

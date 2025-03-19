@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { Inter } from 'next/font/google';
+import { ClerkProvider } from '@clerk/nextjs';
 import { registerServiceWorker } from '../lib/pwa/service-worker-registration';
 import '../styles/globals.css';
 
@@ -28,7 +29,15 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/apple-icon-180.png" />
       </head>
       <body className={`${inter.variable} font-body`}>
-        {children}
+        <ClerkProvider appearance={{
+          variables: {
+            colorPrimary: 'oklch(0.84 0.18 240)', // Primary blue
+            colorTextOnPrimaryBackground: 'white',
+            fontFamily: 'var(--font-body)'
+          }
+        }}>
+          {children}
+        </ClerkProvider>
       </body>
     </html>
   );

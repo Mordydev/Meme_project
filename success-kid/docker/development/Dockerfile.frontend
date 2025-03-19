@@ -11,8 +11,18 @@ COPY package.json pnpm-workspace.yaml ./
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages ./packages/
 
-# Install dependencies
+# Install dependencies - two step process for better workspace resolution
 RUN pnpm install --no-frozen-lockfile
+
+# Build shared packages first
+RUN pnpm --filter="@success-kid/config" build
+RUN pnpm --filter="@success-kid/types" build
+RUN pnpm --filter="@success-kid/utils" build
+RUN pnpm --filter="@success-kid/ui" build
+
+# Verify Next.js installation
+RUN ls -la /app/apps/frontend/node_modules/next/dist/bin/
+RUN test -f /app/apps/frontend/node_modules/next/dist/bin/next || (echo "Next.js binary not found" && exit 1)
 
 # Copy application source code
 COPY apps/frontend ./apps/frontend

@@ -2,7 +2,10 @@
   "name": "@success-kid/config",
   "version": "0.1.0",
   "private": true,
-  "license": "MIT",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo 'No build step required for config package'"
+  },
   "files": [
     "eslint",
     "typescript",
