@@ -161,6 +161,18 @@
   .text-balance {
     text-wrap: balance;
   }
+  
+  /* Glass Effect Utility Classes */
+  .glass-effect {
+    @apply backdrop-blur-md bg-white/60 dark:bg-gray-900/60;
+  }
+  
+  /* Fallback for browsers without backdrop-filter support */
+  @supports not ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+    .glass-effect {
+      @apply bg-white/90 dark:bg-gray-900/90;
+    }
+  }
 }
 
 /* Animations for Success Kid elements */

@@ -25,5 +25,6 @@ export * from './gradient-border';
 export * from './ClientParticles';
 export * from './AnimateOnMount';
 export * from './ClientMotion';
+export * from './EnhancedButton';
 
 // Add more exports as needed

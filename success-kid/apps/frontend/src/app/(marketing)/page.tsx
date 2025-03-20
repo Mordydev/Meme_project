@@ -737,9 +737,27 @@ export default function HomePage() {
                 
                 <div className="mt-8">
                   <Link href="/sign-up?persona=crypto">
-                    <Button size="lg">
-                      Connect Your Wallet
-                    </Button>
+                    <motion.div
+                      whileHover={{ 
+                        scale: 1.03, 
+                        y: -1
+                      }}
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 400, 
+                        damping: 25,
+                        mass: 0.8,
+                        duration: 0.3
+                      }}
+                    >
+                      <Button 
+                        size="lg"
+                        className="transition-shadow hover:shadow-[0_0_8px_rgba(30,136,229,0.6)]" 
+                      >
+                        Connect Your Wallet
+                      </Button>
+                    </motion.div>
                   </Link>
                 </div>
               </motion.div>
@@ -1056,9 +1074,27 @@ export default function HomePage() {
                 
                 <div className="mt-8">
                   <Link href="/sign-up?persona=creator">
-                    <Button size="lg" className="bg-secondary hover:bg-secondary-600 text-black">
-                      Start Creating & Earning
-                    </Button>
+                    <motion.div
+                      whileHover={{ 
+                        scale: 1.03, 
+                        y: -1
+                      }}
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 400, 
+                        damping: 25,
+                        mass: 0.8,
+                        duration: 0.3
+                      }}
+                    >
+                      <Button 
+                        size="lg" 
+                        className="bg-secondary hover:bg-secondary-600 text-black transition-shadow hover:shadow-[0_0_8px_rgba(255,193,7,0.6)]"
+                      >
+                        Start Creating & Earning
+                      </Button>
+                    </motion.div>
                   </Link>
                 </div>
               </motion.div>
@@ -1135,9 +1171,27 @@ export default function HomePage() {
                 
                 <div className="mt-8">
                   <Link href="/sign-up?persona=casual">
-                    <Button size="lg" className="bg-accent hover:bg-accent-600">
-                      Join Without a Wallet
-                    </Button>
+                    <motion.div
+                      whileHover={{ 
+                        scale: 1.03, 
+                        y: -1
+                      }}
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ 
+                        type: "spring", 
+                        stiffness: 400, 
+                        damping: 25,
+                        mass: 0.8,
+                        duration: 0.3
+                      }}
+                    >
+                      <Button 
+                        size="lg" 
+                        className="bg-accent hover:bg-accent-600 transition-shadow hover:shadow-[0_0_8px_rgba(76,175,80,0.6)]"
+                      >
+                        Join Without a Wallet
+                      </Button>
+                    </motion.div>
                   </Link>
                 </div>
               </motion.div>
