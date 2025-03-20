@@ -1,5 +1,5 @@
 // Shared Components
-export * from './shared/SuccessKidLogo';
+export * from './shared/AnimatedSuccessElement'; // Renamed from SuccessKidLogo
 export * from './shared/StaggeredTitle';
 export * from './shared/AnimatedPointsBadge';
 export * from './shared/SEO';

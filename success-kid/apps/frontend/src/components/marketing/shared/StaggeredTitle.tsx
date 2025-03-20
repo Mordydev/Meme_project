@@ -96,75 +96,36 @@ export function StaggeredTitle({
   
   // If using typewriter effect
   if (useTypewriter) {
-    // State to control which typewriter is active
-    const [firstLineComplete, setFirstLineComplete] = useState(false);
-    const [firstLineVisible, setFirstLineVisible] = useState(true);
-    const [secondLineVisible, setSecondLineVisible] = useState(false);
-    
-    useEffect(() => {
-      // Start the loop after component mounts
-      const interval = setInterval(() => {
-        // First, clear second line
-        setSecondLineVisible(false);
-        
-        // Wait for second line to clear, then clear first line
-        setTimeout(() => {
-          setFirstLineVisible(false);
-          
-          // After both lines are clear, show first line
-          setTimeout(() => {
-            setFirstLineVisible(true);
-            
-            // After first line is complete, show second line
-            setTimeout(() => {
-              setSecondLineVisible(true);
-              
-              // Keep both visible for a while before next cycle
-            }, 2000);
-          }, 1000);
-        }, 1000);
-      }, 12000); // Full cycle every 12 seconds (longer for better readability)
-      
-      // Initial state: show first line, then second line after delay
-      setFirstLineVisible(true);
-      setTimeout(() => {
-        setSecondLineVisible(true);
-      }, 2000);
-      
-      return () => clearInterval(interval);
-    }, []);
-    
-    // Create a coordinated typewriter effect between the two phrases
     return (
       <Component className={`${className} ${alignClass} min-h-[calc(4em)] flex flex-col justify-center`}>
         <div className="flex flex-col">
+          {/* First Line */}
           <div className="mb-2 min-h-[1.5em]">
-            {firstLineVisible && (
-              <TypewriterEffect 
-                phrases={[text]}
-                typingSpeed={100}
-                deletingSpeed={80}
-                delayBetweenPhrases={3000}
-                infiniteLoop={false} 
-                className="font-bold"
-                cursorClassName="text-primary" 
-                onComplete={() => setFirstLineComplete(true)}
-              />
-            )}
+            <TypewriterEffect 
+              phrases={[text]}
+              typingSpeed={100}
+              deletingSpeed={80}
+              delayBetweenPhrases={2000}
+              infiniteLoop={true}
+              className="font-bold"
+              cursorClassName="text-primary"
+              onComplete={() => console.log('First line complete')}
+            />
           </div>
+          
+          {/* Second Line with delayed start */}
           {highlightedText && (
             <div className="min-h-[1.5em]">
-              {secondLineVisible && (
-                <TypewriterEffect 
-                  phrases={[highlightedText]}
-                  typingSpeed={100}
-                  deletingSpeed={80} 
-                  delayBetweenPhrases={3000}
-                  infiniteLoop={false} 
-                  className={`font-bold ${highlightClasses}`}
-                  cursorClassName={highlightColor}
-                />
-              )}
+              <TypewriterEffect 
+                phrases={[highlightedText]}
+                typingSpeed={100}
+                deletingSpeed={80}
+                initialDelay={text.length * (100 / 1000) + 500} // Wait for first line to complete
+                delayBetweenPhrases={2000}
+                infiniteLoop={true}
+                className={`font-bold ${highlightClasses}`}
+                cursorClassName={highlightColor}
+              />
             </div>
           )}
         </div>

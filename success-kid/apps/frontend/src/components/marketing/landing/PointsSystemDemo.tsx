@@ -64,11 +64,16 @@ export function PointsSystemDemo({
         // Check if we've reached redemption threshold
         if (newPoints >= redemptionThreshold && !reachedRedemption) {
           setReachedRedemption(true);
-          setTimeout(() => setReachedRedemption(false), 5000);
+          // Longer display time for redemption popup
+          setTimeout(() => setReachedRedemption(false), 8000);
         }
-        // Reset the points more frequently for clearer demo loop
+        // Reset the points more quickly and cleanly for a better demo loop
         if (newPoints >= redemptionThreshold * 1.2) {
-          return 0; // Reset to 0 to start the cycle over
+          // Add a short delay before resetting to avoid abrupt transitions
+          setTimeout(() => {
+            setPoints(0);
+          }, 1500);
+          return newPoints; // Keep the high value briefly, then reset
         }
         return newPoints;
       });
@@ -142,7 +147,7 @@ export function PointsSystemDemo({
   };
   
   return (
-    <div ref={demoContainerRef} className={`relative rounded-lg border ${borderColor} ${bgColor} p-6 shadow-xl ${className} overflow-hidden`} style={{ minHeight: '460px', height: '100%', width: '100%', maxWidth: '550px', margin: '0 auto' }}>
+    <div ref={demoContainerRef} className={`relative rounded-lg border ${borderColor} ${bgColor} p-6 shadow-xl ${className} overflow-hidden`} style={{ minHeight: '460px', height: '100%', width: '550px', maxWidth: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
       {/* Animated border gradient */}
       <motion.div 
         className="absolute inset-0 rounded-lg z-0 opacity-20"
@@ -239,14 +244,14 @@ export function PointsSystemDemo({
             <AnimatePresence>
               {showAnimation && (
                 <motion.div
-                  key={animationKey}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: -20 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.8 }}
-                  className="absolute left-0 top-0 text-sm font-medium text-green-500"
+                key={animationKey}
+                initial={{ opacity: 0, y: 0 }}
+                animate={{ opacity: 1, y: -20 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.8 }}
+                className="absolute left-0 top-0 text-sm font-medium text-green-500"
                 >
-                  +{pointsIncrement} SP
+                +{pointsIncrement} SP
                 </motion.div>
               )}
             </AnimatePresence>
@@ -464,8 +469,30 @@ export function PointsSystemDemo({
                   stiffness: 300,
                   damping: 15
                 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <button className="relative bg-primary text-white px-6 py-3 rounded-md overflow-hidden group">
+                <button 
+                  className="relative bg-primary text-white px-6 py-3 rounded-md overflow-hidden group"
+                  onClick={() => {
+                    // Handle redemption click - reset the demo cycle
+                    setReachedRedemption(false);
+                    // Reset points to 0 to restart the cycle
+                    setPoints(0);
+                    
+                    // Add a small celebration effect
+                    const confetti = document.createElement('div');
+                    confetti.className = 'fixed inset-0 z-50 pointer-events-none';
+                    document.body.appendChild(confetti);
+                    
+                    // Remove after animation completes
+                    setTimeout(() => {
+                      if (confetti.parentNode) {
+                        document.body.removeChild(confetti);
+                      }
+                    }, 3000);
+                  }}
+                >
                   <span className="relative z-10">Redeem Now</span>
                   <motion.div 
                     className="absolute inset-0 bg-gradient-to-r from-primary-600 to-primary-400 z-0"

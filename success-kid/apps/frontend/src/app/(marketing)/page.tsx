@@ -8,7 +8,7 @@ import { Button, ClientMotion, AnimateOnMount, GlowingEffect, ParticleEffect, Gr
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReducedMotionPreference } from '@/hooks/useReducedMotionPreference';
 import { 
-  SuccessKidLogo, 
+  AnimatedSuccessElement, 
   HeroBackground, 
   PointsSystemDemo,
   StaggeredTitle,
@@ -185,7 +185,7 @@ export default function HomePage() {
                     variant="outline" 
                     className="w-full sm:w-auto group border-0 relative overflow-hidden"
                     as={Link}
-                    href="/tokenomics"
+                    href="/#how-it-works"
                   >
                     <motion.span 
                       className="absolute inset-0" 
@@ -266,9 +266,9 @@ export default function HomePage() {
                     transition={{ duration: 1 }}
                     className="mb-6 relative"
                     whileHover={{
-                      scale: 1.1,
-                      rotate: [0, -3, 3, -2, 0],
-                      transition: { duration: 0.5 }
+                    scale: 1.1,
+                    rotate: 5,
+                    transition: { duration: 0.5 }
                     }}
                   >
                     <ClientMotion
@@ -287,7 +287,12 @@ export default function HomePage() {
                       <div className="w-full h-full" />
                     </ClientMotion>
                     <div className="relative">
-                      <SuccessKidLogo size={200} />
+                      <AnimatedSuccessElement 
+                        size={200} 
+                        variant="starburst" 
+                        intensity="high" 
+                        color="primary" 
+                      />
                       
                       {/* Enhanced sparkle effects */}
                       {Array.from({ length: 5 }).map((_, i) => (
@@ -423,7 +428,7 @@ export default function HomePage() {
       </section>
       
       {/* How It Works Section */}
-      <section className="py-20 bg-white relative overflow-hidden">
+      <section id="how-it-works" className="py-20 bg-white relative overflow-hidden">
         {/* Enhanced background effect for the section */}
         <motion.div 
           className="absolute inset-0 bg-gradient-to-br from-blue-50 to-transparent opacity-30"
@@ -507,11 +512,37 @@ export default function HomePage() {
               />
             ))}
             
-            <h3 className="text-3xl font-bold text-gray-900 relative z-10">How Success Kid Works</h3>
+            <h3 className="text-3xl font-bold text-gray-900 relative z-10 drop-shadow-sm">How the Success Kid Community Works</h3>
+            <p className="text-gray-600 mt-4 max-w-2xl mx-auto font-normal text-lg">
+              A simple three-step process to start earning and growing with our community
+            </p>
           </motion.div>
           
           <div className="grid md:grid-cols-3 gap-8 relative">
-            {/* Connected steps - Progress line removed */}
+            {/* Add connecting lines between steps - only visible on desktop */}
+            <div className="hidden md:block absolute top-1/3 left-1/4 w-1/2 h-0.5 bg-gradient-to-r from-primary-200 to-primary-300 z-0"></div>
+            <div className="hidden md:block absolute top-1/3 left-1/2 w-1/4 h-0.5 bg-gradient-to-r from-primary-300 to-primary-200 z-0"></div>
+            
+            {/* Arrow indicators */}
+            <div className="hidden md:flex absolute top-1/3 left-[calc(50%-10px)] transform -translate-y-1/2 text-primary-300 z-0">
+              <motion.div 
+                animate={{ x: [0, 10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="text-2xl"
+              >
+                →
+              </motion.div>
+            </div>
+            
+            <div className="hidden md:flex absolute top-1/3 left-[calc(75%-10px)] transform -translate-y-1/2 text-primary-300 z-0">
+              <motion.div 
+                animate={{ x: [0, 10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
+                className="text-2xl"
+              >
+                →
+              </motion.div>
+            </div>
             
             {/* Step 1 */}
               <motion.div 
@@ -521,32 +552,26 @@ export default function HomePage() {
                 transition={{ duration: 0.5, delay: 0.1 }}
                 className="relative z-10"
               >
-                <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-md h-full relative overflow-hidden group hover:shadow-lg transition-all duration-300 hover:border-primary-100 hover:translate-y-[-2px]">
-                  {/* Card background */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary-50/20 via-white to-primary-50/5 opacity-60" />
+                <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-md h-full relative overflow-hidden group hover:shadow-lg transition-all duration-300 hover:border-primary-200 hover:translate-y-[-2px]">
+                  {/* Card background with enhanced gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-white via-white to-primary-50/10 opacity-30" />
                   
                   {/* Improved animated icon */}
-                  <div className="flex flex-col mb-6 items-center">
-                    <motion.div 
-                      className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-700 text-xl text-white font-bold shadow-md mb-4"
-                      whileHover={{ scale: 1.05, boxShadow: '0 10px 25px -5px rgba(30, 136, 229, 0.5)' }}
-                      transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                  <div className="flex flex-col mb-5 items-center">
+                    <div 
+                      className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-700 text-xl text-white font-bold shadow-lg mb-4 relative"
                     >
                       1
-                      <motion.div 
-                        className="absolute -inset-2 rounded-full bg-primary/10 blur-sm"
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.1, 0.3] }}
-                        transition={{ duration: 3, repeat: Infinity, repeatType: 'reverse' }}
-                      />
-                    </motion.div>
-                    <h3 className="text-xl font-semibold text-gray-900 text-center">Participate & Earn</h3>
+                      <div className="absolute inset-0 rounded-full bg-primary-400/20 blur-sm" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 text-center drop-shadow-sm">Participate & Earn</h3>
                   </div>
-                  <p className="text-gray-600 mb-6 text-center">
+                  <p className="text-gray-700 mb-6 text-center font-normal leading-relaxed text-sm">
                     Create content, comment on posts, and engage with the community to earn Success Points (SP).
                   </p>
                   <motion.div 
                     className="text-center"
-                    whileHover={{ scale: 1.1, rotate: [0, -5, 5, 0] }}
+                    whileHover={{ scale: 1.1 }}
                     transition={{ type: "spring", stiffness: 400, damping: 10 }}
                   >
                     <span className="text-5xl inline-block drop-shadow-md">🏆</span>
@@ -562,27 +587,21 @@ export default function HomePage() {
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="relative z-10"
               >
-                <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-md h-full relative overflow-hidden group hover:shadow-lg transition-all duration-300 hover:border-primary-100 hover:translate-y-[-2px]">
-                  {/* Card background */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary-50/20 via-white to-primary-50/5 opacity-60" />
+                <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-md h-full relative overflow-hidden group hover:shadow-lg transition-all duration-300 hover:border-primary-200 hover:translate-y-[-2px]">
+                  {/* Card background with enhanced gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-white via-white to-primary-50/10 opacity-30" />
                   
                   {/* Improved animated icon */}
-                  <div className="flex flex-col mb-6 items-center">
-                    <motion.div 
-                      className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-700 text-xl text-white font-bold shadow-md mb-4"
-                      whileHover={{ scale: 1.05, boxShadow: '0 10px 25px -5px rgba(30, 136, 229, 0.5)' }}
-                      transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                  <div className="flex flex-col mb-5 items-center">
+                    <div 
+                      className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-700 text-xl text-white font-bold shadow-lg mb-4 relative"
                     >
                       2
-                      <motion.div 
-                        className="absolute -inset-2 rounded-full bg-primary/10 blur-sm"
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.1, 0.3] }}
-                        transition={{ duration: 3, repeat: Infinity, repeatType: 'reverse', delay: 1 }}
-                      />
-                    </motion.div>
-                    <h3 className="text-xl font-semibold text-gray-900 text-center">Convert to Tokens</h3>
+                      <div className="absolute inset-0 rounded-full bg-primary-400/20 blur-sm" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 text-center drop-shadow-sm">Convert to Tokens</h3>
                   </div>
-                  <p className="text-gray-600 mb-6 text-center">
+                  <p className="text-gray-700 mb-6 text-center font-normal leading-relaxed text-sm">
                     Redeem your Success Points for SKC tokens at a rate of 100 SP = 1 SKC.
                   </p>
                   <motion.div 
@@ -609,27 +628,21 @@ export default function HomePage() {
                 transition={{ duration: 0.5, delay: 0.3 }}
                 className="relative z-10"
               >
-                <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-md h-full relative overflow-hidden group hover:shadow-lg transition-all duration-300 hover:border-primary-100 hover:translate-y-[-2px]">
-                  {/* Card background */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary-50/20 via-white to-primary-50/5 opacity-60" />
+                <div className="bg-white rounded-xl border border-gray-200 p-7 shadow-md h-full relative overflow-hidden group hover:shadow-lg transition-all duration-300 hover:border-primary-200 hover:translate-y-[-2px]">
+                  {/* Card background with enhanced gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-white via-white to-primary-50/10 opacity-30" />
                   
                   {/* Improved animated icon */}
-                  <div className="flex flex-col mb-6 items-center">
-                    <motion.div 
-                      className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-700 text-xl text-white font-bold shadow-md mb-4"
-                      whileHover={{ scale: 1.05, boxShadow: '0 10px 25px -5px rgba(30, 136, 229, 0.5)' }}
-                      transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                  <div className="flex flex-col mb-5 items-center">
+                    <div 
+                      className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-700 text-xl text-white font-bold shadow-lg mb-4 relative"
                     >
                       3
-                      <motion.div 
-                        className="absolute -inset-2 rounded-full bg-primary/10 blur-sm"
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.1, 0.3] }}
-                        transition={{ duration: 3, repeat: Infinity, repeatType: 'reverse', delay: 2 }}
-                      />
-                    </motion.div>
-                    <h3 className="text-xl font-semibold text-gray-900 text-center">Grow Your Holdings</h3>
+                      <div className="absolute inset-0 rounded-full bg-primary-400/20 blur-sm" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 text-center drop-shadow-sm">Grow Your Holdings</h3>
                   </div>
-                  <p className="text-gray-600 mb-6 text-center">
+                  <p className="text-gray-700 mb-6 text-center font-normal leading-relaxed text-sm">
                     Hold tokens as they grow in value with our expanding community.
                   </p>
                   <motion.div 
@@ -1370,12 +1383,12 @@ export default function HomePage() {
         </div>
       </section>
       
-      {/* CTA Section */}
+      {/* CTA Section - Enhanced background and animations */}
       <section className="bg-gradient-to-br from-primary-500 to-primary-700 py-20 relative overflow-hidden">
-        {/* Enhanced background patterns */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white"></div>
-          <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-white"></div>
+        {/* Enhanced background patterns with improved visual effects */}
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white blur-xl"></div>
+          <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-white blur-xl"></div>
           
           {/* All animations handled client-side only */}
           <AnimateOnMount>
@@ -1501,7 +1514,7 @@ export default function HomePage() {
                     variant="outline" 
                     className="w-full sm:w-auto group border-0 relative overflow-hidden text-white hover:bg-white/10"
                     as={Link}
-                    href="/tokenomics"
+                    href="/#how-it-works"
                   >
                     <motion.span 
                       className="absolute inset-0" 
@@ -1514,8 +1527,8 @@ export default function HomePage() {
                     <span>See How It Works</span>
                     <motion.span 
                       className="ml-2 inline-block"
-                      animate={{ x: [0, 5, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2 }}
+                      animate={{ x: [0, 10, 0], opacity: [0.7, 1, 0.7] }}
+                      transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1 }}
                     >
                       →
                     </motion.span>

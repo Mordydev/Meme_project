@@ -8,6 +8,7 @@ interface TypewriterEffectProps {
   typingSpeed?: number;
   deletingSpeed?: number;
   delayBetweenPhrases?: number;
+  initialDelay?: number; // Add initialDelay property
   className?: string;
   cursorClassName?: string;
   infiniteLoop?: boolean;
@@ -19,6 +20,7 @@ export function TypewriterEffect({
   typingSpeed = 80, // Faster typing for better effect
   deletingSpeed = 40, // Faster deleting for better effect
   delayBetweenPhrases = 3000,
+  initialDelay = 0, // Default to no initial delay
   className = '',
   cursorClassName = '',
   infiniteLoop = true,
@@ -27,9 +29,8 @@ export function TypewriterEffect({
   const [displayText, setDisplayText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [phraseIndex, setPhraseIndex] = useState(0);
-  const [isBlinking, setIsBlinking] = useState(true);
-  // Always show cursor with consistent blinking
-  const showCursor = true;
+  // Always show cursor for consistent experience regardless of typing state
+  const showCursor = true; // Force cursor to always be visible
   
   // Use a ref to track if the component is still mounted
   const isMounted = useRef(true);
@@ -44,7 +45,24 @@ export function TypewriterEffect({
     };
   }, []);
   
+  // Apply initial delay only once at the start
+  const [initialDelayApplied, setInitialDelayApplied] = useState(false);
+  
   useEffect(() => {
+    // Handle initial delay on first render only
+    if (initialDelay > 0 && !initialDelayApplied) {
+      const initialTimer = setTimeout(() => {
+        setInitialDelayApplied(true);
+      }, initialDelay);
+      
+      return () => clearTimeout(initialTimer);
+    }
+    
+    // Don't start the typewriter animation until initial delay is completed
+    if (initialDelay > 0 && !initialDelayApplied) {
+      return;
+    }
+    
     const timeout = setTimeout(() => {
       // Skip if component unmounted
       if (!isMounted.current) return;
@@ -53,20 +71,21 @@ export function TypewriterEffect({
         // Typing effect
         setDisplayText(currentPhrase.substring(0, displayText.length + 1));
       } else if (!isDeleting && displayText.length === currentPhrase.length) {
-        // Delay before deleting
-        setIsBlinking(true);
+        // Delay before deleting - Keep visible longer before deletion
         // Call the completion callback if provided
         if (onComplete) {
           onComplete();
         }
         setTimeout(() => {
           if (isMounted.current) {
-            setIsDeleting(true);
-            setIsBlinking(false);
+            // Only start deleting if this is the last phrase or infiniteLoop is enabled
+            if (infiniteLoop || phraseIndex < phrases.length - 1) {
+              setIsDeleting(true);
+            }
           }
-        }, delayBetweenPhrases);
+        }, delayBetweenPhrases); // Use the full delay time for better readability
       } else if (isDeleting && displayText.length > 0) {
-        // Deleting effect
+        // Deleting effect - Make deletion a bit slower for better visibility
         setDisplayText(currentPhrase.substring(0, displayText.length - 1));
       } else if (isDeleting && displayText.length === 0) {
         // Move to next phrase
@@ -77,7 +96,7 @@ export function TypewriterEffect({
             : Math.min(prevIndex + 1, phrases.length - 1)
         );
       }
-    }, isDeleting ? deletingSpeed : typingSpeed);
+    }, isDeleting ? deletingSpeed * 1.5 : typingSpeed); // Slightly slower deletion for better effect
     
     return () => clearTimeout(timeout);
   }, [
@@ -88,23 +107,29 @@ export function TypewriterEffect({
     deletingSpeed, 
     delayBetweenPhrases, 
     phrases.length,
-    infiniteLoop
+    infiniteLoop,
+    phraseIndex,
+    onComplete,
+    initialDelay,
+    initialDelayApplied
   ]);
   
   return (
     <span className={className}>
       {displayText}
-      <motion.span
-        className={`inline-block ${cursorClassName || 'text-primary font-bold'}`}
-        animate={{ opacity: [1, 0, 1] }}
-        transition={{
-          duration: 0.8,
-          repeat: Infinity,
-          repeatType: 'loop',
-        }}
-      >
-        |
-      </motion.span>
+      {showCursor && (
+        <motion.span
+          className={`inline-block ${cursorClassName || 'text-primary font-bold'}`}
+          animate={{ opacity: [1, 0, 1] }}
+          transition={{
+            duration: 0.8,
+            repeat: Infinity,
+            repeatType: 'loop',
+          }}
+        >
+          |
+        </motion.span>
+      )}
     </span>
   );
 }

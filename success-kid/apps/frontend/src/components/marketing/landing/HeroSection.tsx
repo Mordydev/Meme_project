@@ -120,26 +120,43 @@ const AnimatedFistIcon = () => {
 const AnimatedBackground = () => {
   return (
     <div className="absolute inset-0 -z-10 overflow-hidden">
-      {/* Gradient base */}
-      <div className="absolute inset-0 bg-gradient-to-b from-white via-primary-50/30 to-gray-50"></div>
+      {/* Gradient base - with more yellow tone */}
+      <div className="absolute inset-0 bg-gradient-to-b from-white via-yellow-50/40 to-gray-50"></div>
       
-      {/* Animated circles */}
+      {/* Add subtle light rays and glow effects */}
+      <motion.div
+        className="absolute inset-0 bg-gradient-radial from-yellow-200/20 via-yellow-100/10 to-transparent"
+        style={{ transformOrigin: 'center' }}
+        animate={{
+          opacity: [0.3, 0.5, 0.3],
+          scale: [0.95, 1.05, 0.95]
+        }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          repeatType: 'reverse'
+        }}
+      />
+      
+      {/* Animated circles - adjusted positioning and changed to yellow/gold tone */}
       {[...Array(5)].map((_, i) => (
         <motion.div
           key={i}
-          className="absolute rounded-full bg-primary-200/20"
+          className="absolute rounded-full bg-yellow-200/20"
           style={{
             width: `${150 + i * 50}px`,
             height: `${150 + i * 50}px`,
-            left: `${10 + i * 5}%`,
-            top: `${20 + i * 10}%`,
+            // Adjusted positioning to prevent unwanted visual overlap
+            left: `${5 + i * 8}%`,
+            top: `${25 + i * 12}%`,
+            zIndex: 5 - i, // Control layering
           }}
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ 
-            opacity: [0, 0.3, 0.1],
-            scale: [0.8, 1.2, 1],
-            x: [0, i % 2 === 0 ? 20 : -20, 0],
-            y: [0, i % 2 === 0 ? -20 : 20, 0],
+            opacity: [0, 0.2, 0.1], // Reduced opacity
+            scale: [0.8, 1.1, 1], // Reduced scale effect
+            x: [0, i % 2 === 0 ? 15 : -15, 0],
+            y: [0, i % 2 === 0 ? -15 : 15, 0],
           }}
           transition={{
             duration: 8 + i,
@@ -151,11 +168,11 @@ const AnimatedBackground = () => {
         />
       ))}
       
-      {/* Secondary animated elements */}
+      {/* Secondary animated elements - updated to amber/gold */}
       {[...Array(8)].map((_, i) => (
         <motion.div
           key={`secondary-${i}`}
-          className="absolute rounded-full bg-secondary-200/15"
+          className="absolute rounded-full bg-amber-200/15"
           style={{
             width: `${40 + i * 20}px`,
             height: `${40 + i * 20}px`,
@@ -178,6 +195,35 @@ const AnimatedBackground = () => {
           }}
         />
       ))}
+      
+      {/* Add shimmering sparkle effects */}
+      {[...Array(15)].map((_, i) => {
+        const size = 2 + Math.random() * 3;
+        return (
+          <motion.div
+            key={`sparkle-${i}`}
+            className="absolute rounded-full bg-white"
+            style={{
+              width: size,
+              height: size,
+              left: `${5 + (i * 6) % 90}%`,
+              top: `${10 + (i * 5) % 80}%`,
+              boxShadow: '0 0 8px 2px rgba(255, 215, 0, 0.6), 0 0 12px 4px rgba(255, 255, 255, 0.4)',
+              zIndex: 6
+            }}
+            animate={{
+              opacity: [0, 0.9, 0],
+              scale: [0, 1, 0],
+            }}
+            transition={{
+              duration: 2 + Math.random() * 2,
+              repeat: Infinity,
+              delay: i * 0.7,
+              repeatDelay: Math.random() * 5
+            }}
+          />
+        );
+      })}
     </div>
   );
 };
@@ -428,14 +474,14 @@ export const HeroSection = ({
               className="relative mt-12 w-64 md:w-96 lg:mt-0 lg:w-[500px]"
               variants={itemVariants}
             >
-              <div className="relative flex aspect-square items-center justify-center rounded-full bg-gradient-to-b from-primary-100/80 to-primary-200/30 shadow-xl backdrop-blur-sm">
+              <div className="relative flex aspect-square items-center justify-center rounded-full bg-gradient-to-b from-yellow-100/80 to-amber-200/30 shadow-xl backdrop-blur-sm">
                 <motion.div
                   className="absolute inset-0 rounded-full"
                   animate={{
                     boxShadow: [
-                      '0 0 0 0 rgba(66, 165, 245, 0)',
-                      '0 0 0 20px rgba(66, 165, 245, 0.2)',
-                      '0 0 0 40px rgba(66, 165, 245, 0)',
+                      '0 0 0 0 rgba(255, 193, 7, 0)',
+                      '0 0 0 20px rgba(255, 193, 7, 0.2)',
+                      '0 0 0 40px rgba(255, 193, 7, 0)',
                     ],
                   }}
                   transition={{

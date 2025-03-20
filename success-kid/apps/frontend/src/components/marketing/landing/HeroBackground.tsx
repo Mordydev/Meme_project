@@ -179,7 +179,32 @@ export function HeroBackground({
             }}
           />
           
-          {/* Third blob removed */}
+          {/* Add back a more subtle third blob with yellow tones instead of blue */}
+          <motion.div
+            className="absolute top-1/4 right-1/4 w-1/3 h-1/3 rounded-full bg-yellow-300/10 blur-3xl"
+            style={{ 
+              backgroundImage: 'radial-gradient(circle, rgba(255,193,7,0.08) 0%, rgba(255,193,7,0.01) 70%)',
+              boxShadow: '0 0 60px 10px rgba(255,193,7,0.06)'
+            }}
+            animate={!prefersReducedMotion ? {
+              x: [0, -30, 0],
+              y: [0, 20, 0],
+              scale: [1, 1.15, 1],
+              rotate: [0, -2, 0, 1, 0],
+              opacity: [0.5, 0.7, 0.5],
+              background: [
+                'radial-gradient(circle, rgba(255,193,7,0.08) 0%, rgba(255,193,7,0.01) 70%)',
+                'radial-gradient(circle, rgba(255,193,7,0.12) 0%, rgba(255,193,7,0.02) 70%)',
+                'radial-gradient(circle, rgba(255,193,7,0.08) 0%, rgba(255,193,7,0.01) 70%)'
+              ]
+            } : undefined}
+            transition={{
+              duration: 18,
+              repeat: Infinity,
+              repeatType: 'reverse',
+              delay: 2
+            }}
+          />
         </>
       ) : (
         <>
@@ -191,7 +216,11 @@ export function HeroBackground({
               backgroundImage: 'radial-gradient(circle, rgba(255,193,7,0.10) 0%, rgba(255,193,7,0.02) 70%)',
               boxShadow: '0 0 80px 10px rgba(255,193,7,0.10)'
             }} />
-          {/* Third blob removed */}
+          {/* Subtle yellow-toned third blob */}
+          <div className="absolute top-1/4 right-1/4 w-1/3 h-1/3 rounded-full bg-yellow-300/10 blur-3xl" style={{ 
+              backgroundImage: 'radial-gradient(circle, rgba(255,193,7,0.08) 0%, rgba(255,193,7,0.01) 70%)',
+              boxShadow: '0 0 60px 10px rgba(255,193,7,0.06)'
+            }} />
         </>
       )}
       
