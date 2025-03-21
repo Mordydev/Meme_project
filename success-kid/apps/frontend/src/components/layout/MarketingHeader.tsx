@@ -13,7 +13,7 @@ const navLinks = [
   { name: 'About', href: '/about' },
   { name: 'Market', href: '/markets' },
   { name: 'FAQ', href: '/faq' },
-  { name: 'Community', href: '/community' },
+  { name: 'Community', href: '/communities' },
 ];
 
 export function MarketingHeader() {

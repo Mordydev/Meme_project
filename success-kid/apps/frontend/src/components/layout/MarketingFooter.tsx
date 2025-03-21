@@ -11,7 +11,8 @@ const footerLinks = {
   platform: [
     { name: 'Home', href: '/' },
     { name: 'About', href: '/about' },
-    { name: 'Tokenomics', href: '/tokenomics' },
+    { name: 'Market', href: '/markets' },
+    { name: 'Community', href: '/communities' },
     { name: 'FAQ', href: '/faq' },
   ],
   community: [

@@ -26,6 +26,9 @@ export * from './landing/LandingPage';
 // About Page Components
 export * from './about';
 
-// Note: Currently no exports for community and faq directories
-// as components for these pages haven't been created yet.
-// When components are added to these directories, export them here.
+// Community Page Components
+export * from './community';
+
+// Note: Currently no exports for faq directory
+// as components for this page haven't been created yet.
+// When components are added to this directory, export them here.

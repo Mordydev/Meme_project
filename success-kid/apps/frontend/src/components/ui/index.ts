@@ -26,5 +26,6 @@ export * from './ClientParticles';
 export * from './AnimateOnMount';
 export * from './ClientMotion';
 export * from './EnhancedButton';
+export * from './AdvancedGlass';
 
 // Add more exports as needed
