@@ -116,89 +116,142 @@ const AnimatedFistIcon = () => {
   );
 };
 
-// Background animation component
+// Enhanced background animation component with more professional and subtle effects
 const AnimatedBackground = () => {
   return (
     <div className="absolute inset-0 -z-10 overflow-hidden">
-      {/* Gradient base - with more yellow tone */}
-      <div className="absolute inset-0 bg-gradient-to-b from-white via-yellow-50/40 to-gray-50"></div>
+      {/* Gradient base - refined with more subtle blue tones mixing with yellow/gold */}
+      <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/10 to-amber-50/20"></div>
       
-      {/* Add subtle light rays and glow effects */}
-      <motion.div
-        className="absolute inset-0 bg-gradient-radial from-yellow-200/20 via-yellow-100/10 to-transparent"
-        style={{ transformOrigin: 'center' }}
-        animate={{
-          opacity: [0.3, 0.5, 0.3],
-          scale: [0.95, 1.05, 0.95]
-        }}
-        transition={{
-          duration: 8,
-          repeat: Infinity,
-          repeatType: 'reverse'
+      {/* Subtle grid pattern overlay */}
+      <div 
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: "url('/images/pattern-grid.svg')",
+          backgroundSize: '40px 40px'
         }}
       />
       
-      {/* Animated circles - adjusted positioning and changed to yellow/gold tone */}
-      {[...Array(5)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute rounded-full bg-yellow-200/20"
-          style={{
-            width: `${150 + i * 50}px`,
-            height: `${150 + i * 50}px`,
-            // Adjusted positioning to prevent unwanted visual overlap
-            left: `${5 + i * 8}%`,
-            top: `${25 + i * 12}%`,
-            zIndex: 5 - i, // Control layering
-          }}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ 
-            opacity: [0, 0.2, 0.1], // Reduced opacity
-            scale: [0.8, 1.1, 1], // Reduced scale effect
-            x: [0, i % 2 === 0 ? 15 : -15, 0],
-            y: [0, i % 2 === 0 ? -15 : 15, 0],
-          }}
-          transition={{
-            duration: 8 + i,
-            ease: "easeInOut",
+      {/* Central radial gradient for depth */}
+      <motion.div
+        className="absolute inset-0 bg-gradient-radial from-primary-100/20 via-secondary-100/15 to-transparent"
+        style={{ transformOrigin: 'center' }}
+        animate={{
+          opacity: [0.2, 0.4, 0.2],
+          scale: [0.98, 1.02, 0.98]
+        }}
+        transition={{
+          duration: 12,
+          repeat: Infinity,
+          repeatType: 'reverse',
+          ease: "easeInOut"
+        }}
+      />
+      
+      {/* Dynamic light rays effect */}
+      <motion.div
+        className="absolute inset-0 opacity-0"
+        style={{
+          background: 'conic-gradient(from 180deg at 50% 50%, rgba(30,136,229,0.08) 0deg, transparent 60deg, rgba(255,193,7,0.08) 120deg, transparent 180deg, rgba(30,136,229,0.08) 240deg, transparent 300deg, rgba(255,193,7,0.05) 360deg)'
+        }}
+        animate={{
+          opacity: [0, 0.15, 0],
+          rotate: [0, 360]
+        }}
+        transition={{
+          opacity: {
+            duration: 15,
             repeat: Infinity,
             repeatType: "reverse",
-            delay: i * 0.5
-          }}
-        />
-      ))}
-      
-      {/* Secondary animated elements - updated to amber/gold */}
-      {[...Array(8)].map((_, i) => (
-        <motion.div
-          key={`secondary-${i}`}
-          className="absolute rounded-full bg-amber-200/15"
-          style={{
-            width: `${40 + i * 20}px`,
-            height: `${40 + i * 20}px`,
-            right: `${5 + i * 8}%`,
-            bottom: `${10 + i * 5}%`,
-          }}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ 
-            opacity: [0, 0.2, 0.1],
-            scale: [0.8, 1.1, 1],
-            x: [0, i % 2 === 0 ? 15 : -15, 0],
-            y: [0, i % 2 === 0 ? -15 : 15, 0],
-          }}
-          transition={{
-            duration: 6 + i,
-            ease: "easeInOut",
+            ease: "easeInOut"
+          },
+          rotate: {
+            duration: 120,
             repeat: Infinity,
-            repeatType: "reverse",
-            delay: i * 0.3
-          }}
-        />
-      ))}
+            ease: "linear"
+          }
+        }}
+      />
       
-      {/* Add shimmering sparkle effects */}
+      {/* Animated gradient orbs - more refined and subtle */}
+      {[...Array(5)].map((_, i) => {
+        // Alternate between primary blue and secondary gold colors
+        const colorClass = i % 2 === 0 ? 'bg-gradient-to-br from-primary-100/30 to-primary-200/10' : 'bg-gradient-to-br from-secondary-100/30 to-secondary-200/10';
+        return (
+          <motion.div
+            key={i}
+            className={`absolute rounded-full ${colorClass} backdrop-blur-sm`}
+            style={{
+              width: `${120 + i * 40}px`,
+              height: `${120 + i * 40}px`,
+              left: `${10 + i * 10}%`,
+              top: `${20 + i * 8}%`,
+              zIndex: 5 - i,
+              boxShadow: i % 2 === 0 ? 'inset 0 0 30px rgba(30,136,229,0.1)' : 'inset 0 0 30px rgba(255,193,7,0.1)'
+            }}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ 
+              opacity: [0, 0.2, 0], 
+              scale: [0.9, 1.05, 0.9],
+              x: [0, i % 2 === 0 ? 8 : -8, 0],
+              y: [0, i % 2 === 0 ? -8 : 8, 0],
+            }}
+            transition={{
+              duration: 15 + i * 2,
+              ease: "easeInOut",
+              repeat: Infinity,
+              repeatType: "reverse",
+              delay: i * 0.8
+            }}
+          />
+        );
+      })}
+      
+      {/* Secondary gradient elements - more professionally styled */}
+      {[...Array(4)].map((_, i) => {
+        const size = 30 + i * 15;
+        return (
+          <motion.div
+            key={`secondary-${i}`}
+            className="absolute rounded-full bg-gradient-to-br from-secondary-100/20 to-amber-100/10"
+            style={{
+              width: `${size}px`,
+              height: `${size}px`,
+              right: `${8 + (i * 15)}%`,
+              bottom: `${12 + (i * 8)}%`,
+              boxShadow: 'inset 0 0 15px rgba(255,193,7,0.15)'
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ 
+              opacity: [0, 0.3, 0],
+              scale: [0.9, 1.05, 0.9],
+              x: [0, -5, 0],
+              y: [0, 5, 0],
+            }}
+            transition={{
+              duration: 8 + i * 2,
+              ease: "easeInOut",
+              repeat: Infinity,
+              repeatType: "reverse",
+              delay: i * 1.2
+            }}
+          />
+        );
+      })}
+      
+      {/* Enhanced shimmering sparkle effects - more elegant and subdued */}
       {[...Array(15)].map((_, i) => {
-        const size = 2 + Math.random() * 3;
+        const size = 1.5 + Math.random() * 2;
+        const leftPos = 10 + (i * 5 + Math.random() * 3) % 80;
+        const topPos = 15 + (i * 6 + Math.random() * 4) % 70;
+        
+        // Alternate between primary and secondary colors for the sparkles
+        const color = i % 3 === 0 
+          ? 'rgba(30, 136, 229, 0.7)' 
+          : i % 3 === 1 
+            ? 'rgba(255, 193, 7, 0.7)' 
+            : 'rgba(255, 255, 255, 0.7)';
+        
         return (
           <motion.div
             key={`sparkle-${i}`}
@@ -206,24 +259,49 @@ const AnimatedBackground = () => {
             style={{
               width: size,
               height: size,
-              left: `${5 + (i * 6) % 90}%`,
-              top: `${10 + (i * 5) % 80}%`,
-              boxShadow: '0 0 8px 2px rgba(255, 215, 0, 0.6), 0 0 12px 4px rgba(255, 255, 255, 0.4)',
+              left: `${leftPos}%`,
+              top: `${topPos}%`,
+              boxShadow: `0 0 8px 1px ${color}, 0 0 4px 1px rgba(255, 255, 255, 0.8)`,
               zIndex: 6
             }}
             animate={{
-              opacity: [0, 0.9, 0],
+              opacity: [0, 0.7, 0],
               scale: [0, 1, 0],
             }}
             transition={{
-              duration: 2 + Math.random() * 2,
+              duration: 3 + Math.random() * 3,
               repeat: Infinity,
-              delay: i * 0.7,
-              repeatDelay: Math.random() * 5
+              delay: i * 0.9,
+              repeatDelay: 2 + Math.random() * 8,
+              ease: "easeInOut"
             }}
           />
         );
       })}
+      
+      {/* Subtle diagonal light beam effect */}
+      <motion.div 
+        className="absolute inset-0 opacity-0" 
+        style={{
+          background: 'linear-gradient(135deg, rgba(30,136,229,0.05) 0%, transparent 50%, rgba(255,193,7,0.05) 100%)'
+        }}
+        animate={{ 
+          opacity: [0, 0.2, 0],
+          backgroundPosition: ['0% 0%', '100% 100%', '0% 0%']
+        }}
+        transition={{ 
+          opacity: {
+            duration: 8,
+            repeat: Infinity,
+            repeatType: "reverse"
+          },
+          backgroundPosition: {
+            duration: 20,
+            repeat: Infinity,
+            repeatType: "reverse"
+          }
+        }}
+      />
     </div>
   );
 };

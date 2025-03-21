@@ -7,11 +7,138 @@ import { GradientBorder } from '@/components/ui/gradient-border';
 const MemeLegacySection = () => {
   return (
     <div className="py-16 relative overflow-hidden bg-gradient-to-b from-white to-gray-50">
-      {/* Background elements */}
+      {/* Enhanced Background elements with subtle, professional gradients and dynamic effects */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -inset-[10%] bg-gradient-radial from-sky-50/20 to-transparent opacity-70"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary-200 to-transparent"></div>
-        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+        {/* Base gradient background with subtle blue tone */}
+        <div className="absolute inset-0 bg-gradient-to-b from-sky-50/30 via-white to-blue-50/20"></div>
+        
+        {/* Subtle radial gradient for depth */}
+        <div className="absolute -inset-[10%] bg-gradient-radial from-sky-50/30 to-transparent opacity-70"></div>
+        
+        {/* Gradient border at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary-300/50 to-transparent"></div>
+        
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 bg-grid-pattern opacity-[0.04]"></div>
+        
+        {/* Animated central glow effect */}
+        <motion.div
+          className="absolute inset-0 opacity-0"
+          style={{
+            background: 'radial-gradient(circle at center, rgba(30,136,229,0.15) 0%, transparent 70%)'
+          }}
+          animate={{
+            opacity: [0.04, 0.08, 0.04]
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            repeatType: "reverse",
+            ease: "easeInOut"
+          }}
+        />
+        
+        {/* Enhanced Timeline central rays - more subtle and professional */}
+        <motion.div 
+          className="absolute left-1/2 top-0 bottom-0 w-[600px] transform -translate-x-1/2 opacity-[0.03] pointer-events-none z-0" 
+          style={{
+            background: 'radial-gradient(ellipse at center, rgba(30,136,229,0.3) 0%, transparent 70%)',
+            backgroundSize: '100% 200%'
+          }}
+          animate={{
+            backgroundPosition: ['center top', 'center bottom'],
+            opacity: [0.03, 0.06, 0.03],
+          }}
+          transition={{
+            backgroundPosition: {
+              duration: 25,
+              repeat: Infinity,
+              repeatType: 'reverse',
+              ease: 'linear'
+            },
+            opacity: {
+              duration: 12,
+              repeat: Infinity,
+              repeatType: 'reverse',
+              ease: "easeInOut"
+            }
+          }}
+        />
+        
+        {/* Subtle floating particles effect */}
+        {[...Array(15)].map((_, i) => (
+          <motion.div
+            key={`particle-${i}`}
+            className="absolute w-1 h-1 rounded-full bg-primary-400/20"
+            style={{
+              left: `${10 + (i * 5)}%`,
+              top: `${10 + ((i * 7) % 80)}%`,
+              boxShadow: '0 0 5px rgba(30, 136, 229, 0.3)'
+            }}
+            animate={{
+              y: [0, -15, 0],
+              x: [0, i % 2 === 0 ? 10 : -10, 0],
+              opacity: [0, 0.6, 0],
+              scale: [0, 1, 0]
+            }}
+            transition={{
+              duration: 10 + (i % 5),
+              repeat: Infinity,
+              delay: i * 0.7,
+              ease: "easeInOut"
+            }}
+          />
+        ))}
+        
+        {/* Dual radial gradient effect for visual depth */}
+        <motion.div 
+          className="absolute left-0 right-0 top-0 bottom-0 opacity-[0.02] pointer-events-none z-0" 
+          style={{
+            background: 'radial-gradient(circle at 30% 30%, rgba(59,130,246,0.4) 0%, transparent 60%), radial-gradient(circle at 70% 70%, rgba(30,136,229,0.4) 0%, transparent 60%)'
+          }}
+          animate={{
+            opacity: [0.02, 0.04, 0.02],
+          }}
+          transition={{
+            duration: 15,
+            repeat: Infinity,
+            repeatType: 'reverse',
+            ease: "easeInOut"
+          }}
+        />
+        
+        {/* Subtle diagonal pattern */}
+        <div 
+          className="absolute inset-0 opacity-[0.01] pointer-events-none z-0" 
+          style={{
+            background: 'repeating-linear-gradient(45deg, rgba(30,136,229,0.05), rgba(30,136,229,0.05) 1px, transparent 1px, transparent 10px)'
+          }}
+        />
+        
+        {/* Dynamic light rays effect */}
+        <motion.div
+          className="absolute inset-0 opacity-0"
+          style={{
+            background: 'conic-gradient(from 180deg at 50% 50%, rgba(30,136,229,0.15) 0deg, transparent 60deg, rgba(30,136,229,0.1) 120deg, transparent 180deg, rgba(30,136,229,0.15) 240deg, transparent 300deg, rgba(30,136,229,0.05) 360deg)'
+          }}
+          animate={{
+            opacity: [0, 0.03, 0],
+            rotate: [0, 360]
+          }}
+          transition={{
+            opacity: {
+              duration: 8,
+              repeat: Infinity,
+              repeatType: "reverse",
+              ease: "easeInOut"
+            },
+            rotate: {
+              duration: 60,
+              repeat: Infinity,
+              ease: "linear"
+            }
+          }}
+        />
       </div>
       
       <div className="container mx-auto px-4 relative">
@@ -41,18 +168,65 @@ const MemeLegacySection = () => {
           {/* Meme Timeline */}
           <div className="relative mb-20">
             {/* Vertical timeline line with animated gradient */}
-            <motion.div 
-              className="absolute left-0 md:left-1/2 top-0 bottom-0 w-1 bg-gradient-to-b from-primary-300 via-blue-400 to-primary-300 transform md:translate-x-[-50%]"
-              animate={{
-                backgroundPosition: ['0% 0%', '0% 100%', '0% 0%'],
-              }}
-              transition={{
-                duration: 15,
-                repeat: Infinity,
-                repeatType: "loop",
-                ease: "linear"
-              }}
-            />
+            <div className="absolute left-0 md:left-1/2 top-0 bottom-0 transform md:-translate-x-1/2 flex justify-center w-1">
+              {/* Base timeline line */}
+              <div className="absolute inset-0 bg-gray-200 z-0"></div>
+              
+              {/* Animated gradient overlay */}
+              <motion.div 
+                className="absolute inset-0 bg-gradient-to-b from-primary-300 via-blue-400 to-primary-300 z-1"
+                animate={{
+                  backgroundPosition: ['0% 0%', '0% 100%', '0% 0%'],
+                  opacity: [0.8, 1, 0.8]
+                }}
+                transition={{
+                  backgroundPosition: {
+                    duration: 15,
+                    repeat: Infinity,
+                    repeatType: "loop",
+                    ease: "linear"
+                  },
+                  opacity: {
+                    duration: 8,
+                    repeat: Infinity,
+                    repeatType: "loop",
+                    ease: "easeInOut"
+                  }
+                }}
+                style={{ backgroundSize: '100% 200%' }}
+              />
+              
+              {/* Traveling pulse effect */}
+              <motion.div 
+                className="absolute w-3 h-12 bg-primary-500/50 blur-sm rounded-full -left-1 md:left-0 transform md:-translate-x-1/2 z-2"
+                animate={{
+                  top: ['-5%', '105%'],
+                  opacity: [0, 1, 0],
+                  scale: [0.8, 1.2, 0.8]
+                }}
+                transition={{
+                  top: {
+                    duration: 8,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    repeatDelay: 1
+                  },
+                  opacity: {
+                    duration: 8,
+                    repeat: Infinity,
+                    times: [0, 0.1, 0.9, 1],
+                    ease: "easeInOut",
+                    repeatDelay: 1
+                  },
+                  scale: {
+                    duration: 2,
+                    repeat: Infinity,
+                    repeatType: "reverse",
+                    ease: "easeInOut"
+                  }
+                }}
+              />
+            </div>
             
             {/* Timeline Events */}
             <div className="relative">
@@ -67,7 +241,8 @@ const MemeLegacySection = () => {
                       transition={{ duration: 0.5 }}
                       whileHover={{ 
                         y: -5,
-                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)'
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+                        transition: { duration: 0.6, ease: "easeInOut" }
                       }}
                     >
                       <GradientBorder
@@ -89,13 +264,12 @@ const MemeLegacySection = () => {
                   </div>
                   
                   <div className="md:w-1/2 md:pl-8 relative">
-                    {/* Timeline marker with glow effect */}
-                    <GlowingEffect color="primary" size="sm" className="absolute left-0 md:left-[-8px] top-6 z-10">
-                      <div className="w-4 h-4 rounded-full bg-white border-4 border-primary-500"></div>
-                    </GlowingEffect>
-                    
-                    {/* Year label */}
-                    <div className="absolute left-6 md:left-4 top-5 text-sm font-bold text-primary-600">2007</div>
+                    {/* Timeline marker with glow effect - centered on timeline */}
+                    <div className="absolute left-0 md:left-0 top-6 md:transform md:translate-x-[-50%] z-10">
+                      <GlowingEffect color="primary" size="sm">
+                        <div className="w-4 h-4 rounded-full bg-white border-4 border-primary-500"></div>
+                      </GlowingEffect>
+                    </div>
                     
                     {/* Image */}
                     <motion.div
@@ -108,9 +282,13 @@ const MemeLegacySection = () => {
                     >
                       <div className="relative">
                         <div className="absolute -inset-0.5 bg-gradient-to-tr from-blue-400 to-sky-300 rounded-lg blur opacity-30"></div>
-                        <div className="bg-gradient-to-br from-gray-100 to-blue-50 rounded-lg h-48 w-full max-w-xs flex items-center justify-center text-6xl relative">
+                        <div className="bg-gradient-to-br from-gray-100 to-blue-50 rounded-lg h-48 w-full max-w-xs flex items-center justify-center relative">
                           <div className="absolute inset-0 bg-grid-pattern opacity-10 rounded-lg"></div>
-                          👶
+                          <img 
+                            src="/images/success_kid.png" 
+                            alt="Original Success Kid" 
+                            className="h-40 w-auto object-contain"
+                          />
                         </div>
                       </div>
                       <div className="text-xs text-gray-500 mt-1 ml-2">Original beach photo</div>
@@ -129,19 +307,34 @@ const MemeLegacySection = () => {
                       viewport={{ once: true }}
                       transition={{ duration: 0.5 }}
                       whileHover={{ 
-                        y: -5,
-                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)'
+                        y: -8,
+                        boxShadow: '0 15px 30px rgba(245, 158, 11, 0.15)',
+                        transition: { duration: 0.5, type: 'spring', stiffness: 300, damping: 15 }
                       }}
                     >
                       <GradientBorder
                         gradientFrom="from-amber-400" 
                         gradientTo="to-yellow-300"
                         borderWidth={1}
-                        animate={false}
+                        animate={true}
                         className="overflow-hidden"
                       >
                         <div className="bg-white p-4 rounded-lg max-w-xs">
-                          <div className="text-4xl mb-2">🌟</div>
+                          <div className="text-4xl mb-2 relative inline-block">
+                            <motion.div 
+                              className="absolute -inset-1 rounded-full opacity-20 bg-amber-300" 
+                              animate={{ 
+                                scale: [1, 1.2, 1],
+                                opacity: [0.2, 0.3, 0.2]
+                              }}
+                              transition={{
+                                duration: 2,
+                                repeat: Infinity,
+                                repeatType: "reverse"
+                              }}
+                            />
+                            <span className="relative">🌟</span>
+                          </div>
                           <h3 className="text-lg font-bold text-gray-900 mb-1">2010: Rise to Fame</h3>
                           <p className="text-sm text-gray-700">
                             The image went viral on social media as "Success Kid," becoming a symbol of achievement, victory, and overcoming challenges.
@@ -152,13 +345,12 @@ const MemeLegacySection = () => {
                   </div>
                   
                   <div className="md:w-1/2 md:pr-8 md:order-1 relative">
-                    {/* Timeline marker with glow effect */}
-                    <GlowingEffect color="primary" size="sm" className="absolute left-0 md:right-[-8px] top-6 z-10">
-                      <div className="w-4 h-4 rounded-full bg-white border-4 border-primary-500"></div>
-                    </GlowingEffect>
-                    
-                    {/* Year label */}
-                    <div className="absolute left-6 md:right-4 top-5 text-sm font-bold text-primary-600">2010</div>
+                    {/* Timeline marker with glow effect - centered on timeline */}
+                    <div className="absolute left-0 md:left-full top-6 md:transform md:-translate-x-1/2 z-10">
+                      <GlowingEffect color="primary" size="sm" intensity="strong" pulseEffect={true}>
+                        <div className="w-4 h-4 rounded-full bg-white border-4 border-amber-500"></div>
+                      </GlowingEffect>
+                    </div>
                     
                     {/* Image */}
                     <motion.div
@@ -166,29 +358,58 @@ const MemeLegacySection = () => {
                       whileInView={{ opacity: 1, scale: 1 }}
                       viewport={{ once: true }}
                       transition={{ duration: 0.5, delay: 0.2 }}
-                      whileHover={{ scale: 1.05 }}
+                      whileHover={{ 
+                        scale: 1.05,
+                        boxShadow: '0 15px 30px rgba(245, 158, 11, 0.15)',
+                        transition: { duration: 0.5, type: 'spring', stiffness: 300, damping: 15 }
+                      }}
                       className="ml-8 md:ml-0 md:text-right"
                     >
-                      <div className="relative">
-                        <div className="absolute -inset-0.5 bg-gradient-to-tr from-amber-400 to-yellow-300 rounded-lg blur opacity-30"></div>
-                        <div className="bg-gradient-to-br from-gray-100 to-amber-50 rounded-lg h-48 w-full max-w-xs ml-auto flex items-center justify-center text-6xl relative">
-                          <div className="absolute inset-0 bg-grid-pattern opacity-10 rounded-lg"></div>
-                          <motion.div
+                      <div className="relative group">
+                        <div className="absolute -inset-1 bg-gradient-to-tr from-amber-400 to-yellow-300 rounded-lg blur opacity-20 group-hover:opacity-40 transition-opacity duration-500"></div>
+                        <div className="bg-gradient-to-br from-gray-100 to-amber-50 rounded-lg h-56 w-full max-w-xs ml-auto flex items-center justify-center relative overflow-hidden">
+                          <motion.div className="absolute inset-0 bg-grid-pattern opacity-10 rounded-lg" />
+                          <motion.div 
+                            className="absolute inset-0" 
                             animate={{
-                              rotate: [0, 5, 0, -5, 0],
-                              scale: [1, 1.05, 1, 1.05, 1]
+                              background: [
+                                'radial-gradient(circle at 30% 30%, rgba(245,158,11,0.3) 0%, rgba(251,191,36,0.1) 50%, transparent 70%)',
+                                'radial-gradient(circle at 70% 70%, rgba(245,158,11,0.3) 0%, rgba(251,191,36,0.1) 50%, transparent 70%)',
+                                'radial-gradient(circle at 30% 30%, rgba(245,158,11,0.3) 0%, rgba(251,191,36,0.1) 50%, transparent 70%)'
+                              ],
                             }}
                             transition={{
-                              duration: 5,
+                              duration: 8,
                               repeat: Infinity,
-                              repeatType: "loop"
+                              repeatType: "loop",
+                              ease: "easeInOut"
                             }}
-                          >
-                            👊
-                          </motion.div>
+                          />
+                          <div className="relative z-10 flex items-center justify-center h-full w-full p-4">
+                            <img 
+                              src="/images/2010.png" 
+                              alt="2010 - Rise to Fame" 
+                              className="max-h-full max-w-full object-contain rounded-md shadow-lg"
+                            />
+                            <motion.div
+                              className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 bg-gradient-to-br from-amber-500/10 to-yellow-400/10 transition-opacity duration-300"
+                              animate={{
+                                boxShadow: [
+                                  'inset 0 0 20px rgba(245,158,11,0)',
+                                  'inset 0 0 30px rgba(245,158,11,0.2)',
+                                  'inset 0 0 20px rgba(245,158,11,0)'
+                                ]
+                              }}
+                              transition={{
+                                duration: 3,
+                                repeat: Infinity,
+                                repeatType: "reverse"
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1 mr-2">The iconic fist pump</div>
+                      <div className="text-xs text-gray-500 mt-1 mr-2">The meme rises to global fame</div>
                     </motion.div>
                   </div>
                 </div>
@@ -204,19 +425,34 @@ const MemeLegacySection = () => {
                       viewport={{ once: true }}
                       transition={{ duration: 0.5 }}
                       whileHover={{ 
-                        y: -5,
-                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)'
+                        y: -8,
+                        boxShadow: '0 15px 30px rgba(139, 92, 246, 0.15)',
+                        transition: { duration: 0.5, type: 'spring', stiffness: 300, damping: 15 }
                       }}
                     >
                       <GradientBorder
                         gradientFrom="from-purple-400" 
                         gradientTo="to-indigo-300"
                         borderWidth={1}
-                        animate={false}
+                        animate={true}
                         className="overflow-hidden"
                       >
                         <div className="bg-white p-4 rounded-lg max-w-xs">
-                          <div className="text-4xl mb-2">🌐</div>
+                          <div className="text-4xl mb-2 relative inline-block">
+                            <motion.div 
+                              className="absolute -inset-1 rounded-full opacity-20 bg-purple-300" 
+                              animate={{ 
+                                scale: [1, 1.2, 1],
+                                opacity: [0.2, 0.3, 0.2]
+                              }}
+                              transition={{
+                                duration: 2,
+                                repeat: Infinity,
+                                repeatType: "reverse"
+                              }}
+                            />
+                            <span className="relative">🌐</span>
+                          </div>
                           <h3 className="text-lg font-bold text-gray-900 mb-1">2013-2019: Peak Cultural Impact</h3>
                           <p className="text-sm text-gray-700">
                             Success Kid appeared in major advertising campaigns, helped raise money for medical treatments, and became one of the most recognizable memes worldwide.
@@ -227,13 +463,12 @@ const MemeLegacySection = () => {
                   </div>
                   
                   <div className="md:w-1/2 md:pl-8 relative">
-                    {/* Timeline marker with glow effect */}
-                    <GlowingEffect color="primary" size="sm" className="absolute left-0 md:left-[-8px] top-6 z-10">
-                      <div className="w-4 h-4 rounded-full bg-white border-4 border-primary-500"></div>
-                    </GlowingEffect>
-                    
-                    {/* Year label */}
-                    <div className="absolute left-6 md:left-4 top-5 text-sm font-bold text-primary-600">2013-2019</div>
+                    {/* Timeline marker with glow effect - centered on timeline */}
+                    <div className="absolute left-0 md:left-0 top-6 md:transform md:translate-x-[-50%] z-10">
+                      <GlowingEffect color="primary" size="sm" intensity="strong" pulseEffect={true}>
+                        <div className="w-4 h-4 rounded-full bg-white border-4 border-purple-500"></div>
+                      </GlowingEffect>
+                    </div>
                     
                     {/* Image */}
                     <motion.div
@@ -241,32 +476,54 @@ const MemeLegacySection = () => {
                       whileInView={{ opacity: 1, scale: 1 }}
                       viewport={{ once: true }}
                       transition={{ duration: 0.5, delay: 0.2 }}
-                      whileHover={{ scale: 1.05 }}
+                      whileHover={{ 
+                        scale: 1.05,
+                        boxShadow: '0 15px 30px rgba(139, 92, 246, 0.15)',
+                        transition: { duration: 0.5, type: 'spring', stiffness: 300, damping: 15 }
+                      }}
                       className="ml-8 md:ml-6"
                     >
-                      <div className="relative">
-                        <div className="absolute -inset-0.5 bg-gradient-to-tr from-purple-400 to-indigo-300 rounded-lg blur opacity-30"></div>
-                        <div className="bg-gradient-to-br from-gray-100 to-purple-50 rounded-lg h-48 w-full max-w-xs flex items-center justify-center relative">
-                          <div className="absolute inset-0 bg-grid-pattern opacity-10 rounded-lg"></div>
-                          <div className="grid grid-cols-3 gap-3">
-                            {['🌟', '🌍', '📱', '📺', '🏆', '🤝'].map((emoji, i) => (
-                              <motion.div
-                                key={i}
-                                animate={{
-                                  scale: [1, 1.1, 1],
-                                  rotate: [0, 5, 0, -5, 0],
-                                }}
-                                transition={{
-                                  duration: 5,
-                                  delay: i * 0.5,
-                                  repeat: Infinity,
-                                  repeatType: "loop"
-                                }}
-                                className="text-4xl"
-                              >
-                                {emoji}
-                              </motion.div>
-                            ))}
+                      <div className="relative group">
+                        <div className="absolute -inset-1 bg-gradient-to-tr from-purple-400 to-indigo-300 rounded-lg blur opacity-20 group-hover:opacity-35 transition-opacity duration-500"></div>
+                        <div className="bg-gradient-to-br from-gray-100 to-purple-50 rounded-lg h-56 w-full max-w-xs flex items-center justify-center relative overflow-hidden">
+                          <motion.div className="absolute inset-0 bg-grid-pattern opacity-10 rounded-lg" />
+                          <motion.div 
+                            className="absolute inset-0" 
+                            animate={{
+                              background: [
+                                'radial-gradient(circle at 30% 30%, rgba(139,92,246,0.3) 0%, rgba(129,140,248,0.1) 50%, transparent 70%)',
+                                'radial-gradient(circle at 70% 70%, rgba(139,92,246,0.3) 0%, rgba(129,140,248,0.1) 50%, transparent 70%)',
+                                'radial-gradient(circle at 30% 30%, rgba(139,92,246,0.3) 0%, rgba(129,140,248,0.1) 50%, transparent 70%)'
+                              ],
+                            }}
+                            transition={{
+                              duration: 8,
+                              repeat: Infinity,
+                              repeatType: "loop",
+                              ease: "easeInOut"
+                            }}
+                          />
+                          <div className="relative z-10 flex items-center justify-center h-full w-full p-4">
+                            <img 
+                              src="/images/2013-2019.png" 
+                              alt="2013-2019 - Peak Cultural Impact" 
+                              className="max-h-full max-w-full object-contain rounded-md shadow-lg"
+                            />
+                            <motion.div
+                              className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 bg-gradient-to-br from-purple-500/10 to-indigo-400/10 transition-opacity duration-300"
+                              animate={{
+                                boxShadow: [
+                                  'inset 0 0 20px rgba(139,92,246,0)',
+                                  'inset 0 0 30px rgba(139,92,246,0.2)',
+                                  'inset 0 0 20px rgba(139,92,246,0)'
+                                ]
+                              }}
+                              transition={{
+                                duration: 3,
+                                repeat: Infinity,
+                                repeatType: "reverse"
+                              }}
+                            />
                           </div>
                         </div>
                       </div>
@@ -286,19 +543,39 @@ const MemeLegacySection = () => {
                       viewport={{ once: true }}
                       transition={{ duration: 0.5 }}
                       whileHover={{ 
-                        y: -5,
-                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)'
+                        y: -8,
+                        boxShadow: '0 15px 30px rgba(30, 136, 229, 0.15)',
+                        transition: { duration: 0.5, type: 'spring', stiffness: 300, damping: 15 }
                       }}
                     >
                       <GradientBorder
                         gradientFrom="from-primary-500" 
                         gradientTo="to-blue-400"
-                        borderWidth={1}
+                        borderWidth={2}
                         animate={true}
                         className="overflow-hidden"
                       >
                         <div className="bg-white p-4 rounded-lg max-w-xs backdrop-blur-sm">
-                          <div className="text-4xl mb-2">🚀</div>
+                          <div className="text-4xl mb-2 relative inline-block">
+                            <motion.div 
+                              className="absolute -inset-1 rounded-full opacity-20 bg-primary-300" 
+                              animate={{ 
+                                scale: [1, 1.3, 1],
+                                opacity: [0.2, 0.4, 0.2],
+                                boxShadow: [
+                                  '0 0 0 0 rgba(30,136,229,0)',
+                                  '0 0 0 8px rgba(30,136,229,0.2)',
+                                  '0 0 0 0 rgba(30,136,229,0)'
+                                ]
+                              }}
+                              transition={{
+                                duration: 3,
+                                repeat: Infinity,
+                                repeatType: "reverse"
+                              }}
+                            />
+                            <span className="relative">🚀</span>
+                          </div>
                           <h3 className="text-lg font-bold text-gray-900 mb-1">2025: Web3 Renaissance</h3>
                           <p className="text-sm text-gray-700">
                             Success Kid evolves for a new era with the launch of the Success Kid Community Platform, transforming the spirit of achievement into a vibrant digital ecosystem that rewards positive engagement.
@@ -309,30 +586,11 @@ const MemeLegacySection = () => {
                   </div>
                   
                   <div className="md:w-1/2 md:pr-8 md:order-1 relative">
-                    {/* Timeline marker with glow effect */}
-                    <GlowingEffect color="primary" size="sm" className="absolute left-0 md:right-[-8px] top-6 z-10">
-                      <div className="w-4 h-4 rounded-full bg-white border-4 border-primary-500"></div>
-                    </GlowingEffect>
-                    
-                    {/* Year label with current indicator */}
-                    <div className="absolute left-6 md:right-4 top-5">
-                      <motion.div
-                        className="text-sm font-bold px-2 py-0.5 rounded-full bg-primary-500 text-white"
-                        animate={{
-                          boxShadow: [
-                            '0 0 0 rgba(30, 136, 229, 0.4)',
-                            '0 0 10px rgba(30, 136, 229, 0.7)',
-                            '0 0 0 rgba(30, 136, 229, 0.4)'
-                          ]
-                        }}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          repeatType: "loop"
-                        }}
-                      >
-                        2025
-                      </motion.div>
+                    {/* Timeline marker with enhanced glow effect - centered on timeline */}
+                    <div className="absolute left-0 md:left-full top-6 md:transform md:-translate-x-1/2 z-10">
+                      <GlowingEffect color="primary" size="md" intensity="strong" pulseEffect={true}>
+                        <div className="w-4 h-4 rounded-full bg-white border-4 border-primary-500"></div>
+                      </GlowingEffect>
                     </div>
                     
                     {/* Image */}
@@ -341,46 +599,76 @@ const MemeLegacySection = () => {
                       whileInView={{ opacity: 1, scale: 1 }}
                       viewport={{ once: true }}
                       transition={{ duration: 0.5, delay: 0.2 }}
-                      whileHover={{ scale: 1.05 }}
+                      whileHover={{ 
+                        scale: 1.05,
+                        boxShadow: '0 15px 30px rgba(30, 136, 229, 0.15)',
+                        transition: { duration: 0.5, type: 'spring', stiffness: 300, damping: 15 }
+                      }}
                       className="ml-8 md:ml-0 md:text-right"
                     >
-                      <div className="relative">
-                        <div className="absolute -inset-1 bg-gradient-to-tr from-primary-400 to-blue-400 rounded-lg blur opacity-40"></div>
-                        <div className="bg-gradient-to-br from-gray-100 to-primary-50 rounded-lg h-48 w-full max-w-xs ml-auto flex items-center justify-center relative">
-                          <div className="absolute inset-0 bg-grid-pattern opacity-10 rounded-lg"></div>
-                          <div className="relative h-32 w-32">
-                            <GlowingEffect color="primary" size="lg" intensity="strong" className="absolute inset-0">
-                              <div className="flex items-center justify-center text-6xl">
-                                👊
-                              </div>
-                            </GlowingEffect>
-                            
-                            {/* Orbit elements */}
-                            {[...Array(3)].map((_, i) => (
-                              <motion.div
-                                key={i}
-                                className="absolute w-10 h-10 rounded-full flex items-center justify-center bg-white shadow-md"
-                                animate={{
-                                  rotate: [0, 360],
-                                }}
-                                transition={{
-                                  duration: 10 + i * 2,
-                                  repeat: Infinity,
-                                  ease: "linear"
-                                }}
-                                style={{
-                                  left: '50%',
-                                  top: '50%',
-                                  marginLeft: '-20px',
-                                  marginTop: '-20px',
-                                  transformOrigin: '50% 50%',
-                                  translate: `0 -${60 + i * 15}px`
-                                }}
-                                whileHover={{ scale: 1.2, boxShadow: '0 0 15px rgba(30, 136, 229, 0.5)' }}
-                              >
-                                {i === 0 ? '💰' : i === 1 ? '👥' : '⭐'}
-                              </motion.div>
-                            ))}
+                      <div className="relative group">
+                        <div className="absolute -inset-1 bg-gradient-to-tr from-primary-400 to-blue-400 rounded-lg blur opacity-15 group-hover:opacity-30 transition-opacity duration-500"></div>
+                        <div className="bg-gradient-to-br from-gray-100 to-primary-50 rounded-lg h-56 w-full max-w-xs ml-auto flex items-center justify-center relative overflow-hidden">
+                          <motion.div className="absolute inset-0 bg-grid-pattern opacity-10 rounded-lg" />
+                          
+                          {/* Enhanced gradient and light ray effects */}
+                          <motion.div 
+                            className="absolute inset-0" 
+                            animate={{
+                              background: [
+                                'radial-gradient(circle at 30% 30%, rgba(30,136,229,0.3) 0%, rgba(59,130,246,0.1) 50%, transparent 70%)',
+                                'radial-gradient(circle at 70% 70%, rgba(30,136,229,0.3) 0%, rgba(59,130,246,0.1) 50%, transparent 70%)',
+                                'radial-gradient(circle at 30% 30%, rgba(30,136,229,0.3) 0%, rgba(59,130,246,0.1) 50%, transparent 70%)'
+                              ],
+                            }}
+                            transition={{
+                              duration: 8,
+                              repeat: Infinity,
+                              repeatType: "loop",
+                              ease: "easeInOut"
+                            }}
+                          />
+                          
+                          {/* Light rays effect */}
+                          <motion.div 
+                            className="absolute inset-0 opacity-10" 
+                            style={{
+                              background: 'radial-gradient(circle at center, rgba(30,136,229,0.8) 0%, transparent 70%)',
+                              backgroundSize: '200% 200%',
+                              backgroundPosition: 'center'
+                            }}
+                            animate={{ 
+                              opacity: [0.1, 0.2, 0.1],
+                              backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'],
+                            }}
+                            transition={{ 
+                              duration: 10,
+                              repeat: Infinity,
+                              repeatType: "loop"
+                            }}
+                          />
+                          
+                          <div className="relative z-10 flex items-center justify-center h-full w-full p-4">
+                            <img 
+                              src="/images/2025.png" 
+                              alt="2025 - Web3 Renaissance" 
+                              className="max-h-full max-w-full object-contain rounded-md shadow-lg"
+                            />
+                            <motion.div
+                              className="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 bg-gradient-to-br from-primary-500/10 to-blue-400/10 transition-opacity duration-300"
+                              animate={{
+                                boxShadow: [
+                                  'inset 0 0 20px rgba(30,136,229,0)',
+                                  'inset 0 0 30px rgba(30,136,229,0.3)',
+                                  'inset 0 0 20px rgba(30,136,229,0)'
+                                ]
+                              }}
+                              transition={{
+                                duration: 3,
+                                repeat: Infinity,
+                                repeatType: "reverse"
+                              }}
+                            />
                           </div>
                         </div>
                       </div>
@@ -430,8 +718,9 @@ const MemeLegacySection = () => {
                   viewport={{ once: true }}
                   transition={{ duration: 0.5, delay: i * 0.1 }}
                   whileHover={{ 
-                    y: -5,
-                    boxShadow: '0 15px 30px rgba(0, 0, 0, 0.1)'
+                    y: -3,
+                    boxShadow: '0 10px 20px rgba(0, 0, 0, 0.08)',
+                    transition: { duration: 0.3, ease: "easeInOut" }
                   }}
                   className="relative group"
                 >
@@ -466,17 +755,55 @@ const MemeLegacySection = () => {
                   <GlowingEffect color="primary" size="lg" pulseEffect={true}>
                     <motion.div
                       animate={{
-                        rotate: [0, 5, 0, -5, 0],
+                        rotate: [0, 2, 0, -2, 0],
                       }}
                       transition={{
-                        duration: 8,
+                        duration: 10,
                         repeat: Infinity,
-                        repeatType: "loop"
+                        repeatType: "loop",
+                        ease: "easeInOut"
                       }}
-                      className="w-40 h-40 rounded-full bg-gradient-to-br from-primary-50 to-blue-50 flex items-center justify-center text-6xl"
-                      whileHover={{ scale: 1.05 }}
+                      className="w-40 h-40 rounded-full bg-gradient-to-br from-primary-50 to-blue-50 flex items-center justify-center text-6xl relative overflow-hidden shadow-md"
                     >
-                      👊
+                      {/* Enhanced hover animation gradient overlay - smoother and more subtle */}
+                      <motion.div 
+                        className="absolute inset-0 bg-gradient-to-br from-primary-100/30 to-blue-100/30 opacity-0"
+                        whileHover={{ opacity: 0.5, scale: 1.05 }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                      />
+                      <div className="relative flex items-center justify-center">
+                        <motion.div 
+                          className="absolute inset-0 opacity-50 blur-sm" 
+                          animate={{
+                            background: [
+                              'radial-gradient(circle at 30% 30%, rgba(30,136,229,0.7) 0%, rgba(59,130,246,0.4) 50%, transparent 70%)',
+                              'radial-gradient(circle at 70% 70%, rgba(30,136,229,0.7) 0%, rgba(59,130,246,0.4) 50%, transparent 70%)',
+                              'radial-gradient(circle at 30% 30%, rgba(30,136,229,0.7) 0%, rgba(59,130,246,0.4) 50%, transparent 70%)'
+                            ],
+                          }}
+                          transition={{
+                            duration: 12,
+                            repeat: Infinity,
+                            repeatType: "loop",
+                            ease: "easeInOut"
+                          }}
+                        />
+                        <motion.span 
+                          className="relative z-10 drop-shadow-lg text-6xl"
+                          animate={{
+                            scale: [1, 1.05, 1],
+                            rotateZ: [0, 2, 0, -2, 0]
+                          }}
+                          transition={{
+                            duration: 5,
+                            repeat: Infinity,
+                            repeatType: "loop",
+                            ease: "easeInOut"
+                          }}
+                        >
+                          👊
+                        </motion.span>
+                      </div>
                     </motion.div>
                   </GlowingEffect>
                 </div>

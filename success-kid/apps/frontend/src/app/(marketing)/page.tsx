@@ -108,18 +108,17 @@ export default function HomePage() {
                   delay={0.2}
                   useTypewriter={true}
                 />
+                
+                <ClientMotion
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.8 }}
+                  className="mt-4 text-lg text-gray-600 max-w-lg"
+                  type="p"
+                >
+                  Transforming a viral meme into a vibrant community where engagement creates value and success is amplified through collective effort.
+                </ClientMotion>
               </div>
-              
-              {/* Subheading with Animation */}
-              <ClientMotion
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.8 }}
-                className="mb-8 text-lg text-gray-600 max-w-lg"
-                type="p"
-              >
-                Join 5,000+ members in the Success Kid community. Create content, engage with others, and turn your community contributions into real tokens—no technical knowledge required.
-              </ClientMotion>
               
               {/* CTA Buttons with Animation */}
               <ClientMotion

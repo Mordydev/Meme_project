@@ -9,6 +9,19 @@ import { ParticleEffect } from '@/components/ui/particle-effect';
 const CommunityValueSection = () => {
   const [activeValue, setActiveValue] = useState(0);
   
+  // Shared transition configurations for consistency
+  const smoothTransition = {
+    type: 'spring',
+    stiffness: 200,
+    damping: 30,
+    mass: 0.8
+  };
+  
+  const hoverTransition = {
+    duration: 0.8,
+    ease: "easeInOut"
+  };
+  
   // Core values and needs fulfilled
   const communityValues = [
     {
@@ -119,10 +132,37 @@ const CommunityValueSection = () => {
   
   return (
     <div className="py-16 relative overflow-hidden bg-gradient-to-b from-gray-50 to-white">
-      {/* Background elements */}
+      {/* Enhanced Background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -inset-[10%] bg-gradient-radial from-indigo-50/20 to-transparent opacity-70"></div>
         <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+        
+        {/* Subtle radial gradient background */}
+        <motion.div 
+          className="absolute inset-0 opacity-10" 
+          style={{
+            background: 'radial-gradient(circle at 30% 30%, rgba(79,70,229,0.6) 0%, transparent 70%), radial-gradient(circle at 70% 70%, rgba(37,99,235,0.6) 0%, transparent 70%)'
+          }}
+          animate={{
+            opacity: [0.06, 0.1, 0.06],
+          }}
+          transition={{
+            duration: 15,
+            repeat: Infinity,
+            repeatType: 'reverse'
+          }}
+        />
+        
+        {/* Subtle dot pattern */}
+        <div 
+          className="absolute inset-0 opacity-[0.03]" 
+          style={{
+            backgroundImage: 'radial-gradient(rgba(30,136,229,0.4) 1px, transparent 1px), radial-gradient(rgba(30,136,229,0.4) 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+            backgroundPosition: '0 0, 10px 10px'
+          }}
+        />
+        
         <motion.div 
           className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary-200 to-transparent"
           animate={{
@@ -173,11 +213,15 @@ const CommunityValueSection = () => {
                   }`}
                   onClick={() => setActiveValue(index)}
                   whileHover={{ 
-                    scale: 1.05,
-                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)'
+                    scale: 1.03,
+                    boxShadow: '0 10px 20px rgba(0, 0, 0, 0.08)'
+                  }}
+                  transition={{ 
+                    type: 'spring', 
+                    stiffness: 260, 
+                    damping: 20 
                   }}
                   whileTap={{ scale: 0.97 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                 >
                   {activeValue === index && (
                     <motion.span
@@ -222,34 +266,70 @@ const CommunityValueSection = () => {
                     <div className="absolute inset-0 bg-grid-pattern opacity-5 rounded-xl"></div>
                     
                     <div className="flex items-start mb-8">
-                      <GlowingEffect 
-                        color={communityValues[activeValue].color === 'blue' ? 'primary' : 
-                              communityValues[activeValue].color === 'green' ? 'accent' : 
-                              communityValues[activeValue].color === 'purple' ? 'secondary' : 'alert'}
-                        size="md" 
-                        className="mr-5 flex-shrink-0"
-                      >
-                        <div 
-                          className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl text-white`}
-                          style={{
-                            background: `linear-gradient(to bottom right, ${communityValues[activeValue].gradientFrom.replace('from-', '')}, ${communityValues[activeValue].gradientTo.replace('to-', '')})`
-                          }}
-                        >
-                          <motion.span
+                      <div className="md:w-1/3 mb-6 md:mb-0 md:pr-6 flex justify-center">
+                        <GlowingEffect color="primary" size="lg" pulseEffect={true} intensity="medium">
+                          <motion.div
                             animate={{
-                              scale: [1, 1.15, 1],
-                              rotate: [0, 5, 0, -5, 0],
+                              rotate: [0, 2, 0, -2, 0],
                             }}
                             transition={{
-                              duration: 3,
+                              duration: 10,
                               repeat: Infinity,
-                              repeatType: "loop"
+                              repeatType: "loop",
+                              ease: "easeInOut"
+                            }}
+                            className="w-40 h-40 rounded-full bg-gradient-to-br from-primary-50 to-blue-50 flex items-center justify-center text-6xl relative overflow-hidden shadow-md"
+                            whileHover={{ 
+                              scale: 1.03,
+                              boxShadow: '0 0 20px rgba(30, 136, 229, 0.3)'
+                            }}
+                            transition={{
+                              scale: { type: 'spring', stiffness: 300, damping: 15 },
+                              boxShadow: { duration: 0.3 }
                             }}
                           >
-                            {communityValues[activeValue].icon}
-                          </motion.span>
-                        </div>
-                      </GlowingEffect>
+                            {/* Enhanced hover animation gradient overlay with smoother transition */}
+                            <motion.div 
+                              className="absolute inset-0 bg-gradient-to-br from-primary-100/30 to-blue-100/30 opacity-0"
+                              whileHover={{ opacity: 0.4 }}
+                              transition={{ duration: 0.4, ease: "easeOut" }}
+                            />
+                            <div className="relative flex items-center justify-center">
+                              <motion.div 
+                                className="absolute inset-0 opacity-50 blur-sm" 
+                                animate={{
+                                  background: [
+                                    'radial-gradient(circle at 30% 30%, rgba(30,136,229,0.7) 0%, rgba(59,130,246,0.4) 50%, transparent 70%)',
+                                    'radial-gradient(circle at 70% 70%, rgba(30,136,229,0.7) 0%, rgba(59,130,246,0.4) 50%, transparent 70%)',
+                                    'radial-gradient(circle at 30% 30%, rgba(30,136,229,0.7) 0%, rgba(59,130,246,0.4) 50%, transparent 70%)'
+                                  ],
+                                }}
+                                transition={{
+                                  duration: 12,
+                                  repeat: Infinity,
+                                  repeatType: "loop",
+                                  ease: "easeInOut"
+                                }}
+                              />
+                              <motion.span 
+                                className="relative z-10 drop-shadow-lg text-6xl"
+                                animate={{
+                                  scale: [1, 1.04, 1],
+                                  rotateZ: [0, 1.5, 0, -1.5, 0]
+                                }}
+                                transition={{
+                                  duration: 5,
+                                  repeat: Infinity,
+                                  repeatType: "loop",
+                                  ease: "easeInOut"
+                                }}
+                              >
+                                👊
+                              </motion.span>
+                            </div>
+                          </motion.div>
+                        </GlowingEffect>
+                      </div>
                       
                       <div>
                         <h3 className="text-2xl font-bold mb-2 bg-clip-text text-transparent" 
@@ -288,12 +368,17 @@ const CommunityValueSection = () => {
                         ))}
                       </ul>
                       
-                      <div className={`bg-gradient-to-br ${communityValues[activeValue].gradientFrom}/10 ${communityValues[activeValue].gradientTo}/5 p-4 rounded-lg italic border-l-4`}
+                      <div 
+                        className={`p-4 rounded-lg italic border-l-4`}
                         style={{
                           borderLeftColor: communityValues[activeValue].color === 'blue' ? '#1E88E5' : 
                                           communityValues[activeValue].color === 'green' ? '#22C55E' : 
                                           communityValues[activeValue].color === 'purple' ? '#9333EA' : 
-                                          '#F59E0B'
+                                          '#F59E0B',
+                          background: communityValues[activeValue].color === 'blue' ? 'linear-gradient(to bottom right, rgba(30, 136, 229, 0.08), rgba(59, 130, 246, 0.05))' :
+                                     communityValues[activeValue].color === 'green' ? 'linear-gradient(to bottom right, rgba(34, 197, 94, 0.08), rgba(16, 185, 129, 0.05))' :
+                                     communityValues[activeValue].color === 'purple' ? 'linear-gradient(to bottom right, rgba(147, 51, 234, 0.08), rgba(79, 70, 229, 0.05))' :
+                                     'linear-gradient(to bottom right, rgba(245, 158, 11, 0.08), rgba(252, 211, 77, 0.05))'
                         }}
                       >
                         <p className="text-gray-700 mb-2">"{communityValues[activeValue].quote.text}"</p>
@@ -326,15 +411,36 @@ const CommunityValueSection = () => {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className="relative group"
-                    whileHover={{ 
-                      y: -5,
-                      transition: { type: 'spring', stiffness: 400, damping: 10 }
-                    }}
+                    className="relative group cursor-pointer"
                   >
-                    <div className={`absolute -inset-0.5 bg-gradient-to-br from-${colorClass}-400 to-${colorClass === 'primary' ? 'blue' : colorClass}-300 rounded-xl blur opacity-30 group-hover:opacity-70 transition duration-300`}></div>
+                    <div className="absolute -inset-0.5 rounded-xl blur-md opacity-20 group-hover:opacity-40 transition-all duration-500"
+                      style={{
+                        background: `linear-gradient(to bottom right, 
+                          ${colorClass === 'primary' ? '#1E88E5' : 
+                            colorClass === 'green' ? '#22C55E' : 
+                            colorClass === 'purple' ? '#9333EA' : 
+                            '#F59E0B'}, 
+                          ${colorClass === 'primary' ? '#64B5F6' : 
+                            colorClass === 'green' ? '#6EE7B7' : 
+                            colorClass === 'purple' ? '#C4B5FD' : 
+                            '#FCD34D'})
+                        `
+                      }}
+                    ></div>
                     
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
+                    <motion.div 
+                      className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative h-full"
+                      whileHover={{ 
+                        y: -5,
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)'
+                      }}
+                      transition={{ 
+                        type: 'spring', 
+                        stiffness: 200, 
+                        damping: 30,
+                        mass: 0.8
+                      }}
+                    >
                       <ParticleEffect
                         count={8}
                         color={colorClass === 'primary' ? 'primary' : colorClass}
@@ -342,17 +448,27 @@ const CommunityValueSection = () => {
                         className="absolute inset-0 pointer-events-none"
                       />
                       
-                      <div className={`bg-gradient-to-r from-${colorClass}-500/10 to-${colorClass === 'primary' ? 'blue' : colorClass}-400/10 p-4 border-b`}
+                      <div className="p-4 border-b"
                         style={{
+                          background: `linear-gradient(to right, 
+                            ${colorClass === 'primary' ? 'rgba(30, 136, 229, 0.1)' : 
+                              colorClass === 'green' ? 'rgba(34, 197, 94, 0.1)' : 
+                              colorClass === 'purple' ? 'rgba(147, 51, 234, 0.1)' : 
+                              'rgba(245, 158, 11, 0.1)'}, 
+                            ${colorClass === 'primary' ? 'rgba(100, 181, 246, 0.05)' : 
+                              colorClass === 'green' ? 'rgba(110, 231, 183, 0.05)' : 
+                              colorClass === 'purple' ? 'rgba(196, 181, 253, 0.05)' : 
+                              'rgba(252, 211, 77, 0.05)'})
+                          `,
                           borderColor: colorClass === 'primary' ? '#90CAF9' : 
-                                      colorClass === 'green' ? '#A7F3D0' : 
-                                      colorClass === 'purple' ? '#C4B5FD' : 
-                                      '#FDE68A'
+                                       colorClass === 'green' ? '#A7F3D0' : 
+                                       colorClass === 'purple' ? '#C4B5FD' : 
+                                       '#FDE68A'
                         }}
                       >
                         <h4 className="font-bold text-gray-900 flex items-center">
                           <span 
-                            className={`w-8 h-8 rounded-full bg-${colorClass}-500 text-white flex items-center justify-center mr-2 shadow-sm`}
+                            className={`w-9 h-9 rounded-full bg-gradient-to-br ${colorClass === 'primary' ? 'from-primary-500 to-blue-600' : colorClass === 'green' ? 'from-green-500 to-emerald-600' : colorClass === 'purple' ? 'from-purple-500 to-indigo-600' : 'from-amber-500 to-amber-600'} text-white flex items-center justify-center mr-3 shadow-md`}
                           >
                             {item.icon}
                           </span>
@@ -362,15 +478,15 @@ const CommunityValueSection = () => {
                       
                       <div className="p-4">
                         <div className="mb-3">
-                          <div className="text-sm text-gray-500 mb-1">Current Problem:</div>
-                          <div className="text-gray-700 pl-4 border-l-2 border-gray-300">{item.problem}</div>
+                          <div className="text-sm font-medium text-gray-500 mb-1">Current Problem:</div>
+                          <div className="text-gray-700 pl-4 border-l-2 border-gray-300 py-1">{item.problem}</div>
                         </div>
                         <div>
-                          <div className="text-sm text-gray-500 mb-1">Our Solution:</div>
-                          <div className={`text-gray-700 pl-4 border-l-2 border-${colorClass === 'primary' ? 'primary' : colorClass}-400`}>{item.solution}</div>
+                          <div className="text-sm font-medium text-gray-500 mb-1">Our Solution:</div>
+                          <div className={`text-gray-700 pl-4 border-l-2 py-1 border-${colorClass === 'primary' ? 'primary' : colorClass}-400`}>{item.solution}</div>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   </motion.div>
                 );
               })}
@@ -436,8 +552,12 @@ const CommunityValueSection = () => {
                   
                   <motion.div 
                     className="mt-6 flex justify-center"
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ 
+                      scale: 1.05,
+                      boxShadow: '0 3px 15px rgba(30, 136, 229, 0.3)'
+                    }}
                     whileTap={{ scale: 0.98 }}
+                    transition={smoothTransition}
                   >
                     <a href="/register" className="px-6 py-2.5 bg-white text-primary-600 rounded-full font-medium hover:shadow-lg transition-all duration-300">
                       Join Our Community
