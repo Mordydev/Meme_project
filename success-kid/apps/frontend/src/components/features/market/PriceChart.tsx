@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { GlassCard } from '@/components/ui/optimized/GlassCard';
 import { 
-  Card, 
   CardHeader, 
   CardTitle, 
   CardContent,
   CardFooter,
   CardDescription
-} from '@/components/ui/card';
+} from '@/components/ui/optimized/glass/card-components';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { motion } from 'framer-motion';
 import { formatCurrency, formatCompactNumber } from '@/lib/utils';
@@ -131,11 +131,19 @@ export function PriceChart({
   };
   
   return (
-    <Card className={`overflow-hidden ${className}`}>
+    <GlassCard 
+      className={`overflow-hidden ${className}`}
+      gradientBackground={true}
+      gradientBorder={true}
+      borderGlow={true}
+      borderGlowIntensity="strong"
+      hoverEffect={true}
+      shadowStyle="premium"
+    >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="mb-1 text-2xl font-bold">SKC Price</CardTitle>
+            <CardTitle className="mb-1 text-2xl font-bold text-primary">SKC Price Chart</CardTitle>
             <CardDescription>Current market price with historical data</CardDescription>
           </div>
           <Tabs defaultValue={activeRange} onValueChange={handleRangeChange}>
@@ -174,6 +182,6 @@ export function PriceChart({
           </div>
         </div>
       </CardFooter>
-    </Card>
+    </GlassCard>
   );
 }

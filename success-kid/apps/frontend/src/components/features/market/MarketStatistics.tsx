@@ -1,12 +1,12 @@
 'use client';
 
+import { GlassCard } from '@/components/ui/optimized/GlassCard';
 import { 
-  Card, 
   CardHeader, 
   CardTitle, 
   CardContent,
   CardFooter
-} from '@/components/ui/card';
+} from '@/components/ui/optimized/glass/card-components';
 import { formatCurrency, formatCompactNumber, timeAgo } from '@/lib/utils';
 import { MarketStats } from '@/types';
 
@@ -32,7 +32,7 @@ function StatCard({ title, value, description, trend, className = '' }: StatCard
       : '•';
   
   return (
-    <div className={`rounded-lg border bg-card p-4 shadow-sm ${className}`}>
+    <div className={`rounded-lg bg-gradient-to-br from-blue-100 to-purple-100 p-4 border-2 border-primary/30 shadow-xl hover:shadow-2xl transition-all ${className}`}>
       <div className="text-sm font-medium text-muted-foreground">{title}</div>
       <div className="mt-1 flex items-baseline">
         <div className="text-2xl font-bold">{value}</div>
@@ -60,7 +60,14 @@ export function MarketStatistics({
 }: MarketStatisticsProps) {
   if (isLoading) {
     return (
-      <Card className={className}>
+      <GlassCard 
+        className={className}
+        gradientBackground={true}
+        gradientBorder={true}
+        borderGlow={true}
+        borderGlowIntensity="strong"
+        shadowStyle="premium"
+      >
         <CardHeader>
           <CardTitle>Market Statistics</CardTitle>
         </CardHeader>
@@ -71,7 +78,7 @@ export function MarketStatistics({
             ))}
           </div>
         </CardContent>
-      </Card>
+      </GlassCard>
     );
   }
   
@@ -123,7 +130,15 @@ export function MarketStatistics({
   ];
   
   return (
-    <Card className={className}>
+    <GlassCard 
+      className={className}
+      gradientBackground={true}
+      gradientBorder={true}
+      borderGlow={true}
+      borderGlowIntensity="strong"
+      gradientColors="from-primary/10 via-white/90 to-primary/5"
+      shadowStyle="premium"
+    >
       <CardHeader>
         <CardTitle>Market Statistics</CardTitle>
       </CardHeader>
@@ -145,6 +160,6 @@ export function MarketStatistics({
           Last updated: {timeAgo(new Date(lastUpdated))}
         </CardFooter>
       )}
-    </Card>
+    </GlassCard>
   );
 }

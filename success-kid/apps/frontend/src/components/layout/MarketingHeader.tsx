@@ -11,7 +11,7 @@ import tokens from '@/theme/tokens';
 const navLinks = [
   { name: 'Home', href: '/home' },
   { name: 'About', href: '/about' },
-  { name: 'Market', href: '/tokenomics' }, // Keeping the same URL for now, rename page later
+  { name: 'Market', href: '/markets' },
   { name: 'FAQ', href: '/faq' },
   { name: 'Community', href: '/community' },
 ];

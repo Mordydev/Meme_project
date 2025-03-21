@@ -66,6 +66,9 @@ module.exports = {
         input: "var(--input)",
         ring: "var(--ring)",
       },
+      textGradient: {
+        'primary': 'linear-gradient(90deg, var(--color-primary) 0%, var(--color-secondary) 100%)',
+      },
       fontFamily: {
         display: 'var(--font-display)',
         body: 'var(--font-body)',
@@ -87,6 +90,9 @@ module.exports = {
         'slide-up': 'slideUp 0.5s ease-out',
         'bounce-subtle': 'bounce 1.5s infinite ease-in-out alternate',
         'success': 'success-pulse 2s var(--ease-fluid) infinite',
+        'gradient-pulse': 'gradient-pulse 4s ease-in-out infinite',
+        'pulse-glow': 'pulse-glow 3s ease-in-out infinite',
+        'gradient-rotation': 'gradient-rotation 6s linear infinite',
       },
       keyframes: {
         bounce: {
@@ -104,6 +110,19 @@ module.exports = {
         'success-pulse': {
           '0%, 100%': { opacity: 1, transform: 'scale(1)' },
           '50%': { opacity: 0.9, transform: 'scale(1.05)' },
+        },
+        'gradient-pulse': {
+          '0%, 100%': { opacity: 1, backgroundPosition: '0% 0%' },
+          '50%': { opacity: 0.8, backgroundPosition: '100% 100%' },
+        },
+        'pulse-glow': {
+          '0%, 100%': { opacity: 0.6, transform: 'scale(0.98)' },
+          '50%': { opacity: 1, transform: 'scale(1.01)' },
+        },
+        'gradient-rotation': {
+          '0%': { backgroundPosition: '0% 50%', backgroundSize: '200% 200%' },
+          '50%': { backgroundPosition: '100% 50%', backgroundSize: '200% 200%' },
+          '100%': { backgroundPosition: '0% 50%', backgroundSize: '200% 200%' },
         },
       },
       borderRadius: {

@@ -24,6 +24,7 @@
     "postcss": "^8.4.35",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "recharts": "^2.15.1",
     "tailwind-merge": "^2.0.0",
     "tailwindcss": "^4.0.0-alpha.1",
     "tailwindcss-animate": "^1.0.7",

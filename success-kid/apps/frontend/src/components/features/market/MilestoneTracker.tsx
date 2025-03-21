@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { GlassCard } from '@/components/ui/optimized/GlassCard';
 import { 
-  Card, 
   CardHeader, 
   CardTitle, 
   CardContent, 
   CardDescription, 
   CardFooter 
-} from '@/components/ui/card';
+} from '@/components/ui/optimized/glass/card-components';
 import { motion } from 'framer-motion';
 import { formatCurrency, formatCompactNumber } from '@/lib/utils';
 import { Milestone, NextMilestone } from '@/types';
@@ -117,7 +117,15 @@ export function MilestoneTracker({
   };
   
   return (
-    <Card className={className}>
+    <GlassCard 
+      className={className}
+      gradientBackground={true} 
+      gradientBorder={true}
+      borderGlow={true}
+      borderGlowIntensity="strong"
+      gradientColors="from-secondary/10 via-white/90 to-primary/10"
+      shadowStyle="premium"
+    >
       <CardHeader>
         <CardTitle>Market Cap Milestones</CardTitle>
         <CardDescription>Track our progress through key market milestones</CardDescription>
@@ -153,6 +161,6 @@ export function MilestoneTracker({
       <CardFooter className="text-sm text-neutral-500">
         Click on milestones for details
       </CardFooter>
-    </Card>
+    </GlassCard>
   );
 }
