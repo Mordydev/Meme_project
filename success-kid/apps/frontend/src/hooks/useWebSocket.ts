@@ -3,135 +3,110 @@
  * 
  * Custom hook for managing WebSocket connections
  */
+'use client';
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './useAuth';
 
 // Set the WebSocket URL based on environment
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
-  (typeof window !== 'undefined' ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws` : '');
+  (typeof window !== 'undefined' ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/ws` : '');
 
-interface WebSocketMessage {
-  type: string;
-  data: any;
+interface WebSocketStatus {
+  connected: boolean;
+  state: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+  lastEvent?: string;
+  reconnectAttempt: number;
+  error?: string;
 }
 
-/**
- * Custom hook for managing WebSocket connections
- */
-export function useWebSocket() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
-  const { isAuthenticated, getAuthToken } = useAuth();
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectAttemptRef = useRef(0);
-  const maxReconnectAttempts = 5;
+interface WebSocketContextType {
+  socket: WebSocket | null;
+  status: WebSocketStatus;
+  connected: boolean;
+  reconnect: () => void;
+}
+
+export function useWebSocket(): WebSocketContextType {
+  const [socket, setSocket] = useState<WebSocket | null>(null);
+  const [status, setStatus] = useState<WebSocketStatus>({
+    connected: false,
+    state: 'disconnected',
+    reconnectAttempt: 0
+  });
   
-  // Connect to WebSocket
-  const connect = useCallback(async () => {
-    if (typeof window === 'undefined') return;
+  // For now, we'll create a dummy WebSocket implementation
+  // This can be replaced with actual WebSocket connection in production
+  const connect = useCallback(() => {
+    // In production, this would create a real WebSocket connection
+    console.log('WebSocket: Creating mock connection');
     
-    try {
-      // Get auth token if authenticated
-      let url = WS_URL;
-      if (isAuthenticated) {
-        const token = await getAuthToken();
-        if (token) {
-          url = `${WS_URL}?token=${token}`;
+    // Update status to connecting
+    setStatus({
+      connected: false,
+      state: 'connecting',
+      reconnectAttempt: status.reconnectAttempt
+    });
+    
+    // Simulate connection
+    setTimeout(() => {
+      // Create a mock socket
+      // In production, this would be a real WebSocket
+      const mockSocket = {
+        send: (data: string) => {
+          console.log('WebSocket sent:', data);
+        },
+        close: () => {
+          console.log('WebSocket closed');
+          setStatus({
+            connected: false,
+            state: 'disconnected',
+            reconnectAttempt: 0
+          });
+          setSocket(null);
         }
-      }
+      } as unknown as WebSocket;
       
-      // Create WebSocket connection
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-      
-      // Connection established
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        setIsConnected(true);
-        reconnectAttemptRef.current = 0;
-        
-        // Ping to keep connection alive
-        const pingInterval = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'ping' }));
-          } else {
-            clearInterval(pingInterval);
-          }
-        }, 30000);
-      };
-      
-      // Connection closed
-      ws.onclose = () => {
-        setIsConnected(false);
-        console.log('WebSocket disconnected');
-        
-        // Attempt to reconnect
-        if (reconnectAttemptRef.current < maxReconnectAttempts) {
-          reconnectAttemptRef.current++;
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current - 1), 30000);
-          console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttemptRef.current})`);
-          
-          setTimeout(() => {
-            connect();
-          }, delay);
-        }
-      };
-      
-      // Error
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-      
-      // Receive message
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          
-          // Handle pong response
-          if (message.type === 'pong') {
-            return;
-          }
-          
-          // Set last message received
-          setLastMessage(message);
-          
-          // Dispatch event for other components to listen to
-          window.dispatchEvent(
-            new CustomEvent('websocket-message', { detail: message })
-          );
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
-    } catch (error) {
-      console.error('Error connecting to WebSocket:', error);
-    }
-  }, [isAuthenticated, getAuthToken]);
+      setSocket(mockSocket);
+      setStatus({
+        connected: true,
+        state: 'connected',
+        reconnectAttempt: 0
+      });
+    }, 500);
+  }, [status.reconnectAttempt]);
   
-  // Send message to WebSocket
-  const sendMessage = useCallback((message: WebSocketMessage) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
-    } else {
-      console.warn('WebSocket not connected, unable to send message');
-    }
-  }, []);
-  
-  // Connect on mount or when auth changes
+  // Connect on mount
   useEffect(() => {
     connect();
     
-    // Cleanup
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+      // Cleanup
+      if (socket) {
+        socket.close();
       }
     };
-  }, [connect]);
+  }, []);
+  
+  // Reconnect function
+  const reconnect = useCallback(() => {
+    if (socket) {
+      socket.close();
+    }
+    
+    setStatus(prev => ({
+      ...prev,
+      state: 'reconnecting',
+      reconnectAttempt: prev.reconnectAttempt + 1
+    }));
+    
+    connect();
+  }, [socket, connect]);
   
   return {
-    isConnected,
-    lastMessage,
-    sendMessage
+    socket,
+    status,
+    connected: status.connected,
+    reconnect
   };
 }

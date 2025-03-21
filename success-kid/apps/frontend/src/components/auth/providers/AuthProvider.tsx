@@ -41,49 +41,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoaded(true);
       
       if (isSignedIn && user) {
+        // Set the user ID in our store
         setUserId(user.id);
         
-        // Check if user has completed onboarding
-        const checkUserProfile = async () => {
-          try {
-            setCheckingOnboardingStatus(true);
-            // Here you would normally fetch the profile from your API
-            // For now, we'll check if the user has any existing profile data in Clerk
-            const hasOnboarded = user.publicMetadata.onboarded === true;
-            
-            // If we find profile data in our store, but the user hasn't onboarded yet
-            // in Clerk, we should update Clerk
-            if (profile && !hasOnboarded) {
-              // This would normally be an API call
-              console.log('User has profile in store but not in Clerk');
-            }
-            
-            // If the user has onboarded in Clerk but we don't have local profile data
-            if (hasOnboarded && !profile) {
-              // Fetch user profile from API
-              // For now, we'll use a placeholder profile
-              setProfile({
-                displayName: user.fullName || '',
-                username: user.username || '',
-                interests: [],
-                notificationPreferences: {
-                  email: true,
-                  push: false
-                }
-              });
-            }
-          } catch (error) {
-            console.error('Error checking user profile:', error);
-          } finally {
-            setCheckingOnboardingStatus(false);
-          }
-        };
+        // Create a serializable user object for the profile
+        const hasOnboarded = user.publicMetadata?.onboarded === true;
         
-        if (user.id) {
-          checkUserProfile();
+        if (!profile || profile.displayName !== user.fullName) {
+          setProfile({
+            displayName: user.fullName || user.username || '',
+            username: user.username || '',
+            interests: [],
+            notificationPreferences: {
+              email: true,
+              push: false
+            }
+          });
         }
+        
+        // Set onboarding status
+        if (hasOnboarded) {
+          useAuthStore.setState(state => ({
+            onboarding: {
+              ...state.onboarding,
+              isOnboarded: true
+            }
+          }));
+        }
+        
+        setCheckingOnboardingStatus(false);
       } else {
         setUserId(null);
+        setCheckingOnboardingStatus(false);
       }
     }
   }, [isClerkLoaded, isUserLoaded, isSignedIn, user, setUserId, setIsSignedIn, setIsLoaded, setProfile, profile]);

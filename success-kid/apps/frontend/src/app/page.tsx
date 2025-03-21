@@ -23,5 +23,5 @@ export const metadata: Metadata = {
 
 // Root page that redirects to marketing layout pages
 export default function HomePage() {
-  redirect('/');
+  redirect('/home');
 }

@@ -3,6 +3,8 @@
  * 
  * Displays a leaderboard for forum activity
  */
+'use client';
+
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';

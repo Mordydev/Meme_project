@@ -3,10 +3,11 @@
  * 
  * Allows users to create new discussion threads
  */
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { 
   ChevronLeft,
   Trash,

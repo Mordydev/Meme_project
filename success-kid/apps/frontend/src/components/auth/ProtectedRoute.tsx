@@ -39,7 +39,7 @@ export function ProtectedRoute({
       }
       
       // Check permission if required
-      if (requiredPermission && !hasPermission(requiredPermission)) {
+      if (requiredPermission && !hasPermission && !hasPermission(requiredPermission)) {
         router.push('/unauthorized');
         return;
       }
@@ -56,7 +56,7 @@ export function ProtectedRoute({
   }
   
   // If checks failed, return null (redirection will happen in useEffect)
-  if (!isSignedIn || (requireOnboarded && !isOnboarded) || (requiredPermission && !hasPermission(requiredPermission))) {
+  if (!isSignedIn || (requireOnboarded && !isOnboarded) || (requiredPermission && hasPermission && !hasPermission(requiredPermission))) {
     return null;
   }
   

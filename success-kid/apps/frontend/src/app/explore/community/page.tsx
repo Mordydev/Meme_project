@@ -1,14 +1,14 @@
 /**
- * Community Page
+ * Explore Community Page
  * 
- * Main community page showing dashboard and activities
+ * Public-facing community page showing information about the Success Kid community
  */
 import React from 'react';
 import { CommunityDashboard } from '@/components/features/community';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Community | Success Kid',
+  title: 'Explore Our Community | Success Kid',
   description: 'Join the Success Kid community, participate in discussions, and earn rewards for your contributions.',
 };
 

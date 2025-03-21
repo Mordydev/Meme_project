@@ -3,6 +3,8 @@
  * 
  * Handles WebSocket connections and real-time updates for forum functionality
  */
+'use client';
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { MessageSquare, UserPlus, Bell } from 'lucide-react';

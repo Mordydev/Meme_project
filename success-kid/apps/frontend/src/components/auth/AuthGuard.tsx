@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/hooks/useAuth';
 import { Spinner } from '@/components/ui/Spinner';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 interface AuthGuardProps {
@@ -17,11 +17,13 @@ interface AuthGuardProps {
 export function AuthGuard({ children, fallback }: AuthGuardProps) {
   const { isLoaded, isSignedIn } = useAuth();
   
+  const router = useRouter();
+  
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      redirect('/sign-in');
+      router.push('/sign-in');
     }
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, router]);
   
   if (!isLoaded) {
     return fallback || (

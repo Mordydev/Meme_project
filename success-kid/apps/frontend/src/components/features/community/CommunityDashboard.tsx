@@ -3,6 +3,7 @@
  * 
  * Displays a dashboard with trending threads and community stats
  */
+'use client';
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';

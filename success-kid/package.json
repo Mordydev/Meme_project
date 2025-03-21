@@ -31,11 +31,11 @@
     "deploy:production": "echo \"Deploying to production...\" && pnpm build && ./scripts/deploy-production.sh"
   },
   "devDependencies": {
-    "prettier": "^3.2.5",
-    "turbo": "^2.0.0",
     "dotenv": "^16.4.0",
     "husky": "^9.0.5",
-    "lint-staged": "^15.2.0"
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.5",
+    "turbo": "^2.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -49,5 +49,10 @@
     "*.{json,md,yml}": [
       "prettier --write"
     ]
+  },
+  "dependencies": {
+    "bs58": "^6.0.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.0.0"
   }
 }

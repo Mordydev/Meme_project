@@ -3,11 +3,12 @@
  * 
  * Displays a list of all available forums with stats and description
  */
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { MessageSquare, Users, Clock, ExternalLink } from 'lucide-react';
 
 // UI Components

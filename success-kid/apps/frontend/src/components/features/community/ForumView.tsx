@@ -3,11 +3,12 @@
  * 
  * Displays a single forum with its categories and stats
  */
+'use client';
 
 import React, { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { Layers, MessageSquare, ChevronRight, BarChart3, Users } from 'lucide-react';
 
 // UI Components

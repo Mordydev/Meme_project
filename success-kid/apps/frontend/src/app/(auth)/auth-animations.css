@@ -1,0 +1,50 @@
+/* Fallback animations for auth pages */
+
+/* Fallback background gradient animation */
+@keyframes fallbackGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.auth-bg-gradient {
+  background: linear-gradient(135deg, rgba(30,136,229,0.2) 0%, rgba(255,255,255,0.8) 50%, rgba(255,193,7,0.15) 100%);
+  background-size: 400% 400%;
+  animation: fallbackGradient 15s ease infinite;
+}
+
+/* Fallback particle animation */
+@keyframes floatingParticle {
+  0% { transform: translateY(0) translateX(0); opacity: 0.3; }
+  50% { transform: translateY(-20px) translateX(10px); opacity: 0.6; }
+  100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+}
+
+.auth-particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: rgba(30, 136, 229, 0.4);
+  animation: floatingParticle 10s ease-in-out infinite;
+  z-index: 1;
+}
+
+/* Create multiple particles with different positions and delays */
+.auth-particle:nth-child(1) { top: 10%; left: 10%; animation-delay: 0s; }
+.auth-particle:nth-child(2) { top: 20%; left: 80%; animation-delay: 1s; }
+.auth-particle:nth-child(3) { top: 80%; left: 15%; animation-delay: 2s; }
+.auth-particle:nth-child(4) { top: 40%; left: 60%; animation-delay: 3s; }
+.auth-particle:nth-child(5) { top: 65%; left: 30%; animation-delay: 4s; }
+.auth-particle:nth-child(6) { top: 30%; left: 40%; animation-delay: 5s; }
+.auth-particle:nth-child(7) { top: 70%; left: 70%; animation-delay: 6s; }
+.auth-particle:nth-child(8) { top: 50%; left: 85%; animation-delay: 7s; }
+
+/* Ray effect animation */
+.auth-ray {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background: radial-gradient(circle at center, rgba(30, 136, 229, 0.15) 0%, transparent 70%);
+  z-index: 0;
+}

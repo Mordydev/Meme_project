@@ -3,11 +3,12 @@
  * 
  * Displays a thread with its first post and replies
  */
+'use client';
 
 import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { 
   MessageSquare, 
   Eye, 

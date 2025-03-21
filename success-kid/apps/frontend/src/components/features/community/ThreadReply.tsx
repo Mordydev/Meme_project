@@ -3,10 +3,11 @@
  * 
  * Allows users to reply to threads
  */
+'use client';
 
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { 
   Send,
   Image,

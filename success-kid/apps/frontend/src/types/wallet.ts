@@ -1,67 +1,58 @@
-export type WalletType = 'phantom' | 'solflare' | 'other';
+/**
+ * Wallet Types
+ * 
+ * Type definitions for wallet integration
+ */
+
+export type WalletType = 'phantom' | 'solflare' | 'sollet' | 'other';
 
 export interface WalletProvider {
   name: string;
-  type: WalletType;
-  icon: string;
+  type: string;
+  icon?: string;
   url: string;
-  mobile?: string; // Deep link for mobile
+  mobile?: string;
 }
 
 export interface WalletAccount {
   address: string;
   publicKey: string;
-  label?: string;
+  derivationPath?: string;
+  index?: number;
 }
 
 export interface WalletBalance {
   tokenAmount: number;
   usdValue?: number;
-  lastUpdated: Date;
+  lastUpdated?: Date;
 }
 
 export interface WalletTransaction {
   id: string;
   hash: string;
-  type: 'in' | 'out';
+  type: 'in' | 'out' | 'swap' | 'reward';
   amount: number;
-  timestamp: Date;
-  fromAddress?: string;
-  toAddress?: string;
-  status: 'confirmed' | 'pending';
+  timestamp: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  from: string;
+  to: string;
+  fee?: number;
+  metadata?: {
+    title?: string;
+    description?: string;
+    source?: string;
+    [key: string]: any;
+  };
 }
 
 export interface Wallet {
-  provider: WalletType;
+  provider: string;
   account: WalletAccount;
   balance: WalletBalance;
+  transactions?: WalletTransaction[];
   isConnected: boolean;
   isVerified: boolean;
-  transactions?: WalletTransaction[];
   isHolder: boolean;
+  lastVerified?: Date;
   connectedAt: Date;
-}
-
-export interface WalletError {
-  code: string;
-  message: string;
-  details?: any;
-}
-
-export enum WalletErrorType {
-  CONNECTION_REFUSED = 'CONNECTION_REFUSED',
-  WALLET_NOT_FOUND = 'WALLET_NOT_FOUND',
-  NETWORK_ERROR = 'NETWORK_ERROR',
-  SIGNATURE_DECLINED = 'SIGNATURE_DECLINED',
-  WRONG_NETWORK = 'WRONG_NETWORK',
-  TIMEOUT = 'TIMEOUT',
-  UNKNOWN = 'UNKNOWN',
-}
-
-export interface WalletConnectionSession {
-  id: string;
-  message: string;
-  expiresAt: Date;
-  qrCodeData?: string;
-  deepLink?: string;
 }

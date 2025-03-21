@@ -3,11 +3,12 @@
  * 
  * Displays a category with its threads and subcategories
  */
+'use client';
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { 
   MessageSquare, 
   Eye, 
@@ -150,7 +151,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({ categoryId }) => {
       router.push(`/forum/create?category=${categoryId}`);
     } else {
       // Redirect to login
-      router.push(`/auth/login?returnUrl=${encodeURIComponent(router.asPath)}`);
+      router.push(`/sign-in?returnUrl=${encodeURIComponent(`/forum/category/${categoryId}`)}`);
     }
   };
 
