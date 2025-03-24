@@ -1,188 +1,166 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { SearchSuggestions } from './SearchSuggestions';
-import { RecentSearches } from './RecentSearches';
-import { 
-  useSearchSuggestions, 
-  SearchSuggestion,
-  useSearchHistory 
-} from '@/hooks/search';
+import Link from 'next/link';
+import { Search, X as CloseIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
-export interface SearchBarProps {
-  placeholder?: string;
-  initialQuery?: string;
-  onSearch?: (query: string) => void;
-  onSuggestionSelect?: (suggestion: SearchSuggestion) => void;
-  showRecentSearches?: boolean;
-  autoFocus?: boolean;
+interface SearchBarProps {
   className?: string;
+  placeholder?: string;
+  expanded?: boolean;
 }
 
+/**
+ * SearchBar Component
+ * Advanced search component with suggestions and animations
+ */
 export function SearchBar({
+  className,
   placeholder = 'Search...',
-  initialQuery = '',
-  onSearch,
-  onSuggestionSelect,
-  showRecentSearches = true,
-  autoFocus = false,
-  className = ''
+  expanded = false
 }: SearchBarProps) {
-  const [query, setQuery] = useState<string>(initialQuery);
-  const [isFocused, setIsFocused] = useState<boolean>(false);
+  // States
+  const [isFocused, setIsFocused] = useState(expanded);
+  const [query, setQuery] = useState('');
+  const [showResults, setShowResults] = useState(false);
+  
+  // Refs
   const inputRef = useRef<HTMLInputElement>(null);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
+  const resultsRef = useRef<HTMLDivElement>(null);
   
-  // Get search suggestions based on query
-  const { 
-    suggestions, 
-    topResults, 
-    isLoading: suggestionsLoading 
-  } = useSearchSuggestions(query);
-  
-  // Manage search history
-  const { 
-    searchHistory, 
-    addToHistory, 
-    removeFromHistory, 
-    clearHistory 
-  } = useSearchHistory();
-  
-  // Close suggestions when clicking outside
+  // Handle click outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    function handleClickOutside(event: MouseEvent) {
       if (
-        searchContainerRef.current && 
-        !searchContainerRef.current.contains(event.target as Node)
+        resultsRef.current && 
+        !resultsRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
       ) {
-        setIsFocused(false);
+        setShowResults(false);
+        if (!query) {
+          setIsFocused(false);
+        }
       }
-    };
+    }
     
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [query]);
   
-  // Focus input if autoFocus is true
-  useEffect(() => {
-    if (autoFocus && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [autoFocus]);
-  
-  // Handle search submission
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!query.trim()) return;
-    
-    // Add to search history
-    addToHistory(query.trim());
-    
-    // Call onSearch prop if provided
-    if (onSearch) {
-      onSearch(query.trim());
-    } else {
-      // Default behavior: Navigate to search results page
-      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
-    }
-    
-    // Blur input and close suggestions
-    inputRef.current?.blur();
-    setIsFocused(false);
+  // Handle search input
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setQuery(value);
+    setShowResults(!!value);
   };
   
-  // Handle suggestion selection
-  const handleSuggestionSelect = (suggestion: SearchSuggestion) => {
-    addToHistory(suggestion.text);
-    
-    if (onSuggestionSelect) {
-      onSuggestionSelect(suggestion);
-    } else if (suggestion.url) {
-      // Navigate to the URL if provided
-      router.push(suggestion.url);
-    } else {
-      // Otherwise, use the suggestion text as a search query
-      setQuery(suggestion.text);
-      router.push(`/search?q=${encodeURIComponent(suggestion.text)}`);
-    }
-    
-    // Blur input and close suggestions
-    inputRef.current?.blur();
-    setIsFocused(false);
+  // Handle clearing the search
+  const handleSearchClear = () => {
+    setQuery('');
+    setShowResults(false);
+    inputRef.current?.focus();
   };
   
   return (
-    <div ref={searchContainerRef} className={`relative ${className}`}>
-      <form onSubmit={handleSubmit} className="flex items-center">
-        <Input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setIsFocused(true)}
-          placeholder={placeholder}
-          className="pr-10"
-          aria-label="Search"
-        />
-        <Button
-          type="submit"
-          variant="ghost"
-          size="sm"
-          className="absolute right-1 h-8 w-8 p-0"
-          aria-label="Submit search"
-        >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            className="h-4 w-4" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
-            />
-          </svg>
-        </Button>
-      </form>
-      
-      {/* Show suggestions and/or recent searches when input is focused */}
-      {isFocused && (
-        <div className="absolute left-0 right-0 z-10 mt-1 rounded-md border border-neutral-200 bg-background shadow-lg">
-          {/* Show suggestions if there's a query */}
-          {query.trim() && (
-            <SearchSuggestions
-              suggestions={suggestions}
-              topResults={topResults}
-              isLoading={suggestionsLoading}
-              onSelect={handleSuggestionSelect}
-              searchQuery={query}
-            />
-          )}
-          
-          {/* Show recent searches if enabled and no query, or no suggestions */}
-          {showRecentSearches && (!query.trim() || (query.trim() && !suggestions.length && !suggestionsLoading)) && (
-            <RecentSearches
-              searches={searchHistory}
-              onSelect={(search) => {
-                setQuery(search);
-                handleSuggestionSelect({ text: search, type: 'query' });
-              }}
-              onRemove={removeFromHistory}
-              onClear={clearHistory}
-            />
+    <div className={cn("relative w-full", className)}>
+      <motion.div 
+        className="relative bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden"
+        animate={{
+          boxShadow: isFocused 
+            ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' 
+            : '0 0 0 0 rgba(0, 0, 0, 0)',
+        }}
+        transition={{ duration: 0.2 }}
+      >
+        <div className="flex items-center">
+          <span className="absolute left-3 text-neutral-500 dark:text-neutral-400">
+            <Search className="w-5 h-5" />
+          </span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={handleSearchChange}
+            onFocus={() => {
+              setIsFocused(true);
+              if (query) setShowResults(true);
+            }}
+            placeholder={placeholder}
+            className="w-full h-10 px-10 bg-transparent border-none outline-none placeholder-neutral-500 dark:placeholder-neutral-400"
+          />
+          {query && (
+            <button
+              onClick={handleSearchClear}
+              className="absolute right-3 text-neutral-500 dark:text-neutral-400"
+              aria-label="Clear search"
+            >
+              <CloseIcon className="w-4 h-4" />
+            </button>
           )}
         </div>
-      )}
+      </motion.div>
+
+      {/* Search results dropdown */}
+      <AnimatePresence>
+        {showResults && (
+          <motion.div
+            ref={resultsRef}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden z-10"
+          >
+            <div className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium">Search Results</h3>
+                <Link href={`/search?q=${encodeURIComponent(query)}`} className="text-xs text-primary-500">
+                  View all
+                </Link>
+              </div>
+              
+              {/* Recent searches */}
+              <div className="mb-2">
+                <h4 className="text-xs text-neutral-500 mb-1">Recent Searches</h4>
+                <div className="space-y-1">
+                  <button className="w-full text-left text-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded">
+                    market cap
+                  </button>
+                  <button className="w-full text-left text-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded">
+                    token price
+                  </button>
+                </div>
+              </div>
+              
+              {/* Quick suggestions */}
+              <div>
+                <h4 className="text-xs text-neutral-500 mb-1">Suggestions</h4>
+                <div className="space-y-1">
+                  <Link 
+                    href="/search?category=posts" 
+                    className="block text-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded"
+                  >
+                    Posts containing "{query}"
+                  </Link>
+                  <Link 
+                    href="/search?category=users" 
+                    className="block text-sm p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded"
+                  >
+                    Users matching "{query}"
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+export default SearchBar;

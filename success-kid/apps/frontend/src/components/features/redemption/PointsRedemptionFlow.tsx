@@ -28,7 +28,7 @@ export function PointsRedemptionFlow({ className }: PointsRedemptionFlowProps) {
     isLoading 
   } = usePointsStore();
   
-  const { wallet } = useWallet();
+  const { wallet, publicKey } = useWallet();
   
   // State to manage different steps and modals
   const [isEligible, setIsEligible] = useState<boolean>(false);
@@ -172,7 +172,7 @@ export function PointsRedemptionFlow({ className }: PointsRedemptionFlowProps) {
                       id: activeTransaction,
                       pointsAmount: pointsToRedeem,
                       tokenAmount: pointsToRedeem / getRedemptionConfig().conversionRate,
-                      recipientAddress: wallet?.account.address || '',
+                      recipientAddress: publicKey ? publicKey.toString() : '',
                       status: 'pending',
                       createdAt: new Date().toISOString(),
                       updatedAt: new Date().toISOString(),
@@ -308,7 +308,7 @@ export function PointsRedemptionFlow({ className }: PointsRedemptionFlowProps) {
         data={{
           pointsAmount: pointsToRedeem,
           tokenAmount: pointsToRedeem / getRedemptionConfig().conversionRate,
-          recipientAddress: wallet?.account.address || '',
+          recipientAddress: publicKey ? publicKey.toString() : '',
           conversionRate: getRedemptionConfig().conversionRate
         }}
         onConfirm={handleConfirmRedemption}

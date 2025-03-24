@@ -3,6 +3,9 @@
  */
 import { v4 as uuid } from 'uuid';
 
+// Check if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
+
 /**
  * WebSocket message interface
  */
@@ -112,13 +115,14 @@ export class WebSocketClient {
     // Generate a connection ID
     this.connectionId = uuid();
     
-    // Connect automatically if configured
-    if (this.config.autoConnect) {
-      this.connect();
-    }
-    
-    // Initialize event listeners for offline/online events
-    if (typeof window !== 'undefined') {
+    // Only set up event listeners and auto-connect in browser environment
+    if (isBrowser) {
+      // Connect automatically if configured
+      if (this.config.autoConnect) {
+        this.connect();
+      }
+      
+      // Initialize event listeners for offline/online events
       window.addEventListener('online', this.handleOnline);
       window.addEventListener('offline', this.handleOffline);
       window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -134,6 +138,9 @@ export class WebSocketClient {
    * @param token Authentication token
    */
   connect(token?: string): void {
+    // Only attempt connection in browser environment
+    if (!isBrowser) return;
+    
     this.log('Attempting to connect to WebSocket server');
     
     // Clear any existing reconnect timer
@@ -200,6 +207,9 @@ export class WebSocketClient {
    * Disconnect from the WebSocket server
    */
   disconnect(): void {
+    // Only disconnect in browser environment
+    if (!isBrowser) return;
+    
     this.log('Disconnecting from WebSocket server');
     
     // Clear timers
@@ -224,6 +234,9 @@ export class WebSocketClient {
    * @returns True if sent successfully
    */
   send(message: WebSocketMessage): boolean {
+    // Can't send if not in browser environment
+    if (!isBrowser) return false;
+    
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
         // Add timestamp if not present
@@ -495,6 +508,9 @@ export class WebSocketClient {
    * Attempt to reconnect to the WebSocket server
    */
   private attemptReconnect(): void {
+    // Can't reconnect if not in browser environment
+    if (!isBrowser) return;
+    
     // Check if max attempts reached
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
       this.log(`Maximum reconnect attempts (${this.config.maxReconnectAttempts}) reached.`);
@@ -528,15 +544,20 @@ export class WebSocketClient {
     this.updateConnectionState(ConnectionState.RECONNECTING, { reconnectAttempt: this.reconnectAttempts });
     
     // Set reconnect timer
-    this.reconnectTimer = window.setTimeout(() => {
-      this.connect();
-    }, delay);
+    if (isBrowser) {
+      this.reconnectTimer = window.setTimeout(() => {
+        this.connect();
+      }, delay);
+    }
   }
   
   /**
    * Set connection timeout
    */
   private setConnectionTimeout(): void {
+    // Can't set timeout if not in browser environment
+    if (!isBrowser) return;
+    
     // Clear any existing timeout
     this.clearConnectionTimeout();
     
@@ -561,6 +582,8 @@ export class WebSocketClient {
    * Clear connection timeout
    */
   private clearConnectionTimeout(): void {
+    if (!isBrowser) return;
+    
     if (this.connectionTimeoutTimer !== null) {
       clearTimeout(this.connectionTimeoutTimer);
       this.connectionTimeoutTimer = null;
@@ -571,6 +594,8 @@ export class WebSocketClient {
    * Clear reconnect timer
    */
   private clearReconnectTimer(): void {
+    if (!isBrowser) return;
+    
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -581,6 +606,8 @@ export class WebSocketClient {
    * Start heartbeat to keep connection alive
    */
   private startHeartbeat(): void {
+    if (!isBrowser) return;
+    
     // Clear any existing interval
     this.clearHeartbeat();
     
@@ -597,6 +624,8 @@ export class WebSocketClient {
    * Clear heartbeat interval
    */
   private clearHeartbeat(): void {
+    if (!isBrowser) return;
+    
     if (this.heartbeatInterval !== null) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
@@ -607,6 +636,8 @@ export class WebSocketClient {
    * Send ping to server
    */
   private sendPing(): void {
+    if (!isBrowser) return;
+    
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       return;
     }
@@ -778,6 +809,8 @@ export class WebSocketClient {
    * Handle visibility change event
    */
   private handleVisibilityChange = (): void => {
+    if (!isBrowser) return;
+    
     if (document.visibilityState === 'visible') {
       // Check connection status when becoming visible
       const timeSinceLastMessage = Date.now() - this.lastMessageTime;
@@ -830,6 +863,8 @@ export class WebSocketClient {
    * Start fallback polling for messages when WebSocket is unavailable
    */
   private startFallbackPolling(): void {
+    if (!isBrowser) return;
+    
     if (!this.config.fallbackEnabled || this.fallbackPollInterval !== null) {
       return;
     }
@@ -848,6 +883,8 @@ export class WebSocketClient {
    * Clear fallback polling interval
    */
   private clearFallbackPolling(): void {
+    if (!isBrowser) return;
+    
     if (this.fallbackPollInterval !== null) {
       clearInterval(this.fallbackPollInterval);
       this.fallbackPollInterval = null;
@@ -858,6 +895,8 @@ export class WebSocketClient {
    * Poll for messages using HTTP fallback
    */
   private async pollForMessages(): Promise<void> {
+    if (!isBrowser) return;
+    
     if (Date.now() - this.lastPollTime < 1000) {
       return; // Prevent too frequent polling
     }
@@ -920,6 +959,8 @@ export class WebSocketClient {
    * @param message Message to send
    */
   private async sendViaFallback(message: WebSocketMessage): Promise<void> {
+    if (!isBrowser) return;
+    
     try {
       // Get auth token if available
       const token = this.config.getAuthToken?.() || null;
@@ -970,20 +1011,20 @@ export class WebSocketClient {
    * Clean up resources
    */
   destroy(): void {
+    if (!isBrowser) return;
+    
     this.log('Destroying WebSocket client');
     
     // Disconnect WebSocket
     this.disconnect();
     
     // Remove event listeners
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('online', this.handleOnline);
-      window.removeEventListener('offline', this.handleOffline);
-      window.removeEventListener('beforeunload', this.handleBeforeUnload);
-      window.removeEventListener('focus', this.handleWindowFocus);
-      
-      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-    }
+    window.removeEventListener('online', this.handleOnline);
+    window.removeEventListener('offline', this.handleOffline);
+    window.removeEventListener('beforeunload', this.handleBeforeUnload);
+    window.removeEventListener('focus', this.handleWindowFocus);
+    
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     
     // Clear all handlers
     this.messageHandlers.clear();
@@ -996,7 +1037,7 @@ export class WebSocketClient {
  * @returns WebSocket URL
  */
 function createWebSocketUrl(): string {
-  if (typeof window === 'undefined') {
+  if (!isBrowser) {
     return '/ws'; // Default for SSR
   }
   
@@ -1008,6 +1049,6 @@ function createWebSocketUrl(): string {
 
 // Create and export singleton instance with environment-aware URL
 export const websocketClient = new WebSocketClient({
-  url: process.env.NEXT_PUBLIC_WS_URL || createWebSocketUrl(),
+  url: isBrowser && process.env.NEXT_PUBLIC_WS_URL ? process.env.NEXT_PUBLIC_WS_URL : createWebSocketUrl(),
   debug: process.env.NODE_ENV === 'development'
 });

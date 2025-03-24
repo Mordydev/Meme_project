@@ -9,3 +9,6 @@ export * from './MarketingFooter';
 export * from './dashboard-header';
 export * from './main-nav';
 export * from './mobile-nav';
+export * from './TopBar';
+export * from './Breadcrumbs';
+export * from './PageTitle';

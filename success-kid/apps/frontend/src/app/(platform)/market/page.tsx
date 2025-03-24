@@ -206,7 +206,7 @@ export default function MarketDashboardPage() {
               <div>
                 <MilestoneTracker
                   currentMarketCap={currentMarketCap}
-                  milestones={milestones}
+                  milestones={milestones || []} // Ensure it's always an array
                   nextMilestone={nextMilestone as any} // Type assertion needed due to possible null
                   isLoading={isMilestoneLoading}
                 />

@@ -1,7 +1,9 @@
+'use client';
+
 import { DashboardHeader } from '@/components/layout/dashboard-header';
 import { CategoryBrowser, FeedContainer, CreatePostButton } from '@/components/features/community';
 
-export default async function CommunityPage() {
+export default function CommunityPage() {
   return (
     <div className="space-y-6">
       <DashboardHeader

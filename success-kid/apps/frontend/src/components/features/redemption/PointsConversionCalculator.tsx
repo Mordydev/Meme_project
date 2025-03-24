@@ -65,7 +65,13 @@ export function PointsConversionCalculator({
       : Math.min(maxRedemption, Math.max(minRedemption, pointsBalance / 2));
     
     setPointsAmount(defaultAmount);
-    setSliderValue(Math.min(100, Math.round((defaultAmount / maxRedemption) * 100)));
+    
+    // Prevent NaN in slider value calculation
+    const maxValue = Math.max(1, maxRedemption); // Ensure we don't divide by zero
+    const sliderPercentage = (defaultAmount / maxValue) * 100;
+    const newSliderValue = Math.min(100, Math.round(sliderPercentage || 0)); // Default to 0 if NaN
+    
+    setSliderValue(newSliderValue);
     
     // Notify parent of initial amount
     onAmountChange(defaultAmount);
@@ -239,7 +245,7 @@ export function PointsConversionCalculator({
               type="range"
               min="0"
               max="100"
-              value={sliderValue}
+              value={sliderValue || 0} // Ensure we always have a valid value
               onChange={handleSliderChange}
               disabled={isProcessing}
               className="w-full cursor-pointer appearance-none rounded-lg bg-neutral-200 h-2 focus:outline-none disabled:opacity-50"

@@ -238,7 +238,7 @@ export function useTransactionFeed(initialFilter: string = 'all') {
       
       const response = await apiClient.get<{ 
         transactions: MarketTransaction[],
-        pagination: {
+        pagination?: {
           total: number,
           limit: number,
           offset: number
@@ -253,8 +253,14 @@ export function useTransactionFeed(initialFilter: string = 'all') {
       }
       
       // Check if there are more transactions to load
-      const { total, limit, offset } = response.data.pagination;
-      setHasMore(offset + limit < total);
+      // Add null check for pagination object
+      if (response.data.pagination) {
+        const { total, limit, offset } = response.data.pagination;
+        setHasMore(offset + limit < total);
+      } else {
+        // Default to false if pagination is not provided
+        setHasMore(false);
+      }
       
       if (!resetPage) {
         setPage(currentPage + 1);
@@ -475,11 +481,11 @@ export function useMarketAlerts() {
   }, [preferences]);
 
   // Toggle a specific alert type
-  const toggleAlert = useCallback(async (alertType: AlertType) => {
-    const isEnabled = preferences.enabledAlerts.includes(alertType);
+  const toggleAlert = useCallback(async (alertType: string) => {
+    const isEnabled = preferences.enabledAlerts.includes(alertType as any);
     const newEnabledAlerts = isEnabled
       ? preferences.enabledAlerts.filter(type => type !== alertType)
-      : [...preferences.enabledAlerts, alertType];
+      : [...preferences.enabledAlerts, alertType as any];
     
     await updateAlertPreferences({ enabledAlerts: newEnabledAlerts });
   }, [preferences, updateAlertPreferences]);

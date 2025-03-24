@@ -35,11 +35,22 @@ export function useNotifications() {
   const { addToast } = useUIStore();
   
   // Access WebSocket for real-time notifications
-  const { subscribe, connected, isAuthenticated } = useWebSocket();
+  const { socket, connected, status } = useWebSocket();
   
   // Listen for notification events via WebSocket
   useEffect(() => {
-    if (!connected) return;
+    if (!connected || !socket) return;
+    
+    // Create our own subscribe function since it's not provided by useWebSocket
+    const subscribe = (event: string, handler: (data: any) => void) => {
+      // Register the event handler
+      socket.on(event, handler);
+      
+      // Return unsubscribe function
+      return () => {
+        socket.off(event, handler);
+      };
+    };
 
     // Achievement notifications
     const unsubscribeAchievement = subscribe('achievement.unlocked', (message) => {
@@ -260,7 +271,7 @@ export function useNotifications() {
     };
   }, [
     connected, 
-    subscribe, 
+    socket,
     addNotification, 
     addToast, 
     settings.categories.achievement,
@@ -331,7 +342,6 @@ export function useNotifications() {
     unread,
     settings,
     isConnected: connected,
-    isAuthenticated,
     
     // Actions
     markAsRead,

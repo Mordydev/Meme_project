@@ -30,8 +30,10 @@ export function MilestoneTracker({
 }: MilestoneTrackerProps) {
   const [selectedMilestone, setSelectedMilestone] = useState<string | null>(null);
   
-  // Determine completed milestones
-  const completedMilestones = milestones.filter(m => m.achievedAt);
+  // Determine completed milestones - add null check for safety
+  const completedMilestones = Array.isArray(milestones)
+    ? milestones.filter(m => m?.achievedAt)
+    : [];
   const latestCompletedMilestone = completedMilestones.length > 0 
     ? completedMilestones[completedMilestones.length - 1] 
     : null;
@@ -46,7 +48,7 @@ export function MilestoneTracker({
   
   // Render milestone markers
   const renderMilestones = () => {
-    if (milestones.length === 0) return null;
+    if (!Array.isArray(milestones) || milestones.length === 0) return null;
     
     return (
       <div className="relative mt-2 h-16">

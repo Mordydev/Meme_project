@@ -1,11 +1,11 @@
+'use client';
+
 import { DashboardHeader } from '@/components/layout/dashboard-header';
 import { Card, CardContent } from '@/components/ui/card';
 import { ContentTypeSelector, ContentForm } from '@/components/features/content-creation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useState } from 'react';
 import { ContentType } from '@/types/community';
-
-'use client';
 
 export default function CreatePostPage() {
   const [selectedContentType, setSelectedContentType] = useState<ContentType>('text');

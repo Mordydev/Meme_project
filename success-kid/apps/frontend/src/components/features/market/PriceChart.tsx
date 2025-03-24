@@ -49,10 +49,12 @@ export function PriceChart({
     setActiveRange(value);
   };
   
-  // Format price display
-  const formattedPrice = currentPrice < 0.01 
-    ? currentPrice.toFixed(8)
-    : currentPrice.toFixed(4);
+  // Format price display - Adding null/undefined check
+  const formattedPrice = currentPrice !== undefined && currentPrice !== null
+    ? (currentPrice < 0.01 
+        ? currentPrice.toFixed(8)
+        : currentPrice.toFixed(4))
+    : '0.0000';
     
   // Determine price change color
   const isPriceUp = priceChange >= 0;
@@ -60,7 +62,7 @@ export function PriceChart({
   
   // Simplified chart rendering
   const renderChart = () => {
-    if (data.length === 0) {
+    if (!data || data.length === 0) {
       return (
         <div className="flex h-64 items-center justify-center">
           <p className="text-neutral-500">No data available</p>
@@ -119,12 +121,14 @@ export function PriceChart({
           />
           
           {/* Current price indicator */}
-          <circle
-            cx="100"
-            cy={normalizePrice(currentPrice)}
-            r="1.5"
-            fill={`var(--color-${gradientColor}-500)`}
-          />
+          {currentPrice !== undefined && (
+            <circle
+              cx="100"
+              cy={normalizePrice(currentPrice)}
+              r="1.5"
+              fill={`var(--color-${gradientColor}-500)`}
+            />
+          )}
         </svg>
       </div>
     );
@@ -178,7 +182,8 @@ export function PriceChart({
             <span className="mr-1">
               {isPriceUp ? '↑' : '↓'}
             </span>
-            {priceChange.toFixed(8)} ({priceChangePercent.toFixed(2)}%)
+            {typeof priceChange === 'number' ? priceChange.toFixed(8) : '0.00000000'} 
+            ({typeof priceChangePercent === 'number' ? priceChangePercent.toFixed(2) : '0.00'}%)
           </div>
         </div>
       </CardFooter>

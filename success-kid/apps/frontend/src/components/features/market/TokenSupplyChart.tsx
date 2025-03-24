@@ -11,12 +11,13 @@ import {
 } from '@/components/ui/card';
 import { formatCompactNumber } from '@/lib/utils';
 import { TokenAllocation } from '@/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface TokenSupplyChartProps {
   totalSupply: number;
   circulatingSupply: number;
   burned: number;
-  allocations: TokenAllocation[];
+  allocations?: TokenAllocation[]; // Make allocations optional to prevent errors
   isLoading?: boolean;
   className?: string;
 }
@@ -25,7 +26,7 @@ export function TokenSupplyChart({
   totalSupply,
   circulatingSupply,
   burned,
-  allocations,
+  allocations = [], // Provide default empty array
   isLoading = false,
   className = '',
 }: TokenSupplyChartProps) {
@@ -34,14 +35,26 @@ export function TokenSupplyChart({
   // Format numbers
   const formattedTotal = formatCompactNumber(totalSupply);
   const formattedCirculating = formatCompactNumber(circulatingSupply);
-  const circulatingPercentage = ((circulatingSupply / totalSupply) * 100).toFixed(1);
+  const circulatingPercentage = totalSupply > 0 ? ((circulatingSupply / totalSupply) * 100).toFixed(1) : '0.0';
   const formattedBurned = formatCompactNumber(burned);
-  const burnedPercentage = ((burned / totalSupply) * 100).toFixed(1);
+  const burnedPercentage = totalSupply > 0 ? ((burned / totalSupply) * 100).toFixed(1) : '0.0';
   
   // Create a simplified donut chart
   const renderDonutChart = () => {
     const totalDegrees = 360;
     let currentDegree = 0;
+    
+    // Check if allocations exist and have items before rendering
+    if (!allocations || allocations.length === 0) {
+      return (
+        <div className="relative mx-auto h-64 w-64 flex items-center justify-center">
+          <div className="text-center text-neutral-500">
+            <div className="text-xl mb-2">No allocation data</div>
+            <div className="text-sm">Token supply distribution is not available</div>
+          </div>
+        </div>
+      );
+    }
     
     return (
       <div className="relative mx-auto h-64 w-64">
@@ -106,6 +119,15 @@ export function TokenSupplyChart({
   
   // Render allocation legend
   const renderAllocationLegend = () => {
+    // Check if allocations exist and have items before rendering
+    if (!allocations || allocations.length === 0) {
+      return (
+        <div className="mt-4 text-center text-neutral-500">
+          No allocation data available
+        </div>
+      );
+    }
+    
     return (
       <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
         {allocations.map(allocation => {
@@ -145,7 +167,7 @@ export function TokenSupplyChart({
   
   // Render allocation details
   const renderAllocationDetails = () => {
-    if (!selectedAllocation) return null;
+    if (!selectedAllocation || !allocations || allocations.length === 0) return null;
     
     const allocation = allocations.find(a => a.id === selectedAllocation);
     if (!allocation) return null;
