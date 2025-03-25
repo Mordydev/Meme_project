@@ -199,6 +199,37 @@
   animation: slideUp 0.5s ease-out;
 }
 
+/* Dashboard animations */
+@keyframes falling-slow {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(400px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes falling-medium {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(400px) rotate(180deg); opacity: 0; }
+}
+
+@keyframes falling-fast {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(400px) rotate(90deg); opacity: 0; }
+}
+
+.animate-falling-slow {
+  animation: falling-slow 15s linear infinite;
+}
+
+.animate-falling-medium {
+  animation: falling-medium 10s linear infinite;
+}
+
+.animate-falling-fast {
+  animation: falling-fast 7s linear infinite;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

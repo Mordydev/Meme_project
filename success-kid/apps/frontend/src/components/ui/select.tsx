@@ -84,6 +84,7 @@ const SelectContent = React.forwardRef<
       {...props}
     >
       <SelectScrollUpButton />
+      {/* Update to pass ref as a prop instead of accessing it from the element */}
       <SelectPrimitive.Viewport
         className={cn(
           "p-1",

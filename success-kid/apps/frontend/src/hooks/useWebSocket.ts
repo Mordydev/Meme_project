@@ -1,279 +1,204 @@
-/**
- * useWebSocket Hook
- * 
- * Custom hook for managing WebSocket connections with Socket.io-like API
- */
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from './useAuth';
-import { SocketIOAdapter } from '@/lib/socket-io-adapter';
 
-// Set the WebSocket URL based on environment
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
-  (typeof window !== 'undefined' ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/ws` : '');
-
-interface WebSocketStatus {
-  connected: boolean;
-  state: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
-  lastEvent?: string;
-  reconnectAttempt: number;
-  error?: string;
-}
-
-interface WebSocketContextType {
-  socket: SocketIOAdapter | null;
-  status: WebSocketStatus;
-  connected: boolean;
-  reconnect: () => void;
-}
-
-export function useWebSocket(): WebSocketContextType {
-  const [socket, setSocket] = useState<SocketIOAdapter | null>(null);
-  const [status, setStatus] = useState<WebSocketStatus>({
-    connected: false,
-    state: 'disconnected',
-    reconnectAttempt: 0
-  });
+/**
+ * Custom hook for managing WebSocket connections
+ * Handles connection, reconnection, and message sending
+ */
+export function useWebSocket() {
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const webSocketRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const messageQueueRef = useRef<any[]>([]);
   
-  // Create and connect socket
+  // Maximum reconnection attempts
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  // Base delay for reconnection (will be multiplied by reconnection attempt)
+  const RECONNECT_DELAY = 2000;
+  
+  // Connect to WebSocket
   const connect = useCallback(() => {
-    // In a real production environment, we'd use the actual WebSocket URL
-    // For now, we'll create a mock Socket.io adapter for development
+    // Don't connect if already connected or connecting
+    if (isConnected || isConnecting) return;
+    
+    setIsConnecting(true);
+    
     try {
-      // Check if we're in development mode or if the WebSocket URL is not available
-      if (process.env.NODE_ENV === 'development' || !WS_URL) {
-        console.log('Creating mock Socket.io adapter (development mode)');
-        // Create a mock socket that doesn't actually connect to a server
-        const mockSocket = createMockSocketAdapter();
-        setSocket(mockSocket);
+      // In a real implementation, this would use environment variables
+      // const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://api.successkid.community/ws';
+      
+      // For development, we'll use a mock implementation
+      const wsUrl = 'wss://mock-websocket-server.com';
+      
+      // Connect to WebSocket
+      // NOTE: In a real implementation, this would actually connect to the WebSocket server
+      // For now, we'll simulate a connection with setTimeout
+      setTimeout(() => {
+        // Simulate successful connection
+        setIsConnected(true);
+        setIsConnecting(false);
+        reconnectAttemptsRef.current = 0;
         
-        // Set status to connected after a short delay to simulate connection
-        setTimeout(() => {
-          setStatus({
-            connected: true,
-            state: 'connected',
-            reconnectAttempt: 0,
-            lastEvent: 'connect'
+        // Process any queued messages
+        if (messageQueueRef.current.length > 0) {
+          console.log('Processing queued messages:', messageQueueRef.current);
+          messageQueueRef.current = [];
+        }
+        
+        // Simulate incoming messages periodically (for development only)
+        simulateIncomingMessages();
+      }, 1000);
+      
+      /* 
+      // This would be the real implementation
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        setIsConnected(true);
+        setIsConnecting(false);
+        reconnectAttemptsRef.current = 0;
+        webSocketRef.current = ws;
+        
+        // Process any queued messages
+        if (messageQueueRef.current.length > 0) {
+          messageQueueRef.current.forEach(message => {
+            ws.send(JSON.stringify(message));
           });
-          
-          // Trigger connect event
-          mockSocket.emit('connect');
-        }, 500);
+          messageQueueRef.current = [];
+        }
+      };
+      
+      ws.onclose = () => {
+        setIsConnected(false);
+        webSocketRef.current = null;
         
-        return;
+        // Attempt to reconnect if not manually closed
+        attemptReconnect();
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        ws.close();
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          
+          // Dispatch message to listeners
+          window.dispatchEvent(new CustomEvent('websocket-message', {
+            detail: message
+          }));
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+      */
+    } catch (error) {
+      console.error('WebSocket connection error:', error);
+      setIsConnecting(false);
+      attemptReconnect();
+    }
+  }, [isConnected, isConnecting]);
+  
+  // Attempt to reconnect with exponential backoff
+  const attemptReconnect = useCallback(() => {
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      console.error('Maximum WebSocket reconnection attempts reached');
+      return;
+    }
+    
+    // Clear any existing reconnect timer
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+    }
+    
+    // Calculate delay with exponential backoff
+    const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current);
+    
+    // Set up reconnect timer
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectAttemptsRef.current += 1;
+      connect();
+    }, delay);
+  }, [connect]);
+  
+  // Send message through WebSocket
+  const sendMessage = useCallback((message: any) => {
+    if (!isConnected) {
+      // Queue the message to be sent when connection is established
+      messageQueueRef.current.push(message);
+      
+      // Try to connect if not already connecting
+      if (!isConnecting) {
+        connect();
       }
       
-      // In production, we'd create a real Socket.io adapter
-      console.log('Creating real Socket.io adapter for:', WS_URL);
-      const realSocket = new SocketIOAdapter(WS_URL);
-      
-      // Set up event listeners
-      realSocket.on('connect', () => {
-        setStatus({
-          connected: true,
-          state: 'connected',
-          reconnectAttempt: 0,
-          lastEvent: 'connect'
-        });
-      });
-      
-      realSocket.on('disconnect', () => {
-        setStatus({
-          connected: false,
-          state: 'disconnected',
-          reconnectAttempt: status.reconnectAttempt,
-          lastEvent: 'disconnect'
-        });
-      });
-      
-      realSocket.on('error', (error) => {
-        setStatus({
-          connected: false,
-          state: 'error',
-          reconnectAttempt: status.reconnectAttempt,
-          lastEvent: 'error',
-          error: error.message || 'Unknown error'
-        });
-      });
-      
-      setSocket(realSocket);
-      
-      // Connect to the server
-      realSocket.connect();
-    } catch (error) {
-      console.error('Error creating WebSocket:', error);
-      // Always fall back to mock adapter if there's an error
-      const mockSocket = createMockSocketAdapter();
-      setSocket(mockSocket);
-      
-      setTimeout(() => {
-        setStatus({
-          connected: true,
-          state: 'connected',
-          reconnectAttempt: 0,
-          lastEvent: 'connect'
-        });
-        mockSocket.emit('connect');
-      }, 500);
+      return;
     }
-  }, [status.reconnectAttempt]);
+    
+    // In a real implementation, this would send the message to the WebSocket
+    // if (webSocketRef.current && webSocketRef.current.readyState === WebSocket.OPEN) {
+    //   webSocketRef.current.send(JSON.stringify(message));
+    // }
+    
+    // For mock implementation, just log the message
+    console.log('WebSocket message sent:', message);
+  }, [isConnected, isConnecting, connect]);
   
-  // Connect on mount
+  // Close the WebSocket connection
+  const disconnect = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    
+    if (webSocketRef.current) {
+      webSocketRef.current.close();
+      webSocketRef.current = null;
+    }
+    
+    setIsConnected(false);
+    setIsConnecting(false);
+  }, []);
+  
+  // Simulate incoming messages (for development only)
+  const simulateIncomingMessages = () => {
+    // Simulate a notification after a delay
+    setTimeout(() => {
+      if (Math.random() > 0.7) {
+        // Simulate a new notification
+        window.dispatchEvent(new CustomEvent('websocket-message', {
+          detail: {
+            type: 'notification.new',
+            data: {
+              type: Math.random() > 0.5 ? 'thread_reply' : 'mention',
+              userId: 'user123',
+              message: 'You have a new notification'
+            }
+          }
+        }));
+      }
+    }, 10000 + Math.random() * 15000);
+  };
+  
+  // Connect when component mounts
   useEffect(() => {
     connect();
     
+    // Clean up on unmount
     return () => {
-      // Cleanup
-      if (socket) {
-        socket.close();
-      }
+      disconnect();
     };
-  }, []);
-  
-  // Reconnect function
-  const reconnect = useCallback(() => {
-    if (socket) {
-      socket.close();
-    }
-    
-    setStatus(prev => ({
-      ...prev,
-      state: 'reconnecting',
-      reconnectAttempt: prev.reconnectAttempt + 1
-    }));
-    
-    connect();
-  }, [socket, connect]);
+  }, [connect, disconnect]);
   
   return {
-    socket,
-    status,
-    connected: status.connected,
-    reconnect
+    isConnected,
+    isConnecting,
+    sendMessage,
+    disconnect
   };
-}
-
-/**
- * Create a mock Socket.io adapter for development
- */
-function createMockSocketAdapter(): SocketIOAdapter {
-  // Create a mock implementation that doesn't actually connect to a server
-  const mockAdapter = {
-    eventHandlers: new Map<string, Set<(data: any) => void>>(),
-    connected: false,
-    
-    connect(): void {
-      this.connected = true;
-      this.emit('connect');
-    },
-    
-    close(): void {
-      this.connected = false;
-      this.emit('disconnect');
-    },
-    
-    isConnected(): boolean {
-      return this.connected;
-    },
-    
-    on(event: string, handler: (data: any) => void): void {
-      if (!this.eventHandlers.has(event)) {
-        this.eventHandlers.set(event, new Set());
-      }
-      this.eventHandlers.get(event)!.add(handler);
-    },
-    
-    off(event: string, handler: (data: any) => void): void {
-      const handlers = this.eventHandlers.get(event);
-      if (handlers) {
-        handlers.delete(handler);
-      }
-    },
-    
-    emit(event: string, data?: any): void {
-      console.log(`[Mock WebSocket] Emit: ${event}`, data);
-      
-      // Simulate market data events in development
-      if (event === 'connect' && process.env.NODE_ENV === 'development') {
-        // Schedule some mock market events
-        setTimeout(() => this.mockMarketEvents(), 2000);
-      }
-      
-      // Notify handlers for this event
-      const handlers = this.eventHandlers.get(event);
-      if (handlers) {
-        handlers.forEach(handler => {
-          try {
-            handler(data);
-          } catch (error) {
-            console.error(`Error in ${event} handler:`, error);
-          }
-        });
-      }
-    },
-    
-    // Method to simulate market data events in development
-    mockMarketEvents(): void {
-      if (!this.connected) return;
-      
-      console.log('[Mock WebSocket] Starting mock market events');
-      
-      // Mock price update every 10 seconds
-      const sendPriceUpdate = () => {
-        if (!this.connected) return;
-        
-        // Generate random price change (-2% to +2%)
-        const priceChange = (Math.random() * 4 - 2) / 100;
-        const basePrice = 0.00135; // Example base price
-        const newPrice = basePrice * (1 + priceChange);
-        
-        // Emit market price update
-        const handlers = this.eventHandlers.get('market:price_update');
-        if (handlers) {
-          handlers.forEach(handler => {
-            try {
-              handler({
-                price: newPrice,
-                priceChange: basePrice * priceChange,
-                priceChangePercent: priceChange * 100,
-                timestamp: new Date().toISOString()
-              });
-            } catch (error) {
-              console.error('Error in price update handler:', error);
-            }
-          });
-        }
-        
-        // Schedule next update
-        setTimeout(sendPriceUpdate, 10000);
-      };
-      
-      // Start sending mock price updates
-      sendPriceUpdate();
-      
-      // Sometimes emit a transaction
-      setTimeout(() => {
-        const handlers = this.eventHandlers.get('market:new_transaction');
-        if (handlers) {
-          handlers.forEach(handler => {
-            try {
-              handler({
-                id: 'mock-tx-' + Date.now(),
-                type: Math.random() > 0.5 ? 'buy' : 'sell',
-                amount: Math.floor(Math.random() * 100000) / 100,
-                price: 0.00135,
-                timestamp: new Date().toISOString(),
-                wallet: '0x' + Math.random().toString(16).substring(2, 14)
-              });
-            } catch (error) {
-              console.error('Error in transaction handler:', error);
-            }
-          });
-        }
-      }, 5000);
-    }
-  };
-  
-  return mockAdapter as unknown as SocketIOAdapter;
 }

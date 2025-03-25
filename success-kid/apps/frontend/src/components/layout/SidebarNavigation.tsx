@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { X } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
 import { useNavigationStore } from '@/store/useNavigationStore';
 import { useUIStore } from '@/store/useUIStore';
 import { useNavigationContext } from '@/hooks/useNavigationContext';
@@ -223,33 +223,38 @@ export function SidebarNavigation({ className }: SidebarProps) {
       animate={sidebarExpanded ? "expanded" : "collapsed"}
       variants={sidebarVariants}
       className={cn(
-        "flex flex-col h-full",
+        "flex flex-col h-full w-full",
         "bg-gradient-to-b from-primary-50/80 to-white dark:from-gray-900 dark:to-gray-950",
         "border-r border-gray-200 dark:border-gray-800",
-        "overflow-hidden",
         className
       )}
     >
       {/* Sidebar header with logo and toggle */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-800">
-        <AnimatePresence mode="wait">
-          {sidebarExpanded && (
-            <motion.div
-              key="logo"
-              initial="collapsed"
-              animate="expanded"
-              exit="collapsed"
-              variants={logoVariants}
-              className="flex-grow overflow-hidden"
-            >
-              <Link href="/" className="text-xl font-bold text-primary">
-                Success Kid
-              </Link>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
+        <div className="flex items-center">
+          {/* Logo */}
+          <Link href="/" className="flex items-center">
+            <div className="w-10 h-10 bg-primary-500 rounded-md flex items-center justify-center text-white text-xl font-bold">
+              SK
+            </div>
+            <AnimatePresence mode="wait">
+              {sidebarExpanded && (
+                <motion.div
+                  key="logo-text"
+                  initial="collapsed"
+                  animate="expanded"
+                  exit="collapsed"
+                  variants={logoVariants}
+                  className="ml-3 overflow-hidden"
+                >
+                  <span className="text-xl font-bold text-primary-500">Success Kid</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Link>
+        </div>
         
-        {/* Mobile close button */}
+        {/* Toggle button */}
         {isMobile ? (
           <motion.button
             onClick={() => setSidebarOpen(false)}
@@ -282,206 +287,202 @@ export function SidebarNavigation({ className }: SidebarProps) {
                 transition: { duration: 0.3, ease: bezierCurves?.standard || [0.4, 0.0, 0.2, 1] }
               }}
             >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 20 20" 
-                fill="currentColor" 
-                className="w-5 h-5"
-              >
-                <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
-              </svg>
+              <ChevronLeft className="w-5 h-5" />
             </motion.div>
           </motion.button>
         )}
       </div>
       
-      {/* Top navigation section */}
-      <div className="flex-grow overflow-y-auto py-4">
-        <motion.div 
-          className="space-y-1 px-3"
-          variants={containerVariants}
-          initial={false}
-          animate={sidebarExpanded ? "expanded" : "collapsed"}
-        >
-          {topNavItems.map((item) => (
-            <NavItem
-              key={item.id}
-              item={item}
-              expanded={sidebarExpanded}
-              active={pathname.includes(item.href)}
-            />
-          ))}
-        </motion.div>
-      </div>
-      
-      {/* Bottom section with user profile and settings */}
-      <div className="mt-auto border-t border-gray-200 dark:border-gray-800 pt-4 pb-6 px-3">
-        {/* Settings and help links */}
-        <motion.div 
-          className="space-y-1 mb-4"
-          variants={containerVariants}
-          initial={false}
-          animate={sidebarExpanded ? "expanded" : "collapsed"}
-        >
-          {bottomNavItems.map((item) => (
-            <NavItem
-              key={item.id}
-              item={item}
-              expanded={sidebarExpanded}
-              active={pathname.includes(item.href)}
-            />
-          ))}
-        </motion.div>
-        
-        {/* User profile dropdown */}
-        <div className="relative">
-          <motion.button 
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className={cn(
-              "w-full flex items-center rounded-md p-2",
-              "hover:bg-gray-100 dark:hover:bg-gray-800/70",
-              "focus:outline-none focus:ring-2 focus:ring-primary-300"
-            )}
-            whileHover={{ backgroundColor: 'rgba(229, 231, 235, 0.5)' }}
-            whileTap={{ scale: 0.98 }}
+      {/* Main sidebar content - Flex layout with auto-growing middle section */}
+      <div className="flex flex-col flex-grow overflow-hidden">
+        {/* Top navigation section - scrollable */}
+        <div className="flex-grow overflow-y-auto py-4 scrollbar-thin no-scrollbar">
+          <motion.div 
+            className="space-y-1 px-3"
+            variants={containerVariants}
+            initial={false}
+            animate={sidebarExpanded ? "expanded" : "collapsed"}
           >
-            <motion.div 
-              className="relative flex-shrink-0"
-              whileHover={{ scale: 1.05 }}
-              transition={{ duration: 0.2 }}
+            {topNavItems.map((item) => (
+              <NavItem
+                key={item.id}
+                item={item}
+                expanded={sidebarExpanded}
+                active={pathname.startsWith(item.href)}
+              />
+            ))}
+          </motion.div>
+        </div>
+        
+        {/* Bottom section - fixed height */}
+        <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 pt-4 pb-4 px-3">
+          {/* Settings and help links */}
+          <motion.div 
+            className="space-y-1 mb-4"
+            variants={containerVariants}
+            initial={false}
+            animate={sidebarExpanded ? "expanded" : "collapsed"}
+          >
+            {bottomNavItems.map((item) => (
+              <NavItem
+                key={item.id}
+                item={item}
+                expanded={sidebarExpanded}
+                active={pathname.startsWith(item.href)}
+              />
+            ))}
+          </motion.div>
+          
+          {/* User profile dropdown */}
+          <div className="relative">
+            <motion.button 
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className={cn(
+                "w-full flex items-center rounded-md p-2",
+                "hover:bg-gray-100 dark:hover:bg-gray-800/70",
+                "focus:outline-none focus:ring-2 focus:ring-primary-300"
+              )}
+              whileHover={{ backgroundColor: 'rgba(229, 231, 235, 0.5)' }}
+              whileTap={{ scale: 0.98 }}
             >
-              {/* Use an actual Avatar component if available */}
-              <div className="h-8 w-8 rounded-full bg-primary-200 flex items-center justify-center text-primary-700">
-                {userData.name ? userData.name.charAt(0) : 'U'}
-              </div>
-            </motion.div>
-            
-            <AnimatePresence mode="wait">
+              <motion.div 
+                className="relative flex-shrink-0"
+                whileHover={{ scale: 1.05 }}
+                transition={{ duration: 0.2 }}
+              >
+                {/* Use an actual Avatar component if available */}
+                <div className="h-8 w-8 rounded-full bg-primary-200 flex items-center justify-center text-primary-700">
+                  {userData.name ? userData.name.charAt(0) : 'U'}
+                </div>
+              </motion.div>
+              
+              <AnimatePresence mode="wait">
+                {sidebarExpanded && (
+                  <motion.div
+                    key="user-info"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ 
+                      duration: 0.3,
+                      ease: bezierCurves?.standard || [0.4, 0.0, 0.2, 1]
+                    }}
+                    className="ml-3 flex-grow text-left truncate"
+                  >
+                    <p className="text-sm font-medium">{userData.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{userData.email}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
               {sidebarExpanded && (
-                <motion.div
-                  key="user-info"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ 
-                    duration: 0.3,
-                    ease: bezierCurves?.standard || [0.4, 0.0, 0.2, 1]
-                  }}
-                  className="ml-3 flex-grow text-left truncate"
+                <motion.svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 20 20" 
+                  fill="currentColor" 
+                  className="w-5 h-5 ml-auto text-gray-400"
+                  animate={{ rotate: userMenuOpen ? 180 : 0 }}
+                  transition={{ duration: 0.3 }}
                 >
-                  <p className="text-sm font-medium">{userData.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{userData.email}</p>
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </motion.svg>
+              )}
+            </motion.button>
+            
+            {/* User dropdown menu */}
+            <AnimatePresence>
+              {userMenuOpen && sidebarExpanded && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95, originY: 0 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.2, ease: bezierCurves?.standard || [0.4, 0.0, 0.2, 1] }}
+                  className={cn(
+                    "absolute right-0 bottom-full mb-2 z-10 w-56 origin-bottom-right rounded-md",
+                    "bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black ring-opacity-5",
+                    "focus:outline-none divide-y divide-gray-100 dark:divide-gray-800"
+                  )}
+                >
+                  <div className="py-1">
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1, duration: 0.2 }}
+                    >
+                      <Link 
+                        href="/profile" 
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-3">
+                          <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+                        </svg>
+                        Your Profile
+                      </Link>
+                    </motion.div>
+                    
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.15, duration: 0.2 }}
+                    >
+                      <Link 
+                        href="/settings" 
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-3">
+                          <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598-.54a6.993 6.993 0 01-1.929 1.115l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.05 7.05 0 010-2.227L1.821 7.773a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                        </svg>
+                        Settings
+                      </Link>
+                    </motion.div>
+                  </div>
+                  
+                  <div className="py-1">
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2, duration: 0.2 }}
+                    >
+                      <Link 
+                        href="/help" 
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-3">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM10 6.75a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                        </svg>
+                        Help & Support
+                      </Link>
+                    </motion.div>
+                  </div>
+                  
+                  <div className="py-1">
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.25, duration: 0.2 }}
+                    >
+                      <button 
+                        className="flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          handleSignOut();
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-3">
+                          <path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 015.25 2h5.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-5.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-5.5A2.25 2.25 0 013 15.75V4.25z" clipRule="evenodd" />
+                          <path fillRule="evenodd" d="M19 10a.75.75 0 00-.75-.75H8.704l1.048-.943a.75.75 0 10-1.004-1.114l-2.5 2.25a.75.75 0 000 1.114l2.5 2.25a.75.75 0 101.004-1.114l-1.048-.943h9.546A.75.75 0 0019 10z" clipRule="evenodd" />
+                        </svg>
+                        Sign Out
+                      </button>
+                    </motion.div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
-            
-            {sidebarExpanded && (
-              <motion.svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 20 20" 
-                fill="currentColor" 
-                className="w-5 h-5 ml-auto text-gray-400"
-                animate={{ rotate: userMenuOpen ? 180 : 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-              </motion.svg>
-            )}
-          </motion.button>
-          
-          {/* User dropdown menu */}
-          <AnimatePresence>
-            {userMenuOpen && sidebarExpanded && (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.95, originY: 0 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                transition={{ duration: 0.2, ease: bezierCurves?.standard || [0.4, 0.0, 0.2, 1] }}
-                className={cn(
-                  "absolute right-0 bottom-full mb-2 z-10 w-56 origin-bottom-right rounded-md",
-                  "bg-white dark:bg-gray-900 shadow-lg ring-1 ring-black ring-opacity-5",
-                  "focus:outline-none divide-y divide-gray-100 dark:divide-gray-800"
-                )}
-              >
-                <div className="py-1">
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1, duration: 0.2 }}
-                  >
-                    <Link 
-                      href="/profile" 
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-3">
-                        <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
-                      </svg>
-                      Your Profile
-                    </Link>
-                  </motion.div>
-                  
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15, duration: 0.2 }}
-                  >
-                    <Link 
-                      href="/settings" 
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-3">
-                        <path fillRule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.206 1.25l-1.18 2.045a1 1 0 01-1.187.447l-1.598-.54a6.993 6.993 0 01-1.929 1.115l-.33 1.652a1 1 0 01-.98.804H8.82a1 1 0 01-.98-.804l-.331-1.652a6.993 6.993 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.447l-1.18-2.044a1 1 0 01.205-1.251l1.267-1.114a7.05 7.05 0 010-2.227L1.821 7.773a1 1 0 01-.206-1.25l1.18-2.045a1 1 0 011.187-.447l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                      </svg>
-                      Settings
-                    </Link>
-                  </motion.div>
-                </div>
-                
-                <div className="py-1">
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2, duration: 0.2 }}
-                  >
-                    <Link 
-                      href="/help" 
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-3">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM10 6.75a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-                      </svg>
-                      Help & Support
-                    </Link>
-                  </motion.div>
-                </div>
-                
-                <div className="py-1">
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.25, duration: 0.2 }}
-                  >
-                    <button 
-                      className="flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        handleSignOut();
-                      }}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-3">
-                        <path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 015.25 2h5.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-5.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-5.5A2.25 2.25 0 013 15.75V4.25z" clipRule="evenodd" />
-                        <path fillRule="evenodd" d="M19 10a.75.75 0 00-.75-.75H8.704l1.048-.943a.75.75 0 10-1.004-1.114l-2.5 2.25a.75.75 0 000 1.114l2.5 2.25a.75.75 0 101.004-1.114l-1.048-.943h9.546A.75.75 0 0019 10z" clipRule="evenodd" />
-                      </svg>
-                      Sign Out
-                    </button>
-                  </motion.div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          </div>
         </div>
       </div>
     </motion.div>

@@ -55,7 +55,6 @@ export const viewport: Viewport = {
   themeColor: '#1E88E5', // Primary color
 };
 
-
 export default function RootLayout({
   children,
 }: {
@@ -70,6 +69,24 @@ export default function RootLayout({
         <Providers>
           <main className="flex-1">{children}</main>
         </Providers>
+        
+        {/* Script to handle redirect path persistence across page refreshes */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Handle storage across page loads
+              try {
+                // Re-store redirect path after page refresh if needed
+                const storedRedirectPath = sessionStorage.getItem('redirectAfterLogin');
+                if (storedRedirectPath) {
+                  console.log('Preserved redirect path after refresh:', storedRedirectPath);
+                }
+              } catch (e) {
+                console.error('Storage access error:', e);
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

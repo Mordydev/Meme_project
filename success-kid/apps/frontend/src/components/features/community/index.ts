@@ -2,6 +2,7 @@
  * Community Component Exports
  */
 
+// Existing exports
 export * from './ForumList';
 export * from './ForumView';
 export * from './CategoryView';
@@ -18,3 +19,15 @@ export * from './CategoryCard';
 export * from './ContentCard';
 export * from './EmptyFeedState';
 export * from './FeedFilters';
+export * from './CommentForm';
+export * from './CommentList';
+export * from './ContentDetailView';
+export * from './ForumLeaderboard';
+
+// New component exports
+export * from './CategoryNavigation';
+export * from './ContentFeed';
+export * from './TrendingTopics';
+export * from './UserSuggestions';
+export * from './FilterControls';
+export * from './FloatingCreateButton';

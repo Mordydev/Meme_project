@@ -3,100 +3,69 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
+
+type SpinnerSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 interface LoadingSpinnerProps {
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-  color?: 'primary' | 'secondary' | 'accent' | 'neutral' | 'white';
-  thickness?: 'thin' | 'regular' | 'thick';
-  withText?: boolean;
-  text?: string;
+  size?: SpinnerSize;
+  color?: string;
   className?: string;
-  centered?: boolean;
+  label?: string;
 }
 
 /**
- * LoadingSpinner - Professional animated loading indicator
- * 
- * @example
- * // Basic usage
- * <LoadingSpinner />
- * 
- * // Custom size and color
- * <LoadingSpinner size="lg" color="secondary" />
- * 
- * // With text
- * <LoadingSpinner withText text="Loading your dashboard..." />
+ * LoadingSpinner - Animated loading indicator with consistent styling
+ * Supports different sizes and colors with accessibility features
  */
-export function LoadingSpinner({
+export function LoadingSpinner({ 
   size = 'md',
   color = 'primary',
-  thickness = 'regular',
-  withText = false,
-  text = 'Loading...',
-  className,
-  centered = false,
+  className, 
+  label = 'Loading' 
 }: LoadingSpinnerProps) {
-  const prefersReducedMotion = useReducedMotion();
-  
-  // Size mappings
-  const sizeMap = {
-    xs: 'w-4 h-4',
-    sm: 'w-6 h-6',
-    md: 'w-8 h-8',
-    lg: 'w-12 h-12',
-    xl: 'w-16 h-16',
+  // Map size to actual dimensions
+  const sizeMap: Record<SpinnerSize, string> = {
+    'xs': 'h-4 w-4 border-2',
+    'sm': 'h-5 w-5 border-2',
+    'md': 'h-8 w-8 border-2',
+    'lg': 'h-12 w-12 border-3',
+    'xl': 'h-16 w-16 border-4'
   };
   
-  // Color mappings
-  const colorMap = {
-    primary: 'text-primary-500',
-    secondary: 'text-secondary-500',
-    accent: 'text-accent-500',
-    neutral: 'text-neutral-500',
-    white: 'text-white',
+  // Map color to Tailwind classes
+  const colorMap: Record<string, string> = {
+    'primary': 'border-primary',
+    'secondary': 'border-secondary',
+    'accent': 'border-accent',
+    'white': 'border-white',
+    'gray': 'border-gray-500',
   };
   
-  // Thickness mappings
-  const thicknessMap = {
-    thin: 'border-2',
-    regular: 'border-3',
-    thick: 'border-4',
+  const getColorClass = () => {
+    return colorMap[color] || 'border-primary';
   };
-  
-  // Container class for centered option
-  const containerClass = centered ? 'flex flex-col items-center justify-center' : '';
   
   return (
-    <div className={cn(containerClass, withText ? 'space-y-2' : '', className)}>
+    <div className={cn("flex flex-col items-center justify-center", className)}>
       <motion.div
         className={cn(
-          'rounded-full',
-          'border-t-transparent',
+          "rounded-full border-t-transparent",
           sizeMap[size],
-          thicknessMap[thickness],
-          colorMap[color]
+          getColorClass()
         )}
-        animate={{ 
-          rotate: prefersReducedMotion ? 0 : 360,
-        }}
-        transition={{ 
-          duration: prefersReducedMotion ? 0 : 1, 
-          ease: "linear", 
+        animate={{ rotate: 360 }}
+        transition={{
+          duration: 1,
+          ease: "linear",
           repeat: Infinity,
-          repeatType: "loop"
         }}
-        data-testid="loading-spinner"
+        aria-hidden="true"
       />
-      
-      {withText && (
-        <div className={cn(
-          'text-sm font-medium',
-          colorMap[color] === 'text-white' ? 'text-white' : 'text-neutral-700 dark:text-neutral-300'
-        )}>
-          {text}
-        </div>
+      {label && (
+        <span className="sr-only">{label}</span>
       )}
     </div>
   );
 }
+
+export default LoadingSpinner;

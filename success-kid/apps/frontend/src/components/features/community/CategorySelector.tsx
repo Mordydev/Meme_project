@@ -67,6 +67,7 @@ export function CategorySelector({
         </Label>
       )}
       
+      {/* Using the Select component with props passed directly */}
       <Select
         value={value}
         onValueChange={handleValueChange}

@@ -2,118 +2,228 @@
 
 import React, { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Avatar } from '@/components/ui/Avatar';
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { CommentForm } from './CommentForm';
 import { Comment } from '@/types/community';
-import { ThumbsUp, CornerDownRight, MessageSquare, Flag } from 'lucide-react';
+import { 
+  ArrowUp, 
+  ArrowDown, 
+  CornerDownRight, 
+  MessageSquare, 
+  Flag, 
+  MoreHorizontal 
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/components/ui/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface CommentListProps {
-  comments: Comment[];
-  sortBy: 'newest' | 'oldest' | 'popular';
+  postId: string;
+  comments?: Comment[];
+  sortBy?: 'top' | 'new' | 'controversial';
   isLoading?: boolean;
   className?: string;
 }
 
-export function CommentList({ comments, sortBy, isLoading = false, className = '' }: CommentListProps) {
+export function CommentList({ 
+  postId, 
+  comments = [], 
+  sortBy = 'top', 
+  isLoading = false, 
+  className = '' 
+}: CommentListProps) {
+  const { toast } = useToast();
+  
   // Sort comments based on the selected sorting method
   const sortedComments = [...comments].sort((a, b) => {
-    if (sortBy === 'newest') {
+    if (sortBy === 'new') {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    } else if (sortBy === 'oldest') {
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    } else if (sortBy === 'popular') {
-      return (b.votes?.upvotes || 0) - (a.votes?.upvotes || 0);
+    } else if (sortBy === 'top') {
+      return b.voteCount - a.voteCount;
+    } else if (sortBy === 'controversial') {
+      // Simple controversial algorithm: comments with votes close to zero
+      return Math.abs(0 - a.voteCount) - Math.abs(0 - b.voteCount);
     }
     return 0;
   });
+  
+  // Handle comment voting
+  const handleVote = (commentId: string, direction: 'up' | 'down') => {
+    // In a real implementation, this would make an API call
+    
+    // Show toast for points earned
+    if (direction === 'up') {
+      toast({
+        title: "Points earned!",
+        description: "You earned 2 Success Points for upvoting a comment",
+        duration: 3000,
+      });
+    }
+  };
 
   // Function to render a single comment
   const renderComment = (comment: Comment) => {
     const [isReplying, setIsReplying] = useState(false);
     const [showReplies, setShowReplies] = useState(true);
     
-    const handleReplySubmit = async (replyData: any) => {
+    const handleReplySubmit = async (content: string) => {
       // In a real implementation, this would call an API
-      console.log('Reply submitted:', replyData);
+      console.log('Reply submitted:', content);
       setIsReplying(false);
+      
+      // Show toast for points earned
+      toast({
+        title: "Points earned!",
+        description: "You earned 8 Success Points for replying to a comment",
+        duration: 3000,
+      });
     };
+    
+    // Format the creation date
+    const formattedDate = formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true });
 
     return (
       <div key={comment.id} className="space-y-4">
         <div className="flex gap-3">
-          <Avatar
-            src={comment.author.avatar}
-            alt={comment.author.name}
-            className="h-8 w-8 rounded-full flex-shrink-0 mt-1"
-          />
-          <div className="flex-1">
+          {/* User Avatar */}
+          <div className="flex-shrink-0">
+            {comment.author.avatarUrl ? (
+              <Avatar
+                src={comment.author.avatarUrl}
+                alt={comment.author.username}
+                className="h-8 w-8"
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-xs font-medium text-primary">
+                  {comment.author.username.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+          </div>
+          
+          {/* Comment Content */}
+          <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-baseline gap-2">
-              <h4 className="font-medium text-sm">{comment.author.name}</h4>
-              <span className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-              </span>
-              {comment.author.isVerified && (
-                <Badge variant="outline" className="text-xs bg-primary/10 text-primary">Verified</Badge>
-              )}
+              <h4 className="font-medium text-sm">{comment.author.username}</h4>
+              <span className="text-xs text-muted-foreground">{formattedDate}</span>
             </div>
             
-            <div className="mt-1 text-sm">{comment.text}</div>
+            <div className="mt-1 text-sm whitespace-pre-line break-words">{comment.content}</div>
             
             <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-              <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs">
-                <ThumbsUp size={14} />
-                {comment.votes?.upvotes || 0}
-              </Button>
+              {/* Vote Buttons */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-6 w-6 p-0",
+                    comment.userVote === 'up' && "text-primary"
+                  )}
+                  onClick={() => handleVote(comment.id, 'up')}
+                >
+                  <ArrowUp size={14} />
+                  <span className="sr-only">Upvote</span>
+                </Button>
+                <span>{comment.voteCount}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-6 w-6 p-0",
+                    comment.userVote === 'down' && "text-destructive"
+                  )}
+                  onClick={() => handleVote(comment.id, 'down')}
+                >
+                  <ArrowDown size={14} />
+                  <span className="sr-only">Downvote</span>
+                </Button>
+              </div>
               
+              {/* Reply Button */}
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 gap-1 text-xs"
+                className="h-6 px-2 gap-1"
                 onClick={() => setIsReplying(!isReplying)}
               >
                 <MessageSquare size={14} />
                 Reply
               </Button>
               
-              <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs">
+              {/* Report Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 gap-1"
+              >
                 <Flag size={14} />
                 Report
               </Button>
+              
+              {/* More Options */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 ml-auto"
+                  >
+                    <MoreHorizontal size={14} />
+                    <span className="sr-only">More options</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem>Copy Link</DropdownMenuItem>
+                  <DropdownMenuItem>Block User</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             
+            {/* Reply Form */}
             {isReplying && (
               <div className="mt-4">
                 <CommentForm
                   onSubmit={handleReplySubmit}
-                  parentId={comment.id}
                   placeholder="Write a reply..."
                   autoFocus
+                  minHeight={80}
                 />
               </div>
             )}
             
-            {/* Render child comments if they exist */}
-            {comment.replies && comment.replies.length > 0 && (
+            {/* Child Comments (Replies) */}
+            {comment.childCount > 0 && (
               <div className="mt-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs"
-                    onClick={() => setShowReplies(!showReplies)}
-                  >
-                    <CornerDownRight size={14} className="mr-1" />
-                    {showReplies ? 'Hide' : 'Show'} {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs flex items-center gap-1.5 mb-2"
+                  onClick={() => setShowReplies(!showReplies)}
+                >
+                  <CornerDownRight size={14} />
+                  {showReplies ? 'Hide' : 'Show'} {comment.childCount} {comment.childCount === 1 ? 'reply' : 'replies'}
+                </Button>
                 
+                {/* In a real implementation, this would fetch and display replies */}
                 {showReplies && (
-                  <div className="pl-6 border-l space-y-4 mt-4">
-                    {comment.replies.map(reply => renderComment(reply))}
+                  <div className="pl-4 border-l border-muted mt-2 space-y-4">
+                    {/* This is placeholder for reply rendering */}
+                    <div className="flex items-center justify-center py-2">
+                      <span className="text-xs text-muted-foreground">
+                        Replies would be loaded here
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -126,49 +236,47 @@ export function CommentList({ comments, sortBy, isLoading = false, className = '
 
   if (isLoading) {
     return (
-      <Card className={className}>
-        <CardContent className="p-6">
-          <div className="space-y-6">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="flex gap-3">
-                <Skeleton className="h-8 w-8 rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-1/4" />
-                  <Skeleton className="h-3 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
+      <div className={className}>
+        <div className="space-y-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex gap-3">
+              <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="flex gap-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+                <div className="flex gap-2 mt-1">
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-6 w-16" />
+                  <Skeleton className="h-6 w-16" />
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
 
   if (comments.length === 0) {
     return (
-      <Card className={className}>
-        <CardContent className="p-6 text-center">
-          <p className="text-muted-foreground">No comments yet. Be the first to comment!</p>
-        </CardContent>
-      </Card>
+      <div className={className}>
+        <div className="text-center py-8 text-muted-foreground">
+          <p>No comments yet. Be the first to comment!</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className={className}>
-      <CardContent className="p-6">
-        <div className="space-y-6">
-          {sortedComments.map(comment => (
-            <React.Fragment key={comment.id}>
-              {renderComment(comment)}
-              {comment !== sortedComments[sortedComments.length - 1] && (
-                <hr className="my-6" />
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div className={className}>
+      <div className="space-y-6">
+        {sortedComments.map(comment => renderComment(comment))}
+      </div>
+    </div>
   );
 }

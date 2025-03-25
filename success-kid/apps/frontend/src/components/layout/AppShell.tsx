@@ -146,12 +146,13 @@ export function AppShell({
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
       {/* Header - always visible */}
       {headerComponent && (
-        <header className="z-40 flex-shrink-0 sticky top-0">
+        <header className="z-50 flex-shrink-0 sticky top-0">
           {headerComponent}
         </header>
       )}
       
-      <div className="flex flex-grow overflow-hidden relative">
+      {/* Main content area with sidebar */}
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Mobile sidebar backdrop with animation */}
         <SidebarBackdrop />
         
@@ -166,10 +167,11 @@ export function AppShell({
             }
             variants={isMobile ? { open: sidebarVariants.open, closed: sidebarVariants.closed } : sidebarVariants}
             className={cn(
-              "h-full overflow-y-auto z-40",
+              "h-full flex-shrink-0 z-40",
               // Mobile positioning
-              isMobile ? "fixed inset-y-0 left-0 w-64" : "relative md:block",
+              isMobile ? "fixed inset-y-0 left-0 w-64" : "relative",
             )}
+            style={{ overflow: 'hidden' }} // Add direct style to fix overflow issue
           >
             {sidebarComponent}
           </motion.aside>
@@ -187,14 +189,14 @@ export function AppShell({
           }
           variants={contentVariants}
           className={cn(
-            "flex-grow h-full overflow-y-auto",
+            "flex-1 h-full overflow-y-auto",
             "bg-white dark:bg-gray-900",
             "rounded-tl-xl shadow-inner",
             // Add bottom padding on mobile for the navigation bar
             isMobile ? "pb-16" : "",
           )}
         >
-          <div className="container mx-auto p-4 md:p-6 min-h-full">
+          <div className="container mx-auto p-4 md:p-6 h-full">
             <PageTransition>
               {children}
             </PageTransition>

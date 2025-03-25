@@ -79,6 +79,8 @@ export function ContentCard({
                     width={16} 
                     height={16} 
                     className="rounded-full"
+                    loading="eager"
+                    priority
                   />
                 ) : (
                   <div className="w-4 h-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px]">
@@ -112,6 +114,9 @@ export function ContentCard({
                       fill
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      loading="lazy"
+                      placeholder="blur"
+                      blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNzAwIiBoZWlnaHQ9IjQ3NSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2ZXJzaW9uPSIxLjEiLz4="
                     />
                   </div>
                 )}

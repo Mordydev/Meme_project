@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { CommentList } from '@/components/features/community/CommentList';
 import { CommentForm } from '@/components/features/community/CommentForm';
 import { ContentDetailView } from '@/components/features/community/ContentDetailView';
+import { RealTimeUpdates } from '@/components/features/community/RealTimeUpdates';
 import { useContentDetails } from '@/hooks/useContentDetails';
 
 interface PostDetailPageProps {
@@ -112,6 +113,17 @@ export default function PostDetailPage({ params }: PostDetailPageProps) {
               isLoading={isLoading} 
             />
           </div>
+          
+          {/* Real-time updates for post interaction */}
+          <RealTimeUpdates 
+            postId={postId}
+            onNewComment={() => loadComments()}
+            onEngagementUpdate={(data) => {
+              if (data.postId === postId) {
+                // This would refresh engagement metrics in a real implementation
+              }
+            }}
+          />
         </>
       ) : (
         <Card>

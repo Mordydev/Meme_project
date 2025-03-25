@@ -1,268 +1,164 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { ClientParticles } from '@/components/ui/ClientParticles';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { PriceChart, MilestoneTracker, MarketStatistics, TransactionFeed, TokenSupplyChart, MarketAlertSystem } from '@/components/features/market';
-import { usePriceData, useMilestoneData, useMarketStats, useTransactionFeed, useTokenSupply } from '@/hooks/useMarketData';
-import { Milestone } from '@/types';
+import React from 'react';
+import { 
+  DashboardLayout,
+  SectionContainer,
+  CardGrid 
+} from '@/components/layout';
 
-export default function MarketDashboardPage() {
-  const [activeTab, setActiveTab] = useState('overview');
-  
-  // Fetch market data
-  const { 
-    data: priceData, 
-    currentPrice, 
-    priceChange, 
-    priceChangePercent, 
-    isLoading: isPriceLoading, 
-    setTimeRange 
-  } = usePriceData();
-  
-  const { 
-    currentMarketCap, 
-    milestones, 
-    nextMilestone, 
-    isLoading: isMilestoneLoading,
-    isCelebrating,
-    celebratedMilestone,
-    dismissCelebration
-  } = useMilestoneData();
-  
-  const { 
-    stats, 
-    isLoading: isStatsLoading, 
-    lastUpdated 
-  } = useMarketStats();
-  
-  const { 
-    transactions, 
-    isLoading: isTransactionsLoading, 
-    filter: transactionFilter,
-    hasMore,
-    setFilter,
-    loadMore
-  } = useTransactionFeed();
-  
-  const {
-    totalSupply,
-    circulatingSupply,
-    burned,
-    allocations,
-    isLoading: isSupplyLoading
-  } = useTokenSupply();
-  
-  // Render milestone celebration
-  const renderMilestoneCelebration = () => {
-    if (!isCelebrating || !celebratedMilestone) return null;
-    
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-lg shadow-xl max-w-md p-6 w-full mx-4 relative">
-          <button 
-            className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-600"
-            onClick={dismissCelebration}
-          >
-            ×
-          </button>
-          
-          <div className="text-center">
-            <div className="mb-4 text-4xl">🚀</div>
-            <h2 className="text-2xl font-bold mb-2">Market Cap Milestone Achieved!</h2>
-            <div className="text-4xl font-bold text-primary-600 mb-4">
-              {celebratedMilestone.label}
-            </div>
-            <p className="text-neutral-600 mb-6">
-              {celebratedMilestone.description}
-            </p>
-            <button
-              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-600 transition-colors"
-              onClick={dismissCelebration}
-            >
-              Awesome!
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-  
+/**
+ * Market Page - Provides market data visualization and token information
+ * Demonstrates another example of the layout components
+ */
+export default function MarketPage() {
   return (
-    <ClientParticles count={20} className="relative overflow-hidden min-h-screen">
-      {/* Market background with rays */}
-      <div className="absolute inset-0 overflow-hidden -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 via-purple-100 to-pink-300 dark:from-indigo-900 dark:via-purple-900 dark:to-pink-800"></div>
-        
-        {/* Vibrant orbs */}
-        {Array.from({ length: 6 }).map((_, i) => (
-          <motion.div 
-            key={`orb-${i}`}
-            className={`absolute rounded-full bg-gradient-to-br ${i % 2 === 0 ? 'from-primary/30 to-secondary/10' : 'from-secondary/20 to-primary/10'}`}
-            style={{
-              width: `${150 + i * 40}px`,
-              height: `${150 + i * 40}px`,
-              top: `${5 + (i * 12)}%`,
-              left: `${10 + (i * 15)}%`,
-              filter: 'blur(60px)'
-            }}
-            animate={{
-              x: [0, 20, 0, -20, 0],
-              y: [0, 15, 0, -15, 0],
-              opacity: [0.4, 0.6, 0.4]
-            }}
-            transition={{
-              duration: 15 + i * 2,
-              repeat: Infinity,
-              ease: 'easeInOut'
-            }}
-          />
-        ))}
-        
-        {/* Sun rays */}
-        <div className="absolute -top-[30%] -right-[20%] w-[800px] h-[800px]">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <motion.div
-              key={`ray-${i}`}
-              className="absolute top-1/2 left-1/2 h-full w-[1px] bg-gradient-to-b from-primary/40 via-secondary/30 to-transparent"
-              style={{ 
-                transformOrigin: 'top',
-                rotate: `${i * 30}deg`
-              }}
-              animate={{
-                opacity: [0.4, 0.7, 0.4],
-                scale: [1, 1.05, 1],
-              }}
-              transition={{
-                duration: 4 + i % 3,
-                repeat: Infinity,
-                ease: 'easeInOut',
-                delay: i * 0.1
-              }}
-            />
-          ))}
-        </div>
-        
-        {/* Floating particles */}
-        {Array.from({ length: 15 }).map((_, i) => (
-          <motion.div
-            key={`particle-${i}`}
-            className={`absolute rounded-full ${i % 3 === 0 ? 'bg-primary/30' : i % 3 === 1 ? 'bg-secondary/30' : 'bg-white/50'}`}
-            style={{
-              width: `${3 + i % 5}px`,
-              height: `${3 + i % 5}px`,
-              top: `${10 + (i * 5)}%`,
-              left: `${5 + (i * 6)}%`,
-            }}
-            animate={{
-              y: [0, -100, 0],
-              x: [0, i % 2 === 0 ? 50 : -50, 0],
-              opacity: [0, 0.8, 0],
-            }}
-            transition={{
-              duration: 10 + i * 2,
-              repeat: Infinity,
-              ease: 'easeInOut',
-              delay: i * 0.5
-            }}
-          />
-        ))}
-      </div>
-      
-      <div className="container max-w-screen-xl px-4 py-8 relative z-10">
-      {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-primary">Market Dashboard</h1>
-        <p className="text-neutral-600">Track token performance and market metrics - Updated UI</p>
-        <div className="mt-3 px-4 py-2 bg-indigo-100 text-indigo-800 rounded-md inline-block">
-          UI Updates Applied - v2.0
-        </div>
-      </div>
-      
-      {/* Main content */}
-      <div className="mb-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="supply">Token Supply</TabsTrigger>
-            <TabsTrigger value="alerts">Alerts</TabsTrigger>
-          </TabsList>
+    <DashboardLayout
+      title="Market"
+      subtitle="Monitor token performance, market trends, and milestone progress"
+      icon={
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
+          <path d="M10.75 10.818v2.614A3.13 3.13 0 0011.888 13c.482-.315.612-.648.612-.875 0-.227-.13-.56-.612-.875a3.13 3.13 0 00-1.138-.432zM8.33 8.62c.053.055.115.11.184.164.208.16.46.284.736.363V6.603a2.45 2.45 0 00-.35.13c-.14.065-.27.143-.386.233-.377.292-.514.627-.514.909 0 .184.058.39.202.592.037.051.08.102.128.152z" />
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-6a.75.75 0 01.75.75v.316a3.78 3.78 0 011.653.713c.426.33.744.74.925 1.2a.75.75 0 01-1.395.55 1.35 1.35 0 00-.447-.563 2.187 2.187 0 00-.736-.363V9.3c.698.093 1.383.32 1.959.696.787.514 1.29 1.27 1.29 2.13 0 .86-.504 1.616-1.29 2.13-.576.377-1.261.603-1.96.696v.299a.75.75 0 11-1.5 0v-.3c-.697-.092-1.382-.318-1.958-.695-.482-.315-.857-.717-1.078-1.188a.75.75 0 111.359-.636c.08.173.245.376.54.569.313.205.706.353 1.138.432v-2.748a3.782 3.782 0 01-1.653-.713C6.9 9.433 6.5 8.681 6.5 7.875c0-.805.4-1.558 1.097-2.096a3.78 3.78 0 011.653-.713V4.75A.75.75 0 0110 4z" clipRule="evenodd" />
+        </svg>
+      }
+      actions={
+        <button className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-600 transition-colors">
+          Connect Wallet
+        </button>
+      }
+    >
+      {/* Market Overview Section */}
+      <SectionContainer
+        title="Market Overview"
+        description="Current token statistics and performance"
+      >
+        <CardGrid columns={{ default: 1, md: 2, lg: 4 }} gap="md">
+          {/* Market Overview Cards */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="font-medium text-gray-500 dark:text-gray-400">Current Price</h3>
+            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">$0.0425</div>
+            <p className="mt-1 text-sm text-green-500">+3.25% (24h)</p>
+          </div>
           
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <PriceChart
-                  data={priceData}
-                  currentPrice={currentPrice}
-                  priceChange={priceChange}
-                  priceChangePercent={priceChangePercent}
-                  isLoading={isPriceLoading}
-                  onTimeRangeChange={setTimeRange}
-                />
-              </div>
-              
-              <div>
-                <MilestoneTracker
-                  currentMarketCap={currentMarketCap}
-                  milestones={milestones || []} // Ensure it's always an array
-                  nextMilestone={nextMilestone as any} // Type assertion needed due to possible null
-                  isLoading={isMilestoneLoading}
-                />
-              </div>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="font-medium text-gray-500 dark:text-gray-400">Market Cap</h3>
+            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">$425,000</div>
+            <p className="mt-1 text-sm text-green-500">+5.12% (24h)</p>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="font-medium text-gray-500 dark:text-gray-400">24h Volume</h3>
+            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">$32,450</div>
+            <p className="mt-1 text-sm text-gray-500">256 transactions</p>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="font-medium text-gray-500 dark:text-gray-400">Holders</h3>
+            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">1,256</div>
+            <p className="mt-1 text-sm text-green-500">+12 today</p>
+          </div>
+        </CardGrid>
+      </SectionContainer>
+      
+      {/* Market Milestone Tracker */}
+      <SectionContainer
+        title="Market Milestone Tracker"
+        description="Progress toward community market cap goals"
+        className="mt-8"
+      >
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+          <div className="relative">
+            {/* Progress bar */}
+            <div className="w-full h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-full bg-primary rounded-full" style={{ width: '42.5%' }} />
             </div>
             
-            <MarketStatistics
-              stats={stats || {
-                marketCap: 0,
-                volume24h: 0,
-                volume7d: 0,
-                liquidity: 0,
-                holders: 0,
-                trades24h: 0,
-                price: 0,
-                priceChange24h: 0,
-                priceChangePercent24h: 0,
-                allTimeHigh: {
-                  price: 0,
-                  date: new Date().toISOString()
-                }
-              }}
-              isLoading={isStatsLoading}
-              lastUpdated={lastUpdated}
-            />
-          </TabsContent>
-          
-          <TabsContent value="transactions">
-            <TransactionFeed
-              transactions={transactions}
-              isLoading={isTransactionsLoading}
-              onTypeChange={setFilter}
-              onLoadMore={loadMore}
-              hasMore={hasMore}
-            />
-          </TabsContent>
-          
-          <TabsContent value="supply">
-            <TokenSupplyChart
-              totalSupply={totalSupply}
-              circulatingSupply={circulatingSupply}
-              burned={burned}
-              allocations={allocations}
-              isLoading={isSupplyLoading}
-            />
-          </TabsContent>
-          
-          <TabsContent value="alerts">
-            <MarketAlertSystem />
-          </TabsContent>
-        </Tabs>
-      </div>
+            {/* Milestone markers */}
+            <div className="mt-8 grid grid-cols-7 gap-2">
+              {['$100K', '$250K', '$500K', '$1M', '$2.5M', '$5M', '$10M'].map((milestone, index) => (
+                <div key={index} className="flex flex-col items-center">
+                  <div className={`h-6 w-6 rounded-full flex items-center justify-center mb-2 ${
+                    index < 2 ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                  }`}>
+                    {index < 2 ? '✓' : (index + 1)}
+                  </div>
+                  <div className="text-xs font-medium text-center">{milestone}</div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Current progress */}
+            <div className="mt-4 text-center">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                Current Progress: $425,000 / $500,000 to next milestone (85%)
+              </span>
+            </div>
+          </div>
+        </div>
+      </SectionContainer>
       
-      {/* Render milestone celebration overlay */}
-      {renderMilestoneCelebration()}
-    </div>
-    </ClientParticles>
+      {/* Recent Transactions */}
+      <SectionContainer
+        title="Recent Transactions"
+        description="Latest token transfers and market activity"
+        className="mt-8"
+      >
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Transaction
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Price
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Time
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {[...Array(5)].map((_, index) => (
+                  <tr key={index}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${
+                          index % 2 === 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {index % 2 === 0 ? 'B' : 'S'}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {index % 2 === 0 ? 'Buy' : 'Sell'}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            0x1a2b...3c4d
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 dark:text-white">{(Math.random() * 1000).toFixed(0)} SKC</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 dark:text-white">$0.0{(Math.random() * 10).toFixed(4)}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {Math.floor(Math.random() * 60)} mins ago
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </SectionContainer>
+    </DashboardLayout>
   );
 }

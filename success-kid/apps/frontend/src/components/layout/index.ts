@@ -12,3 +12,10 @@ export * from './mobile-nav';
 export * from './TopBar';
 export * from './Breadcrumbs';
 export * from './PageTitle';
+
+// New layout components
+export * from './PageHeader';
+export * from './ContentContainer';
+export * from './SectionContainer';
+export * from './CardGrid';
+export * from './DashboardLayout';

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useToast } from '@/components/ui/use-toast';
 import { Post, FeedFilters, FeedType } from '@/types/community';
 
 // Mock data for development, will be replaced with API call
@@ -40,24 +41,50 @@ const generateMockPosts = (count: number, categoryId?: string): Post[] => {
 };
 
 export function useFeed(initialFilters: FeedFilters) {
+  const { toast } = useToast();
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [filters, setFilters] = useState<FeedFilters>(initialFilters);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Function to fetch posts based on filters
   const fetchPosts = useCallback(async (pageNumber: number, newFilters?: FeedFilters) => {
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create a new abort controller for this request
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     try {
       setIsLoading(true);
+      setError(null);
       
       // In the future, this will be replaced with an actual API call
-      // const response = await fetch('/api/posts?category=${filters.categoryId}&feedType=${filters.feedType}&page=${page}');
+      // const response = await fetch('/api/posts?category=${filters.categoryId}&feedType=${filters.feedType}&page=${page}', {
+      //   signal
+      // });
+      // 
+      // if (!response.ok) {
+      //   throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+      // }
+      // 
       // const data = await response.json();
       
       // Using mock data for now
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
+        if (signal.aborted) return;
+        
+        // Simulate random error for testing retry logic (uncomment to test)
+        // if (Math.random() < 0.2) throw new Error('Simulated random fetch error');
+        
         const currentFilters = newFilters || filters;
         const mockPosts = generateMockPosts(10, currentFilters.categoryId);
         
@@ -79,12 +106,48 @@ export function useFeed(initialFilters: FeedFilters) {
         
         setHasMore(pageNumber < 5); // Simulate pagination (5 pages total)
         setIsLoading(false);
+        setRetryCount(0); // Reset retry count on success
       }, 800);
+      
+      // Clean up timeout if request is aborted
+      signal.addEventListener('abort', () => {
+        clearTimeout(timeoutId);
+      });
+      
     } catch (err) {
+      if (signal.aborted) return; // Ignore errors from aborted requests
+      
+      console.error('Error fetching posts:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch posts'));
       setIsLoading(false);
+      
+      // Implement retry logic
+      if (retryCount < maxRetries) {
+        setRetryCount(count => count + 1);
+        
+        toast({
+          title: "Loading error",
+          description: `Retrying... (${retryCount + 1}/${maxRetries})`,
+          variant: "destructive",
+          duration: 3000,
+        });
+        
+        // Retry with exponential backoff
+        setTimeout(() => {
+          if (!signal.aborted) {
+            fetchPosts(pageNumber, newFilters);
+          }
+        }, Math.pow(2, retryCount) * 1000);
+      } else {
+        toast({
+          title: "Error loading content",
+          description: "Please check your connection and try again",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
     }
-  }, [filters]);
+  }, [filters, retryCount, toast]);
   
   // Initial fetch
   useEffect(() => {

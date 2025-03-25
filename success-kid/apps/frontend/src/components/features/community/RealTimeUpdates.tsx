@@ -1,39 +1,40 @@
 /**
  * Real-Time Updates Component
  * 
- * Handles WebSocket connections and real-time updates for forum functionality
+ * Handles WebSocket connections and real-time updates for community functionality
  */
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { toast } from '@/components/ui/use-toast';
-import { MessageSquare, UserPlus, Bell } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { MessageSquare, UserPlus, Bell, ThumbsUp } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useAuth } from '@/hooks/useAuth';
 
 interface RealTimeUpdatesProps {
-  threadId?: string;
+  postId?: string;
   categoryId?: string;
-  forumId?: string;
-  onNewReply?: (data: any) => void;
-  onThreadCreated?: (data: any) => void;
-  onPresenceUpdate?: (data: any) => void;
+  onNewComment?: (data: any) => void;
+  onPostCreated?: (data: any) => void;
+  onEngagementUpdate?: (data: any) => void;
+  onPointsEarned?: (data: any) => void;
 }
 
 /**
  * Real-Time Updates Component
  * 
  * Subscribes to the appropriate WebSocket channels based on props
- * and handles incoming real-time events
+ * and handles incoming real-time events for the community page
  */
-export const RealTimeUpdates: React.FC<RealTimeUpdatesProps> = ({
-  threadId,
+export function RealTimeUpdates({
+  postId,
   categoryId,
-  forumId,
-  onNewReply,
-  onThreadCreated,
-  onPresenceUpdate
-}) => {
+  onNewComment,
+  onPostCreated,
+  onEngagementUpdate,
+  onPointsEarned
+}: RealTimeUpdatesProps) {
+  const { toast } = useToast();
   const { isConnected, sendMessage } = useWebSocket();
   const { isAuthenticated, user } = useAuth();
   const [activeUsers, setActiveUsers] = useState<Record<string, boolean>>({});
@@ -41,17 +42,17 @@ export const RealTimeUpdates: React.FC<RealTimeUpdatesProps> = ({
   // Handle incoming WebSocket messages
   const handleWebSocketMessage = useCallback((message: any) => {
     switch (message.type) {
-      case 'reply.created':
-        // New reply in a thread
-        if (onNewReply) {
-          onNewReply(message.data);
+      case 'comment.created':
+        // New comment on a post
+        if (onNewComment) {
+          onNewComment(message.data);
         } else {
           // Show toast notification if handler not provided
           toast({
-            title: "New Reply",
-            description: "Someone replied to the thread you're viewing",
-            action: message.data.threadId ? (
-              <a href={`/forum/thread/${message.data.threadId}#reply-${message.data.replyId}`}>
+            title: "New Comment",
+            description: "Someone commented on the post you're viewing",
+            action: message.data.postId ? (
+              <a href={`/community/post/${message.data.postId}#comment-${message.data.commentId}`}>
                 View
               </a>
             ) : undefined
@@ -59,30 +60,48 @@ export const RealTimeUpdates: React.FC<RealTimeUpdatesProps> = ({
         }
         break;
         
-      case 'thread.created':
-        // New thread in category or forum
-        if (onThreadCreated) {
-          onThreadCreated(message.data);
+      case 'post.created':
+        // New post in category
+        if (onPostCreated) {
+          onPostCreated(message.data);
         } else {
           // Show toast notification if handler not provided
           toast({
-            title: "New Thread",
-            description: `${message.data.title || 'A new thread'} was created`,
-            action: message.data.threadId ? (
-              <a href={`/forum/thread/${message.data.threadId}`}>
+            title: "New Post",
+            description: `${message.data.title || 'A new post'} was created`,
+            action: message.data.postId ? (
+              <a href={`/community/post/${message.data.postId}`}>
                 View
               </a>
             ) : undefined
+          });
+        }
+        break;
+        
+      case 'engagement.update':
+        // Engagement update (votes, comments, etc.)
+        if (onEngagementUpdate) {
+          onEngagementUpdate(message.data);
+        }
+        break;
+        
+      case 'points.earned':
+        // Points earned notification
+        if (onPointsEarned) {
+          onPointsEarned(message.data);
+        } else {
+          toast({
+            title: "Points Earned!",
+            description: `You earned ${message.data.points} Success Points for ${message.data.action}`,
+            icon: <ThumbsUp className="h-4 w-4" />
           });
         }
         break;
         
       case 'presence.update':
-        // User presence update in thread
-        if (onPresenceUpdate) {
-          onPresenceUpdate(message.data);
-        } else if (message.data.threadId === threadId) {
-          // Update active users if in thread view
+        // User presence update in post view
+        if (message.data.postId === postId) {
+          // Update active users if in post view
           setActiveUsers(prev => ({
             ...prev,
             [message.data.userId]: message.data.action === 'enter'
@@ -94,31 +113,31 @@ export const RealTimeUpdates: React.FC<RealTimeUpdatesProps> = ({
         // New notification
         toast({
           title: "New Notification",
-          description: message.data.type === 'thread_reply' 
-            ? "Someone replied to your thread" 
+          description: message.data.type === 'post_comment' 
+            ? "Someone commented on your post" 
             : "You have a new notification",
           icon: <Bell className="h-4 w-4" />
         });
         break;
     }
-  }, [onNewReply, onThreadCreated, onPresenceUpdate, threadId]);
+  }, [onNewComment, onPostCreated, onEngagementUpdate, onPointsEarned, postId, toast]);
   
   // Set up WebSocket subscriptions
   useEffect(() => {
     if (isConnected) {
-      // Subscribe to thread updates
-      if (threadId) {
+      // Subscribe to post updates
+      if (postId) {
         sendMessage({
-          type: 'subscribe.thread',
-          data: { threadId }
+          type: 'subscribe.post',
+          data: { postId }
         });
         
         // Send presence indicator
         if (isAuthenticated) {
           sendMessage({
-            type: 'presence.thread',
+            type: 'presence.post',
             data: {
-              threadId,
+              postId,
               action: 'enter'
             }
           });
@@ -133,29 +152,27 @@ export const RealTimeUpdates: React.FC<RealTimeUpdatesProps> = ({
         });
       }
       
-      // Subscribe to forum updates
-      if (forumId) {
-        sendMessage({
-          type: 'subscribe.forum',
-          data: { forumId }
-        });
-      }
+      // Subscribe to community feed updates
+      sendMessage({
+        type: 'subscribe.community',
+        data: {}
+      });
       
       // Clean up subscriptions
       return () => {
-        // Send presence leave event if in thread
-        if (threadId && isAuthenticated) {
+        // Send presence leave event if in post view
+        if (postId && isAuthenticated) {
           sendMessage({
-            type: 'presence.thread',
+            type: 'presence.post',
             data: {
-              threadId,
+              postId,
               action: 'leave'
             }
           });
         }
       };
     }
-  }, [isConnected, threadId, categoryId, forumId, sendMessage, isAuthenticated]);
+  }, [isConnected, postId, categoryId, sendMessage, isAuthenticated]);
   
   // Register message handler
   useEffect(() => {
@@ -174,13 +191,13 @@ export const RealTimeUpdates: React.FC<RealTimeUpdatesProps> = ({
     }
   }, [isConnected, handleWebSocketMessage]);
   
-  // Only in thread view, display active users indicator
-  if (threadId && Object.keys(activeUsers).filter(id => activeUsers[id]).length > 0) {
+  // Only in post view, display active users indicator
+  if (postId && Object.keys(activeUsers).filter(id => activeUsers[id]).length > 0) {
     return (
-      <div className="fixed bottom-4 right-4 bg-primary text-primary-foreground px-3 py-1.5 rounded-full shadow-md flex items-center gap-1">
+      <div className="fixed bottom-4 right-4 bg-primary text-primary-foreground px-3 py-1.5 rounded-full shadow-md flex items-center gap-1 z-30">
         <UserPlus size={14} />
         <span className="text-sm font-medium">
-          {Object.keys(activeUsers).filter(id => activeUsers[id]).length} active
+          {Object.keys(activeUsers).filter(id => activeUsers[id]).length} viewing
         </span>
       </div>
     );
