@@ -31,3 +31,4 @@ export * from './TrendingTopics';
 export * from './UserSuggestions';
 export * from './FilterControls';
 export * from './FloatingCreateButton';
+export * from './RealTimeUpdates';

@@ -8,7 +8,7 @@ export default async function ProfilePage() {
   const user = await currentUser();
   
   if (!user) {
-    redirect('/login');
+    redirect('/sign-in');
   }
   
   // Mock stats - would be fetched from API in real implementation

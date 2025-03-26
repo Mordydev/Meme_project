@@ -258,6 +258,12 @@ body::after {
     scrollbar-width: none;  /* Firefox */
   }
   
+  /* Fixes for sidebar spacing */
+  .sidebar-adjacent-content {
+    margin-left: 0 !important;
+    border-left: 1px solid var(--color-border);
+  }
+  
   /* Animation utilities */
   .animate-once {
     animation-iteration-count: 1;

@@ -8,26 +8,32 @@
  * @param maximumFractionDigits Maximum number of fraction digits to display
  * @returns Formatted currency string
  */
-export function formatCurrency(value: number, maximumFractionDigits: number = 2): string {
-  // Handle undefined or null values
+export function formatCurrency(value: number | string | null | undefined, maximumFractionDigits: number = 2): string {
+  // Handle undefined, null, or non-numeric values
   if (value === undefined || value === null) return '$0.00';
   
+  // Convert string to number if needed
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  
+  // Check if numValue is not a valid number
+  if (isNaN(numValue)) return '$0.00';
+  
   // Determine the appropriate formatting based on the value magnitude
-  if (value >= 1000000000) {
+  if (numValue >= 1000000000) {
     // For billions, show with B suffix
-    return `$${(value / 1000000000).toFixed(1)}B`;
-  } else if (value >= 1000000) {
+    return `$${(numValue / 1000000000).toFixed(1)}B`;
+  } else if (numValue >= 1000000) {
     // For millions, show with M suffix
-    return `$${(value / 1000000).toFixed(1)}M`;
-  } else if (value >= 1000) {
+    return `$${(numValue / 1000000).toFixed(1)}M`;
+  } else if (numValue >= 1000) {
     // For thousands, show with K suffix
-    return `$${(value / 1000).toFixed(1)}K`;
-  } else if (value < 0.01 && value > 0) {
+    return `$${(numValue / 1000).toFixed(1)}K`;
+  } else if (numValue < 0.01 && numValue > 0) {
     // For very small numbers, increase precision
-    return `$${value.toFixed(4)}`;
+    return `$${numValue.toFixed(4)}`;
   } else {
     // Standard formatting for other numbers
-    return `$${value.toFixed(maximumFractionDigits)}`;
+    return `$${numValue.toFixed(maximumFractionDigits)}`;
   }
 }
 

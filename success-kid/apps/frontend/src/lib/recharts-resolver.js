@@ -1,25 +1,18 @@
-// This file provides Lodash functions needed by Recharts
+/**
+ * Recharts Lodash Resolver
+ * 
+ * This file resolves the lodash functions used by Recharts to use the correct imports
+ * from the main lodash package instead of individual modules.
+ */
 
-// isFunction
-export function isFunction(value) {
-  return typeof value === 'function';
-}
+const lodash = require('lodash');
 
-// max
-export function max(array) {
-  if (!array || array.length === 0) {
-    return undefined;
-  }
-  
-  return Math.max(...array.filter(val => !isNaN(val)));
-}
+// Export the lodash functions that Recharts needs
+module.exports = lodash;
+module.exports.default = lodash;
 
-// isNil
-export function isNil(value) {
-  return value === null || value === undefined;
-}
-
-// isNaN
-export function isNaN(value) {
-  return Number.isNaN(value);
-}
+// Ensure specific methods are available both as named exports and properties
+module.exports.isFunction = lodash.isFunction;
+module.exports.isNil = lodash.isNil;
+module.exports.isNaN = lodash.isNaN;
+module.exports.max = lodash.max;

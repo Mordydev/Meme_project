@@ -177,16 +177,17 @@ export function RealTimeUpdates({
   // Register message handler
   useEffect(() => {
     if (isConnected) {
-      // Add message listener
-      window.addEventListener('websocket-message', (e: any) => {
+      // Create a stable reference to the handler function
+      const messageListener = (e: any) => {
         handleWebSocketMessage(e.detail);
-      });
+      };
+      
+      // Add message listener
+      window.addEventListener('websocket-message', messageListener);
       
       // Clean up
       return () => {
-        window.removeEventListener('websocket-message', (e: any) => {
-          handleWebSocketMessage(e.detail);
-        });
+        window.removeEventListener('websocket-message', messageListener);
       };
     }
   }, [isConnected, handleWebSocketMessage]);

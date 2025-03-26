@@ -4,7 +4,7 @@ import React from 'react';
 import { Milestone } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { CheckCircle, Circle } from 'lucide-react';
-import { Tooltip } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface MilestoneMarkersProps {
   milestones: Milestone[];
@@ -26,7 +26,8 @@ export default function MilestoneMarkers({
   const sortedMilestones = [...milestones].sort((a, b) => a.value - b.value);
   
   return (
-    <div className={`grid grid-cols-${Math.min(sortedMilestones.length, 7)} gap-2 ${className || ''}`}>
+    <TooltipProvider>
+      <div className={`grid grid-cols-${Math.min(sortedMilestones.length, 7)} gap-2 ${className || ''}`}>
       {sortedMilestones.map((milestone, index) => {
         const isCompleted = currentMarketCap >= milestone.value;
         
@@ -42,9 +43,14 @@ export default function MilestoneMarkers({
               )}
             </div>
             
-            <Tooltip 
-              content={
-                <div className="p-2 text-xs">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="text-xs font-medium text-center cursor-help">
+                  {formatCurrency(milestone.value, 0)}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-xs">
                   <div className="font-semibold">{milestone.label}</div>
                   {milestone.description && (
                     <div className="text-neutral-300">{milestone.description}</div>
@@ -55,15 +61,12 @@ export default function MilestoneMarkers({
                     </div>
                   )}
                 </div>
-              }
-            >
-              <div className="text-xs font-medium text-center">
-                {formatCurrency(milestone.value, 0)}
-              </div>
+              </TooltipContent>
             </Tooltip>
           </div>
         );
       })}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

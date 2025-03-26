@@ -4,12 +4,12 @@ import React from 'react';
 import { DashboardLayout, SectionContainer } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { useWallet } from '@/hooks/useWallet';
-import { PriceOverview } from '@/components/market/PriceOverview';
-import { MarketChart } from '@/components/market/MarketChart';
-import { MilestoneTracker } from '@/components/market/MilestoneTracker';
-import { TransactionFeed } from '@/components/market/TransactionFeed';
-import { MarketStats } from '@/components/market/MarketStats';
-import { PortfolioAnalytics } from '@/components/market/PortfolioAnalytics';
+import PriceOverview from '@/components/market/PriceOverview';
+import MarketChart from '@/components/market/MarketChart';
+import MilestoneTracker from '@/components/market/MilestoneTracker';
+import TransactionFeed from '@/components/market/TransactionFeed';
+import MarketStats from '@/components/market/MarketStats';
+import PortfolioAnalytics from '@/components/market/PortfolioAnalytics';
 
 /**
  * Market Page - Provides market data visualization and token information

@@ -129,15 +129,15 @@ export function AppShell({
   // Content area animation variants
   const contentVariants = {
     withExpandedSidebar: { 
-      marginLeft: 240,
+      width: 'calc(100% - 240px)',
       transition: springs.responsive
     },
     withCollapsedSidebar: { 
-      marginLeft: 70,
+      width: 'calc(100% - 70px)',
       transition: springs.responsive
     },
     withoutSidebar: {
-      marginLeft: 0,
+      width: '100%',
       transition: springs.responsive
     }
   };
@@ -152,7 +152,7 @@ export function AppShell({
       )}
       
       {/* Main content area with sidebar */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden bg-white dark:bg-gray-900">
         {/* Mobile sidebar backdrop with animation */}
         <SidebarBackdrop />
         
@@ -168,10 +168,9 @@ export function AppShell({
             variants={isMobile ? { open: sidebarVariants.open, closed: sidebarVariants.closed } : sidebarVariants}
             className={cn(
               "h-full flex-shrink-0 z-40",
-              // Mobile positioning
-              isMobile ? "fixed inset-y-0 left-0 w-64" : "relative",
+              "border-r border-gray-100 dark:border-gray-800",
+              isMobile ? "fixed inset-y-0 left-0 w-64" : "relative"
             )}
-            style={{ overflow: 'hidden' }} // Add direct style to fix overflow issue
           >
             {sidebarComponent}
           </motion.aside>
@@ -189,17 +188,21 @@ export function AppShell({
           }
           variants={contentVariants}
           className={cn(
-            "flex-1 h-full overflow-y-auto",
-            "bg-white dark:bg-gray-900",
-            "rounded-tl-xl shadow-inner",
-            // Add bottom padding on mobile for the navigation bar
-            isMobile ? "pb-16" : "",
+            "flex-1 min-w-0",
+            "relative",
+            isMobile ? "pb-16" : ""
           )}
         >
-          <div className="container mx-auto p-4 md:p-6 h-full">
-            <PageTransition>
-              {children}
-            </PageTransition>
+          <div className={cn(
+            "absolute inset-0",
+            "overflow-y-auto",
+            "shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)]"
+          )}>
+            <div className="h-full w-full max-w-[2000px] mx-auto px-4 md:px-6">
+              <PageTransition>
+                {children}
+              </PageTransition>
+            </div>
           </div>
         </motion.main>
       </div>

@@ -1,5 +1,5 @@
 // Main market components
-export { default as MilestoneCelebration } from './MilestoneCelebration';
+export * from './MilestoneCelebration';
 
 // PriceOverview components
 export * from './PriceOverview';

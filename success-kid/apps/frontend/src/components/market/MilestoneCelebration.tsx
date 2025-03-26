@@ -67,13 +67,15 @@ export function MilestoneCelebration({
       
       return () => clearTimeout(timer);
     }
-    
-    // Reset hasPlayed state when the component is hidden
+  }, [isVisible, milestone, hasPlayed, playCelebrationAnimations]);
+  
+  // Separate effect to reset state when component is hidden
+  useEffect(() => {
     if (!isVisible && hasPlayed) {
       setHasPlayed(false);
       setAnimationComplete(false);
     }
-  }, [isVisible, milestone, hasPlayed]);
+  }, [isVisible, hasPlayed]);
   
   // Setup canvas confetti
   useEffect(() => {
@@ -99,7 +101,7 @@ export function MilestoneCelebration({
   }, [isVisible, prefersReducedMotion]);
   
   // Play celebration animations using GSAP and confetti
-  const playCelebrationAnimations = () => {
+  const playCelebrationAnimations = useCallback(() => {
     // Only play full animations if reduced motion is not preferred
     if (!prefersReducedMotion) {
       // GSAP animation for the container and content
@@ -125,10 +127,10 @@ export function MilestoneCelebration({
       // Fire confetti
       fireConfetti();
     }
-  };
+  }, [prefersReducedMotion, fireConfetti]);
   
   // Confetti animation function
-  const fireConfetti = () => {
+  const fireConfetti = useCallback(() => {
     const count = 200;
     const defaults = {
       origin: { y: 0.7 },
@@ -173,7 +175,7 @@ export function MilestoneCelebration({
         scalar: 1
       });
     }, 300);
-  };
+  }, []);
   
   if (!milestone) return null;
   
