@@ -6,7 +6,7 @@ import { Trophy, Users, Calendar, ChevronRight, Check, Clock } from 'lucide-reac
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CompetitionSummary } from '@/types/leaderboard';
+import { CompetitionSummary } from '@/types/competition';
 import { cn, formatDate } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks';
 

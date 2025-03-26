@@ -7,7 +7,7 @@ import {
   CompetitionStatus,
   Team,
   TeamMember,
-} from '@/types/leaderboard';
+} from '@/types/competition';
 
 /**
  * Competition store state

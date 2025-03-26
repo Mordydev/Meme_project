@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Breakpoint } from '@/components/mobile/ResponsiveContainer';
+
+// Define breakpoint type directly instead of importing
+export type Breakpoint = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 
 export interface Viewport {
   width: number;

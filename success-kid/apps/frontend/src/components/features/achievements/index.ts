@@ -19,11 +19,6 @@ export * from './LevelProgressBar';
 export * from './LevelBenefits';
 export * from './LevelUpCelebration';
 
-// Leaderboard components
-export * from './Leaderboard';
-export * from './LeaderboardTabs';
-export * from './RankingList';
-
 // Gamification Analytics components
 export * from './ProgressSummary';
 export * from './CategoryBreakdown';

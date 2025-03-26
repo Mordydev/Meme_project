@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Trophy } from 'lucide-react';
 import { CompetitionCard } from './CompetitionCard';
 import { useCompetitionStore } from '@/store';
-import { CompetitionStatus } from '@/types/leaderboard';
+import { CompetitionStatus } from '@/types/competition';
 import { cn } from '@/lib/utils';
 
 const STATUS_TABS = [

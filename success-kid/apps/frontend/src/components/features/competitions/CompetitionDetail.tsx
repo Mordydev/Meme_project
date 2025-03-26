@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Spinner } from '@/components/ui/Spinner';
 import { useCompetitionStore } from '@/store';
-import { Competition, CompetitionStatus } from '@/types/leaderboard';
+import { Competition, CompetitionStatus } from '@/types/competition';
 import { ParticipationTracker } from './ParticipationTracker';
 import { cn, formatDate } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks';

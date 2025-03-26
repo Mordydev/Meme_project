@@ -1,3 +1,9 @@
+/**
+ * @deprecated This component is no longer actively used. The Breakpoint type has been moved 
+ * to hooks/useViewport.ts. Only keeping this file for backward compatibility.
+ * For new code, use directly responsive utility classes from Tailwind CSS.
+ */
+
 'use client';
 
 import React, { ReactNode } from 'react';

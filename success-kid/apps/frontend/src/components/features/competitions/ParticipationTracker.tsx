@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, XCircle, Circle, Trophy } from 'lucide-react';
-import { CompetitionObjective, CompetitionStatus } from '@/types/leaderboard';
+import { CompetitionObjective, CompetitionStatus } from '@/types/competition';
 import { cn } from '@/lib/utils';
 import { useReducedMotion } from '@/hooks';
 

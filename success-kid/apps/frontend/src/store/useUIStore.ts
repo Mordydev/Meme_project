@@ -6,11 +6,11 @@ import { devtools, persist } from 'zustand/middleware';
 interface UIState {
   // Navigation state
   sidebarOpen: boolean;
-  activeMobileTab: 'home' | 'market' | 'create' | 'community' | 'profile';
+  activeMobileTab: 'home' | 'market' | 'create' | 'community' | 'rewards' | 'profile';
   
   // Modal states
   activeModal: string | null;
-  modalData: Record<string, unknown> | null;
+  modalData: Record<string, unknown> | null | undefined;
   
   // Toast notifications
   toasts: Array<{
@@ -26,7 +26,7 @@ interface UIState {
   // Actions
   setSidebarOpen: (open: boolean) => void;
   setActiveMobileTab: (tab: UIState['activeMobileTab']) => void;
-  openModal: (modalId: string, data?: Record<string, unknown>) => void;
+  openModal: (modalId: string, data?: Record<string, unknown> | null) => void;
   closeModal: () => void;
   addToast: (message: string, type: UIState['toasts'][0]['type'], duration?: number) => void;
   removeToast: (id: string) => void;
