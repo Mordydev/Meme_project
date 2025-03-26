@@ -63,6 +63,7 @@ export function SidebarNavigation({ className }: SidebarProps) {
   };
   
   // Top navigation items - consolidated from navigationGroups
+  // Note: Leaderboard has been removed as per requirements
   const topNavItems = [
     {
       id: 'dashboard',
@@ -101,7 +102,7 @@ export function SidebarNavigation({ className }: SidebarProps) {
       href: '/community',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-          <path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM1.49 15.326a.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 002.07-.654.78.78 0 00.357-.442 3 3 0 00-4.308-3.517 6.484 6.484 0 011.907 3.96 2.32 2.32 0 01-.026.654zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z" />
+          <path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM1.49 15.326a.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 002.07-.654.78.78 0 00.357-.442 3 3 0 00-4.308-3.517 6.484 6.484 0 011.907 3.96a2.32 2.32 0 01-.026.654zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z" />
         </svg>
       ),
       badgeCount: 3, // Example notification
@@ -115,18 +116,7 @@ export function SidebarNavigation({ className }: SidebarProps) {
           <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
         </svg>
       ),
-    },
-    {
-      id: 'leaderboard',
-      label: 'Leaderboard',
-      href: '/leaderboard',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-          <path fillRule="evenodd" d="M5.5 2A2.5 2.5 0 003 4.5v15a.5.5 0 00.5.5h9a.5.5 0 00.5-.5V4.5A2.5 2.5 0 0010.5 2h-5zM8 5a1 1 0 100 2h1a1 1 0 100-2H8zm4 6a1 1 0 10-2 0v.5a1 1 0 102 0V11zm-4 5a1 1 0 100 2h1a1 1 0 100-2H8z" clipRule="evenodd" />
-          <path d="M7 4.5a.5.5 0 01.5-.5h1a.5.5 0 010 1h-1a.5.5 0 01-.5-.5zM8 17a.5.5 0 01.5-.5h1a.5.5 0 010 1h-1A.5.5 0 018 17zM7 11a1 1 0 011-1h2.5a1 1 0 01.5.9v3a1 1 0 01-1 1h-2.5a.5.5 0 010-1H9v-3H8a1 1 0 01-1-1z" />
-        </svg>
-      ),
-    },
+    }
   ];
   
   // Bottom navigation items for settings and user-related actions

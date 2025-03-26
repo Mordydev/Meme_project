@@ -18,7 +18,7 @@ export type NavigationGroup = {
   items: NavigationItem[];
 };
 
-export type NavTab = 'home' | 'market' | 'create' | 'community' | 'profile';
+export type NavTab = 'home' | 'market' | 'create' | 'community' | 'rewards' | 'profile';
 
 interface NavigationState {
   // Core navigation state

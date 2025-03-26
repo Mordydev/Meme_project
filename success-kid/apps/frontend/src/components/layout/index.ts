@@ -1,14 +1,11 @@
 export * from './AppShell';
-export * from './Header';
+// Header component has been removed - use TopBar instead
 export * from './MobileNavigation';
 export * from './PageLayout';
 export * from './PageTransition';
 export * from './SidebarNavigation';
 export * from './MarketingHeader';
 export * from './MarketingFooter';
-export * from './dashboard-header';
-export * from './main-nav';
-export * from './mobile-nav';
 export * from './TopBar';
 export * from './Breadcrumbs';
 export * from './PageTitle';
