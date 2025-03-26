@@ -161,8 +161,9 @@ export function useWebSocket() {
       webSocketRef.current = null;
     }
     
-    setIsConnected(false);
-    setIsConnecting(false);
+    // Use functional updates to avoid dependency on current state
+    setIsConnected(() => false);
+    setIsConnecting(() => false);
   }, []);
   
   // Simulate incoming messages (for development only)
@@ -191,9 +192,19 @@ export function useWebSocket() {
     
     // Clean up on unmount
     return () => {
-      disconnect();
+      // Inline cleanup logic instead of using disconnect function
+      // to avoid dependency cycle
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      
+      if (webSocketRef.current) {
+        webSocketRef.current.close();
+        webSocketRef.current = null;
+      }
     };
-  }, [connect, disconnect]);
+  }, [connect]);
   
   return {
     isConnected,

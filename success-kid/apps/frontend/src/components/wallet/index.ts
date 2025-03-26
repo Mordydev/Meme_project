@@ -7,3 +7,4 @@ export * from './WalletCard';
 export * from './WalletErrorHandler';
 export * from './WalletManager';
 export * from './WalletSelectorModal';
+export * from './modal';

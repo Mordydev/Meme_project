@@ -3,16 +3,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CategorySelector } from '@/components/features/community/CategorySelector';
 import { RichTextEditor } from './RichTextEditor';
 import { MediaUpload, MediaFile } from './MediaUpload';
 import { TagInput } from './TagInput';
+import { RewardsPreview } from './RewardsPreview';
 import { ContentFormData, ValidationError, FormMode } from '@/types/content-creation';
 import { ContentType } from '@/types/community';
 import { useDrafts } from '@/hooks/useDrafts';
 import { useCategories } from '@/hooks/useCategories';
-import { Save, Eye, Send, ArrowLeft, Link as LinkIcon, BarChart2, X } from 'lucide-react';
+import { Save, Eye, Send, ArrowLeft, Link as LinkIcon, BarChart2, X, BookOpen, HelpCircle, Edit } from 'lucide-react';
 import { ContentPreview } from './ContentPreview';
+import { LinkCreator } from './LinkCreator';
+import { PollCreator } from './PollCreator';
+import { CommunityGuidelines } from './CommunityGuidelines';
+import { ResourcesLibrary } from './ResourcesLibrary';
 
 // Mock user ID for testing
 const MOCK_USER_ID = 'user_123';
@@ -46,6 +53,13 @@ export function ContentForm({ contentType = 'text', draftId }: ContentFormProps)
   const [mode, setMode] = useState<FormMode>('create');
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [formTouched, setFormTouched] = useState(false);
+  const [activeTab, setActiveTab] = useState<'editor' | 'resources'>('editor');
+  const [isCustomizingLink, setIsCustomizingLink] = useState(false);
+  const [linkMetadata, setLinkMetadata] = useState<any>(null);
+  const [customLinkTitle, setCustomLinkTitle] = useState('');
+  const [customLinkDescription, setCustomLinkDescription] = useState('');
+  const [pollDuration, setPollDuration] = useState(7); // Default to 7 days
+  
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const router = useRouter();
@@ -67,6 +81,18 @@ export function ContentForm({ contentType = 'text', draftId }: ContentFormProps)
       const draft = getDraft(draftId);
       if (draft) {
         setFormData(draft);
+        if (draft.type === 'link' && draft.link) {
+          // Mock metadata for the link
+          setLinkMetadata({
+            title: draft.title || 'Link Title',
+            description: draft.body || 'Link description',
+            imageUrl: draft.media?.[0]?.previewUrl,
+            siteName: new URL(draft.link).hostname.replace('www.', ''),
+            url: draft.link
+          });
+          setCustomLinkTitle(draft.title || '');
+          setCustomLinkDescription(draft.body || '');
+        }
       }
     }
   }, [draftId, getDraft]);
@@ -151,13 +177,28 @@ export function ContentForm({ contentType = 'text', draftId }: ContentFormProps)
     // In a real implementation, we would call the API to publish the content
     console.log('Publishing content:', formData);
     
-    // Navigate to success page or content view
+    // Navigate to the community feed after publishing
     router.push('/community');
   };
   
   const handlePreview = () => {
     if (!validateForm()) return;
     setMode('preview');
+  };
+
+  const handleSelectResource = (resource: any) => {
+    // Depending on the resource type, update different parts of the form
+    setFormData(prev => ({
+      ...prev,
+      title: resource.title,
+      body: resource.content,
+      tags: [...prev.tags, ...resource.tags].filter((tag, index, self) => 
+        self.indexOf(tag) === index && !prev.tags.includes(tag)
+      ).slice(0, 5) // Limit to 5 tags
+    }));
+    
+    // Switch back to editor tab
+    setActiveTab('editor');
   };
   
   const renderFormByType = () => {
@@ -216,36 +257,25 @@ export function ContentForm({ contentType = 'text', draftId }: ContentFormProps)
         
       case 'link':
         return (
-          <div className="space-y-6">
-            <div>
-              <label htmlFor="content-link" className="block text-sm font-medium mb-1">Link URL</label>
-              <div className="flex">
-                <div className="bg-gray-100 flex items-center px-3 rounded-l-md border border-r-0">
-                  <LinkIcon className="h-4 w-4 text-gray-500" />
-                </div>
-                <input
-                  id="content-link"
-                  type="url"
-                  value={formData.link || ''}
-                  onChange={(e) => handleInputChange('link', e.target.value)}
-                  placeholder="https://example.com"
-                  className="flex-grow rounded-r-md border p-2 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                />
-              </div>
-              {errors.find(e => e.field === 'link') && (
-                <p className="text-red-500 text-sm mt-1">{errors.find(e => e.field === 'link')?.message}</p>
-              )}
-            </div>
-            
-            <div>
-              <label htmlFor="content-body" className="block text-sm font-medium mb-1">Your Thoughts (Optional)</label>
-              <RichTextEditor
-                value={formData.body}
-                onChange={(value) => handleInputChange('body', value)}
-                minHeight="150px"
-              />
-            </div>
-          </div>
+          <LinkCreator
+            linkUrl={formData.link || ''}
+            onChange={(url) => handleInputChange('link', url)}
+            metadata={linkMetadata}
+            onMetadataChange={setLinkMetadata}
+            error={errors.find(e => e.field === 'link')?.message}
+            isCustomized={isCustomizingLink}
+            onToggleCustomize={setIsCustomizingLink}
+            customTitle={customLinkTitle}
+            onCustomTitleChange={(title) => {
+              setCustomLinkTitle(title);
+              handleInputChange('title', title);
+            }}
+            customDescription={customLinkDescription}
+            onCustomDescriptionChange={(desc) => {
+              setCustomLinkDescription(desc);
+              handleInputChange('body', desc);
+            }}
+          />
         );
         
       case 'poll':
@@ -260,62 +290,13 @@ export function ContentForm({ contentType = 'text', draftId }: ContentFormProps)
               />
             </div>
             
-            <div>
-              <label className="block text-sm font-medium mb-1">Poll Options</label>
-              <div className="space-y-2">
-                {formData.pollOptions?.map((option, index) => (
-                  <div key={index} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={option}
-                      onChange={(e) => {
-                        const newOptions = [...(formData.pollOptions || [])];
-                        newOptions[index] = e.target.value;
-                        handleInputChange('pollOptions', newOptions);
-                      }}
-                      placeholder={`Option ${index + 1}`}
-                      className="flex-grow rounded-md border p-2 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                    />
-                    
-                    {index > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          const newOptions = [...(formData.pollOptions || [])];
-                          newOptions.splice(index, 1);
-                          handleInputChange('pollOptions', newOptions);
-                        }}
-                        aria-label="Remove option"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                
-                {errors.find(e => e.field === 'pollOptions') && (
-                  <p className="text-red-500 text-sm">
-                    {errors.find(e => e.field === 'pollOptions')?.message}
-                  </p>
-                )}
-                
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="mt-2"
-                  onClick={() => {
-                    handleInputChange('pollOptions', [
-                      ...(formData.pollOptions || []),
-                      ''
-                    ]);
-                  }}
-                >
-                  + Add Another Option
-                </Button>
-              </div>
-            </div>
+            <PollCreator
+              options={formData.pollOptions || ['', '']}
+              onChange={(options) => handleInputChange('pollOptions', options)}
+              duration={pollDuration}
+              onDurationChange={setPollDuration}
+              errors={errors.filter(e => e.field === 'pollOptions')}
+            />
           </div>
         );
         
@@ -341,49 +322,121 @@ export function ContentForm({ contentType = 'text', draftId }: ContentFormProps)
   
   return (
     <div className="space-y-6">
-      <div>
-        <label htmlFor="content-title" className="block text-sm font-medium mb-1">Title</label>
-        <input
-          id="content-title"
-          type="text"
-          value={formData.title}
-          onChange={(e) => handleInputChange('title', e.target.value)}
-          placeholder="Enter a descriptive title"
-          className="w-full rounded-md border p-3 focus:outline-none focus:ring-2 focus:ring-primary-200"
-          maxLength={100}
-        />
-        {errors.find(e => e.field === 'title') && (
-          <p className="text-red-500 text-sm mt-1">{errors.find(e => e.field === 'title')?.message}</p>
-        )}
-        <p className="text-xs text-gray-500 mt-1">{formData.title.length}/100 characters</p>
-      </div>
+      <Tabs 
+        value={activeTab} 
+        onValueChange={(value) => setActiveTab(value as 'editor' | 'resources')}
+      >
+        <TabsList className="mb-6">
+          <TabsTrigger value="editor" className="flex-1">
+            {activeTab === 'editor' ? (
+              <span className="flex items-center gap-2">
+                <Edit className="h-4 w-4" />
+                Content Editor
+              </span>
+            ) : (
+              "Content Editor"
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="resources" className="flex-1">
+            {activeTab === 'resources' ? (
+              <span className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Resources Library
+              </span>
+            ) : (
+              "Resources Library"
+            )}
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="editor" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2 space-y-6">
+              <div>
+                <label htmlFor="content-title" className="block text-sm font-medium mb-1">Title</label>
+                <Input
+                  id="content-title"
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  placeholder="Enter a descriptive title"
+                  className="w-full"
+                  maxLength={100}
+                />
+                {errors.find(e => e.field === 'title') && (
+                  <p className="text-red-500 text-sm mt-1">{errors.find(e => e.field === 'title')?.message}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">{formData.title.length}/100 characters</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">Category</label>
+                <CategorySelector
+                  categories={rootCategories}
+                  selectedCategoryId={formData.categoryId}
+                  onSelect={(id) => handleInputChange('categoryId', id)}
+                  loading={categoriesLoading}
+                />
+                {errors.find(e => e.field === 'categoryId') && (
+                  <p className="text-red-500 text-sm mt-1">{errors.find(e => e.field === 'categoryId')?.message}</p>
+                )}
+              </div>
+              
+              {renderFormByType()}
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">Tags</label>
+                <TagInput
+                  tags={formData.tags}
+                  onChange={(tags) => handleInputChange('tags', tags)}
+                  maxTags={5}
+                  suggestions={TAG_SUGGESTIONS}
+                />
+              </div>
+              
+              <CommunityGuidelines formData={formData} />
+            </div>
+            
+            <div className="space-y-6">
+              <RewardsPreview formData={formData} />
+              
+              <div className="bg-gray-50 p-4 rounded-md border">
+                <h3 className="font-medium flex items-center gap-2">
+                  <HelpCircle className="h-4 w-4 text-primary" />
+                  Content Tips
+                </h3>
+                <ul className="mt-2 space-y-2 text-sm">
+                  <li className="flex items-start gap-1">
+                    <span>•</span>
+                    <span>Be clear and descriptive in your title to attract more readers</span>
+                  </li>
+                  <li className="flex items-start gap-1">
+                    <span>•</span>
+                    <span>Add relevant images to increase engagement</span>
+                  </li>
+                  <li className="flex items-start gap-1">
+                    <span>•</span>
+                    <span>Use tags to help others discover your content</span>
+                  </li>
+                  <li className="flex items-start gap-1">
+                    <span>•</span>
+                    <span>Preview your post before publishing to ensure it looks great</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="resources">
+          <ResourcesLibrary 
+            onSelectResource={handleSelectResource}
+            currentContentType={formData.type}
+          />
+        </TabsContent>
+      </Tabs>
       
-      <div>
-        <label className="block text-sm font-medium mb-1">Category</label>
-        <CategorySelector
-          categories={rootCategories}
-          selectedCategoryId={formData.categoryId}
-          onSelect={(id) => handleInputChange('categoryId', id)}
-          loading={categoriesLoading}
-        />
-        {errors.find(e => e.field === 'categoryId') && (
-          <p className="text-red-500 text-sm mt-1">{errors.find(e => e.field === 'categoryId')?.message}</p>
-        )}
-      </div>
-      
-      {renderFormByType()}
-      
-      <div>
-        <label className="block text-sm font-medium mb-1">Tags</label>
-        <TagInput
-          tags={formData.tags}
-          onChange={(tags) => handleInputChange('tags', tags)}
-          maxTags={5}
-          suggestions={TAG_SUGGESTIONS}
-        />
-      </div>
-      
-      <div className="flex items-center justify-between pt-6">
+      <div className="flex items-center justify-between pt-6 border-t">
         <div className="text-sm text-gray-500">
           {saveStatus === 'saving' && 'Saving draft...'}
           {saveStatus === 'saved' && 'Draft saved'}

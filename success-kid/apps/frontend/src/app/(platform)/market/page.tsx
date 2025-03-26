@@ -1,17 +1,30 @@
 'use client';
 
 import React from 'react';
-import { 
-  DashboardLayout,
-  SectionContainer,
-  CardGrid 
-} from '@/components/layout';
+import { DashboardLayout, SectionContainer } from '@/components/layout';
+import { Button } from '@/components/ui/button';
+import { useWallet } from '@/hooks/useWallet';
+import { PriceOverview } from '@/components/market/PriceOverview';
+import { MarketChart } from '@/components/market/MarketChart';
+import { MilestoneTracker } from '@/components/market/MilestoneTracker';
+import { TransactionFeed } from '@/components/market/TransactionFeed';
+import { MarketStats } from '@/components/market/MarketStats';
+import { PortfolioAnalytics } from '@/components/market/PortfolioAnalytics';
 
 /**
  * Market Page - Provides market data visualization and token information
- * Demonstrates another example of the layout components
  */
 export default function MarketPage() {
+  const { isConnected, connect, isConnecting } = useWallet();
+  
+  const handleConnect = async () => {
+    try {
+      await connect();
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+    }
+  };
+  
   return (
     <DashboardLayout
       title="Market"
@@ -23,42 +36,39 @@ export default function MarketPage() {
         </svg>
       }
       actions={
-        <button className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-600 transition-colors">
-          Connect Wallet
-        </button>
+        !isConnected ? (
+          <Button 
+            onClick={handleConnect} 
+            disabled={isConnecting}
+            className="min-w-[140px]"
+          >
+            {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+          </Button>
+        ) : (
+          <Button 
+            onClick={() => window.location.href = '/rewards'} 
+            variant="outline"
+          >
+            Redeem Points
+          </Button>
+        )
       }
     >
-      {/* Market Overview Section */}
+      {/* Price Overview Section */}
       <SectionContainer
         title="Market Overview"
         description="Current token statistics and performance"
       >
-        <CardGrid columns={{ default: 1, md: 2, lg: 4 }} gap="md">
-          {/* Market Overview Cards */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h3 className="font-medium text-gray-500 dark:text-gray-400">Current Price</h3>
-            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">$0.0425</div>
-            <p className="mt-1 text-sm text-green-500">+3.25% (24h)</p>
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h3 className="font-medium text-gray-500 dark:text-gray-400">Market Cap</h3>
-            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">$425,000</div>
-            <p className="mt-1 text-sm text-green-500">+5.12% (24h)</p>
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h3 className="font-medium text-gray-500 dark:text-gray-400">24h Volume</h3>
-            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">$32,450</div>
-            <p className="mt-1 text-sm text-gray-500">256 transactions</p>
-          </div>
-          
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h3 className="font-medium text-gray-500 dark:text-gray-400">Holders</h3>
-            <div className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">1,256</div>
-            <p className="mt-1 text-sm text-green-500">+12 today</p>
-          </div>
-        </CardGrid>
+        <PriceOverview />
+      </SectionContainer>
+      
+      {/* Chart Section */}
+      <SectionContainer
+        title="Price Chart"
+        description="Historical price performance and analysis"
+        className="mt-8"
+      >
+        <MarketChart />
       </SectionContainer>
       
       {/* Market Milestone Tracker */}
@@ -67,97 +77,36 @@ export default function MarketPage() {
         description="Progress toward community market cap goals"
         className="mt-8"
       >
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-          <div className="relative">
-            {/* Progress bar */}
-            <div className="w-full h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full" style={{ width: '42.5%' }} />
-            </div>
-            
-            {/* Milestone markers */}
-            <div className="mt-8 grid grid-cols-7 gap-2">
-              {['$100K', '$250K', '$500K', '$1M', '$2.5M', '$5M', '$10M'].map((milestone, index) => (
-                <div key={index} className="flex flex-col items-center">
-                  <div className={`h-6 w-6 rounded-full flex items-center justify-center mb-2 ${
-                    index < 2 ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {index < 2 ? '✓' : (index + 1)}
-                  </div>
-                  <div className="text-xs font-medium text-center">{milestone}</div>
-                </div>
-              ))}
-            </div>
-            
-            {/* Current progress */}
-            <div className="mt-4 text-center">
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Current Progress: $425,000 / $500,000 to next milestone (85%)
-              </span>
-            </div>
-          </div>
-        </div>
+        <MilestoneTracker />
       </SectionContainer>
       
-      {/* Recent Transactions */}
+      {/* Portfolio Analytics Section - Only shown if wallet is connected */}
+      {isConnected && (
+        <SectionContainer
+          title="Portfolio Analytics"
+          description="Your personal token performance and transaction history"
+          className="mt-8"
+        >
+          <PortfolioAnalytics />
+        </SectionContainer>
+      )}
+      
+      {/* Recent Transactions Section */}
       <SectionContainer
         title="Recent Transactions"
         description="Latest token transfers and market activity"
         className="mt-8"
       >
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Transaction
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Price
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Time
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {[...Array(5)].map((_, index) => (
-                  <tr key={index}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${
-                          index % 2 === 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {index % 2 === 0 ? 'B' : 'S'}
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {index % 2 === 0 ? 'Buy' : 'Sell'}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            0x1a2b...3c4d
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">{(Math.random() * 1000).toFixed(0)} SKC</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">$0.0{(Math.random() * 10).toFixed(4)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {Math.floor(Math.random() * 60)} mins ago
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <TransactionFeed />
+      </SectionContainer>
+      
+      {/* Market Statistics Section */}
+      <SectionContainer
+        title="Market Statistics"
+        description="Detailed token metrics and supply information"
+        className="mt-8"
+      >
+        <MarketStats />
       </SectionContainer>
     </DashboardLayout>
   );

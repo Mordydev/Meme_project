@@ -1,83 +1,85 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme {
+:root {
   /* Base design tokens */
   --font-display: "Montserrat", "sans-serif";
   --font-body: "Inter", "sans-serif";
   --font-mono: "Roboto Mono", "monospace";
   --font-accent: "Rubik", "sans-serif";
   
-  /* RGB color values for backward compatibility */
-  --color-primary-rgb: 30 136 229; /* Victory Blue */
-  --color-primary-50-rgb: 227 242 253;
-  --color-primary-100-rgb: 187 222 251;
-  --color-primary-900-rgb: 13 71 161;
-  --color-secondary-rgb: 255 193 7; /* Sand Gold */
-  --color-accent-rgb: 76 175 80; /* Success Green */
-  --color-alert-rgb: 244 67 54; /* Action Red */
+  /* Color system - RGB values */
+  --color-primary-rgb: 30, 136, 229; /* Victory Blue */
+  --color-primary-50-rgb: 227, 242, 253;
+  --color-primary-100-rgb: 187, 222, 251;
+  --color-primary-900-rgb: 13, 71, 161;
+  --color-secondary-rgb: 255, 193, 7; /* Sand Gold */
+  --color-accent-rgb: 76, 175, 80; /* Success Green */
+  --color-alert-rgb: 244, 67, 54; /* Action Red */
   
-  /* Color system - OKLCH format for Tailwind v4 */
-  --color-primary: oklch(0.64 0.16 252); /* Victory Blue */
-  --color-primary-50: oklch(0.97 0.02 252);
-  --color-primary-100: oklch(0.92 0.05 252);
-  --color-primary-200: oklch(0.87 0.08 252);
-  --color-primary-300: oklch(0.81 0.11 252);
-  --color-primary-400: oklch(0.76 0.14 252);
-  --color-primary-500: oklch(0.64 0.16 252);
-  --color-primary-600: oklch(0.58 0.15 252);
-  --color-primary-700: oklch(0.52 0.14 252);
-  --color-primary-800: oklch(0.46 0.13 252);
-  --color-primary-900: oklch(0.37 0.12 252);
+  /* Color system - HEX/RGB format for Tailwind v3 compatibility */
+  --color-primary: #1E88E5; /* Victory Blue */
+  --color-primary-50: #E3F2FD;
+  --color-primary-100: #BBDEFB;
+  --color-primary-200: #90CAF9;
+  --color-primary-300: #64B5F6;
+  --color-primary-400: #42A5F5;
+  --color-primary-500: #2196F3;
+  --color-primary-600: #1E88E5;
+  --color-primary-700: #1976D2;
+  --color-primary-800: #1565C0;
+  --color-primary-900: #0D47A1;
   
-  --color-secondary: oklch(0.86 0.15 85); /* Sand Gold */
-  --color-secondary-50: oklch(0.98 0.02 85);
-  --color-secondary-100: oklch(0.96 0.04 85);
-  --color-secondary-200: oklch(0.93 0.06 85);
-  --color-secondary-300: oklch(0.91 0.09 85);
-  --color-secondary-400: oklch(0.88 0.12 85);
-  --color-secondary-500: oklch(0.86 0.15 85);
-  --color-secondary-600: oklch(0.77 0.14 85);
-  --color-secondary-700: oklch(0.69 0.13 85);
-  --color-secondary-800: oklch(0.60 0.12 85);
-  --color-secondary-900: oklch(0.52 0.10 85);
+  --color-secondary: #FFC107; /* Sand Gold */
+  --color-secondary-50: #FFF8E1;
+  --color-secondary-100: #FFECB3;
+  --color-secondary-200: #FFE082;
+  --color-secondary-300: #FFD54F;
+  --color-secondary-400: #FFCA28;
+  --color-secondary-500: #FFC107;
+  --color-secondary-600: #FFB300;
+  --color-secondary-700: #FFA000;
+  --color-secondary-800: #FF8F00;
+  --color-secondary-900: #FF6F00;
   
-  --color-accent: oklch(0.77 0.17 142); /* Success Green */
-  --color-accent-50: oklch(0.97 0.02 142);
-  --color-accent-100: oklch(0.92 0.05 142);
-  --color-accent-200: oklch(0.88 0.08 142);
-  --color-accent-300: oklch(0.83 0.11 142);
-  --color-accent-400: oklch(0.79 0.14 142);
-  --color-accent-500: oklch(0.77 0.17 142);
-  --color-accent-600: oklch(0.68 0.16 142);
-  --color-accent-700: oklch(0.60 0.15 142);
-  --color-accent-800: oklch(0.52 0.13 142);
-  --color-accent-900: oklch(0.41 0.12 142);
+  --color-accent: #4CAF50; /* Success Green */
+  --color-accent-50: #E8F5E9;
+  --color-accent-100: #C8E6C9;
+  --color-accent-200: #A5D6A7;
+  --color-accent-300: #81C784;
+  --color-accent-400: #66BB6A;
+  --color-accent-500: #4CAF50;
+  --color-accent-600: #43A047;
+  --color-accent-700: #388E3C;
+  --color-accent-800: #2E7D32;
+  --color-accent-900: #1B5E20;
   
-  --color-alert: oklch(0.65 0.18 27); /* Action Red */
-  --color-alert-50: oklch(0.97 0.02 27);
-  --color-alert-100: oklch(0.92 0.05 27);
-  --color-alert-200: oklch(0.87 0.08 27);
-  --color-alert-300: oklch(0.80 0.12 27);
-  --color-alert-400: oklch(0.73 0.15 27);
-  --color-alert-500: oklch(0.65 0.18 27);
-  --color-alert-600: oklch(0.59 0.17 27);
-  --color-alert-700: oklch(0.52 0.16 27);
-  --color-alert-800: oklch(0.45 0.14 27);
-  --color-alert-900: oklch(0.38 0.12 27);
+  --color-alert: #F44336; /* Action Red */
+  --color-alert-50: #FFEBEE;
+  --color-alert-100: #FFCDD2;
+  --color-alert-200: #EF9A9A;
+  --color-alert-300: #E57373;
+  --color-alert-400: #EF5350;
+  --color-alert-500: #F44336;
+  --color-alert-600: #E53935;
+  --color-alert-700: #D32F2F;
+  --color-alert-800: #C62828;
+  --color-alert-900: #B71C1C;
   
   /* Interface colors - light mode */
-  --background: oklch(0.99 0.01 240);
-  --foreground: oklch(0.25 0.02 240);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.25 0.02 240);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.25 0.02 240);
-  --muted: oklch(0.96 0.03 240);
-  --muted-foreground: oklch(0.64 0.03 240);
-  --muted-foreground-rgb: 100, 100, 100; /* Approximate RGB value */
-  --border: oklch(0.85 0.03 240);
-  --input: oklch(0.85 0.03 240);
-  --ring: oklch(0.8 0.12 240);
+  --background: #F8FAFC;
+  --foreground: #1E293B;
+  --card: #FFFFFF;
+  --card-foreground: #1E293B;
+  --popover: #FFFFFF;
+  --popover-foreground: #1E293B;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --muted-foreground-rgb: 100, 116, 139;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #94A3B8;
   
   /* Spacing */
   --spacing: 0.25rem;
@@ -96,27 +98,23 @@
 
 /* Dark mode variables */
 .dark {
-  --background: oklch(0.25 0.02 240);
-  --foreground: oklch(0.95 0.02 240);
-  --card: oklch(0.2 0.02 240);
-  --card-foreground: oklch(0.95 0.02 240);
-  --popover: oklch(0.2 0.02 240);
-  --popover-foreground: oklch(0.95 0.02 240);
-  --muted: oklch(0.35 0.01 240);
-  --muted-foreground: oklch(0.65 0.03 240);
-  --muted-foreground-rgb: 180, 180, 180; /* Approximate RGB value */
-  --border: oklch(0.4 0.03 240);
-  --input: oklch(0.4 0.03 240);
-  --ring: oklch(0.75 0.1 240);
+  --background: #0F172A;
+  --foreground: #F8FAFC;
+  --card: #1E293B;
+  --card-foreground: #F8FAFC;
+  --popover: #1E293B;
+  --popover-foreground: #F8FAFC;
+  --muted: #334155;
+  --muted-foreground: #94A3B8;
+  --muted-foreground-rgb: 148, 163, 184;
+  --border: #475569;
+  --input: #475569;
+  --ring: #94A3B8;
 }
 
 @layer base {
-  * {
-    /* Remove the border-border class that's causing errors */
-  }
-  
   body {
-    @apply bg-white text-gray-900;
+    @apply bg-background text-foreground;
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

@@ -5,3 +5,8 @@ export * from './DraftsList';
 export * from './MediaUpload';
 export * from './RichTextEditor';
 export * from './TagInput';
+export * from './ResourcesLibrary';
+export * from './RewardsPreview';
+export * from './CommunityGuidelines';
+export * from './PollCreator';
+export * from './LinkCreator';
