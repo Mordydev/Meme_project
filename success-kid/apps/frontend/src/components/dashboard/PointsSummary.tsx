@@ -75,7 +75,7 @@ export function PointsSummary({ className }: PointsSummaryProps) {
   return (
     <div className={cn(
       "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5",
-      "shadow-sm hover:shadow-md transition-shadow duration-200",
+      "shadow-xs hover:shadow-md transition-shadow duration-200",
       className
     )}>
       <div className="flex justify-between items-start mb-3">

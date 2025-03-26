@@ -234,7 +234,7 @@ export function CommunityContributors() {
                       </button>
                       
                       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                        <div className="flex-shrink-0">
+                        <div className="shrink-0">
                           <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                             {/* This would be a real image in production */}
                             <div className="w-full h-full bg-primary/20 flex items-center justify-center text-4xl">
@@ -410,7 +410,7 @@ export function CommunityContributors() {
                       className="p-6 h-full"
                     >
                       <div className="flex items-start mb-4">
-                        <div className="flex-shrink-0 mr-4">
+                        <div className="shrink-0 mr-4">
                           <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                             {/* This would be a real image in production */}
                             <div className="w-full h-full bg-primary/20 flex items-center justify-center text-lg">

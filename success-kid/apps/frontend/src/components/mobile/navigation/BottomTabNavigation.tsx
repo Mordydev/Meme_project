@@ -1,8 +1,6 @@
 'use client';
 
 import React, { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
-import { TouchFeedback } from '../TouchFeedback';
 import Link from 'next/link';
 
 export interface NavigationTab {
@@ -26,17 +24,13 @@ export interface BottomTabNavigationProps {
 }
 
 /**
- * Mobile-optimized bottom tab navigation with touch feedback
- * and proper spacing for mobile devices.
+ * Mobile-optimized bottom tab navigation with direct styling
  */
 export const BottomTabNavigation: React.FC<BottomTabNavigationProps> = ({
   tabs,
   activeTab,
   onTabChange,
   showLabels = true,
-  className,
-  barClassName,
-  tabClassName,
   fixed = true,
 }) => {
   // Get the maximum number of tabs we can display effectively
@@ -51,87 +45,98 @@ export const BottomTabNavigation: React.FC<BottomTabNavigationProps> = ({
   
   return (
     <div 
-      className={cn(
-        'mobile-bottom-navigation pb-safe',
-        fixed && 'fixed bottom-0 left-0 right-0 z-50',
-        className
-      )}
+      className="bottom-nav"
+      style={{
+        position: fixed ? 'fixed' : 'relative',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'white',
+        display: 'flex',
+        justifyContent: 'space-around',
+        padding: '8px 0',
+        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.1)',
+        zIndex: 50
+      }}
     >
-      <nav
-        className={cn(
-          'flex items-center bg-white border-t border-gray-200 h-16',
-          'justify-around items-center',
-          barClassName
-        )}
-        role="tablist"
-        aria-label="Mobile navigation"
-      >
-        {displayTabs.map((tab) => (
-          <Link
-            href={tab.href}
-            key={tab.id}
-            onClick={(e) => {
-              if (tab.disabled) {
-                e.preventDefault();
-                return;
-              }
-            }}
-            className={cn(
-              'w-full h-full',
-              tab.disabled && 'pointer-events-none'
-            )}
-          >
-            <TouchFeedback 
-              effect="highlight"
-              disabled={tab.disabled}
-              onPress={() => handleTabSelect(tab)}
-              className={cn(
-                'flex flex-col items-center justify-center h-full w-full px-1',
-                'relative',
-                tab.id === activeTab ? 'text-primary-600' : 'text-gray-500',
-                tab.disabled && 'opacity-50',
-                tabClassName
-              )}
-              activeClassName="text-primary-600"
-              role="tab"
-              aria-selected={tab.id === activeTab}
-              aria-disabled={tab.disabled}
-            >
-              {/* Icon */}
-              <div className="relative">
-                {tab.icon}
-                
-                {/* Badge */}
-                {tab.badge && (
-                  <span className={cn(
-                    'absolute -top-1 -right-1 flex justify-center items-center',
-                    typeof tab.badge === 'number' ? 'min-w-5 h-5 rounded-full text-xs bg-red-500 text-white' : 'w-2 h-2 rounded-full bg-red-500'
-                  )}>
-                    {typeof tab.badge === 'number' && tab.badge > 0 && (
-                      <span>{tab.badge > 99 ? '99+' : tab.badge}</span>
-                    )}
-                  </span>
+      {displayTabs.map((tab) => (
+        <Link
+          href={tab.href}
+          key={tab.id}
+          onClick={(e) => {
+            if (tab.disabled) {
+              e.preventDefault();
+              return;
+            }
+            handleTabSelect(tab);
+          }}
+          className={`nav-item ${tab.id === activeTab ? 'active' : ''}`}
+          style={{
+            opacity: tab.disabled ? 0.5 : 1,
+            color: tab.id === activeTab ? '#1E88E5' : '#6B7280',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textDecoration: 'none',
+            fontSize: '12px',
+            padding: '4px 8px',
+            width: '100%',
+            textAlign: 'center'
+          }}
+        >
+          {/* Icon */}
+          <div style={{ position: 'relative' }}>
+            {tab.icon}
+            
+            {/* Badge */}
+            {tab.badge && (
+              <span style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: '#F44336',
+                color: 'white',
+                borderRadius: '9999px',
+                ...(typeof tab.badge === 'number' 
+                  ? { minWidth: '20px', height: '20px', fontSize: '12px' } 
+                  : { width: '8px', height: '8px' })
+              }}>
+                {typeof tab.badge === 'number' && tab.badge > 0 && (
+                  <span>{tab.badge > 99 ? '99+' : tab.badge}</span>
                 )}
-              </div>
-              
-              {/* Label */}
-              {showLabels && (
-                <span className={cn(
-                  'text-xs mt-1 font-medium',
-                  tab.id === activeTab ? 'text-primary-600' : 'text-gray-500'
-                )}>
-                  {tab.label}
-                </span>
-              )}
-              
-              {/* Active indicator */}
-              {tab.id === activeTab && (
-                <span className="absolute top-0 inset-x-0 h-0.5 bg-primary-600" aria-hidden="true" />
-              )}
-            </TouchFeedback>
-          </Link>
-        ))}
-      </nav>
+              </span>
+            )}
+          </div>
+          
+          {/* Label */}
+          {showLabels && (
+            <span style={{ 
+              marginTop: '4px', 
+              fontWeight: 500
+            }}>
+              {tab.label}
+            </span>
+          )}
+          
+          {/* Active indicator */}
+          {tab.id === activeTab && (
+            <span 
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '2px',
+                backgroundColor: '#1E88E5'
+              }} 
+              aria-hidden="true" 
+            />
+          )}
+        </Link>
+      ))}
     </div>
   );
 };

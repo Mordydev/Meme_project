@@ -1,39 +1,31 @@
 import './globals.css';
 import { Providers } from '@/components/providers/Providers';
-import { Montserrat, Inter, Roboto_Mono, Rubik } from 'next/font/google';
 import { Metadata, Viewport } from 'next';
+import { Inter, Montserrat, Roboto_Mono, Rubik } from 'next/font/google';
 
-// Initialize fonts with subsets and display settings
+// Define fonts
 const montserrat = Montserrat({
   subsets: ['latin'],
+  variable: '--font-display',
   display: 'swap',
-  variable: '--font-montserrat',
-  preload: true,
-  weight: ['400', '500', '600', '700'],
 });
 
 const inter = Inter({
   subsets: ['latin'],
+  variable: '--font-body',
   display: 'swap',
-  variable: '--font-inter',
-  preload: true,
-  weight: ['400', '500', '600', '700'],
 });
 
 const robotoMono = Roboto_Mono({
   subsets: ['latin'],
-  display: 'swap',
   variable: '--font-mono',
-  preload: false,
-  weight: ['400', '500'],
+  display: 'swap',
 });
 
 const rubik = Rubik({
   subsets: ['latin'],
+  variable: '--font-accent',
   display: 'swap',
-  variable: '--font-rubik',
-  preload: false,
-  weight: ['400', '500', '600'],
 });
 
 export const metadata: Metadata = {
@@ -61,32 +53,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html 
-      lang="en" 
-      className={`${montserrat.variable} ${inter.variable} ${robotoMono.variable} ${rubik.variable}`}
-    >
-      <body className="min-h-screen bg-background flex flex-col">
+    <html lang="en" className={`${montserrat.variable} ${inter.variable} ${robotoMono.variable} ${rubik.variable}`}>
+      <body className="min-h-screen bg-background font-body text-foreground">
         <Providers>
-          <main className="flex-1">{children}</main>
+          <main>{children}</main>
         </Providers>
-        
-        {/* Script to handle redirect path persistence across page refreshes */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              // Handle storage across page loads
-              try {
-                // Re-store redirect path after page refresh if needed
-                const storedRedirectPath = sessionStorage.getItem('redirectAfterLogin');
-                if (storedRedirectPath) {
-                  console.log('Preserved redirect path after refresh:', storedRedirectPath);
-                }
-              } catch (e) {
-                console.error('Storage access error:', e);
-              }
-            `,
-          }}
-        />
       </body>
     </html>
   );

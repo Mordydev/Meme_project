@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 /**
  * Root page that redirects based on authentication state
  * - Authenticated users go to dashboard
- * - Unauthenticated users see the marketing page or sign in
+ * - Unauthenticated users go to the marketing page
  */
 export default function RootPage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -20,8 +20,9 @@ export default function RootPage() {
         // Authenticated users go to the dashboard
         router.push('/dashboard');
       } else {
-        // Unauthenticated users go to marketing page or sign in
-        router.push('/sign-in');
+        // Unauthenticated users go to marketing page
+        // We're using /(marketing) route group which contains the marketing pages
+        router.push('/(marketing)');
       }
     }
   }, [isAuthenticated, isLoading, router]);

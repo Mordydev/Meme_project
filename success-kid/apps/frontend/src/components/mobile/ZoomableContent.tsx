@@ -146,7 +146,7 @@ export const ZoomableContent: React.FC<ZoomableContentProps> = ({
       
       {scale > 1 && (
         <button
-          className="absolute top-3 right-3 z-10 bg-black bg-opacity-50 text-white rounded-full p-2"
+          className="absolute top-3 right-3 z-10 bg-black/50 text-white rounded-full p-2"
           onClick={resetZoom}
           aria-label="Reset zoom"
         >
