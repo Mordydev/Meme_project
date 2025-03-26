@@ -6,3 +6,4 @@ export * from './RecentTransactions';
 export * from './PointsRedemptionCalculator';
 export * from './DailyCapStatus';
 export * from './PointsNotification';
+export * from './PointsCounter';

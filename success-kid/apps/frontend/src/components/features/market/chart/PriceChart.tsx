@@ -14,8 +14,14 @@ import { motion } from 'framer-motion';
 import { formatCurrency, formatCompactNumber } from '@/lib/utils';
 import { PriceDataPoint } from '@/types';
 
+// Since we haven't installed Recharts, we'll create a simplified chart component
+// In a real implementation, you would use a proper charting library like Recharts
+
 interface PriceChartProps {
   data: PriceDataPoint[];
+  currentPrice: number;
+  priceChange: number;
+  priceChangePercent: number;
   isLoading?: boolean;
   onTimeRangeChange?: (range: string) => void;
   className?: string;
@@ -23,19 +29,14 @@ interface PriceChartProps {
 
 export function PriceChart({
   data,
+  currentPrice,
+  priceChange,
+  priceChangePercent,
   isLoading = false,
   onTimeRangeChange,
   className = '',
 }: PriceChartProps) {
   const [activeRange, setActiveRange] = useState('1d');
-  
-  // Derive currentPrice, priceChange, and priceChangePercent from data
-  const currentPrice = data && data.length > 0 ? data[data.length - 1].price : 0;
-  const yesterdayPrice = data && data.length > 0 ? data[0].price : 0;
-  const priceChange = currentPrice - yesterdayPrice;
-  const priceChangePercent = yesterdayPrice > 0 
-    ? (priceChange / yesterdayPrice) * 100 
-    : 0;
   
   useEffect(() => {
     if (onTimeRangeChange) {

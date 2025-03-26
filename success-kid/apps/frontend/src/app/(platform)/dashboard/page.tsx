@@ -6,13 +6,15 @@ import {
   SectionContainer,
   CardGrid 
 } from '@/components/layout';
-import { WelcomeHeader } from '@/components/dashboard/WelcomeHeader';
-import { PointsSummary } from '@/components/dashboard/PointsSummary';
-import { AchievementProgress } from '@/components/dashboard/AchievementProgress';
-import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
-import { MarketMilestoneTracker } from '@/components/dashboard/MarketMilestoneTracker';
-import { ReferralCard } from '@/components/dashboard/ReferralCard';
-import { QuickActions } from '@/components/dashboard/QuickActions';
+import {
+  WelcomeHeader,
+  PointsSummary,
+  AchievementProgress,
+  ActivityFeed,
+  MarketMilestoneTracker,
+  ReferralCard,
+  QuickActions
+} from '@/components/features/dashboard';
 import { cn } from '@/lib/utils';
 
 /**

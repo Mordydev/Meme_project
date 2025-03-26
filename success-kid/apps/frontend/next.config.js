@@ -2,6 +2,30 @@
 const path = require('path');
 
 const nextConfig = {
+  async redirects() {
+    return [
+      {
+        source: '/explore',
+        destination: '/discover',
+        permanent: true,
+      },
+      {
+        source: '/explore/:path*',
+        destination: '/discover/:path*',
+        permanent: true,
+      },
+      {
+        source: '/forum',
+        destination: '/community',
+        permanent: true,
+      },
+      {
+        source: '/forum/:path*',
+        destination: '/community/:path*',
+        permanent: true,
+      },
+    ];
+  },
   reactStrictMode: true,
   webpack: (config) => {
     // More aggressive resolver for Lodash dependencies

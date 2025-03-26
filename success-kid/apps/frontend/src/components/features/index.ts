@@ -5,27 +5,24 @@
  * These components are organized by feature/domain rather than UI purpose.
  */
 
-// Real-time components
+// Export all feature components from their subdirectories
+export * from './achievements';
+export * from './activity-feed';
+export * from './community';
+export * from './competitions';
+export * from './content-creation';
+export * from './dashboard';
+export * from './leaderboard';
+export * from './market';
+export * from './messaging';
 export * from './notifications';
 export * from './points';
+export * from './profile';
 export * from './real-time';
-export * from './market';
 export * from './redemption';
 export * from './referral';
-export * from './community';
-export * from './content-creation';
-export * from './leaderboard';
-export * from './competitions';
+export * from './search';
+export * from './user';
 
-// Create placeholder exports for components referenced in pages
-// These will be implemented as part of feature development tasks
-
-export const PointsSummary = () => null;
-export const MarketCapTracker = () => null;
-export const RecentActivity = () => null;
-export const ContentFeed = () => null;
-export const ContentFilter = () => null;
-export const ProfileDetails = () => null;
-export const UserActivity = () => null;
-export const UserAchievements = () => null;
-export const WalletConnection = () => null;
+// Note: All placeholder exports have been moved to their respective feature directories.
+// If you need a temporary component implementation, add it to the appropriate feature directory.

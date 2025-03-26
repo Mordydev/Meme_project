@@ -1,165 +1,80 @@
 'use client';
 
+import React from 'react';
 import { GlassCard } from '@/components/ui/optimized/GlassCard';
 import { 
   CardHeader, 
   CardTitle, 
-  CardContent,
-  CardFooter
+  CardContent
 } from '@/components/ui/optimized/glass/card-components';
-import { formatCurrency, formatCompactNumber, timeAgo } from '@/lib/utils';
 import { MarketStats } from '@/types';
-
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  description?: string;
-  trend?: 'up' | 'down' | 'neutral';
-  className?: string;
-}
-
-function StatCard({ title, value, description, trend, className = '' }: StatCardProps) {
-  const trendColor = trend === 'up' 
-    ? 'text-accent-500' 
-    : trend === 'down' 
-      ? 'text-alert-500' 
-      : 'text-neutral-500';
-      
-  const trendIcon = trend === 'up' 
-    ? '↑' 
-    : trend === 'down' 
-      ? '↓' 
-      : '•';
-  
-  return (
-    <div className={`rounded-lg bg-gradient-to-br from-blue-100 to-purple-100 p-4 border-2 border-primary/30 shadow-xl hover:shadow-2xl transition-all ${className}`}>
-      <div className="text-sm font-medium text-muted-foreground">{title}</div>
-      <div className="mt-1 flex items-baseline">
-        <div className="text-2xl font-bold">{value}</div>
-        {trend && (
-          <div className={`ml-2 text-sm ${trendColor}`}>{trendIcon}</div>
-        )}
-      </div>
-      {description && <div className="mt-1 text-xs text-neutral-500">{description}</div>}
-    </div>
-  );
-}
+import { formatCurrency, formatCompactNumber } from '@/lib/utils';
 
 interface MarketStatisticsProps {
-  stats: MarketStats;
-  isLoading?: boolean;
-  lastUpdated?: string | null;
+  data: MarketStats;
+  isLoading: boolean;
   className?: string;
 }
 
-export function MarketStatistics({
-  stats,
-  isLoading = false,
-  lastUpdated = null,
-  className = '',
-}: MarketStatisticsProps) {
-  if (isLoading) {
-    return (
-      <GlassCard 
-        className={className}
-        gradientBackground={true}
-        gradientBorder={true}
-        borderGlow={true}
-        borderGlowIntensity="strong"
-        shadowStyle="premium"
-      >
-        <CardHeader>
-          <CardTitle>Market Statistics</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-24 animate-pulse rounded-lg bg-neutral-100"></div>
-            ))}
-          </div>
-        </CardContent>
-      </GlassCard>
-    );
-  }
-  
-  const {
-    volume24h,
-    volume7d,
-    liquidity,
-    holders,
-    trades24h,
-    price,
-    priceChange24h,
-    priceChangePercent24h,
-    allTimeHigh
-  } = stats;
-  
-  const isPriceUp = priceChangePercent24h >= 0;
-  
-  const formattedStats = [
-    {
-      title: '24h Volume',
-      value: formatCurrency(volume24h),
-      trend: 'neutral'
-    },
-    {
-      title: '7d Volume',
-      value: formatCurrency(volume7d),
-      trend: 'neutral'
-    },
-    {
-      title: 'Liquidity',
-      value: formatCurrency(liquidity),
-      trend: 'neutral'
-    },
-    {
-      title: 'Holders',
-      value: formatCompactNumber(holders),
-      trend: 'up'
-    },
-    {
-      title: '24h Trades',
-      value: formatCompactNumber(trades24h),
-      trend: 'neutral'
-    },
-    {
-      title: 'All-Time High',
-      value: `$${allTimeHigh.price.toFixed(6)}`,
-      description: new Date(allTimeHigh.date).toLocaleDateString()
+export function MarketStatistics({ data, isLoading, className = '' }: MarketStatisticsProps) {
+  // Format values for display
+  const formatValue = (value: number, isCurrency = true, compact = false): string => {
+    if (isCurrency) {
+      return formatCurrency(value);
     }
-  ];
-  
+    return compact ? formatCompactNumber(value) : value.toLocaleString();
+  };
+
+  // Calculate price change color
+  const priceChangeColor = data?.priceChangePercent24h >= 0 
+    ? 'text-success-500' 
+    : 'text-alert-500';
+
+  // Create stat item
+  const StatItem = ({ label, value, isCurrency = true, colored = false, compact = false }) => (
+    <div className="flex flex-col">
+      <div className="text-sm text-neutral-500">{label}</div>
+      <div className={`font-bold ${colored ? priceChangeColor : ''}`}>
+        {isLoading ? (
+          <div className="h-6 w-20 animate-pulse rounded bg-neutral-200"></div>
+        ) : (
+          formatValue(value, isCurrency, compact)
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <GlassCard 
       className={className}
       gradientBackground={true}
-      gradientBorder={true}
       borderGlow={true}
-      borderGlowIntensity="strong"
-      gradientColors="from-primary/10 via-white/90 to-primary/5"
-      shadowStyle="premium"
+      borderGlowIntensity="medium"
+      shadowStyle="standard"
     >
-      <CardHeader>
+      <CardHeader className="pb-2">
         <CardTitle>Market Statistics</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {formattedStats.map((stat, index) => (
-            <StatCard
-              key={index}
-              title={stat.title}
-              value={stat.value}
-              description={stat.description}
-              trend={stat.trend}
-            />
-          ))}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <StatItem label="Current Price" value={data?.price || 0} />
+          <StatItem 
+            label="24h Change" 
+            value={data?.priceChangePercent24h || 0} 
+            isCurrency={false} 
+            colored={true}
+          />
+          <StatItem label="Market Cap" value={data?.marketCap || 0} compact={true} />
+          <StatItem label="24h Volume" value={data?.volume24h || 0} compact={true} />
+          <StatItem label="Holders" value={data?.holders || 0} isCurrency={false} />
+          <StatItem label="Trades (24h)" value={data?.trades24h || 0} isCurrency={false} />
+          <StatItem label="Liquidity" value={data?.liquidity || 0} compact={true} />
+          <StatItem 
+            label="All-Time High" 
+            value={data?.allTimeHigh?.price || 0}
+          />
         </div>
       </CardContent>
-      {lastUpdated && (
-        <CardFooter className="text-xs text-neutral-500">
-          Last updated: {timeAgo(new Date(lastUpdated))}
-        </CardFooter>
-      )}
     </GlassCard>
   );
 }

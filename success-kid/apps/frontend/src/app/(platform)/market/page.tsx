@@ -4,18 +4,31 @@ import React from 'react';
 import { DashboardLayout, SectionContainer } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { useWallet } from '@/hooks/useWallet';
-import PriceOverview from '@/components/market/PriceOverview';
-import MarketChart from '@/components/market/MarketChart';
-import MilestoneTracker from '@/components/market/MilestoneTracker';
-import TransactionFeed from '@/components/market/TransactionFeed';
-import MarketStats from '@/components/market/MarketStats';
-import PortfolioAnalytics from '@/components/market/PortfolioAnalytics';
+import { 
+  MilestoneTracker, 
+  PriceChart, 
+  MarketStatistics, 
+  TransactionFeed 
+} from '@/components/features/market';
+import { useMilestoneData, useMarketData } from '@/hooks/useMarketData';
 
 /**
  * Market Page - Provides market data visualization and token information
  */
 export default function MarketPage() {
   const { isConnected, connect, isConnecting } = useWallet();
+  const { 
+    currentMarketCap, 
+    milestones, 
+    nextMilestone, 
+    isLoading: milestonesLoading 
+  } = useMilestoneData();
+  const { 
+    priceData, 
+    marketStats, 
+    transactions, 
+    isLoading: marketDataLoading 
+  } = useMarketData();
   
   const handleConnect = async () => {
     try {
@@ -59,7 +72,10 @@ export default function MarketPage() {
         title="Market Overview"
         description="Current token statistics and performance"
       >
-        <PriceOverview />
+        <MarketStatistics 
+          data={marketStats} 
+          isLoading={marketDataLoading} 
+        />
       </SectionContainer>
       
       {/* Chart Section */}
@@ -68,7 +84,10 @@ export default function MarketPage() {
         description="Historical price performance and analysis"
         className="mt-8"
       >
-        <MarketChart />
+        <PriceChart 
+          data={priceData} 
+          isLoading={marketDataLoading} 
+        />
       </SectionContainer>
       
       {/* Market Milestone Tracker */}
@@ -77,7 +96,12 @@ export default function MarketPage() {
         description="Progress toward community market cap goals"
         className="mt-8"
       >
-        <MilestoneTracker />
+        <MilestoneTracker
+          currentMarketCap={currentMarketCap}
+          milestones={milestones}
+          nextMilestone={nextMilestone}
+          isLoading={milestonesLoading}
+        />
       </SectionContainer>
       
       {/* Portfolio Analytics Section - Only shown if wallet is connected */}
@@ -87,7 +111,10 @@ export default function MarketPage() {
           description="Your personal token performance and transaction history"
           className="mt-8"
         >
-          <PortfolioAnalytics />
+          {/* We'll implement this in a separate task */}
+          <div className="p-8 border border-dashed border-neutral-200 rounded-lg text-center text-neutral-500">
+            Portfolio analytics will be displayed here
+          </div>
         </SectionContainer>
       )}
       
@@ -97,16 +124,10 @@ export default function MarketPage() {
         description="Latest token transfers and market activity"
         className="mt-8"
       >
-        <TransactionFeed />
-      </SectionContainer>
-      
-      {/* Market Statistics Section */}
-      <SectionContainer
-        title="Market Statistics"
-        description="Detailed token metrics and supply information"
-        className="mt-8"
-      >
-        <MarketStats />
+        <TransactionFeed
+          transactions={transactions}
+          isLoading={marketDataLoading}
+        />
       </SectionContainer>
     </DashboardLayout>
   );

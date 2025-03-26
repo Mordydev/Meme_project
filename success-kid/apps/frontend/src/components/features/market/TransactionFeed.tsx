@@ -1,236 +1,140 @@
 'use client';
 
-import { useState } from 'react';
+import React from 'react';
+import { GlassCard } from '@/components/ui/optimized/GlassCard';
 import { 
-  Card, 
   CardHeader, 
   CardTitle, 
-  CardContent, 
-  CardDescription, 
-  CardFooter 
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { formatCurrency, timeAgo, truncate } from '@/lib/utils';
+  CardContent
+} from '@/components/ui/optimized/glass/card-components';
 import { MarketTransaction } from '@/types';
-
-interface TransactionItemProps {
-  transaction: MarketTransaction;
-  onExpand?: (hash: string) => void;
-  isExpanded: boolean;
-}
-
-function TransactionItem({ transaction, onExpand, isExpanded }: TransactionItemProps) {
-  const { 
-    hash, 
-    type, 
-    amount, 
-    price, 
-    value, 
-    timestamp, 
-    fromAddress, 
-    toAddress, 
-    isSignificant 
-  } = transaction;
-  
-  // Format based on transaction type
-  const typeDisplay = type === 'buy' 
-    ? 'Buy' 
-    : type === 'sell' 
-      ? 'Sell' 
-      : 'Transfer';
-      
-  const typeColor = type === 'buy' 
-    ? 'text-accent-500' 
-    : type === 'sell' 
-      ? 'text-alert-500' 
-      : 'text-primary-500';
-      
-  const typeIconBg = type === 'buy' 
-    ? 'bg-accent-100' 
-    : type === 'sell' 
-      ? 'bg-alert-100' 
-      : 'bg-primary-100';
-      
-  const typeIcon = type === 'buy' 
-    ? '↑' 
-    : type === 'sell' 
-      ? '↓' 
-      : '→';
-  
-  // Format addresses
-  const shortenAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-  
-  // Format amount
-  const formattedAmount = formatCompactNumber(amount);
-  const formattedValue = value ? formatCurrency(value) : undefined;
-  
-  return (
-    <div className={`
-      border-b border-neutral-200 p-4
-      transition-all
-      ${isSignificant ? 'bg-primary-50' : ''}
-      hover:bg-neutral-50
-    `}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          {/* Transaction type icon */}
-          <div className={`
-            flex h-10 w-10 items-center justify-center rounded-full
-            ${typeIconBg} ${typeColor} text-lg font-bold
-          `}>
-            {typeIcon}
-          </div>
-          
-          {/* Transaction details */}
-          <div>
-            <div className="flex items-center">
-              <span className={`font-medium ${typeColor}`}>{typeDisplay}</span>
-              <span className="ml-2 text-sm text-neutral-500">{timeAgo(new Date(timestamp))}</span>
-            </div>
-            <div className="text-sm text-neutral-600">
-              {formattedAmount} SKC {formattedValue ? `(${formattedValue})` : ''}
-            </div>
-          </div>
-        </div>
-        
-        {/* Transaction hash/expansion */}
-        <button
-          className="text-xs text-neutral-500 underline-offset-2 hover:underline"
-          onClick={() => onExpand && onExpand(hash)}
-        >
-          {isExpanded ? 'Hide details' : 'View details'}
-        </button>
-      </div>
-      
-      {/* Expanded details */}
-      {isExpanded && (
-        <div className="mt-3 rounded-md bg-neutral-50 p-3 text-sm">
-          <div className="mb-1">
-            <span className="font-medium">Hash:</span>
-            <span className="ml-2 text-neutral-600">{shortenAddress(hash)}</span>
-          </div>
-          <div className="mb-1">
-            <span className="font-medium">From:</span>
-            <span className="ml-2 text-neutral-600">{shortenAddress(fromAddress)}</span>
-          </div>
-          <div className="mb-1">
-            <span className="font-medium">To:</span>
-            <span className="ml-2 text-neutral-600">{shortenAddress(toAddress)}</span>
-          </div>
-          {price && (
-            <div className="mb-1">
-              <span className="font-medium">Price:</span>
-              <span className="ml-2 text-neutral-600">${price.toFixed(8)}</span>
-            </div>
-          )}
-          <div>
-            <span className="font-medium">Time:</span>
-            <span className="ml-2 text-neutral-600">{new Date(timestamp).toLocaleString()}</span>
-          </div>
-          <div className="mt-2">
-            <a 
-              href={`https://solscan.io/tx/${hash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
-            >
-              View on Solscan →
-            </a>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+import { formatCurrency } from '@/lib/utils';
 
 interface TransactionFeedProps {
   transactions: MarketTransaction[];
-  isLoading?: boolean;
-  onTypeChange?: (type: string) => void;
-  onLoadMore?: () => void;
-  hasMore?: boolean;
+  isLoading: boolean;
   className?: string;
 }
 
-export function TransactionFeed({
-  transactions,
-  isLoading = false,
-  onTypeChange,
-  onLoadMore,
-  hasMore = false,
-  className = '',
-}: TransactionFeedProps) {
-  const [activeType, setActiveType] = useState('all');
-  const [expandedHash, setExpandedHash] = useState<string | null>(null);
-  
-  // Handle tab change
-  const handleTypeChange = (type: string) => {
-    setActiveType(type);
-    if (onTypeChange) {
-      onTypeChange(type);
+export function TransactionFeed({ transactions, isLoading, className = '' }: TransactionFeedProps) {
+  // Format relative time
+  const formatRelativeTime = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 60) {
+      return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
+    } else {
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) {
+        return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+      } else {
+        const diffDays = Math.floor(diffHours / 24);
+        return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+      }
     }
   };
-  
-  // Handle transaction expansion
-  const handleExpand = (hash: string) => {
-    setExpandedHash(prevHash => prevHash === hash ? null : hash);
+
+  // Format address for display
+  const formatAddress = (address: string): string => {
+    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
-  
+
+  // Determine transaction icon and color
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case 'buy':
+        return (
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success-100 text-success-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 19V5" />
+              <path d="M5 12l7-7 7 7" />
+            </svg>
+          </div>
+        );
+      case 'sell':
+        return (
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-alert-100 text-alert-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14" />
+              <path d="M19 12l-7 7-7-7" />
+            </svg>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-neutral-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 3L21 7L17 11" />
+              <path d="M21 7H13" />
+              <path d="M7 21L3 17L7 13" />
+              <path d="M3 17H11" />
+            </svg>
+          </div>
+        );
+    }
+  };
+
   return (
-    <Card className={className}>
+    <GlassCard
+      className={className}
+      gradientBackground={true}
+      borderGlow={true}
+      borderGlowIntensity="low"
+      shadowStyle="standard"
+    >
       <CardHeader className="pb-2">
-        <CardTitle>Transaction Activity</CardTitle>
-        <CardDescription>Recent transactions on the blockchain</CardDescription>
+        <CardTitle>Recent Transactions</CardTitle>
       </CardHeader>
-      
-      <Tabs value={activeType} onValueChange={handleTypeChange} className="px-6">
-        <TabsList className="grid w-full grid-cols-4 mb-2">
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="buy">Buys</TabsTrigger>
-          <TabsTrigger value="sell">Sells</TabsTrigger>
-          <TabsTrigger value="transfer">Transfers</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      
-      <CardContent className="p-0">
+      <CardContent>
         {isLoading ? (
-          <div className="space-y-4 p-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-16 animate-pulse rounded-md bg-neutral-100"></div>
+          <div className="space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex animate-pulse items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-neutral-200"></div>
+                <div className="flex-1">
+                  <div className="h-5 w-full rounded bg-neutral-200"></div>
+                  <div className="mt-1 h-4 w-2/3 rounded bg-neutral-200"></div>
+                </div>
+              </div>
             ))}
           </div>
-        ) : transactions.length === 0 ? (
-          <div className="flex h-48 items-center justify-center p-4">
-            <p className="text-neutral-500">No transactions found</p>
-          </div>
         ) : (
-          <div className="max-h-[400px] overflow-y-auto">
-            {transactions.map(transaction => (
-              <TransactionItem
-                key={transaction.hash}
-                transaction={transaction}
-                onExpand={handleExpand}
-                isExpanded={expandedHash === transaction.hash}
-              />
+          <div className="space-y-4">
+            {transactions.map((tx) => (
+              <div 
+                key={tx.hash} 
+                className={`flex items-center gap-3 rounded-lg p-3 transition-colors
+                  ${tx.isSignificant ? 'bg-primary-50' : 'hover:bg-neutral-50'}`}
+              >
+                {getTransactionIcon(tx.type)}
+                
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium capitalize">
+                      {tx.type}
+                    </div>
+                    <div className="text-sm text-neutral-500">
+                      {formatRelativeTime(tx.timestamp)}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-sm text-neutral-600">
+                    <div>
+                      {formatAddress(tx.fromAddress)} → {formatAddress(tx.toAddress)}
+                    </div>
+                    <div className="font-medium">
+                      {formatCurrency(tx.value || 0)}
+                    </div>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         )}
       </CardContent>
-      
-      <CardFooter className="justify-center border-t border-neutral-200 p-4">
-        {hasMore && (
-          <Button 
-            variant="outline" 
-            onClick={onLoadMore}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Loading...' : 'Load More'}
-          </Button>
-        )}
-      </CardFooter>
-    </Card>
+    </GlassCard>
   );
 }
