@@ -9,6 +9,19 @@ import {
   TeamMember,
 } from '@/types/competition';
 
+type ApiResponse<T> = {
+  data: T;
+};
+
+type CompetitionResponse = {
+  competitions?: CompetitionSummary[];
+  competition?: Competition;
+  success?: boolean;
+  teamId?: string;
+  teams?: Team[];
+  members?: TeamMember[];
+};
+
 /**
  * Competition store state
  */
@@ -82,11 +95,11 @@ export const useCompetitionStore = create<CompetitionState>()(
             status
           });
           
-          const response = await apiClient.get(`/api/v1/competitions?${params.toString()}`);
+          const response = await apiClient.get<CompetitionResponse>(`/api/v1/competitions?${params.toString()}`);
           
           if (response.data) {
             set({
-              competitions: response.data.competitions,
+              competitions: response.data?.competitions || [],
               isLoading: false,
             });
           }
@@ -104,11 +117,11 @@ export const useCompetitionStore = create<CompetitionState>()(
         set({ isCompetitionLoading: true, error: null });
         
         try {
-          const response = await apiClient.get(`/api/v1/competitions/${competitionId}`);
+          const response = await apiClient.get<CompetitionResponse>(`/api/v1/competitions/${competitionId}`);
           
           if (response.data) {
             set({
-              selectedCompetition: response.data.competition,
+              selectedCompetition: response.data?.competition || null,
               isCompetitionLoading: false,
             });
           }
@@ -124,9 +137,9 @@ export const useCompetitionStore = create<CompetitionState>()(
       // Join a competition
       joinCompetition: async (competitionId) => {
         try {
-          const response = await apiClient.post(`/api/v1/competitions/${competitionId}/join`);
+          const response = await apiClient.post<CompetitionResponse>(`/api/v1/competitions/${competitionId}/join`);
           
-          if (response.data && response.data.success) {
+          if (response.data && response.data?.success) {
             // Refresh competition details to update user status
             await get().fetchCompetitionDetails(competitionId);
             return true;
@@ -146,11 +159,11 @@ export const useCompetitionStore = create<CompetitionState>()(
         set({ isTeamLoading: true, error: null });
         
         try {
-          const response = await apiClient.get('/api/v1/teams');
+          const response = await apiClient.get<CompetitionResponse>('/api/v1/teams');
           
           if (response.data) {
             set({
-              userTeams: response.data.teams,
+              userTeams: response.data?.teams || [],
               isTeamLoading: false,
             });
           }
@@ -168,11 +181,11 @@ export const useCompetitionStore = create<CompetitionState>()(
         set({ isTeamLoading: true, error: null });
         
         try {
-          const response = await apiClient.get(`/api/v1/teams/${teamId}/members`);
+          const response = await apiClient.get<CompetitionResponse>(`/api/v1/teams/${teamId}/members`);
           
           if (response.data) {
             set({
-              teamMembers: response.data.members,
+              teamMembers: response.data?.members || [],
               isTeamLoading: false,
             });
           }
@@ -190,11 +203,11 @@ export const useCompetitionStore = create<CompetitionState>()(
         set({ isTeamLoading: true, error: null });
         
         try {
-          const response = await apiClient.get(`/api/v1/competitions/${competitionId}/teams`);
+          const response = await apiClient.get<CompetitionResponse>(`/api/v1/competitions/${competitionId}/teams`);
           
           if (response.data) {
             set({
-              teamRankings: response.data.teams,
+              teamRankings: response.data?.teams || [],
               isTeamLoading: false,
             });
           }
@@ -210,7 +223,7 @@ export const useCompetitionStore = create<CompetitionState>()(
       // Create a new team
       createTeam: async (name, description, competitionId, invitedMembers) => {
         try {
-          const response = await apiClient.post('/api/v1/teams', {
+          const response = await apiClient.post<CompetitionResponse>('/api/v1/teams', {
             data: {
               name,
               description,
@@ -219,10 +232,10 @@ export const useCompetitionStore = create<CompetitionState>()(
             }
           });
           
-          if (response.data && response.data.teamId) {
+          if (response.data && response.data?.teamId) {
             // Refresh user teams
             await get().fetchUserTeams();
-            return response.data.teamId;
+            return response.data?.teamId || null;
           }
           return null;
         } catch (error) {
@@ -237,13 +250,13 @@ export const useCompetitionStore = create<CompetitionState>()(
       // Join a team using invite code
       joinTeam: async (inviteCode) => {
         try {
-          const response = await apiClient.post('/api/v1/teams/join', {
+          const response = await apiClient.post<CompetitionResponse>('/api/v1/teams/join', {
             data: {
               inviteCode
             }
           });
           
-          if (response.data && response.data.success) {
+          if (response.data && response.data?.success) {
             // Refresh user teams
             await get().fetchUserTeams();
             return true;

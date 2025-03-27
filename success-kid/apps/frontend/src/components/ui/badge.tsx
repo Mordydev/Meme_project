@@ -6,7 +6,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info';
+export type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
 type BadgeSize = 'sm' | 'md' | 'lg';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -57,7 +57,8 @@ export function Badge({
     success: 'bg-accent-500 text-white',
     warning: 'bg-secondary-500 text-black',
     danger: 'bg-alert-500 text-white',
-    info: 'bg-primary-300 text-primary-900'
+    info: 'bg-primary-300 text-primary-900',
+    outline: 'bg-transparent border border-neutral-200 text-neutral-700'
   }[variant];
   
   // Get size styles

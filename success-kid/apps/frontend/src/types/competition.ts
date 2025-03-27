@@ -37,6 +37,7 @@ export interface ParticipantProgress {
   displayName: string;
   avatarUrl?: string;
   score: number;
+  rank: number;
   progress: Record<string, number>; // Objective ID -> progress
 }
 
@@ -70,6 +71,7 @@ export interface Competition extends CompetitionSummary {
   leaderboard?: ParticipantProgress[];
   userProgress?: {
     isParticipating: boolean;
+    userId?: string;
     currentRank?: number;
     score?: number;
     progress?: Record<string, number>;

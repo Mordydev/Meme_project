@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { PointsDisplay } from './PointsDisplay';
+import { PointsDisplay } from './points/PointsDisplay';
 import { useEffect, useState } from 'react';
 
 const meta: Meta<typeof PointsDisplay> = {
@@ -9,36 +9,27 @@ const meta: Meta<typeof PointsDisplay> = {
   parameters: {
     docs: {
       description: {
-        component: 'A component to display the user\'s Success Points balance with animation effects when the balance changes.'
+        component: 'A component to display the user\'s Success Points total with animation effects when the points amount changes.'
       }
     }
   },
   argTypes: {
-    balance: { 
+    points: { 
       control: { type: 'number' },
-      description: 'The current points balance'
+      description: 'The current points amount'
     },
-    initialBalance: { 
-      control: { type: 'number' },
-      description: 'Optional initial balance for animation purposes'
-    },
-    showLabel: { 
-      control: 'boolean',
-      description: 'Whether to show the "SP" label after the balance'
-    },
-    size: { 
-      control: 'select',
-      options: ['sm', 'md', 'lg'],
-      description: 'The size of the component'
+    label: { 
+      control: 'text',
+      description: 'Optional label text'
     },
     variant: { 
       control: 'select',
-      options: ['default', 'minimal', 'detailed'],
+      options: ['default', 'compact', 'highlight'],
       description: 'The visual style of the component'
     },
-    onBalanceClick: { 
-      action: 'balanceClicked',
-      description: 'Function called when the balance is clicked'
+    animated: {
+      control: 'boolean',
+      description: 'Whether to animate points on mount and update'
     }
   }
 };
@@ -48,77 +39,70 @@ type Story = StoryObj<typeof PointsDisplay>;
 
 export const Default: Story = {
   args: {
-    balance: 1250,
-    showLabel: true,
-    size: 'md',
-    variant: 'default'
+    points: 1250,
+    label: 'Success Points',
+    variant: 'default',
+    animated: true
   }
 };
 
-export const Minimal: Story = {
+export const Compact: Story = {
   args: {
-    balance: 1250,
-    showLabel: true,
-    size: 'md',
-    variant: 'minimal'
+    points: 1250,
+    label: 'Success Points',
+    variant: 'compact',
+    animated: true
   }
 };
 
-export const Detailed: Story = {
+export const Highlight: Story = {
   args: {
-    balance: 1250,
-    showLabel: true,
-    size: 'md',
-    variant: 'detailed'
+    points: 1250,
+    label: 'Success Points',
+    variant: 'highlight',
+    animated: true
   }
 };
 
-export const Small: Story = {
+export const StaticWithoutAnimation: Story = {
   args: {
-    balance: 1250,
-    showLabel: true,
-    size: 'sm',
-    variant: 'default'
+    points: 1250,
+    label: 'Success Points',
+    variant: 'default',
+    animated: false
   }
 };
 
-export const Large: Story = {
-  args: {
-    balance: 1250,
-    showLabel: true,
-    size: 'lg',
-    variant: 'default'
-  }
-};
+// No direct equivalent for Large in the current implementation
 
 // Interactive animation example
 const AnimatedPointsTemplate: Story = {
-  render: (args) => {
+  render: (args: any) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [balance, setBalance] = useState(args.balance);
+    const [points, setPoints] = useState(args.points);
     
     return (
       <div className="space-y-4">
         <PointsDisplay 
           {...args} 
-          balance={balance} 
+          points={points} 
         />
         <div className="flex gap-2">
           <button 
             className="px-3 py-1 bg-primary text-white rounded"
-            onClick={() => setBalance(prev => prev + 50)}
+            onClick={() => setPoints((prev: number) => prev + 50)}
           >
             +50 Points
           </button>
           <button 
             className="px-3 py-1 bg-primary text-white rounded"
-            onClick={() => setBalance(prev => prev + 500)}
+            onClick={() => setPoints((prev: number) => prev + 500)}
           >
             +500 Points
           </button>
           <button 
             className="px-3 py-1 bg-accent text-white rounded"
-            onClick={() => setBalance(prev => prev - 100)}
+            onClick={() => setPoints((prev: number) => prev - 100)}
           >
             -100 Points
           </button>
@@ -127,10 +111,10 @@ const AnimatedPointsTemplate: Story = {
     );
   },
   args: {
-    balance: 1000,
-    showLabel: true,
-    size: 'md',
-    variant: 'default'
+    points: 1000,
+    label: 'Success Points',
+    variant: 'default',
+    animated: true
   }
 };
 

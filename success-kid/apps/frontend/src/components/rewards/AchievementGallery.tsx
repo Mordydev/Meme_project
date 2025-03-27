@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -140,7 +140,8 @@ export function AchievementGallery({
   };
   
   // Generate achievements data if needed
-  const achievementsData = generateMockAchievements();
+  // Use useMemo to prevent regenerating on every render
+  const achievementsData = React.useMemo(() => generateMockAchievements(), [achievements]);
   
   // Apply filters when tab or search changes
   useEffect(() => {
@@ -198,17 +199,15 @@ export function AchievementGallery({
   };
   
   // Calculate overall achievement progress
-  const calculateOverallProgress = () => {
+  const overallProgress = useMemo(() => {
     if (!achievementsData.length) return 0;
     
     const unlockedCount = achievementsData.filter(a => a.isUnlocked).length;
     return Math.round((unlockedCount / achievementsData.length) * 100);
-  };
-  
-  const overallProgress = calculateOverallProgress();
+  }, [achievementsData]);
   
   // Calculate category progress
-  const calculateCategoryProgress = () => {
+  const categoryProgress = useMemo(() => {
     if (!achievementsData.length) return {};
     
     const categories = [...new Set(achievementsData.map(a => a.category))];
@@ -227,9 +226,7 @@ export function AchievementGallery({
         }
       };
     }, {});
-  };
-  
-  const categoryProgress = calculateCategoryProgress();
+  }, [achievementsData]);
   
   // Animation variants
   const containerVariants = {

@@ -344,7 +344,7 @@ export const CompetitionDetail: React.FC<CompetitionDetailProps> = ({
                         key={participant.userId}
                         className={cn(
                           "p-3 rounded-lg flex items-center",
-                          participant.userId === userProgress?.isParticipating
+                          userProgress?.isParticipating && participant.userId === userProgress.userId
                             ? "bg-primary/10 border border-primary/30"
                             : "bg-neutral-50 border border-neutral-200"
                         )}

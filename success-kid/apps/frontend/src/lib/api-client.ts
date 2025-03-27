@@ -2,6 +2,21 @@
  * API Client for making HTTP requests
  */
 
+/**
+ * Custom error class for API errors
+ */
+export class AppError extends Error {
+  status: number;
+  code?: string;
+  
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'AppError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 // In a real implementation, this would be a proper API client like Axios or fetch wrapper
 export const apiClient = {
   /**

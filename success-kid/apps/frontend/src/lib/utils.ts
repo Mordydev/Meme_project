@@ -54,6 +54,23 @@ export function formatCurrency(num: number, currencyCode = 'USD'): string {
  * @param date The date to format
  * @returns Formatted relative time string
  */
+/**
+ * Format a date to a readable string format
+ * @param date The date to format (string or Date)
+ * @returns Formatted date string
+ */
+export function formatDate(date: string | Date): string {
+  if (!date) return '';
+  
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  }).format(dateObj);
+}
+
 export function timeAgo(date: Date): string {
   const now = new Date();
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);

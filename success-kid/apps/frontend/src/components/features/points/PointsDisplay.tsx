@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn, formatCompactNumber } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
-interface PointsDisplayProps {
+export interface PointsDisplayProps {
   points: number;
   label?: string;
   className?: string;
