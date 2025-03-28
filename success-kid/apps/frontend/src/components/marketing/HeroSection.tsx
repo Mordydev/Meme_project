@@ -4,11 +4,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { auth } from '@clerk/nextjs';
+import { useAuth } from '@clerk/nextjs';
 
 const HeroSection = () => {
-  const { userId } = auth();
-  const isSignedIn = !!userId;
+  const { userId, isSignedIn } = useAuth();
 
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-primary to-purple-800 text-white py-16 md:py-24 lg:py-32">

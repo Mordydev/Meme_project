@@ -13,9 +13,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function MarketingPage() {
+export default function HomePage() {
   return (
-    <>
+    <div className="marketing-layout">
       {/* Hero Section */}
       <HeroSection />
       
@@ -30,6 +30,6 @@ export default function MarketingPage() {
       
       {/* Call to Action Section */}
       <CtaSection />
-    </>
+    </div>
   );
 }

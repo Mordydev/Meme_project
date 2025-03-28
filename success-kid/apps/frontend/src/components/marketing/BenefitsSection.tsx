@@ -95,7 +95,7 @@ const BenefitsSection = () => {
         </svg>
       ),
       title: 'Simple Wallet Integration',
-      description: 'Connect your wallet with ease and start participating in the token economy. No technical expertise required – we've made crypto simple.',
+      description: 'Connect your wallet with ease and start participating in the token economy. No technical expertise required - we\'ve made crypto simple.',
     },
   ];
 

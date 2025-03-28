@@ -4,14 +4,13 @@ import Link from 'next/link';
 import { useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { auth } from '@clerk/nextjs';
+import { useAuth } from '@clerk/nextjs';
 
 const CtaSection = () => {
   const sectionRef = useRef(null);
   const isInView = useInView(sectionRef, { once: true, amount: 0.3 });
   
-  const { userId } = auth();
-  const isSignedIn = !!userId;
+  const { isSignedIn } = useAuth();
 
   return (
     <section 
