@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { redisClient } from '../lib/redis-client';
+import { redisClient } from '../lib/redis/client'; // Updated import path
 import { logger } from '../lib/logger';
 
 /**
@@ -54,16 +54,17 @@ export class SessionService {
         expiresAt: new Date(Date.now() + ttl * 1000),
         lastActiveAt: new Date()
       };
-      
-      // Store session in Redis
-      await redisClient.set(
+
+      // Store session in Redis using the client instance
+      await redisClient.getClient().set(
         `session:${session.id}`,
         JSON.stringify(session),
+        'EX', // Specify expiry mode
         ttl
       );
-      
-      // Add session ID to user's sessions set
-      await redisClient.sadd(`user:${userId}:sessions`, session.id);
+
+      // Add session ID to user's sessions set using the client instance
+      await redisClient.getClient().sadd(`user:${userId}:sessions`, session.id);
       
       return session;
     } catch (error) {
@@ -77,7 +78,7 @@ export class SessionService {
    */
   async getSession(sessionId: string): Promise<Session | null> {
     try {
-      const sessionJson = await redisClient.get(`session:${sessionId}`);
+      const sessionJson = await redisClient.getClient().get(`session:${sessionId}`);
       
       if (!sessionJson) {
         return null;
@@ -122,11 +123,11 @@ export class SessionService {
       // Calculate remaining TTL
       const expiryMs = new Date(session.expiresAt).getTime() - Date.now();
       const ttl = Math.max(Math.floor(expiryMs / 1000), 0);
-      
-      // Update session in Redis
-      await redisClient.set(
+      // Update session in Redis using the client instance
+      await redisClient.getClient().set(
         `session:${sessionId}`,
         JSON.stringify(session),
+        'EX', // Specify expiry mode
         ttl
       );
     } catch (error) {
@@ -150,11 +151,11 @@ export class SessionService {
       
       // Update expiration date
       session.expiresAt = new Date(Date.now() + ttl * 1000);
-      
-      // Update session in Redis
-      await redisClient.set(
+      // Update session in Redis using the client instance
+      await redisClient.getClient().set(
         `session:${sessionId}`,
         JSON.stringify(session),
+        'EX', // Specify expiry mode
         ttl
       );
       
@@ -171,16 +172,15 @@ export class SessionService {
   async revokeSession(sessionId: string): Promise<void> {
     try {
       const session = await this.getSession(sessionId);
-      
       if (session) {
-        // Remove session from Redis
-        await redisClient.del(`session:${sessionId}`);
-        
-        // Remove session ID from user's sessions set
-        await redisClient.srem(`user:${session.userId}:sessions`, sessionId);
-        
-        // Publish session revocation event for real-time invalidation
-        await redisClient.publish('session:revoked', sessionId);
+        // Remove session from Redis using the client instance
+        await redisClient.getClient().del(`session:${sessionId}`);
+
+        // Remove session ID from user's sessions set using the client instance
+        await redisClient.getClient().srem(`user:${session.userId}:sessions`, sessionId);
+
+        // Publish session revocation event using the client instance
+        await redisClient.getClient().publish('session:revoked', sessionId);
         
         logger.info('Session revoked', { sessionId, userId: session.userId });
       }
@@ -194,7 +194,7 @@ export class SessionService {
    */
   async getUserSessions(userId: string): Promise<Session[]> {
     try {
-      const sessionIds = await redisClient.smembers(`user:${userId}:sessions`);
+      const sessionIds = await redisClient.getClient().smembers(`user:${userId}:sessions`);
       const sessions: Session[] = [];
       
       for (const sessionId of sessionIds) {
@@ -217,7 +217,7 @@ export class SessionService {
    */
   async revokeAllUserSessions(userId: string, exceptSessionId?: string): Promise<void> {
     try {
-      const sessionIds = await redisClient.smembers(`user:${userId}:sessions`);
+      const sessionIds = await redisClient.getClient().smembers(`user:${userId}:sessions`);
       
       for (const sessionId of sessionIds) {
         if (exceptSessionId && sessionId === exceptSessionId) {

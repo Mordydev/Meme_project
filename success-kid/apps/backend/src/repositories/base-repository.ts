@@ -1,364 +1,320 @@
-/**
- * Base Repository
- * 
- * Abstract base class for database repositories, providing common CRUD operations
- * and transaction management. All entity-specific repositories should extend this class.
- */
-import { Pool, PoolClient, QueryConfig, QueryResult } from 'pg';
-import { v4 as uuidv4 } from 'uuid';
-import { DatabaseError } from '../errors';
-import { logger } from '../lib/logger';
+import { SQL, eq, and, desc, asc, count as drizzleCount } from 'drizzle-orm';
+import { PgTable, PgColumn, PgTransaction } from 'drizzle-orm/pg-core'; // Import PgTransaction
+import { NodePgQueryResultHKT } from 'drizzle-orm/node-postgres'; // Import specific HKT if needed, adjust based on driver
+import { ExtractTablesWithRelations } from 'drizzle-orm';
+import { db } from '../database'; // Assuming db client from ../database/index.ts
+import { schema } from '../database/schema'; // Import the combined schema
+import { Logger } from 'pino'; // Assuming pino logger
 
-/**
- * Query options for repository methods
- */
-export interface QueryOptions {
-  filter?: Record<string, any>;
-  orderBy?: string;
+// Placeholder for logger import (adjust path as needed)
+let logger: Logger;
+try {
+  const loggerModule = require('../lib/logger.js'); // Using require for CommonJS
+  logger = loggerModule.logger;
+} catch (e) {
+  console.warn("Logger module not found at '../lib/logger.js', using console.", e);
+  logger = console as any;
+}
+
+// Interface for query options, including filtering, sorting, and pagination
+export interface QueryOptions<T> {
+  filter?: Partial<T>;
+  orderBy?: keyof T;
   orderDir?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
 }
 
-/**
- * Base repository interface
- */
-export interface IBaseRepository<T, ID = string> {
-  findById(id: ID): Promise<T | null>;
-  findOne(filter: Partial<T>): Promise<T | null>;
-  findAll(options?: QueryOptions): Promise<T[]>;
-  create(data: Omit<T, 'id'>): Promise<T>;
-  update(id: ID, data: Partial<T>): Promise<T | null>;
-  delete(id: ID): Promise<boolean>;
-  count(filter?: Partial<T>): Promise<number>;
-}
-
-/**
- * Abstract base repository implementation
- */
-export abstract class BaseRepository<T, ID = string> implements IBaseRepository<T, ID> {
+// Abstract base class for repositories
+export abstract class BaseRepository<
+    TEntity, // The entity type (e.g., User, Content) - Maps to the select model
+    TTable extends PgTable, // The Drizzle table schema (e.g., typeof users)
+    TInsertSchema = typeof TTable.$inferInsert // Infer the insert type
+> {
   /**
-   * Constructor
-   * 
-   * @param db Database connection pool
-   * @param tableName Name of the database table
-   * @param idColumn Name of the ID column (defaults to 'id')
+   * Constructor for the BaseRepository.
+   * @param table The Drizzle table schema instance.
+   * @param idColumn The primary key column of the table.
+   * @param columns Optional mapping of entity keys to table columns for filtering/sorting.
    */
   constructor(
-    protected readonly db: Pool,
-    protected readonly tableName: string,
-    protected readonly idColumn: string = 'id'
+    protected readonly table: TTable,
+    protected readonly idColumn: PgColumn, // Specify that idColumn is a PgColumn
+    protected readonly columns?: Record<string, PgColumn> // Keep columns optional
   ) {}
 
   /**
-   * Find an entity by ID
-   * 
-   * @param id Entity ID
-   * @returns Entity or null if not found
+   * Finds a single entity by its primary key ID.
+   * @param id The ID of the entity to find.
+   * @returns The entity if found, otherwise null.
    */
-  async findById(id: ID): Promise<T | null> {
+  async findById(id: string | number): Promise<TEntity | null> { // Allow number IDs too
     try {
-      const query = `SELECT * FROM ${this.tableName} WHERE ${this.idColumn} = $1`;
-      const result = await this.db.query<T>(query, [id]);
-      
-      return result.rows.length > 0 ? this.mapToEntity(result.rows[0]) : null;
+      // Use 'any' for the column type in eq() if idColumn type is complex
+      // Add 'as any' to from() if type errors persist
+      const result = await db
+        .select()
+        .from(this.table as any)
+        .where(eq(this.idColumn as any, id))
+        .limit(1);
+
+      return result.length > 0 ? this.mapToEntity(result[0]) : null;
     } catch (error) {
-      logger.error(`Error in ${this.tableName}.findById:`, { error, id });
-      throw new DatabaseError(`Failed to find ${this.tableName} by ID`, error);
+      this.logError('findById', error, { id });
+      throw this.wrapError('Failed to find entity by ID', error);
     }
   }
 
   /**
-   * Find a single entity by filter criteria
-   * 
-   * @param filter Filter criteria
-   * @returns Entity or null if not found
+   * Finds multiple entities based on query options (filtering, sorting, pagination).
+   * @param options Query options including filter, orderBy, orderDir, limit, offset.
+   * @returns An array of found entities.
    */
-  async findOne(filter: Partial<T>): Promise<T | null> {
+  async findMany(options: QueryOptions<TEntity> = {}): Promise<TEntity[]> {
     try {
-      const { text, values } = this.buildWhereClause(filter);
-      
-      const query = `SELECT * FROM ${this.tableName} ${text} LIMIT 1`;
-      const result = await this.db.query<T>(query, values);
-      
-      return result.rows.length > 0 ? this.mapToEntity(result.rows[0]) : null;
-    } catch (error) {
-      logger.error(`Error in ${this.tableName}.findOne:`, { error, filter });
-      throw new DatabaseError(`Failed to find ${this.tableName} with filter`, error);
-    }
-  }
+      const { filter = {}, orderBy, orderDir = 'desc', limit, offset } = options;
 
-  /**
-   * Find all entities with optional filtering and pagination
-   * 
-   * @param options Query options for filtering, sorting, and pagination
-   * @returns Array of entities
-   */
-  async findAll(options?: QueryOptions): Promise<T[]> {
-    try {
-      const { text, values } = this.buildQuery(options);
-      
-      const result = await this.db.query<T>(text, values);
-      return result.rows.map(row => this.mapToEntity(row));
-    } catch (error) {
-      logger.error(`Error in ${this.tableName}.findAll:`, { error, options });
-      throw new DatabaseError(`Failed to find all ${this.tableName}`, error);
-    }
-  }
+      // Start building the query
+      // Add 'as any' to from() if type errors persist
+      let query = db.select().from(this.table as any) as any; // Use 'as any' to allow dynamic query building
 
-  /**
-   * Create a new entity
-   * 
-   * @param data Entity data
-   * @returns Created entity
-   */
-  async create(data: Omit<T, 'id'>): Promise<T> {
-    try {
-      // Generate ID if not provided
-      const entityData: any = {
-        id: uuidv4(),
-        ...data,
-      };
-      
-      // Extract columns and values
-      const columns = Object.keys(entityData);
-      const values = Object.values(entityData);
-      
-      // Build parameterized query
-      const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-      const columnNames = columns.join(', ');
-      
-      const query = `
-        INSERT INTO ${this.tableName} (${columnNames})
-        VALUES (${placeholders})
-        RETURNING *
-      `;
-      
-      const result = await this.db.query<T>(query, values);
-      return this.mapToEntity(result.rows[0]);
-    } catch (error) {
-      logger.error(`Error in ${this.tableName}.create:`, { error, data });
-      throw new DatabaseError(`Failed to create ${this.tableName}`, error);
-    }
-  }
-
-  /**
-   * Update an entity
-   * 
-   * @param id Entity ID
-   * @param data Entity data to update
-   * @returns Updated entity or null if not found
-   */
-  async update(id: ID, data: Partial<T>): Promise<T | null> {
-    try {
-      // Extract columns and values for UPDATE
-      const entries = Object.entries(data);
-      
-      // Skip update if no data provided
-      if (entries.length === 0) {
-        return this.findById(id);
+      // Apply filters
+      const conditions = this.buildFilterConditions(filter);
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
-      
-      // Build SET clause
-      const setClauses = entries.map((entry, i) => `${entry[0]} = $${i + 2}`);
-      const setClause = setClauses.join(', ');
-      
-      // Build query
-      const query = `
-        UPDATE ${this.tableName}
-        SET ${setClause}
-        WHERE ${this.idColumn} = $1
-        RETURNING *
-      `;
-      
-      // Build values array
-      const values = [id, ...entries.map(entry => entry[1])];
-      
-      const result = await this.db.query<T>(query, values);
-      return result.rows.length > 0 ? this.mapToEntity(result.rows[0]) : null;
-    } catch (error) {
-      logger.error(`Error in ${this.tableName}.update:`, { error, id, data });
-      throw new DatabaseError(`Failed to update ${this.tableName}`, error);
-    }
-  }
 
-  /**
-   * Delete an entity
-   * 
-   * @param id Entity ID
-   * @returns True if entity was deleted, false if not found
-   */
-  async delete(id: ID): Promise<boolean> {
-    try {
-      const query = `DELETE FROM ${this.tableName} WHERE ${this.idColumn} = $1`;
-      const result = await this.db.query(query, [id]);
-      
-      return result.rowCount > 0;
-    } catch (error) {
-      logger.error(`Error in ${this.tableName}.delete:`, { error, id });
-      throw new DatabaseError(`Failed to delete ${this.tableName}`, error);
-    }
-  }
-
-  /**
-   * Count entities with optional filter
-   * 
-   * @param filter Optional filter criteria
-   * @returns Number of entities
-   */
-  async count(filter?: Partial<T>): Promise<number> {
-    try {
-      let query = `SELECT COUNT(*) FROM ${this.tableName}`;
-      const values: any[] = [];
-      
-      // Apply filter if provided
-      if (filter && Object.keys(filter).length > 0) {
-        const whereClause = this.buildWhereClause(filter);
-        query += ` ${whereClause.text}`;
-        values.push(...whereClause.values);
-      }
-      
-      const result = await this.db.query<{ count: string }>(query, values);
-      return parseInt(result.rows[0].count, 10);
-    } catch (error) {
-      logger.error(`Error in ${this.tableName}.count:`, { error, filter });
-      throw new DatabaseError(`Failed to count ${this.tableName}`, error);
-    }
-  }
-
-  /**
-   * Execute a raw SQL query
-   * 
-   * @param text SQL query text
-   * @param values Query parameters
-   * @returns Query result
-   */
-  protected async query<R>(text: string, values: any[] = []): Promise<QueryResult<R>> {
-    try {
-      return await this.db.query<R>(text, values);
-    } catch (error) {
-      logger.error(`Error executing query on ${this.tableName}:`, { error, text, values });
-      throw new DatabaseError(`Query execution failed for ${this.tableName}`, error);
-    }
-  }
-
-  /**
-   * Execute a function within a database transaction
-   * 
-   * @param callback Function to execute within the transaction
-   * @returns Result of the callback function
-   */
-  protected async withTransaction<R>(callback: (client: PoolClient) => Promise<R>): Promise<R> {
-    const client = await this.db.connect();
-    
-    try {
-      await client.query('BEGIN');
-      const result = await callback(client);
-      await client.query('COMMIT');
-      
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      logger.error(`Transaction failed in ${this.tableName}:`, { error });
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  /**
-   * Build a parameterized SQL query with optional filtering, sorting, and pagination
-   * 
-   * @param options Query options
-   * @returns Query object with text and parameter values
-   */
-  protected buildQuery(options?: QueryOptions): QueryConfig {
-    const parts: string[] = [`SELECT * FROM ${this.tableName}`];
-    const values: any[] = [];
-    let paramIndex = 1;
-    
-    // Add WHERE clauses if filter provided
-    if (options?.filter && Object.keys(options.filter).length > 0) {
-      const whereConditions: string[] = [];
-      
-      Object.entries(options.filter).forEach(([key, value]) => {
-        values.push(value);
-        whereConditions.push(`${key} = $${paramIndex++}`);
-      });
-      
-      parts.push(`WHERE ${whereConditions.join(' AND ')}`);
-    }
-    
-    // Add ORDER BY if specified
-    if (options?.orderBy) {
-      const direction = options.orderDir === 'desc' ? 'DESC' : 'ASC';
-      parts.push(`ORDER BY ${options.orderBy} ${direction}`);
-    } else {
-      // Default ordering by created_at if exists
-      const hasCreatedAt = this.createdAtColumn !== null;
-      if (hasCreatedAt) {
-        parts.push(`ORDER BY ${this.createdAtColumn} DESC`);
-      }
-    }
-    
-    // Add LIMIT and OFFSET if specified
-    if (options?.limit) {
-      values.push(options.limit);
-      parts.push(`LIMIT $${paramIndex++}`);
-      
-      if (options.offset) {
-        values.push(options.offset);
-        parts.push(`OFFSET $${paramIndex++}`);
-      }
-    }
-    
-    return {
-      text: parts.join(' '),
-      values
-    };
-  }
-
-  /**
-   * Build a WHERE clause from filter criteria
-   * 
-   * @param filter Filter criteria
-   * @returns WHERE clause text and parameter values
-   */
-  protected buildWhereClause(filter: Record<string, any>): { text: string; values: any[] } {
-    const conditions: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
-    
-    Object.entries(filter).forEach(([key, value]) => {
-      if (value === null) {
-        conditions.push(`${key} IS NULL`);
+      // Apply sorting
+      if (orderBy) {
+        // Use the mapped column (with optional chaining) or fallback to access via table._.columns
+        const sortColumn = this.columns?.[orderBy as string] || this.table._.columns[orderBy as string];
+        if (sortColumn) {
+            if (orderDir === 'asc') {
+                query = query.orderBy(asc(sortColumn));
+            } else {
+                query = query.orderBy(desc(sortColumn));
+            }
+        } else {
+            logger.warn(`OrderBy column '${String(orderBy)}' not found in table or column map.`);
+        }
       } else {
-        values.push(value);
-        conditions.push(`${key} = $${paramIndex++}`);
+          // Default sort by ID if no orderBy specified
+          query = query.orderBy(desc(this.idColumn));
       }
+
+      // Apply pagination
+      if (limit !== undefined) {
+        query = query.limit(limit);
+      }
+      if (offset !== undefined) {
+        query = query.offset(offset);
+      }
+
+      // Execute query
+      const results = await query;
+
+      // Map results to entities
+      return results.map((result: any) => this.mapToEntity(result));
+    } catch (error) {
+      this.logError('findMany', error, { options });
+      throw this.wrapError('Failed to find entities', error);
+    }
+  }
+
+  /**
+   * Creates a new entity in the database.
+   * @param data The data for the new entity, conforming to the insert schema.
+   * @returns The newly created entity.
+   */
+  async create(data: TInsertSchema): Promise<TEntity> {
+    try {
+      // mapToDatabase might not be needed if TInsertSchema is used directly
+      const results = await db
+        .insert(this.table)
+        .values(data as any) // Use 'as any' for now if TInsertSchema causes issues
+        .returning(); // Return the full inserted record
+
+      // Handle potential empty result from returning()
+      const result = results[0];
+
+      if (!result) {
+          throw new Error('Entity creation failed, no result returned.');
+      }
+      return this.mapToEntity(result);
+    } catch (error) {
+      this.logError('create', error, { data });
+      throw this.wrapError('Failed to create entity', error);
+    }
+  }
+
+  /**
+   * Updates an existing entity by its ID.
+   * @param id The ID of the entity to update.
+   * @param data The partial data containing updates, conforming to the insert schema.
+   * @returns The updated entity if found and updated, otherwise null.
+   */
+  async update(id: string | number, data: Partial<TInsertSchema>): Promise<TEntity | null> {
+    try {
+      // mapToDatabase might not be needed if TInsertSchema is used directly
+      // Remove undefined values to avoid setting columns to null unintentionally
+      const updateData = { ...data }; // Clone to avoid modifying original
+      Object.keys(updateData).forEach(key => updateData[key as keyof TInsertSchema] === undefined && delete updateData[key as keyof TInsertSchema]);
+
+      // Check if there's anything to update after removing undefined keys
+      if (Object.keys(updateData).length === 0) { // Fix: Check updateData, not dbData
+          logger.warn('Update called with no data to update', { id });
+          return this.findById(id); // Return current entity if no changes
+      }
+
+      const results = await db
+        .update(this.table)
+        .set(updateData as any) // Use 'as any' for now if Partial<TInsertSchema> causes issues
+        .where(eq(this.idColumn as any, id))
+        .returning();
+
+      // returning() returns an array, handle the case where it might be empty
+      // Explicitly check if it's an array and has elements
+      return Array.isArray(results) && results.length > 0 ? this.mapToEntity(results[0]) : null;
+    } catch (error) {
+      this.logError('update', error, { id, data });
+      throw this.wrapError('Failed to update entity', error);
+    }
+  }
+
+  /**
+   * Deletes an entity by its ID.
+   * @param id The ID of the entity to delete.
+   * @returns True if an entity was deleted, false otherwise.
+   */
+  async delete(id: string | number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(this.table)
+        .where(eq(this.idColumn as any, id))
+        .returning({ id: this.idColumn }); // Return the ID of the deleted row
+
+      return result.length > 0;
+    } catch (error) {
+      this.logError('delete', error, { id });
+      throw this.wrapError('Failed to delete entity', error);
+    }
+  }
+
+  /**
+   * Executes a callback within a database transaction.
+   * @param callback The function to execute within the transaction. It receives a PgTransaction instance.
+   * @returns The result of the callback function.
+   */
+  // Correct the transaction callback signature - use the imported 'schema'
+  async transaction<R>(
+      callback: (
+          tx: PgTransaction<NodePgQueryResultHKT, typeof schema, ExtractTablesWithRelations<typeof schema>>
+      ) => Promise<R>
+  ): Promise<R> {
+      // The schema context is usually inferred if the 'db' instance was created with it.
+      // Removed the explicit schema option as it caused errors.
+      return db.transaction(callback);
+  }
+
+  /**
+   * Counts the total number of entities, optionally applying filters.
+   * @param filter Optional filter criteria.
+   * @returns The total count of matching entities.
+   */
+  async count(filter: Partial<TEntity> = {}): Promise<number> {
+    try {
+      // Start building the count query
+      // Add 'as any' to from() if type errors persist
+      let query = db.select({ value: drizzleCount() }).from(this.table as any) as any;
+
+      // Apply filters
+      const conditions = this.buildFilterConditions(filter);
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+
+      const result = await query;
+      return Number(result[0]?.value || 0);
+    } catch (error) {
+      this.logError('count', error, { filter });
+      throw this.wrapError('Failed to count entities', error);
+    }
+  }
+
+  /**
+   * Builds an array of Drizzle SQL conditions based on a filter object.
+   * @param filter The filter object.
+   * @returns An array of SQL conditions.
+   */
+  protected buildFilterConditions(filter: Partial<TEntity>): SQL[] {
+    const conditions: SQL[] = [];
+    for (const [key, value] of Object.entries(filter)) {
+        if (value !== undefined) {
+            // Use mapped column (with optional chaining) or fallback to access via table._.columns directly with string key
+            const column = this.columns?.[key] || this.table._.columns[key];
+            if (column) {
+                conditions.push(eq(column, value));
+            } else {
+                 logger.warn(`Filter key '${key}' not found in table or column map.`);
+            }
+        }
+    }
+    return conditions;
+  }
+
+  /**
+   * Logs an error message with context.
+   * @param method The name of the repository method where the error occurred.
+   * @param error The error object.
+   * @param context Additional context for logging.
+   */
+  protected logError(method: string, error: any, context?: Record<string, any>): void {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Error in ${this.constructor.name}.${method}`, {
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      ...context
     });
-    
-    const text = conditions.length > 0 
-      ? `WHERE ${conditions.join(' AND ')}` 
-      : '';
-    
-    return { text, values };
   }
 
   /**
-   * Convert a database row to an entity object
-   * Must be implemented by derived classes
-   * 
-   * @param row Database row
-   * @returns Entity instance
+   * Wraps an error with a more specific message.
+   * @param message The wrapping message.
+   * @param error The original error.
+   * @returns A new Error object.
    */
-  protected abstract mapToEntity(row: Record<string, any>): T;
+  protected wrapError(message: string, error: any): Error {
+    const originalMessage = error instanceof Error ? error.message : String(error);
+    const newError = new Error(`${message}: ${originalMessage}`);
+    // Preserve stack trace if possible
+    if (error instanceof Error) {
+        newError.stack = error.stack;
+    }
+    return newError;
+  }
 
   /**
-   * Get the name of the created_at column (for sorting)
-   * Can be overridden by subclasses if different
+   * Abstract method to map a raw database record to the entity type.
+   * Must be implemented by concrete repository classes.
+   * @param record The raw database record.
+   * @returns The mapped entity.
    */
-  protected get createdAtColumn(): string | null {
-    return 'created_at';
-  }
+  protected abstract mapToEntity(record: Record<string, any>): TEntity;
+
+  /**
+   * Maps an entity object to a format suitable for database insertion/update.
+   * Default implementation assumes entity keys match database column names.
+   * Override in concrete classes if mapping is needed (e.g., camelCase to snake_case),
+   * Maps an entity object to a format suitable for database insertion/update.
+   * Default implementation assumes entity keys match database column names.
+   * Override in concrete classes if mapping is needed (e.g., camelCase to snake_case),
+   * ensuring the return type matches the expected insert/update schema.
+   * @param entity The partial entity object.
+   * @returns A record suitable for Drizzle's values() or set().
+   */
+   // Removing this for now to simplify and rely on TInsertSchema type inference
+  // protected mapToDatabase(entity: Partial<TEntity | TInsertSchema>): Record<string, any> {
+  //   // Default: return entity as is. Override if needed.
+  //   return entity as Record<string, any>;
+  // }
 }

@@ -1,132 +1,51 @@
-/**
- * Database Module
- * 
- * This module provides utilities for database connectivity, monitoring, migrations,
- * and health checks.
- */
+import 'dotenv/config'; // Load environment variables from .env file
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import { neon, neonConfig, Pool } from '@neondatabase/serverless';
+import { Logger } from 'pino'; // Assuming pino logger is used as per backend.md
+import * as schema from './schema';
 
-// Export connection pool management
-export * from './pool';
+// Configure Neon for serverless environment
+// neonConfig.fetchConnectionCache = true; // Recommended by Neon docs, enable if needed
 
-// Export migrations
-export * from './migrations';
+const databaseUrl = process.env.DATABASE_URL;
 
-// Export monitoring utilities
-export * from './monitoring';
+if (!databaseUrl) {
+  // In a real application, you might want a more robust logger setup
+  console.error('DATABASE_URL environment variable is not set.');
+  process.exit(1); // Exit if the database URL is essential
+}
 
-// Export health checks
-export * from './health';
+// Create SQL client for standard queries
+const sql = neon(databaseUrl);
+export const db = drizzle(sql, { schema });
 
-// Export optimization utilities
-export * from './optimization';
+// Optional: Create a connection pool for high-traffic scenarios or transactions
+// Adjust pool settings based on expected load
+// const pool = new Pool({ connectionString: databaseUrl, max: 10 });
+// export const poolDb = drizzle(pool, { schema });
 
-// Export database utilities
-import { getPool, checkDatabaseConnection, closePool } from './pool';
-import { runMigrations, createMigrationClient } from './migrations';
-import { getDatabaseMonitor, DatabaseMonitor } from './monitoring';
-import { checkDatabaseHealth, DbHealthCheckResult } from './health';
-import { 
-  createIndexes, 
-  schedulePerformanceMonitoring,
-  validateCriticalIndexes 
-} from './optimization';
-import { Pool } from 'pg';
-import { logger } from '../lib/logger';
-
-/**
- * Initialize the database connection and run migrations
- * 
- * @param options Initialization options
- * @returns Promise that resolves when initialization is complete
- */
-export async function initializeDatabase(options: {
-  runMigrations?: boolean;
-  createIndexes?: boolean;
-  monitorPerformance?: boolean;
-  performanceMonitoringInterval?: number;
-} = {}): Promise<void> {
-  const {
-    runMigrations: shouldRunMigrations = true,
-    createIndexes: shouldCreateIndexes = true,
-    monitorPerformance = true,
-    performanceMonitoringInterval = 300000 // 5 minutes
-  } = options;
-  
+// Health check function (using the standard client)
+// Assuming a logger instance is available, replace `console` if using pino or similar
+export async function checkDatabaseHealth(logger: Logger = console as any) {
   try {
-    logger.info('Initializing database connection');
-    
-    // Get database pool
-    const pool = getPool();
-    
-    // Check connection
-    const connected = await checkDatabaseConnection();
-    if (!connected) {
-      throw new Error('Could not connect to database');
+    // Drizzle doesn't have a direct ping, execute a simple query
+    const result = await db.execute(sql`SELECT 1`);
+    // Check if the query returned at least one row with a result
+    if (result && result.rows && result.rows.length > 0) {
+        logger.info('Database health check successful.');
+        return true;
+    } else {
+        logger.error('Database health check failed: No result returned.');
+        return false;
     }
-    
-    logger.info('Successfully connected to database');
-    
-    // Run migrations if enabled
-    if (shouldRunMigrations) {
-      const migrationClient = createMigrationClient(pool);
-      await migrationClient.runMigrations();
-    }
-    
-    // Create indexes if enabled
-    if (shouldCreateIndexes) {
-      await createIndexes(pool, true); // Create only critical indexes initially
-    }
-    
-    // Initialize monitoring
-    getDatabaseMonitor(pool);
-    
-    // Start performance monitoring if enabled
-    if (monitorPerformance) {
-      schedulePerformanceMonitoring(pool, performanceMonitoringInterval);
-    }
-    
-    // Validate critical indexes
-    const missingIndexes = await validateCriticalIndexes(pool);
-    if (missingIndexes.length > 0) {
-      logger.warn('Missing critical indexes detected', { missingIndexes });
-    }
-    
-    logger.info('Database initialization complete');
   } catch (error) {
-    logger.error('Database initialization failed', {
-      error: error instanceof Error ? error.message : String(error)
-    });
-    throw error;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Database health check failed: ${errorMessage}`, { error });
+    return false;
   }
 }
 
-/**
- * Get database connection and utilities
- * 
- * @returns Database connection and utilities
- */
-export function getDatabase(): {
-  pool: Pool;
-  monitor: DatabaseMonitor;
-  checkHealth: () => Promise<DbHealthCheckResult>;
-  close: () => Promise<void>;
-} {
-  const pool = getPool();
-  const monitor = getDatabaseMonitor(pool);
-  
-  return {
-    pool,
-    monitor,
-    checkHealth: () => checkDatabaseHealth(pool),
-    close: closePool
-  };
-}
-
-// Export default object for convenient import
-export default {
-  initialize: initializeDatabase,
-  getDatabase,
-  getPool,
-  runMigrations,
-  closePool
-};
+// Example of using the pool for transactions if needed
+// export async function withTransaction<T>(callback: (txDb: typeof db) => Promise<T>): Promise<T> {
+//   return poolDb.transaction(callback);
+// }

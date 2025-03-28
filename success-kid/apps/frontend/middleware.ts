@@ -1,125 +1,72 @@
-/**
- * Next.js Middleware
- * 
- * Provides HTTP header optimization, edge routing, and authentication with Clerk
- */
-import { NextResponse, NextRequest } from 'next/server';
-import { authMiddleware, clerkClient, getAuth } from '@clerk/nextjs';
-import { createCacheControlHeader } from './src/lib/optimization/rendering-optimization';
+import { authMiddleware, redirectToSignIn } from '@clerk/nextjs';
+import { NextResponse } from 'next/server';
 
-/**
- * Clerk authentication middleware with custom functionality
- */
+// Helper function to check if a route is public
+// Adjust this list based on your actual public pages
+const publicRoutes = [
+  '/',
+  '/about',
+  '/faq',
+  '/contact',
+  '/terms',
+  '/privacy',
+  '/sign-in(.*)', // Matches /sign-in and /sign-in/*
+  '/sign-up(.*)', // Matches /sign-up and /sign-up/*
+  '/api/webhook/clerk', // Clerk webhook endpoint
+  // Add any other public API routes or pages here
+];
+
+// Helper function to check if a route should be ignored by the middleware
+// Typically includes static assets, Next.js internals, and specific webhooks
+const ignoredRoutes = [
+  '/api/webhook/(.*)', // Ignore all webhooks except Clerk's (already public)
+  '/_next/(.*)',       // Next.js internal assets
+  '/favicon.ico',
+  '/site.webmanifest',
+  '/images/(.*)',      // Example: Ignore static image assets
+  '/fonts/(.*)',       // Example: Ignore static font assets
+];
+
 export default authMiddleware({
-  publicRoutes: [
-    '/',
-    '/sign-in*',
-    '/sign-up*',
-    '/api/webhooks/clerk',
-    '/about',
-    '/token*',
-    '/forum',
-    '/forum/category/(.*)',
-    '/forum/thread/(.*)',
-    '/market',
-    '/market/statistics',
-    '/_next/static/(.*)',
-    '/static/(.*)',
-    '/images/(.*)',
-    '/favicon.ico',
-    '/robots.txt',
-    '/sitemap.xml',
-  ],
-  afterAuth: (auth, req, evt) => {
-    const { userId } = auth;
-    const response = NextResponse.next();
-    
-    // Add security headers
-    response.headers.set('X-DNS-Prefetch-Control', 'on');
-    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-    response.headers.set('X-Content-Type-Options', 'nosniff');
-    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
-    response.headers.set('X-XSS-Protection', '1; mode=block');
-    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-    response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
-    
-    // Determine optimal Cache-Control header based on path
-    const { pathname } = req.nextUrl;
-    let cacheControl: string;
-    
-    // Static assets get long cache times
-    if (pathname.startsWith('/_next/static') || pathname.startsWith('/static/')) {
-      cacheControl = createCacheControlHeader({
-        visibility: 'public',
-        maxAge: 31536000, // 1 year
-        staleWhileRevalidate: 31536000
-      });
+  // Define public routes accessible without authentication
+  publicRoutes: publicRoutes,
+
+  // Define routes to be ignored by the middleware
+  ignoredRoutes: ignoredRoutes,
+
+  // Logic to run after authentication state is determined
+  afterAuth(auth, req) {
+    const url = req.nextUrl;
+    const { userId, isPublicRoute } = auth;
+
+    // --- Handle authenticated users ---
+    if (userId) {
+      // If user is authenticated and tries to access sign-in/sign-up, redirect them
+      // (e.g., to the dashboard or a specified post-login destination)
+      if (url.pathname.startsWith('/sign-in') || url.pathname.startsWith('/sign-up')) {
+        const dashboardUrl = new URL('/dashboard', req.url); // Adjust '/dashboard' as needed
+        return NextResponse.redirect(dashboardUrl);
+      }
+      // Allow access to any other route for authenticated users
+      return NextResponse.next();
     }
-    // Image assets get medium cache times
-    else if (pathname.startsWith('/images/') || pathname.match(/\.(jpe?g|png|gif|svg|webp|avif)$/i)) {
-      cacheControl = createCacheControlHeader({
-        visibility: 'public',
-        maxAge: 86400, // 1 day
-        staleWhileRevalidate: 604800 // 1 week
-      });
+
+    // --- Handle unauthenticated users ---
+    // If the route is not public and the user is not authenticated,
+    // redirect them to the sign-in page.
+    if (!isPublicRoute) {
+      // Preserve the original requested URL for redirection after login
+      return redirectToSignIn({ returnBackUrl: req.url });
     }
-    // API routes and auth endpoints should not be cached
-    else if (pathname.startsWith('/api/') || 
-             pathname.startsWith('/auth/') || 
-             pathname.includes('/sign-in') ||
-             pathname.includes('/sign-up')) {
-      cacheControl = createCacheControlHeader({
-        visibility: 'private',
-        noCache: true,
-        noStore: true,
-        mustRevalidate: true
-      });
-    }
-    // Font files get long cache times
-    else if (pathname.match(/\.(woff2?|ttf|otf|eot)$/i)) {
-      cacheControl = createCacheControlHeader({
-        visibility: 'public',
-        maxAge: 31536000, // 1 year
-        staleWhileRevalidate: 31536000
-      });
-    }
-    // Default for most pages - moderate caching
-    else {
-      cacheControl = createCacheControlHeader({
-        visibility: 'public',
-        maxAge: 60, // 1 minute
-        staleWhileRevalidate: 300 // 5 minutes
-      });
-    }
-    
-    // Add Cache-Control header
-    response.headers.set('Cache-Control', cacheControl);
-    
-    // Add Server-Timing header for monitoring in development
-    if (process.env.NODE_ENV === 'development') {
-      const startTime = Date.now();
-      response.headers.set('Server-Timing', `Middleware;dur=${Date.now() - startTime}`);
-    }
-    
-    // Detect mobile clients and add to request headers
-    const userAgent = req.headers.get('user-agent') || '';
-    const isMobile = userAgent.match(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i);
-    response.headers.set('X-Is-Mobile', isMobile ? '1' : '0');
-    
-    // Add preload headers for critical resources (fonts, CSS)
-    if (!pathname.includes('/_next/') && !pathname.includes('/api/')) {
-      response.headers.set('Link', '</fonts/inter.woff2>; rel=preload; as=font; crossorigin=anonymous, </fonts/montserrat.woff2>; rel=preload; as=font; crossorigin=anonymous');
-    }
-    
-    return response;
-  },
+
+    // Allow access to public routes for unauthenticated users
+    return NextResponse.next();
+  }
 });
 
-/**
- * Configure middleware to run on all routes except certain ones
- */
+// Configure the matcher to run the middleware on specific paths
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  // Match all routes except those with extensions (likely static files)
+  // and Next.js internal paths (_next)
+  matcher: ['/((?!.*\\..*|_next).*)', '/', '/(api|trpc)(.*)'],
 };

@@ -1,260 +1,119 @@
-/**
- * Media Repository
- * 
- * Repository for managing media file records in the database.
- */
-import { v4 as uuidv4 } from 'uuid';
-import { db } from '../database';
-import { 
-  MediaFile, 
-  CreateMediaFileDto, 
-  UpdateMediaFileDto 
-} from '../models/entities/media';
-import { logger } from '../lib/logger';
+import { eq } from 'drizzle-orm';
+import { BaseRepository, QueryOptions } from './base-repository'; // Import base class and options
+import { db } from '../database'; // Assuming db client is exported from ../database/index.ts
+import { media, Media, NewMedia, NewMediaInput } from '../database/schema/media'; // Import schema and types
+import { Logger } from 'pino'; // Assuming pino logger
 
-/**
- * Media Repository class
- */
-class MediaRepository {
-  /**
-   * Create a new media file record
-   * @param data Media file data
-   * @returns Created media file
-   */
-  async create(data: CreateMediaFileDto): Promise<MediaFile> {
-    try {
-      const id = uuidv4();
-      const now = new Date();
-      
-      const mediaFile: MediaFile = {
-        id,
-        user_id: data.user_id,
-        original_name: data.original_name,
-        path: data.path,
-        mimeType: data.mimeType,
-        size: data.size,
-        status: data.status || 'processing',
-        metadata: data.metadata || {},
-        variants: data.variants || {},
-        storage_tier: data.storage_tier || 'standard',
-        created_at: now,
-        updated_at: now
-      };
-      
-      // TODO: Replace with actual database insert once schema is set up
-      logger.info('Creating media file record', { id, userId: data.user_id });
-      
-      // Simulated DB insert for now
-      simulatedDb.mediaFiles[id] = mediaFile;
-      
-      return mediaFile;
-    } catch (error) {
-      logger.error('Error creating media file record', { error });
-      throw new Error(`Failed to create media file: ${error.message}`);
-    }
+// Placeholder for logger import (adjust path as needed)
+let logger: Logger;
+try {
+  const loggerModule = require('../lib/logger.js'); // Using require for CommonJS
+  logger = loggerModule.logger;
+} catch (e) {
+  console.warn("Logger module not found at '../lib/logger.js', using console.", e);
+  logger = console as any;
+}
+
+// Define the specific entity type for the repository
+type MediaEntity = Media;
+
+export class MediaRepository extends BaseRepository<MediaEntity, typeof media, NewMedia> {
+
+  constructor() {
+    // Pass the table schema, primary key column, and optional column mapping
+    super(
+        media,
+        media.id, // Primary key column
+        { // Optional mapping for sorting/filtering
+            userId: media.userId,
+            mimeType: media.mimeType,
+            size: media.size,
+            status: media.status,
+            createdAt: media.createdAt,
+            updatedAt: media.updatedAt
+        }
+    );
   }
-  
+
   /**
-   * Find a media file by ID
-   * @param id Media file ID
-   * @returns Media file or null if not found
+   * Creates a new media record in the database after a file has been uploaded to blob storage.
+   * @param data Input data containing media details and blob information.
+   * @returns The newly created Media entity.
    */
-  async findById(id: string): Promise<MediaFile | null> {
+  async createWithBlob(data: NewMediaInput): Promise<Media> {
     try {
-      // TODO: Replace with actual database query once schema is set up
-      logger.info('Finding media file record', { id });
-      
-      // Simulated DB query for now
-      return simulatedDb.mediaFiles[id] || null;
-    } catch (error) {
-      logger.error('Error finding media file', { id, error });
-      throw new Error(`Failed to find media file: ${error.message}`);
-    }
-  }
-  
-  /**
-   * Find media files by user ID
-   * @param userId User ID
-   * @param options Query options
-   * @returns Array of media files
-   */
-  async findByUserId(
-    userId: string,
-    options: {
-      limit?: number;
-      offset?: number;
-      status?: string;
-      mimeType?: string | string[];
-    } = {}
-  ): Promise<MediaFile[]> {
-    try {
-      // TODO: Replace with actual database query once schema is set up
-      logger.info('Finding media files by user', { userId, options });
-      
-      // Simulated DB query for now
-      const results = Object.values(simulatedDb.mediaFiles)
-        .filter(file => file.user_id === userId)
-        .filter(file => !options.status || file.status === options.status)
-        .filter(file => !options.mimeType || 
-          (Array.isArray(options.mimeType) 
-            ? options.mimeType.includes(file.mimeType)
-            : file.mimeType === options.mimeType)
-        );
-      
-      // Apply pagination
-      const limit = options.limit || 10;
-      const offset = options.offset || 0;
-      return results.slice(offset, offset + limit);
-    } catch (error) {
-      logger.error('Error finding media files by user', { userId, error });
-      throw new Error(`Failed to find media files: ${error.message}`);
-    }
-  }
-  
-  /**
-   * Update a media file
-   * @param id Media file ID
-   * @param data Update data
-   * @returns Updated media file
-   */
-  async update(id: string, data: UpdateMediaFileDto): Promise<MediaFile> {
-    try {
-      // TODO: Replace with actual database update once schema is set up
-      logger.info('Updating media file record', { id, data });
-      
-      // Get existing record
-      const mediaFile = await this.findById(id);
-      if (!mediaFile) {
-        throw new Error('Media file not found');
+      logger.info('Creating media record in database', { mediaId: data.id, userId: data.userId, blobUrl: data.blobUrl });
+      const [result] = await db
+        .insert(media)
+        .values({
+          id: data.id,
+          userId: data.userId,
+          originalName: data.originalName,
+          mimeType: data.mimeType,
+          size: data.size,
+          blobUrl: data.blobUrl,
+          blobPath: data.blobPath, // Include blobPath from input
+          metadata: data.metadata || {},
+          status: 'active', // Default status
+          // createdAt and updatedAt will use default values defined in the schema
+        })
+        .returning(); // Return the inserted record
+
+      if (!result) {
+          throw new Error('Media record creation failed, no result returned.');
       }
-      
-      // Update fields
-      const updated: MediaFile = {
-        ...mediaFile,
-        ...data,
-        updated_at: new Date()
-      };
-      
-      // Simulated DB update for now
-      simulatedDb.mediaFiles[id] = updated;
-      
-      return updated;
+
+      logger.info('Media record created successfully', { mediaId: result.id });
+      // Use the mapToEntity method from the base class (or this class if overridden)
+      return this.mapToEntity(result);
+
     } catch (error) {
-      logger.error('Error updating media file', { id, error });
-      throw new Error(`Failed to update media file: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Error creating media record with blob', { error: errorMessage, data });
+      // Consider more specific error handling or wrapping
+      throw new Error(`Failed to create media record: ${errorMessage}`);
     }
   }
-  
+
+  // --- Methods inherited from BaseRepository are now available ---
+  // findById, findMany, create, update, delete, count, transaction
+
   /**
-   * Delete a media file (soft delete)
-   * @param id Media file ID
-   * @returns Success indication
+   * Finds media records associated with a specific user.
+   * (Example of a custom method using the base findMany)
+   * @param userId The ID of the user.
+   * @param options Optional query options.
+   * @returns An array of Media entities.
    */
-  async delete(id: string): Promise<boolean> {
-    try {
-      // TODO: Replace with actual database update once schema is set up
-      logger.info('Soft deleting media file record', { id });
-      
-      // Get existing record
-      const mediaFile = await this.findById(id);
-      if (!mediaFile) {
-        return false;
-      }
-      
-      // Update status and set deletion timestamp
-      const updated: MediaFile = {
-        ...mediaFile,
-        status: 'deleted',
-        deleted_at: new Date(),
-        updated_at: new Date()
-      };
-      
-      // Simulated DB update for now
-      simulatedDb.mediaFiles[id] = updated;
-      
-      return true;
-    } catch (error) {
-      logger.error('Error deleting media file', { id, error });
-      throw new Error(`Failed to delete media file: ${error.message}`);
-    }
+  async findByUserId(userId: string, options: QueryOptions<MediaEntity> = {}): Promise<MediaEntity[]> {
+     return this.findMany({
+         ...options,
+         filter: { ...options.filter, userId: userId }
+     });
   }
-  
+
   /**
-   * Find orphaned media files (not referenced by any content)
-   * @param olderThan Media files older than this many days
-   * @returns Array of orphaned media files
+   * Implements the abstract mapToEntity method from BaseRepository.
+   * Maps a raw database record object to the MediaEntity type.
+   * @param record The raw database record.
+   * @returns The mapped MediaEntity.
    */
-  async findOrphaned(olderThanDays: number = 7): Promise<MediaFile[]> {
-    try {
-      // TODO: Replace with actual database query once schema is set up
-      logger.info('Finding orphaned media files', { olderThanDays });
-      
-      // Calculate cutoff date
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - olderThanDays);
-      
-      // Simulated DB query for now
-      // This would normally join with content table to find media not referenced
-      return Object.values(simulatedDb.mediaFiles)
-        .filter(file => file.created_at < cutoff)
-        .filter(file => file.status !== 'deleted')
-        .slice(0, 100); // Limit results
-    } catch (error) {
-      logger.error('Error finding orphaned media files', { error });
-      throw new Error(`Failed to find orphaned media files: ${error.message}`);
-    }
-  }
-  
-  /**
-   * Count media files by user
-   * @param userId User ID
-   * @returns Count of media files
-   */
-  async countByUser(userId: string): Promise<number> {
-    try {
-      // TODO: Replace with actual database query once schema is set up
-      logger.info('Counting media files by user', { userId });
-      
-      // Simulated DB query for now
-      return Object.values(simulatedDb.mediaFiles)
-        .filter(file => file.user_id === userId)
-        .filter(file => file.status !== 'deleted')
-        .length;
-    } catch (error) {
-      logger.error('Error counting media files by user', { userId, error });
-      throw new Error(`Failed to count media files: ${error.message}`);
-    }
-  }
-  
-  /**
-   * Get total storage usage by user
-   * @param userId User ID
-   * @returns Total size in bytes
-   */
-  async getUserStorageUsage(userId: string): Promise<number> {
-    try {
-      // TODO: Replace with actual database query once schema is set up
-      logger.info('Calculating user storage usage', { userId });
-      
-      // Simulated DB query for now
-      return Object.values(simulatedDb.mediaFiles)
-        .filter(file => file.user_id === userId)
-        .filter(file => file.status !== 'deleted')
-        .reduce((total, file) => total + file.size, 0);
-    } catch (error) {
-      logger.error('Error calculating user storage usage', { userId, error });
-      throw new Error(`Failed to calculate storage usage: ${error.message}`);
-    }
+  protected mapToEntity(record: Record<string, any>): MediaEntity {
+    return {
+      id: record.id,
+      userId: record.userId,
+      originalName: record.originalName,
+      mimeType: record.mimeType,
+      size: record.size,
+      blobUrl: record.blobUrl,
+      blobPath: record.blobPath,
+      metadata: record.metadata, // Assuming JSONB is parsed correctly
+      status: record.status,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt
+    };
   }
 }
 
-// Temporary in-memory database for development
-// This would be replaced with actual database in production
-const simulatedDb: {
-  mediaFiles: Record<string, MediaFile>;
-} = {
-  mediaFiles: {}
-};
-
-// Create and export repository instance
+// Export a singleton instance
 export const mediaRepository = new MediaRepository();
