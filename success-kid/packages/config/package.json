@@ -1,0 +1,23 @@
+{
+  "name": "@success-kid/config",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "files": [
+    "eslint",
+    "typescript",
+    "prettier",
+    "jest"
+  ],
+  "dependencies": {
+    "eslint-config-next": "^15.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-jsx-a11y": "^6.7.0",
+    "eslint-plugin-tailwindcss": "^3.14.0",
+    "eslint-plugin-react": "^7.33.0",
+    "eslint-plugin-react-hooks": "^4.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "success-kid-e2e",
+  "version": "1.0.0",
+  "description": "End-to-end tests for Success Kid Community Platform",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:chrome": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "test:safari": "playwright test --project=webkit",
+    "test:mobile": "playwright test --project='Mobile Chrome' --project='Mobile Safari'",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.40.0",
+    "typescript": "^5.4.0"
+  }
+}

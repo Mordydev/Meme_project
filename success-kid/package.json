@@ -1,0 +1,58 @@
+{
+  "name": "success-kid-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Success Kid Community Platform - A vibrant ecosystem for crypto enthusiasts and meme lovers",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "prettier --write \"**/*.{ts,tsx,md,js,jsx,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,js,jsx,json}\"",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "turbo run test:integration",
+    "test:coverage": "turbo run test:coverage",
+    "test:e2e": "cd e2e && npm run test",
+    "test:e2e:ui": "cd e2e && npm run test:ui",
+    "test:e2e:chrome": "cd e2e && npm run test:chrome",
+    "test:e2e:mobile": "cd e2e && npm run test:mobile",
+    "type-check": "turbo run type-check",
+    "type-check:frontend": "pnpm --filter frontend type-check",
+    "type-check:backend": "pnpm --filter backend type-check",
+    "check": "pnpm lint && pnpm type-check && pnpm format:check",
+    "setup-env": "node scripts/setup-env.js",
+    "docker:up": "docker compose -f docker/development/docker-compose.yml up -d",
+    "docker:down": "docker compose -f docker/development/docker-compose.yml down",
+    "docker:restart": "docker compose -f docker/development/docker-compose.yml restart",
+    "prepare": "husky install || node scripts/make-executable.js",
+    "deploy:staging": "echo \"Deploying to staging...\" && pnpm build && ./scripts/deploy-staging.sh",
+    "deploy:production": "echo \"Deploying to production...\" && pnpm build && ./scripts/deploy-production.sh"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.0",
+    "husky": "^9.0.5",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.5",
+    "turbo": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml}": [
+      "prettier --write"
+    ]
+  },
+  "dependencies": {
+    "bs58": "^6.0.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.0.0"
+  }
+}
