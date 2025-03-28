@@ -1,8 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { verifyClerkJWT, extractToken, ClerkUser } from './client';
-import { UnauthorizedError, ForbiddenError } from '../../lib/errors';
-import { logger } from '../../lib/logger';
-import { sessionService } from '../../services/session-service';
+import { verifyClerkJWT, extractToken, ClerkUser } from '../lib/clerk/client';
+import { UnauthorizedError, ForbiddenError } from '../lib/errors';
+import { logger } from '../lib/logger';
+import { sessionService } from '../services/session-service';
 
 /**
  * Authentication options

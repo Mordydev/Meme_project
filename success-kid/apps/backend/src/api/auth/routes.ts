@@ -17,8 +17,9 @@ import {
   generateRecoveryCodesHandler,
   verifyRecoveryCodeHandler
 } from './handlers/verification-handlers';
-import { authMiddleware, requiresAdmin, requiresUser } from './clerk/middleware';
-import { rateLimit } from '../middleware/rate-limit';
+// Assuming authMiddleware, requiresAdmin, requiresUser are now in clerk-auth-middleware.ts or similar
+import { authMiddleware, requiresAdmin, requiresUser } from '../../middleware/clerk-auth-middleware';
+import { rateLimit } from '../../middleware/rate-limit'; // Assuming rate-limit middleware exists at this path
 import { authSchemas } from './schemas';
 
 // Auth route registration
