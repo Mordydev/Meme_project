@@ -21,7 +21,9 @@ export const contentFeedQuerySchema = z.object({
   // Use z.enum with expected string values since ContentType is likely a type alias
   type: z.enum(['text', 'image', 'link', 'poll']).optional(),
   categoryId: z.string().optional(), // Consider UUID validation if applicable
-  userId: z.string().optional() // Consider UUID validation if applicable
+  userId: z.string().optional(), // Consider UUID validation if applicable
+  tags: z.array(z.string()).optional(), // Add tags array
+  sortBy: z.enum(['latest', 'popular', 'trending']).optional() // Add sortBy
 });
 
 export const commentsQuerySchema = z.object({
@@ -37,6 +39,18 @@ export const updateContentApiSchema = updateContentModelSchema;
 // Adjust comment schemas if API differs slightly from model (e.g., omitting fields)
 export const createCommentApiSchema = createCommentModelSchema.omit({ content_id: true, user_id: true });
 export const updateCommentApiSchema = updateCommentModelSchema;
+
+// Reaction Schemas
+export const reactionTypeSchema = z.enum(['like', 'love', 'celebrate', 'insightful', 'funny']); // Use enum based on ReactionService
+
+export const addReactionApiSchema = z.object({
+  reactionType: reactionTypeSchema
+});
+
+export const reactionParamsSchema = z.object({
+  contentId: z.string().uuid(),
+  reactionType: reactionTypeSchema
+});
 
 
 // --- Fastify Schemas for Routes ---
@@ -302,7 +316,8 @@ export const feedQuerySchema = z.object({
   categoryId: z.string().optional(),
   tagId: z.string().optional(),
   userId: z.string().optional(),
-  timeframe: z.enum(['day', 'week', 'month', 'year', 'all']).default('week')
+  timeframe: z.enum(['day', 'week', 'month', 'all']).default('week'), // Removed 'year' to match FeedType
+  sortBy: z.enum(['latest', 'popular', 'trending']).optional() // Add sortBy
 });
 
 // --- Fastify Schema from feed-controller.ts ---
@@ -410,6 +425,66 @@ export const getSearchSuggestionsFastifySchema = {
         }
       }
     }
+  }
+};
+
+// --- Reaction Fastify Schemas ---
+
+export const addReactionFastifySchema = {
+  tags: ['Reactions'],
+  summary: 'Add reaction to content',
+  description: 'Adds a reaction to a specific content item.',
+  security: [{ bearerAuth: [] }], // Required auth
+  params: {
+    type: 'object',
+    required: ['id'],
+    properties: { id: { type: 'string' } } // Content ID
+  },
+  body: { $ref: 'addReactionApiSchema#' }, // Reference Zod schema
+  response: {
+    201: {
+      description: 'Reaction added successfully',
+      type: 'object',
+      properties: {
+        data: { type: 'object', properties: { success: { type: 'boolean' } } }, // Simple success response
+        meta: { type: 'object', properties: metaProperties }
+      }
+    },
+    200: { // Handle case where reaction already exists
+        description: 'Reaction already exists',
+        type: 'object',
+        properties: {
+            data: { type: 'object', properties: { success: { type: 'boolean', default: true }, message: { type: 'string' } } },
+            meta: { type: 'object', properties: metaProperties }
+        }
+    },
+    404: { description: 'Content not found' }
+  }
+};
+
+export const removeReactionFastifySchema = {
+  tags: ['Reactions'],
+  summary: 'Remove reaction from content',
+  description: 'Removes a specific reaction from a content item.',
+  security: [{ bearerAuth: [] }], // Required auth
+  params: {
+    type: 'object',
+    required: ['id', 'reactionType'],
+    properties: {
+      id: { type: 'string' }, // Content ID
+      reactionType: { type: 'string' } // Reaction Type
+    }
+  },
+  response: {
+    200: {
+      description: 'Reaction removed successfully',
+      type: 'object',
+      properties: {
+        data: { type: 'object', properties: { success: { type: 'boolean' } } },
+        meta: { type: 'object', properties: metaProperties }
+      }
+    },
+    404: { description: 'Content or Reaction not found' }
   }
 };
 

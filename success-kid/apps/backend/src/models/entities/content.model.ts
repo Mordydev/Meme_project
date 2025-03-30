@@ -32,23 +32,23 @@ export const pollOptionsSchema = z.array(pollOptionSchema).min(2, { message: 'Po
 // Content Zod Schema
 export const contentSchema = z.object({
   id: z.string().uuid({ message: 'Invalid content ID format' }),
-  user_id: z.string().uuid({ message: 'Invalid user ID format' }),
+  userId: z.string().uuid({ message: 'Invalid user ID format' }), // camelCase
   type: ContentTypeEnum,
-  content_text: z.string().max(5000, { message: 'Content text cannot exceed 5000 characters' }),
-  media_urls: mediaUrlsSchema,
-  created_at: z.coerce.date(),
-  updated_at: z.coerce.date(),
+  contentText: z.string().max(5000, { message: 'Content text cannot exceed 5000 characters' }), // camelCase
+  mediaUrls: mediaUrlsSchema, // camelCase
+  createdAt: z.coerce.date(), // camelCase
+  updatedAt: z.coerce.date(), // camelCase
   status: ContentStatusEnum.default('active'),
   
   // Additional properties based on content type
-  poll_options: pollOptionsSchema.optional(),
-  link_url: z.string().url({ message: 'Link URL must be a valid URL' }).optional(),
-  link_title: z.string().max(200).optional(),
-  link_description: z.string().max(500).optional(),
-  link_image: z.string().url().optional(),
+  pollOptions: pollOptionsSchema.optional(), // camelCase
+  linkUrl: z.string().url({ message: 'Link URL must be a valid URL' }).optional(), // camelCase
+  linkTitle: z.string().max(200).optional(), // camelCase
+  linkDescription: z.string().max(500).optional(), // camelCase
+  linkImage: z.string().url().optional(), // camelCase
   
   // Metadata
-  category_id: z.string().uuid().optional(),
+  categoryId: z.string().uuid().optional(), // camelCase
   tags: z.array(z.string()).default([]),
   metadata: z.record(z.string(), z.any()).default({})
 });
@@ -60,37 +60,37 @@ export type Content = z.infer<typeof contentSchema>;
 export const createContentSchema = contentSchema
   .omit({ 
     id: true, 
-    created_at: true, 
-    updated_at: true,
+    createdAt: true, // camelCase
+    updatedAt: true, // camelCase
     status: true
   })
   .partial({
-    media_urls: true,
-    poll_options: true,
-    link_url: true,
-    link_title: true,
-    link_description: true,
-    link_image: true,
-    category_id: true,
+    mediaUrls: true, // camelCase
+    pollOptions: true, // camelCase
+    linkUrl: true, // camelCase
+    linkTitle: true, // camelCase
+    linkDescription: true, // camelCase
+    linkImage: true, // camelCase
+    categoryId: true, // camelCase
     tags: true,
     metadata: true
   })
   .required({
-    user_id: true,
+    userId: true, // camelCase
     type: true,
-    content_text: true
+    contentText: true // camelCase
   })
   .refine(
-    data => !(data.type === 'link' && !data.link_url),
-    { message: 'Link URL is required for link type content', path: ['link_url'] }
+    data => !(data.type === 'link' && !data.linkUrl), // camelCase
+    { message: 'Link URL is required for link type content', path: ['linkUrl'] } // camelCase
   )
   .refine(
-    data => !(data.type === 'poll' && !data.poll_options),
-    { message: 'Poll options are required for poll type content', path: ['poll_options'] }
+    data => !(data.type === 'poll' && !data.pollOptions), // camelCase
+    { message: 'Poll options are required for poll type content', path: ['pollOptions'] } // camelCase
   )
   .refine(
-    data => !(data.type === 'image' && (!data.media_urls || data.media_urls.length === 0)),
-    { message: 'Media URLs are required for image type content', path: ['media_urls'] }
+    data => !(data.type === 'image' && (!data.mediaUrls || data.mediaUrls.length === 0)), // camelCase
+    { message: 'Media URLs are required for image type content', path: ['mediaUrls'] } // camelCase
   );
 
 // Create Content DTO Type
@@ -100,9 +100,9 @@ export type CreateContentDto = z.infer<typeof createContentSchema>;
 export const updateContentSchema = contentSchema
   .omit({ 
     id: true, 
-    user_id: true, 
-    created_at: true, 
-    updated_at: true,
+    userId: true, // camelCase
+    createdAt: true, // camelCase
+    updatedAt: true, // camelCase
     type: true // Content type can't be changed after creation
   })
   .partial();
@@ -116,8 +116,8 @@ export const contentResponseSchema = contentSchema
     // Include additional fields that are populated for responses
     author: z.object({
       id: z.string(),
-      display_name: z.string(),
-      avatar_url: z.string().nullable()
+      displayName: z.string(), // camelCase
+      avatarUrl: z.string().nullable() // camelCase
     }).optional(),
     stats: z.object({
       likes: z.number().int().nonnegative().default(0),
@@ -133,18 +133,18 @@ export type ContentResponseDto = z.infer<typeof contentResponseSchema>;
 export const contentListItemSchema = contentSchema
   .pick({
     id: true,
-    user_id: true,
+    userId: true, // camelCase
     type: true,
-    content_text: true,
-    media_urls: true,
-    created_at: true,
+    contentText: true, // camelCase
+    mediaUrls: true, // camelCase
+    createdAt: true, // camelCase
     status: true
   })
   .extend({
     author: z.object({
       id: z.string(),
-      display_name: z.string(),
-      avatar_url: z.string().nullable()
+      displayName: z.string(), // camelCase
+      avatarUrl: z.string().nullable() // camelCase
     }),
     stats: z.object({
       likes: z.number(),

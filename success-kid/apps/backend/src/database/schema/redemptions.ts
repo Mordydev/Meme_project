@@ -44,7 +44,28 @@ export const redemptionBatches = pgTable('redemption_batches', {
 });
 
 // Type inference
+// Type inference for redemptions and batches
 export type RedemptionSchema = typeof redemptions.$inferSelect;
 export type NewRedemptionSchema = typeof redemptions.$inferInsert;
 export type RedemptionBatchSchema = typeof redemptionBatches.$inferSelect;
 export type NewRedemptionBatchSchema = typeof redemptionBatches.$inferInsert;
+
+// --- Redemption Transactions Table ---
+// Assumed schema for tracking processing steps/attempts for a redemption
+export const redemptionTransactions = pgTable('redemption_transactions', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    redemptionId: uuid('redemption_id').notNull().references(() => redemptions.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(), // e.g., 'queued', 'submitted', 'confirmed', 'failed'
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    transactionHash: text('transaction_hash'), // Blockchain transaction hash
+    errorMessage: text('error_message'),
+}, (table) => {
+    return {
+        redemptionIdx: uniqueIndex('redemption_transactions_redemption_id_idx').on(table.redemptionId),
+    };
+});
+
+// Type inference for redemption transactions
+export type RedemptionTransactionSchema = typeof redemptionTransactions.$inferSelect;
+export type NewRedemptionTransactionSchema = typeof redemptionTransactions.$inferInsert;

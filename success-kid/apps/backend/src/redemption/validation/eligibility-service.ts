@@ -59,9 +59,9 @@ export class RedemptionEligibilityService {
       reasons: [],
       limits: {
         weekly: {
-          limit: REDEMPTION_CONSTANTS.WEEKLY_CAP, // Use WEEKLY_CAP
+          limit: REDEMPTION_CONSTANTS.WEEKLY_LIMIT, // Use WEEKLY_LIMIT
           used: 0,
-          remaining: REDEMPTION_CONSTANTS.WEEKLY_CAP // Use WEEKLY_CAP
+          remaining: REDEMPTION_CONSTANTS.WEEKLY_LIMIT // Use WEEKLY_LIMIT
         },
         minimum: REDEMPTION_CONSTANTS.MINIMUM_AMOUNT
       },
@@ -91,11 +91,11 @@ export class RedemptionEligibilityService {
     );
     
     result.limits!.weekly.used = weeklyUsed;
-    result.limits!.weekly.remaining = Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_CAP - weeklyUsed); // Use WEEKLY_CAP
+    result.limits!.weekly.remaining = Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_LIMIT - weeklyUsed); // Use WEEKLY_LIMIT
     
     if (result.limits!.weekly.remaining <= 0) {
       result.eligible = false;
-      result.reasons!.push(`Weekly redemption limit reached (${REDEMPTION_CONSTANTS.WEEKLY_CAP} SP)`); // Use WEEKLY_CAP
+      result.reasons!.push(`Weekly redemption limit reached (${REDEMPTION_CONSTANTS.WEEKLY_LIMIT} SP)`); // Use WEEKLY_LIMIT
     }
 
     // Check user has enough points
@@ -161,7 +161,7 @@ export class RedemptionEligibilityService {
 
     // Check weekly limit
     const weeklyUsed = await this.redemptionRepository.getWeeklyRedemptionTotal(userId); // This method needs to be added to the repository
-    const weeklyRemaining = Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_CAP - weeklyUsed); // Use WEEKLY_CAP
+    const weeklyRemaining = Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_LIMIT - weeklyUsed); // Use WEEKLY_LIMIT
     
     if (weeklyRemaining < pointsAmount) {
       errors.push(`Weekly redemption limit exceeded (${weeklyRemaining} remaining, ${pointsAmount} requested)`);
@@ -181,6 +181,6 @@ export class RedemptionEligibilityService {
    */
   async getRemainingWeeklyLimit(userId: string): Promise<number> {
     const weeklyUsed = await this.redemptionRepository.getWeeklyRedemptionTotal(userId); // This method needs to be added to the repository
-    return Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_CAP - weeklyUsed); // Use WEEKLY_CAP
+    return Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_LIMIT - weeklyUsed); // Use WEEKLY_LIMIT
   }
 }

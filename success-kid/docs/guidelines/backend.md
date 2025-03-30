@@ -533,7 +533,24 @@ export async function withTransaction<T>(callback: (client: any) => Promise<T>):
 
 ### 5.2 Drizzle ORM Implementation
 
-**Schema Definition**
+#### 5.2.1 Understanding Drizzle ORM Naming Conventions
+
+Drizzle ORM provides automatic mapping between TypeScript's idiomatic camelCase and PostgreSQL's conventional snake_case. Understanding this mapping is critical to prevent common errors:
+
+| Context | Convention | Example | Notes |
+|---------|------------|---------|-------|
+| TypeScript property names | camelCase | `displayName` | Used in your code when working with Drizzle |
+| Database column names | snake_case | `display_name` | How it's stored in PostgreSQL |
+| Column definition | camelCase property, snake_case string | `displayName: text('display_name')` | The string defines the actual DB column name |
+
+**How Drizzle's Automatic Mapping Works:**
+
+1. **Schema Definition**: You define properties in camelCase but specify the DB column names in snake_case strings
+2. **Database Operations**: Drizzle automatically translates your camelCase properties to snake_case columns
+3. **Query Results**: Drizzle automatically maps snake_case database results back to camelCase properties
+
+#### 5.2.2 Schema Definition Best Practices
+
 ```typescript
 // Define database schema with Drizzle ORM
 import { pgTable, serial, text, uuid, integer, timestamp, jsonb } from 'drizzle-orm/pg-core';
@@ -542,8 +559,9 @@ import { pgTable, serial, text, uuid, integer, timestamp, jsonb } from 'drizzle-
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
+  // IMPORTANT: property name is camelCase, column name string is snake_case
   displayName: text('display_name').notNull(),
-  authProvider: text('auth_provider').notNull(),
+  authProvider: text('auth_provider').notNull(), 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   lastLogin: timestamp('last_login'),
   status: text('status').notNull().default('active')
@@ -585,7 +603,36 @@ export const content = pgTable('content', {
 });
 ```
 
-**Repository Implementation**
+#### 5.2.3 Model Type Definitions
+
+Ensure your model types use camelCase to match the properties returned by Drizzle:
+
+```typescript
+// CORRECT: Use camelCase in model types to match Drizzle's return values
+export interface User {
+  id: string;
+  email: string;
+  displayName: string; // camelCase matching schema property
+  authProvider: string;
+  createdAt: Date;     // camelCase matching schema property
+  lastLogin: Date | null;
+  status: string;
+}
+
+// INCORRECT: This will cause type errors with Drizzle results
+// export interface User {
+//   id: string;
+//   email: string;
+//   display_name: string; // snake_case doesn't match Drizzle output
+//   auth_provider: string;
+//   created_at: Date;     // snake_case doesn't match Drizzle output
+//   last_login: Date | null;
+//   status: string;
+// }
+```
+
+#### 5.2.4 Repository Implementation
+
 ```typescript
 // PointsRepository with Drizzle ORM
 import { eq, sum, desc } from 'drizzle-orm';
@@ -594,10 +641,10 @@ import { userPoints, users } from '../schema';
 import { logger } from '../lib/logger';
 
 export interface PointsTransaction {
-  userId: string;
+  userId: string;    // camelCase matching schema property
   amount: number;
   source: string;
-  referenceId?: string;
+  referenceId?: string; // camelCase matching schema property
   description?: string;
 }
 
@@ -607,7 +654,7 @@ export class PointsRepository {
       const result = await db
         .select({ total: sum(userPoints.amount) })
         .from(userPoints)
-        .where(eq(userPoints.userId, userId));
+        .where(eq(userPoints.userId, userId)); // Use camelCase from schema
       
       return result[0]?.total || 0;
     } catch (error) {
@@ -618,6 +665,7 @@ export class PointsRepository {
   
   async addPointsTransaction(transaction: PointsTransaction): Promise<any> {
     try {
+      // Correct: Use camelCase properties matching schema
       return await db.insert(userPoints).values({
         userId: transaction.userId,
         amount: transaction.amount,
@@ -637,7 +685,7 @@ export class PointsRepository {
         .select()
         .from(userPoints)
         .where(eq(userPoints.userId, userId))
-        .orderBy(desc(userPoints.createdAt))
+        .orderBy(desc(userPoints.createdAt)) // Correct: Use camelCase from schema
         .limit(limit)
         .offset(offset);
     } catch (error) {
@@ -647,6 +695,54 @@ export class PointsRepository {
   }
   
   // Additional methods omitted for brevity
+}
+```
+
+#### 5.2.5 Common Drizzle Naming Convention Errors and Fixes
+
+| Error Type | Incorrect | Correct | Explanation |
+|------------|-----------|---------|-------------|
+| **OrderBy Clause** | `orderBy(desc('created_at'))` | `orderBy(desc(table.createdAt))` | Always reference schema property (camelCase), not string column name |
+| **Where Condition** | `where('user_id', '=', userId)` | `where(eq(table.userId, userId))` | Use schema reference with operators like eq, not raw column names |
+| **Update Values** | `set({ 'processed_at': new Date() })` | `set({ processedAt: new Date() })` | Use camelCase property names matching schema definition |
+| **Select Fields** | `select('user_id', 'display_name')` | `select({ id: table.userId, name: table.displayName })` | Use schema properties with optional aliases |
+| **Type Annotations** | `Pick<User, 'user_id' | 'created_at'>` | `Pick<User, 'userId' | 'createdAt'>` | Type references must match model type properties (camelCase) |
+
+#### 5.2.6 Advanced Drizzle Mapping Example
+
+For complex types or custom mappings:
+
+```typescript
+// Custom relational mapping example
+export const transactions = pgTable('transactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  amount: integer('amount').notNull(),
+  type: text('type').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Relation query with results mapping
+async function getUserWithTransactions(userId: string) {
+  const result = await db
+    .select({
+      user: {
+        id: users.id,
+        name: users.displayName,  // camelCase from schema
+      },
+      transactions: {
+        id: transactions.id,
+        amount: transactions.amount,
+        createdAt: transactions.createdAt,  // camelCase from schema
+      }
+    })
+    .from(users)
+    .leftJoin(transactions, eq(users.id, transactions.userId))
+    .where(eq(users.id, userId));
+
+  // Result will have nested objects with camelCase properties
+  // { user: { id: "...", name: "..." }, transactions: [{ id: "...", amount: 100, createdAt: "..." }] }
+  return result;
 }
 ```
 
@@ -1314,8 +1410,8 @@ async function getContentWithAuthors(contentIds: string[]): Promise<any[]> {
 
 ### 9.1 Vercel Deployment Configuration
 
-```
-# vercel.json configuration
+```json
+// vercel.json configuration
 {
   "version": 2,
   "buildCommand": "npm run build",

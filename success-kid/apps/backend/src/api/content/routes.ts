@@ -1,7 +1,8 @@
 /**
- * Route definitions for the Content API module (Content and Comments)
+ * Route definitions for the Content API module (Content, Comments, Reactions)
  */
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import {
   getContentFeedFastifySchema,
   getContentByIdFastifySchema,
@@ -12,12 +13,12 @@ import {
   createCommentFastifySchema,
   updateCommentFastifySchema,
   deleteCommentFastifySchema,
-  // Feed Schema
-  getFeedFastifySchema, // Keep this
-  // Search Schemas
+  getFeedFastifySchema,
   searchContentFastifySchema,
-  getSearchSuggestionsFastifySchema
-  // TODO: Import schemas from other controllers
+  getSearchSuggestionsFastifySchema,
+  // Reaction Schemas
+  addReactionFastifySchema,
+  removeReactionFastifySchema
 } from './schema';
 import {
   getContentFeedHandler,
@@ -28,13 +29,13 @@ import {
   getContentCommentsHandler,
   createCommentHandler,
   updateCommentHandler,
-  deleteCommentHandler, // Keep one
-  // Feed Handler
-  getFeedHandler, // Keep this
-  // Search Handlers
+  deleteCommentHandler,
+  getFeedHandler,
   searchContentHandler,
-  getSearchSuggestionsHandler
-  // TODO: Import handlers from other controllers
+  getSearchSuggestionsHandler,
+  // Reaction Handlers
+  addReactionHandler,
+  removeReactionHandler
 } from './handler';
 import { authMiddleware, authOptionalMiddleware } from '../../middleware/auth'; // Import correct middleware
 import { ContentService } from '../../services/content/content-service'; // Import ContentService type
@@ -44,145 +45,127 @@ import {
   CommentsQuery,
   ContentIdParam,
   CommentIdParam,
-  FeedQuery, // Keep this
-  // Search Types
+  FeedQuery,
   SearchQuery,
-  SuggestionQuery
+  SuggestionQuery,
+  // Reaction Types
+  AddReactionBody,
+  ReactionParams
 } from './types';
 // Import Zod schemas for inferring body types if needed
 import {
-  createContentApiSchema, // Corrected import
-  updateContentApiSchema, // Corrected import
+  createContentApiSchema,
+  updateContentApiSchema,
   createCommentApiSchema,
-  updateCommentApiSchema // Corrected import
-  // Search Schemas are already imported below
+  updateCommentApiSchema,
+  addReactionApiSchema // Import for body type inference
 } from './schema';
-import { z } from 'zod';
+
 
 /**
- * Registers the content and comment API routes
+ * Registers the content, comment, and reaction API routes
  * @param fastify - The Fastify instance
- * @param opts - Plugin options (services will be accessed via fastify instance decoration)
+ * @param opts - Plugin options
  */
 export default async function contentCoreRoutes(fastify: FastifyInstance, opts: Record<string, unknown>): Promise<void> {
-  // Services are accessed via request.server.contentService in handlers
 
   // --- Content Routes ---
-  // Changed '/' to '/feed' to align with plan's intent for the main feed endpoint
-  fastify.get<{ Querystring: ContentFeedQuery }>('/feed', { 
-    schema: getContentFeedFastifySchema, // TODO: Rename schema if needed
+  fastify.get<{ Querystring: ContentFeedQuery }>('/feed', {
+    schema: getContentFeedFastifySchema,
     onRequest: [authOptionalMiddleware]
-  }, getContentFeedHandler); // Call handler directly
+  }, getContentFeedHandler);
 
   fastify.get<{ Params: ContentIdParam }>('/:id', {
     schema: getContentByIdFastifySchema,
     onRequest: [authOptionalMiddleware]
-  }, getContentByIdHandler); // Call handler directly
+  }, getContentByIdHandler);
 
-  // TODO: Check createContentHandler for Vercel Blob integration and points awarding
-  // TODO: Check createContentHandler for Vercel Blob integration and points awarding
-  fastify.post<{ Body: z.infer<typeof createContentApiSchema> }>('/', { 
+  fastify.post<{ Body: z.infer<typeof createContentApiSchema> }>('/', {
     schema: createContentFastifySchema,
     onRequest: [authMiddleware],
-    config: { // Add route-specific rate limit
-      rateLimit: {
-        max: 10, // Max 10 posts
-        timeWindow: '1 hour' // Per hour
-      }
-    }
-  }, createContentHandler); 
+    config: { rateLimit: { max: 10, timeWindow: '1 hour' } }
+  }, createContentHandler);
 
-  fastify.put<{ Params: ContentIdParam; Body: z.infer<typeof updateContentApiSchema> }>('/:id', { 
+  fastify.put<{ Params: ContentIdParam; Body: z.infer<typeof updateContentApiSchema> }>('/:id', {
     schema: updateContentFastifySchema,
     onRequest: [authMiddleware]
-  }, updateContentHandler); // Call handler directly
+  }, updateContentHandler);
 
   fastify.delete<{ Params: ContentIdParam }>('/:id', {
     schema: deleteContentFastifySchema,
     onRequest: [authMiddleware]
-  }, deleteContentHandler); // Call handler directly
+  }, deleteContentHandler);
 
   // --- Comment Routes ---
   fastify.get<{ Params: ContentIdParam; Querystring: CommentsQuery }>('/:id/comments', {
     schema: getContentCommentsFastifySchema,
     onRequest: [authOptionalMiddleware]
-  }, getContentCommentsHandler); // Call handler directly
+  }, getContentCommentsHandler);
 
-  // TODO: Check createCommentHandler for points awarding
   fastify.post<{ Params: ContentIdParam; Body: z.infer<typeof createCommentApiSchema> }>('/:id/comments', {
     schema: createCommentFastifySchema,
     onRequest: [authMiddleware],
-    config: { // Add route-specific rate limit
-      rateLimit: {
-        max: 30, // Max 30 comments
-        timeWindow: '1 hour' // Per hour
-      }
-    }
-  }, createCommentHandler); 
+    config: { rateLimit: { max: 30, timeWindow: '1 hour' } }
+  }, createCommentHandler);
 
-  fastify.put<{ Params: CommentIdParam; Body: z.infer<typeof updateCommentApiSchema> }>('/:id/comments/:commentId', { 
+  fastify.put<{ Params: CommentIdParam; Body: z.infer<typeof updateCommentApiSchema> }>('/:id/comments/:commentId', {
     schema: updateCommentFastifySchema,
     onRequest: [authMiddleware]
-  }, updateCommentHandler); // Call handler directly
+  }, updateCommentHandler);
 
   fastify.delete<{ Params: CommentIdParam }>('/:id/comments/:commentId', {
     schema: deleteCommentFastifySchema,
     onRequest: [authMiddleware]
-  }, deleteCommentHandler); // Call handler directly
+  }, deleteCommentHandler);
 
-  // --- Reaction Routes (Placeholder) ---
-  // TODO: Implement Reaction Schemas and Handlers
-  // TODO: Check handlers for points awarding
-  // TODO: Add rate limiting for reactions
-  fastify.post('/:id/reactions', {
-    // schema: addReactionSchema,
+  // --- Reaction Routes ---
+  fastify.post<{ Params: ContentIdParam; Body: AddReactionBody }>('/:id/reactions', {
+    schema: addReactionFastifySchema,
     onRequest: [authMiddleware],
-    // config: { rateLimit: { max: 60, timeWindow: '1 hour' } }, // Example rate limit
-    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); } 
-  });
+    config: { rateLimit: { max: 60, timeWindow: '1 hour' } } // Example rate limit
+  }, addReactionHandler);
 
-  fastify.delete('/:id/reactions', { // Assuming reaction type/ID is in body or query? Or delete all user reactions? Needs clarification.
-    // schema: removeReactionSchema,
-    onRequest: [authMiddleware],
-    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); } 
-  });
+  // Note: DELETE route uses reactionType in the URL path for RESTfulness
+  fastify.delete<{ Params: { id: string; reactionType: string } }>('/:id/reactions/:reactionType', {
+    schema: removeReactionFastifySchema, // Uses params validation from schema
+    onRequest: [authMiddleware]
+  }, removeReactionHandler);
 
   // --- Draft Routes (Placeholder) ---
   // TODO: Implement Draft Schemas and Handlers
   fastify.get('/drafts', {
     // schema: getDraftsSchema,
     onRequest: [authMiddleware],
-    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); } 
+    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); }
   });
-  
+
   fastify.post('/drafts', {
     // schema: saveDraftSchema,
     onRequest: [authMiddleware],
-    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); } 
+    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); }
   });
 
   fastify.delete('/drafts/:draftId', { // Assuming draft ID in path
     // schema: deleteDraftSchema,
     onRequest: [authMiddleware],
-    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); } 
+    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); }
   });
 
   // --- Specific Feed Routes (e.g., trending, popular) ---
-  // Renamed from /feed/:type to avoid conflict with main /feed
-  fastify.get<{ Params: { type: string }; Querystring: FeedQuery }>('/feeds/:type', { 
-    schema: getFeedFastifySchema, 
+  fastify.get<{ Params: { type: string }; Querystring: FeedQuery }>('/feeds/:type', {
+    schema: getFeedFastifySchema,
     onRequest: [authOptionalMiddleware]
-  }, getFeedHandler); 
+  }, getFeedHandler);
 
   // --- Search Routes ---
   fastify.get<{ Querystring: SearchQuery }>('/search', {
     schema: searchContentFastifySchema,
     onRequest: [authOptionalMiddleware]
-  }, searchContentHandler); // Call handler directly
+  }, searchContentHandler);
 
   fastify.get<{ Querystring: SuggestionQuery }>('/search/suggestions', {
     schema: getSearchSuggestionsFastifySchema
     // No auth needed for suggestions? Verify this assumption.
-  }, getSearchSuggestionsHandler); // Call handler directly
+  }, getSearchSuggestionsHandler);
 
 }

@@ -70,14 +70,14 @@ export class RedisCapTracker {
    * @returns Cap check result
    */
   private async checkCap(
-    userId: string, 
-    source: PointsSource, 
-    amount: number, 
+    userId: string,
+    source: PointsSource,
+    amount: number,
     capType: CapType
   ): Promise<CapCheckResult> {
-    // Get the cap limit for this source
-    const limit = POINTS_CAPS[source] || 0;
-    
+    // Get the cap limit for this source safely, defaulting to 0 if not defined
+    const limit = (POINTS_CAPS as Record<PointsSource, number>)[source] ?? 0;
+
     // If no cap, return unlimited
     if (limit === 0) {
       return {
@@ -140,32 +140,66 @@ export class RedisCapTracker {
    * @param source Activity source
    * @param amount Points amount for this activity
    * @param capType Cap type (daily or weekly)
+   * @returns The new value of the counter after incrementing.
    */
   async incrementCap(
-    userId: string, 
-    source: PointsSource, 
-    amount: number, 
+    userId: string,
+    source: PointsSource,
+    amount: number,
     capType: CapType
-  ): Promise<void> {
+  ): Promise<number> {
     // Build Redis key
     const key = this.buildCapKey(userId, source, capType);
-    
     try {
-      // Get current value
-      const currentValue = await redisClient.get(key);
-      const current = currentValue ? parseInt(currentValue, 10) : 0;
-      
-      // Set new value with appropriate expiry
-      const newValue = current + amount;
-      const expirySeconds = this.getExpirySeconds(capType);
-      
-      await redisClient.set(key, newValue.toString(), expirySeconds);
+      // Use INCRBY for atomic increment
+      const newValue = await redisClient.client.incrby(key, amount); // Use .client
+
+      // If this is the first increment for this period, set the expiry
+      if (newValue === amount) {
+        const expirySeconds = this.getExpirySeconds(capType);
+        await redisClient.client.expire(key, expirySeconds); // Use .client
+        logger.debug(`Set expiry for cap key`, { key, expirySeconds });
+      }
+
+      // Return the new value after incrementing
+      return newValue;
     } catch (error) {
       logger.error('Error incrementing cap in Redis', { userId, source, amount, capType, error });
-      // We continue even if this fails, as it's better to allow activity than block users
+      // Rethrow error so the service layer knows the increment failed
+      throw new Error(`Failed to increment cap for ${userId}:${source}:${capType}`);
     }
   }
-  
+
+  /**
+   * Atomically decrement the usage counter for an activity (e.g., to compensate after exceeding cap).
+   *
+   * @param userId User ID
+   * @param source Activity source
+   * @param amount Points amount to decrement by
+   * @param capType Cap type (daily or weekly)
+   * @returns The new value of the counter after decrementing.
+   */
+  async decrementCap(
+    userId: string,
+    source: PointsSource,
+    amount: number,
+    capType: CapType
+  ): Promise<number> {
+    // Build Redis key
+    const key = this.buildCapKey(userId, source, capType);
+    try {
+      // Use DECRBY for atomic decrement
+      const newValue = await redisClient.client.decrby(key, amount);
+      logger.debug('Decremented cap usage', { key, amount, newValue });
+      return newValue;
+    } catch (error) {
+      logger.error('Error decrementing cap in Redis', { userId, source, amount, capType, error });
+      // Log error but don't necessarily block - depends on context
+      // Returning -1 or similar might indicate failure
+      return -1; // Indicate failure
+    }
+  }
+
   /**
    * Build a Redis key for a cap
    * 
@@ -250,13 +284,14 @@ export class RedisCapTracker {
    */
   async getAllCaps(userId: string): Promise<Map<PointsSource, { daily: CapCheckResult; weekly: CapCheckResult }>> {
     const result = new Map();
-    
+    const capsDefinition = POINTS_CAPS as Record<PointsSource, number>;
+
     // Get caps for all sources that have defined limits
-    for (const source of Object.keys(POINTS_CAPS) as PointsSource[]) {
-      if (POINTS_CAPS[source] > 0) {
+    for (const source of Object.keys(capsDefinition) as PointsSource[]) {
+      if (capsDefinition[source] > 0) {
         result.set(source, {
-          daily: await this.checkCap(userId, source, 0, CapType.DAILY),
-          weekly: await this.checkCap(userId, source, 0, CapType.WEEKLY)
+          daily: await this.checkCap(userId, source, 0, CapType.DAILY), // checkCap already handles default 0
+          weekly: await this.checkCap(userId, source, 0, CapType.WEEKLY) // checkCap already handles default 0
         });
       }
     }

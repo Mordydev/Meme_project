@@ -1,3 +1,9 @@
+# Backend Layered Architecture Refactoring Summary
+
+This document summarizes the refactoring process undertaken to restructure the backend codebase according to the layered architecture guidelines (api, services, lib, middleware, repositories). This aimed to improve organization, maintainability, and separation of concerns.
+
+---
+
 # Backend Refactoring Summary
 
 ## Overview
@@ -106,4 +112,4 @@ Updated the API route registration to use the new layered structure:
 - Complete standardization of error handling across all layers
 - Further refine the dependency injection pattern for services
 - Update remaining tests to fully align with the new structure
-- Add comprehensive documentation for the layered architecture 
+- Add comprehensive documentation for the layered architecture

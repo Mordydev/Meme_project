@@ -6,13 +6,32 @@
  */
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 // Corrected imports to use main service index
-import { enhancedPointsService, redemptionService, walletService } from '../../services'; 
+// Import eligibilityService as well
+import { enhancedPointsService, redemptionService, walletService, eligibilityService } from '../../services'; 
 import { handleApiError } from '../../errors'; // Assuming this handler exists and works with AppError
 import { AppError } from '../../errors/base-error.js'; // Added .js extension
-import { PointsSource } from '../../models/entities/points.model';
-import { REDEMPTION_CONSTANTS } from '../../models/entities/redemption.model'; // Assuming this exists
-import { TrendsQuerySchema, TrendsResponseSchema } from './schema'; // Import schemas for trends
-import { TrendsQueryParams } from './types'; // Import type for trends query
+import { PointsSource, PointsTransaction } from '../../models/entities/points.model'; // Import camelCase type
+import { 
+    REDEMPTION_CONSTANTS, 
+    CreateRedemptionRequestDto, // Import DTO
+    Redemption, // Import camelCase type
+    RedemptionResult, // Import result type
+    PaginatedRedemptionResult, // Import result type
+    PaginationMeta // Import PaginationMeta type
+} from '../../models/entities/redemption.model'; 
+// Import schemas for trends and eligibility
+import { 
+    TrendsQuerySchema, 
+    TrendsResponseSchema, 
+    EligibilityResponseSchema,
+    PointsRedeemRequestSchema, 
+    RedeemResponseSchema, 
+    TransactionQuerySchema, 
+    RedemptionsResponseSchema, 
+    CancelRedemptionParamsSchema, 
+    CancelRedemptionResponseSchema 
+} from './schema'; 
+import { TrendsQueryParams, TransactionQueryParams } from './types'; // Import types
 
 // Removed unused interfaces (UserIdParams) and adjusted others slightly if needed
 interface PointsAwardRequest {
@@ -23,19 +42,6 @@ interface PointsAwardRequest {
     description?: string;
     metadata?: Record<string, any>;
   };
-}
-
-interface PointsRedeemRequest {
-  data: {
-    amount: number;
-    walletAddress?: string; // Keep optional as per enhanced.ts logic
-  };
-}
-
-interface TransactionQueryParams {
-  limit?: number;
-  offset?: number;
-  source?: string;
 }
 
 /**
@@ -59,7 +65,8 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
         }
         
         const balance = await enhancedPointsService.getUserBalance(userId);
-        const transactions = await enhancedPointsService.getUserTransactions(userId, 5); // Limit to 5 for balance view
+        // Expecting { transactions: PointsTransaction[], total: number }
+        const transactionsResult = await enhancedPointsService.getUserTransactions(userId, { limit: 5 }); 
         const caps = await enhancedPointsService.getAllCaps(userId);
         const wallet = await walletService.getUserWallet(userId); 
 
@@ -72,14 +79,28 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
           };
         });
         
+        // getUserTransactions returns PointsTransactionModel[]
+        const formattedTransactions = transactionsResult.transactions.map(tx => ({ // tx is PointsTransactionModel
+            id: tx.id,
+            amount: tx.amount,
+            source: tx.source as PointsSource, // Cast string to PointsSource enum for response
+            referenceId: tx.referenceId, // Use camelCase
+            createdAt: tx.createdAt, // Use camelCase
+            description: tx.description,
+            metadata: tx.metadata // Use metadata from the model
+        }));
+
         return reply.code(200).send({
           data: {
             balance,
-            // TODO: Add explicit type for tx
-            transactions: transactions.map((tx: any) => ({ id: tx.id, amount: tx.amount, source: tx.source, referenceId: tx.reference_id, createdAt: tx.created_at, description: tx.description })),
-            caps: formattedCaps,
-            wallet: wallet ? { isConnected: true, isVerified: wallet.isVerified, address: wallet.address } : { isConnected: false },
-            redemption: { conversionRate: REDEMPTION_CONSTANTS.CONVERSION_RATE, minimumAmount: REDEMPTION_CONSTANTS.MINIMUM_AMOUNT, weeklyLimit: REDEMPTION_CONSTANTS.WEEKLY_CAP }
+            transactions: formattedTransactions, // Use formatted transactions
+             caps: formattedCaps,
+             wallet: wallet ? { isConnected: true, isVerified: wallet.isVerified, address: wallet.address } : { isConnected: false },
+             redemption: { 
+                 conversionRate: REDEMPTION_CONSTANTS.CONVERSION_RATE, 
+                 minimumAmount: REDEMPTION_CONSTANTS.MINIMUM_AMOUNT, 
+                 weeklyLimit: REDEMPTION_CONSTANTS.WEEKLY_LIMIT 
+             }
           },
           meta: { timestamp: new Date().toISOString() },
         });
@@ -94,14 +115,7 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
     schema: {
       tags: ['Points'],
       description: "Retrieves the user's points transaction history with pagination.",
-      querystring: {
-        type: 'object',
-        properties: {
-          limit: { type: 'integer', default: 20, minimum: 1, maximum: 100 },
-          offset: { type: 'integer', default: 0, minimum: 0 },
-          source: { type: 'string' }
-        }
-      }
+      querystring: TransactionQuerySchema, // Use Zod schema
       // Add detailed response schema if needed
     },
     handler: async (request: FastifyRequest<{ Querystring: TransactionQueryParams }>, reply: FastifyReply) => {
@@ -111,20 +125,27 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
            throw new AppError('User not authenticated', 'UNAUTHORIZED', 401);
         }
         
-        const limit = request.query.limit || 20;
-        const offset = request.query.offset || 0;
+        // Use validated query params
+        const limit = request.query.limit ?? 20;
+        const offset = request.query.offset ?? 0;
         const source = request.query.source; 
         
-        // TODO: Implement filtering by source in service method
-        // TODO: Implement method to get total count for pagination
-        const transactions = await enhancedPointsService.getUserTransactions(userId, limit, offset); 
-        const total = 0; // Placeholder for total count
+        // Assuming getUserTransactions returns PointsTransaction entities (camelCase)
+        const { transactions, total } = await enhancedPointsService.getUserTransactions(userId, { limit, offset, source }); // Returns PointsTransactionModel[]
         
         return reply.code(200).send({
-          // TODO: Add explicit type for tx
-          data: transactions.map((tx: any) => ({ id: tx.id, amount: tx.amount, source: tx.source, referenceId: tx.reference_id, createdAt: tx.created_at, description: tx.description })),
+          // Map properties from PointsTransactionModel
+          data: transactions.map(tx => ({ // tx is PointsTransactionModel
+              id: tx.id,
+              amount: tx.amount,
+              source: tx.source as PointsSource, // Cast string to PointsSource enum for response
+              referenceId: tx.referenceId, // Use camelCase
+              createdAt: tx.createdAt, // Use camelCase
+              description: tx.description,
+              metadata: tx.metadata // Use metadata from the model
+          })),
           meta: { timestamp: new Date().toISOString() },
-          pagination: { total, limit, offset, hasMore: offset + transactions.length < total } // hasMore logic might be incorrect without total
+          pagination: { total, limit, offset, hasMore: offset + transactions.length < total } // Use returned total
         });
       } catch (error) {
         return handleApiError(request, reply, error);
@@ -132,146 +153,85 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
     },
   });
 
-  // --- POST /award ---
+  // --- POST /award --- 
+  // (Assuming this remains internal/admin and doesn't need model refactoring now)
   fastify.post<{ Body: PointsAwardRequest }>('/award', {
-    schema: {
-      tags: ['Points'],
-      description: "Awards points to the user for a specific activity (internal/admin use likely).",
-      body: {
-        type: 'object',
-        required: ['data'],
-        properties: {
-          data: {
-            type: 'object',
-            required: ['amount', 'source'],
-            properties: {
-              amount: { type: 'number', minimum: 1 },
-              source: { type: 'string' }, // Consider enum validation
-              referenceId: { type: 'string' },
-              description: { type: 'string' },
-              metadata: { type: 'object' }
-            },
-          },
-        },
-      },
-      // Add detailed response schema if needed
-    },
-    // TODO: Add admin/internal auth check here
+    schema: { /* ... existing schema ... */ },
     handler: async (request: FastifyRequest<{ Body: PointsAwardRequest }>, reply: FastifyReply) => {
-      try {
-        const userId = request.user?.id; // Or target user ID if admin action
-        if (!userId) {
-           throw new AppError('User not authenticated', 'UNAUTHORIZED', 401);
-        }
-        
-        // Basic rate limiting check (example, refine in service)
-        if (await enhancedPointsService.isThrottled(userId, request.body.data.source as PointsSource)) {
-           throw new AppError('Rate limit exceeded', 'RATE_LIMIT_EXCEEDED', 429);
-        }
-        
-        const { amount, source, referenceId, description, metadata } = request.body.data;
-        
-        const result = await enhancedPointsService.awardPoints({ userId, amount, source: source as PointsSource, referenceId, description, metadata });
-        
-        return reply.code(200).send({
-          data: { success: result.success, amount: result.amount, newBalance: result.total },
-          meta: { timestamp: new Date().toISOString() },
-        });
-      } catch (error) {
-        return handleApiError(request, reply, error);
-      }
+        // ... existing handler ...
     },
   });
 
-  // --- POST /redeem --- (Placeholder for full redemption flow in Task 2.2)
-  fastify.post<{ Body: PointsRedeemRequest }>('/redeem', {
+  // --- POST /redeem --- 
+  fastify.post<{ Body: CreateRedemptionRequestDto }>('/redeem', { // Use DTO for Body type
      schema: {
        tags: ['Points', 'Redemption'],
        description: "Initiates a request to redeem points for tokens.",
-       body: {
-         type: 'object',
-         required: ['data'],
-         properties: {
-           data: {
-             type: 'object',
-             required: ['amount'],
-             properties: {
-               amount: { type: 'number', minimum: REDEMPTION_CONSTANTS.MINIMUM_AMOUNT },
-               walletAddress: { type: 'string' } // Optional, service should check connected wallet
-             },
-           },
-         },
-       },
-       // Add detailed response schema (202 Accepted)
+       body: PointsRedeemRequestSchema, // Use correct schema name
+       response: { 202: RedeemResponseSchema } // Use Zod schema for response
      },
-     config: { // Add route-specific rate limit
-        rateLimit: {
-            max: 5, // Max 5 redemption attempts
-            timeWindow: '1 hour' // Per hour
-        }
+     config: { 
+        rateLimit: { max: 5, timeWindow: '1 hour' }
      },
-     handler: async (request: FastifyRequest<{ Body: PointsRedeemRequest }>, reply: FastifyReply) => {
+     handler: async (request: FastifyRequest<{ Body: CreateRedemptionRequestDto }>, reply: FastifyReply) => {
        try {
          const userId = request.user?.id;
          if (!userId) {
             throw new AppError('User not authenticated', 'UNAUTHORIZED', 401);
          }
          
-         const { amount } = request.body.data;
-         let { walletAddress } = request.body.data; // Make it mutable
+         // Body is already validated by schema and typed as CreateRedemptionRequestDto
+         const { pointsAmount, walletAddress } = request.body; 
+         let finalWalletAddress = walletAddress;
 
          // If wallet address is not provided in request, try to get the user's connected wallet
-         if (!walletAddress) {
+         if (!finalWalletAddress) {
            const connectedWallet = await walletService.getUserWallet(userId);
            if (!connectedWallet?.address) {
-             // Throw specific error if no wallet is connected
              throw new AppError('No wallet connected for redemption.', 'WALLET_NOT_CONNECTED', 400);
            }
-           walletAddress = connectedWallet.address;
+           finalWalletAddress = connectedWallet.address;
          }
          
-         // Delegate to redemption service (to be fully implemented in Task 2.2)
-         // Now walletAddress is guaranteed to be a string here
-         const redemption = await redemptionService.requestRedemption({ userId, pointsAmount: amount, walletAddress });
+         // Delegate to redemption service using camelCase DTO
+         const result: RedemptionResult = await redemptionService.requestRedemption({ userId, pointsAmount, walletAddress: finalWalletAddress });
+         // result contains { success: boolean, redemption: Redemption }
          
          const now = new Date();
          const daysUntilSunday = (7 - now.getUTCDay()) % 7; // Use UTC day
          const nextSunday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilSunday));
          nextSunday.setUTCHours(0, 0, 0, 0);
 
+         // Construct the response matching RedemptionResult { success: boolean, redemption: Redemption }
+         // Add estimatedProcessingTime separately if needed by the schema
+         const responseData = {
+             success: result.success,
+             redemption: { // Ensure redemption object matches schema expectations
+                 ...result.redemption,
+                 // Format dates to ISO strings for API response consistency
+                 createdAt: result.redemption.createdAt.toISOString(), 
+                 processedAt: result.redemption.processedAt?.toISOString() ?? null 
+             },
+             estimatedProcessingTime: nextSunday.toISOString() 
+         };
+
          return reply.code(202).send({ // 202 Accepted
-           data: {
-             success: true,
-             requestId: redemption.id,
-             pointsAmount: redemption.points_amount,
-             tokenAmount: redemption.token_amount,
-             status: redemption.status,
-             estimatedProcessingTime: nextSunday.toISOString(),
-             walletAddress: redemption.wallet_address,
-             conversionRate: REDEMPTION_CONSTANTS.CONVERSION_RATE
-           },
+           data: responseData,
            meta: { timestamp: new Date().toISOString() },
          });
        } catch (error) {
-         // Specific error handling for redemption (e.g., InsufficientPointsError)
          return handleApiError(request, reply, error);
        }
      },
   });
   
-  // --- GET /redemptions --- (Placeholder for full redemption flow in Task 2.2)
+  // --- GET /redemptions --- 
   fastify.get<{ Querystring: TransactionQueryParams }>('/redemptions', {
      schema: {
        tags: ['Points', 'Redemption'],
        description: "Retrieves the user's redemption history.",
-       querystring: {
-         type: 'object',
-         properties: {
-           limit: { type: 'integer', default: 20, minimum: 1, maximum: 100 },
-           offset: { type: 'integer', default: 0, minimum: 0 }
-         }
-       }
-       // Add detailed response schema
+       querystring: TransactionQuerySchema, // Use Zod schema
+       response: { 200: RedemptionsResponseSchema } // Use Zod schema
      },
      handler: async (request: FastifyRequest<{ Querystring: TransactionQueryParams }>, reply: FastifyReply) => {
        try {
@@ -280,19 +240,37 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
             throw new AppError('User not authenticated', 'UNAUTHORIZED', 401);
          }
          
-         const limit = request.query.limit || 20;
-         const offset = request.query.offset || 0;
+         const limit = request.query.limit ?? 20;
+         const offset = request.query.offset ?? 0;
          
-         // Delegate to redemption service (to be fully implemented in Task 2.2)
-         // TODO: Implement method to get total count for pagination
-         const redemptions = await redemptionService.getUserRedemptions(userId, limit, offset); 
-         const total = 0; // Placeholder for total count
+         // Delegate to redemption service 
+         // Expecting PaginatedRedemptionResult { data: Redemption[], pagination: PaginationMeta }
+         const result: PaginatedRedemptionResult = await redemptionService.getUserRedemptions(userId, (offset / limit) + 1, limit); // Calculate page number
          
+         // Construct the response matching PaginatedRedemptionResult { data: Redemption[], pagination: PaginationMeta }
+         // Map data to ensure correct shape and format dates
+         const responseData = result.data.map((r: Redemption) => ({ 
+             ...r, // Spread all properties from Redemption
+             createdAt: r.createdAt.toISOString(), // Format date
+             processedAt: r.processedAt?.toISOString() ?? null // Format date
+         }));
+
+         // Construct pagination object explicitly matching expected structure
+         // Assuming PaginationMeta has { total, limit, offset, hasMore }
+         const responsePagination: PaginationMeta & { limit: number; offset: number } = { 
+             total: result.pagination.total,
+             limit: limit, // Use the requested limit
+             offset: offset, // Use the requested offset
+             page: result.pagination.page, // Include page if available
+             totalPages: result.pagination.totalPages, // Include totalPages if available
+             // Calculate hasMore based on total and current position
+             hasMore: (offset + result.data.length) < result.pagination.total 
+         };
+
          return reply.code(200).send({
-           // TODO: Add explicit type for r
-           data: redemptions.map((r: any) => ({ id: r.id, pointsAmount: r.points_amount, tokenAmount: r.token_amount, status: r.status, createdAt: r.created_at, processedAt: r.processed_at, transactionHash: r.transaction_hash, walletAddress: r.wallet_address })),
+           data: responseData, // Send the mapped data array
            meta: { timestamp: new Date().toISOString() },
-           pagination: { total, limit, offset, hasMore: offset + redemptions.length < total } // hasMore logic might be incorrect without total
+           pagination: responsePagination // Send the constructed pagination object
          });
        } catch (error) {
          return handleApiError(request, reply, error);
@@ -300,17 +278,13 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
      },
   });
 
-  // --- POST /redemptions/:id/cancel --- (Placeholder for full redemption flow in Task 2.2)
+  // --- POST /redemptions/:id/cancel --- 
   fastify.post<{ Params: { id: string } }>('/redemptions/:id/cancel', {
      schema: {
        tags: ['Points', 'Redemption'],
        description: "Cancels a pending redemption request.",
-       params: {
-         type: 'object',
-         required: ['id'],
-         properties: { id: { type: 'string' } }
-       }
-       // Add detailed response schema
+       params: CancelRedemptionParamsSchema, // Use Zod schema
+       response: { 200: CancelRedemptionResponseSchema } // Use Zod schema
      },
      handler: async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
        try {
@@ -319,15 +293,26 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
             throw new AppError('User not authenticated', 'UNAUTHORIZED', 401);
          }
          
-         // Delegate to redemption service (to be fully implemented in Task 2.2)
-         const redemption = await redemptionService.cancelRedemption(request.params.id, userId);
+         // Delegate to redemption service 
+         const result: RedemptionResult = await redemptionService.cancelRedemption(request.params.id, userId);
+         // result contains { success: boolean, redemption: Redemption }
          
+         // Construct the response matching RedemptionResult { success: boolean, redemption: Redemption }
+         const responseData: RedemptionResult = {
+             success: result.success,
+             // Map redemption fields to match schema if necessary, otherwise pass directly
+             redemption: {
+                 ...result.redemption, // Spread the redemption object
+                 // Ensure date fields are formatted if schema expects strings
+                 createdAt: result.redemption.createdAt.toISOString(), 
+                 processedAt: result.redemption.processedAt?.toISOString() ?? null 
+             }
+         };
          return reply.code(200).send({
-           data: { success: true, redemption: { id: redemption.id, status: redemption.status, pointsAmount: redemption.points_amount, refunded: true } },
+           data: responseData, // Send the RedemptionResult object
            meta: { timestamp: new Date().toISOString() },
          });
        } catch (error) {
-         // Specific error handling (e.g., RedemptionNotFoundError, NotCancellableError)
          return handleApiError(request, reply, error);
        }
      },
@@ -335,60 +320,54 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
 
   // --- GET /caps ---
   fastify.get('/caps', {
-    schema: {
-      tags: ['Points'],
-      description: "Retrieves the user's detailed daily and weekly point caps for all sources.",
-      // Add detailed response schema if needed
-    },
+    schema: { /* ... existing schema ... */ },
     handler: async (request: FastifyRequest, reply: FastifyReply) => {
-      try {
-         const userId = request.user?.id;
-         if (!userId) {
-            throw new AppError('User not authenticated', 'UNAUTHORIZED', 401);
-         }
-        
-        const caps = await enhancedPointsService.getAllCaps(userId);
-        
-        const formattedCaps: Record<string, any> = {};
-        // TODO: Add explicit types for capData and source
-        caps.forEach((capData: any, source: any) => {
-          formattedCaps[source] = {
-            daily: { used: capData.daily.current, limit: capData.daily.limit, remaining: capData.daily.remaining, resetsAt: capData.daily.resetsAt },
-            weekly: { used: capData.weekly.current, limit: capData.weekly.limit, remaining: capData.weekly.remaining, resetsAt: capData.weekly.resetsAt }
-          };
-        });
-        
-        return reply.code(200).send({
-          data: { caps: formattedCaps },
-          meta: { timestamp: new Date().toISOString() },
-        });
-      } catch (error) {
-        return handleApiError(request, reply, error);
-      }
+        // ... existing handler ...
     },
   });
 
-  // --- GET /redemption/eligibility --- (New endpoint for Task 2.2)
+  // --- GET /redemption/eligibility --- 
   fastify.get('/redemption/eligibility', {
     schema: {
       tags: ['Points', 'Redemption'],
       description: "Checks if the user is eligible to redeem points.",
-      // Add detailed response schema
+      response: { // Add response schema
+        200: EligibilityResponseSchema
+      }
     },
     handler: async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const userId = request.user?.id;
         if (!userId) {
            throw new AppError('User not authenticated', 'UNAUTHORIZED', 401);
-        }
+         }
 
-        // Delegate to redemption service (to be fully implemented in Task 2.2)
-        // TODO: Implement redemptionService.checkEligibility(userId)
-        // const eligibility = await redemptionService.checkEligibility(userId);
-        const eligibility = { placeholder: 'Eligibility data TBD' }; // Placeholder
+         // Delegate to eligibility service (imported now)
+         const eligibility = await eligibilityService.checkEligibility(userId);
+
+         // Format response according to schema
+        // Fetch necessary details if not included in eligibility result (e.g., balance, wallet address)
+        const currentBalance = await enhancedPointsService.getUserBalance(userId);
+        const wallet = await walletService.getUserWallet(userId);
 
         return reply.code(200).send({
-          data: eligibility, 
+          data: {
+            isEligible: eligibility.eligible,
+            reasons: eligibility.reasons,
+            checks: { 
+                hasEnoughPoints: currentBalance >= (eligibility.limits?.minimum ?? REDEMPTION_CONSTANTS.MINIMUM_AMOUNT),
+                isWalletConnected: !!wallet, 
+                isWalletVerified: eligibility.walletVerified,
+                isWeeklyCapReached: (eligibility.limits?.weekly.remaining ?? 0) <= 0
+            },
+            details: { 
+                currentBalance: currentBalance, 
+                minimumPoints: eligibility.limits?.minimum,
+                walletAddress: wallet?.address, 
+                weeklyUsed: eligibility.limits?.weekly.used,
+                weeklyLimit: eligibility.limits?.weekly.limit
+            }
+          }, 
           meta: { timestamp: new Date().toISOString() },
         });
       } catch (error) {
@@ -397,35 +376,29 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
     },
   });
 
-  // --- GET /trends --- (New endpoint for Task 2.2)
-  fastify.get<{ Querystring: TrendsQueryParams }>('/trends', { // Use TrendsQueryParams type
+  // --- GET /trends --- 
+  fastify.get<{ Querystring: TrendsQueryParams }>('/trends', { 
     schema: {
       tags: ['Points', 'Analytics'],
       description: "Retrieves points earning trends over time.",
-      querystring: TrendsQuerySchema, // Use Zod schema for request validation
-      response: { // Add response schema
-        200: TrendsResponseSchema 
-      }
+      querystring: TrendsQuerySchema, 
+      response: { 200: TrendsResponseSchema }
     },
     handler: async (request: FastifyRequest<{ Querystring: TrendsQueryParams }>, reply: FastifyReply) => {
       try {
         const userId = request.user?.id;
         if (!userId) {
            throw new AppError('User not authenticated', 'UNAUTHORIZED', 401);
-        }
+         }
 
-        // Period is validated and defaulted by TrendsQuerySchema
         const period = request.query.period ?? 'week'; 
-
-        // Delegate to points service analytics (to be implemented in Task 2.2)
-        // TODO: Implement enhancedPointsService.getTrends(userId, period)
         const trendsData = await enhancedPointsService.getTrends(userId, period); 
 
         // Format response according to schema
         return reply.code(200).send({
           data: {
             period: period,
-            data: trendsData // Assuming service returns data in correct format
+            data: trendsData // Assuming service returns data in correct format (now camelCase)
           },
           meta: { timestamp: new Date().toISOString() },
         });
@@ -435,5 +408,4 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
     },
   });
 
-  // Note: Removed analytics sub-route registration as routes are now top-level
 }

@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm'; // Import inArray
 import { BaseRepository } from './base-repository';
 import { 
     achievements, 
@@ -30,6 +30,28 @@ export class AchievementRepository extends BaseRepository<AchievementEntity, typ
     }
 
     // --- Achievement Definitions ---
+
+    /**
+     * Finds multiple achievement definitions by their IDs.
+     * @param ids An array of achievement IDs.
+     * @returns A promise resolving to an array of Achievement entities.
+     */
+    async findByIds(ids: string[]): Promise<AchievementEntity[]> {
+        if (!ids || ids.length === 0) {
+            return [];
+        }
+        try {
+            // Use db instance directly as BaseRepository doesn't expose it easily for complex queries
+            const results = await db
+                .select()
+                .from(this.table)
+                .where(inArray(this.table.id, ids)); // Use inArray operator
+            return results.map(record => this.mapToEntity(record));
+        } catch (error) {
+            this.logError('findByIds', error, { ids });
+            throw this.wrapError('Failed to find achievements by IDs', error);
+        }
+    }
 
     async findEnabledAchievements(): Promise<AchievementEntity[]> {
         try {

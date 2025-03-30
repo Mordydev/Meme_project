@@ -13,13 +13,13 @@ export type CommentStatus = z.infer<typeof CommentStatusEnum>;
 // Comment Zod Schema
 export const commentSchema = z.object({
   id: z.string().uuid({ message: 'Invalid comment ID format' }),
-  content_id: z.string().uuid({ message: 'Invalid content ID format' }),
-  user_id: z.string().uuid({ message: 'Invalid user ID format' }),
-  comment_text: z.string()
+  contentId: z.string().uuid({ message: 'Invalid content ID format' }), // camelCase
+  userId: z.string().uuid({ message: 'Invalid user ID format' }), // camelCase
+  commentText: z.string() // camelCase
     .min(1, { message: 'Comment text is required' })
     .max(1000, { message: 'Comment text cannot exceed 1000 characters' }),
-  parent_id: z.string().uuid({ message: 'Invalid parent comment ID format' }).nullable(),
-  created_at: z.coerce.date(),
+  parentId: z.string().uuid({ message: 'Invalid parent comment ID format' }).nullable(), // camelCase
+  createdAt: z.coerce.date(), // camelCase
   status: CommentStatusEnum.default('active'),
   
   // Metadata
@@ -33,17 +33,17 @@ export type Comment = z.infer<typeof commentSchema>;
 export const createCommentSchema = commentSchema
   .omit({ 
     id: true, 
-    created_at: true, 
+    createdAt: true, // camelCase
     status: true,
     metadata: true 
   })
   .partial({
-    parent_id: true
+    parentId: true // camelCase
   })
   .required({
-    content_id: true,
-    user_id: true,
-    comment_text: true
+    contentId: true, // camelCase
+    userId: true, // camelCase
+    commentText: true // camelCase
   });
 
 // Create Comment DTO Type
@@ -51,7 +51,7 @@ export type CreateCommentDto = z.infer<typeof createCommentSchema>;
 
 // Update Comment Input Schema
 export const updateCommentSchema = z.object({
-  comment_text: z.string()
+  commentText: z.string() // camelCase
     .min(1, { message: 'Comment text is required' })
     .max(1000, { message: 'Comment text cannot exceed 1000 characters' }),
   status: CommentStatusEnum.optional()
@@ -60,30 +60,40 @@ export const updateCommentSchema = z.object({
 // Update Comment DTO Type
 export type UpdateCommentDto = z.infer<typeof updateCommentSchema>;
 
-// Comment Response Schema (for API responses)
-export const commentResponseSchema = commentSchema
+// Define the recursive type structure first using an interface
+// This helps TypeScript resolve the recursive definition for the Zod schema
+interface CommentResponseDtoRecursive extends Comment {
+  author?: { id: string; displayName: string; avatarUrl: string | null; };
+  stats?: { likes: number; };
+  replies?: CommentResponseDtoRecursive[];
+}
+
+// Now define the Zod schema using z.lazy and referencing the interface type
+export const commentResponseSchema: z.ZodType<CommentResponseDtoRecursive> = commentSchema
   .extend({
-    // Include additional fields that are populated for responses
     author: z.object({
       id: z.string(),
-      display_name: z.string(),
-      avatar_url: z.string().nullable()
+      displayName: z.string(), // camelCase
+      avatarUrl: z.string().nullable() // camelCase
     }).optional(),
     stats: z.object({
       likes: z.number().default(0)
     }).optional(),
+    // Use z.lazy to handle the recursive definition
     replies: z.array(z.lazy(() => commentResponseSchema)).optional()
   });
 
-// Comment Response DTO Type
+// Comment Response DTO Type (inferred from the final schema)
 export type CommentResponseDto = z.infer<typeof commentResponseSchema>;
 
 // Comment Thread Structure (for hierarchical comment responses)
+// This interface might be redundant now if CommentResponseDtoRecursive covers it,
+// but keep it for clarity if used elsewhere.
 export interface CommentThread extends Comment {
   author: {
     id: string;
-    display_name: string;
-    avatar_url: string | null;
+    displayName: string; // camelCase
+    avatarUrl: string | null; // camelCase
   };
   stats: {
     likes: number;

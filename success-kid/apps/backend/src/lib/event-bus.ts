@@ -24,50 +24,58 @@ export enum EventType {
   POINTS_DEDUCTED = 'points.deducted',
   POINTS_REDEEMED = 'points.redeemed',
   POINTS_TRANSFERRED = 'points.transferred',
-  
+
   // Redemption events
   REDEMPTION_REQUESTED = 'redemption.requested',
   REDEMPTION_PROCESSING = 'redemption.processing',
   REDEMPTION_COMPLETED = 'redemption.completed',
   REDEMPTION_FAILED = 'redemption.failed',
   REDEMPTION_CANCELLED = 'redemption.cancelled',
-  
+
   // Achievement events
   ACHIEVEMENT_UNLOCKED = 'achievement.unlocked',
   ACHIEVEMENT_PROGRESS = 'achievement.progress',
-  
+
   // Content events
   CONTENT_CREATED = 'content.created',
-  CONTENT_COMMENTED = 'content.commented',
+  CONTENT_UPDATED = 'content.updated', // Add this
+  CONTENT_DELETED = 'content.deleted', // Add this
+  // CONTENT_COMMENTED = 'content.commented', // Keep or remove depending on usage? Using COMMENT_ADDED for now.
+  COMMENT_ADDED = 'comment.added', 
+  COMMENT_UPDATED = 'comment.updated', // Add this
+  COMMENT_DELETED = 'comment.deleted', // Add this
+  REACTION_ADDED = 'reaction.added', 
+  REACTION_REMOVED = 'reaction.removed', // Add this
   
   // User events
   USER_LEVEL_UP = 'user.levelUp',
   USER_TITLE_CHANGED = 'user.titleChanged',
-  
+  PROFILE_COMPLETED = 'user.profileCompleted', // Add this
+
   // Wallet events
   WALLET_CONNECTED = 'wallet.connected',
   WALLET_DISCONNECTED = 'wallet.disconnected',
   WALLET_VERIFIED = 'wallet.verified',
-  
+
   // Milestone events
   MILESTONE_REACHED = 'milestone.reached',
   MILESTONE_PROGRESS = 'milestone.progress',
-  
+
   // Notification events
   NOTIFICATION_CREATED = 'notification.created',
   NOTIFICATION_DELIVERED = 'notification.delivered',
   NOTIFICATION_READ = 'notification.read',
   NOTIFICATIONS_CLEARED = 'notifications.cleared',
-  
+
   // Activity events
   ACTIVITY_CREATED = 'activity.created',
   FEED_ITEM_CREATED = 'feed.item.created',
   FEED_ITEMS_READ = 'feed.items.read',
-  
+
   // Presence events
   PRESENCE_UPDATED = 'presence.updated',
   PRESENCE_SUBSCRIBED = 'presence.subscribed',
-  
+
   // Referral events
   REFERRAL_CREATED = 'referral.created',
   REFERRAL_STATUS_UPDATED = 'referral.status_updated',
@@ -81,7 +89,7 @@ export enum EventType {
   REFERRAL_CAMPAIGN_ACTIVATED = 'referral.campaign_activated',
   REFERRAL_CAMPAIGN_DEACTIVATED = 'referral.campaign_deactivated',
   REFERRAL_CAMPAIGN_APPLIED = 'referral.campaign_applied',
-  
+
   // Security events
   SUSPICIOUS_ACTIVITY_DETECTED = 'security.suspicious_activity_detected',
   ACCOUNT_THROTTLED = 'security.account_throttled',
@@ -136,7 +144,7 @@ export class EventBus {
   private readonly defaultMaxStreamLength = 10000;
   private readonly processingBatchSize = 50;
   private readonly processingIntervalMs = 500;
-  
+
   /**
    * Create a new EventBus instance
    * @param redis Redis client for publishing
@@ -144,19 +152,19 @@ export class EventBus {
    */
   constructor(redis: Redis, serviceName: string = 'app-service') {
     this.redis = redis;
-    
+
     // Create a duplicate connection for subscribing to prevent blocking
     this.subscriberRedis = redis.duplicate();
     this.consumerGroupName = 'event-bus-consumers';
     this.consumerName = `${serviceName}-${uuid().substring(0, 8)}`;
-    
+
     // Setup Redis Pub/Sub for backward compatibility
     this.setupRedisSubscription();
-    
+
     // Setup Redis Streams consumer
     this.setupStreamConsumer();
   }
-  
+
   /**
    * Publish an event to all subscribers
    * @param eventType Type of event
@@ -165,13 +173,13 @@ export class EventBus {
    * @returns Event ID
    */
   async publish(
-    eventType: EventType | string, 
-    data: any, 
+    eventType: EventType | string,
+    data: any,
     options: PublishOptions = {}
   ): Promise<string> {
     // Merge with default options
     const mergedOptions = { ...DEFAULT_PUBLISH_OPTIONS, ...options };
-    
+
     // Create standardized event
     const eventId = options.idempotencyKey || uuid();
     const event: Event = {
@@ -182,11 +190,11 @@ export class EventBus {
       source: mergedOptions.source || DEFAULT_PUBLISH_OPTIONS.source,
       version: '1.0',
     };
-    
+
     try {
       // Stream name based on event type
       const streamName = `${this.eventStreamPrefix}${eventType}`;
-      
+
       // Add to Redis Stream with automatic ID
       // The '*' parameter tells Redis to generate a unique ID
       const streamFields = [
@@ -198,47 +206,49 @@ export class EventBus {
         'version', event.version || '1.0',
         'priority', mergedOptions.priority || EventPriority.STANDARD,
       ];
-      
+
       if (mergedOptions.userId) {
         streamFields.push('userId', mergedOptions.userId);
       }
-      
+
       // Add to Redis Stream
       await this.redis.xadd(
-        streamName, 
+        streamName,
         '*',
         ...streamFields
       );
-      
+
       // Trim stream if needed to control memory usage
       if (mergedOptions.maxStreamLength) {
         await this.redis.xtrim(streamName, 'MAXLEN', '~', mergedOptions.maxStreamLength);
       }
-      
+
       // For backward compatibility, also publish to Redis Pub/Sub
       await this.redis.publish('events', JSON.stringify(event));
-      
+
       // Call local subscribers directly for immediate processing
       this.notifySubscribers(eventType, data);
-      
-      logger.debug(`Event published: ${eventType}`, { 
-        eventId, 
-        priority: mergedOptions.priority 
+
+      logger.debug(`Event published: ${eventType}`, {
+        eventId,
+        priority: mergedOptions.priority
       });
-      
+
       return eventId;
-    } catch (error) {
-      logger.error(`Failed to publish event: ${eventType}`, { error, eventId });
-      
+    } catch (error: unknown) { // Fix: Type error as unknown
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to publish event: ${eventType}`, { error: errorMessage, eventId });
+
       // For at-least-once delivery, throw error so caller can retry
       if (mergedOptions.deliveryGuarantee === 'at-least-once') {
-        throw new Error(`Failed to publish event: ${error.message}`);
+        // Construct a new error with a clear message
+        throw new Error(`Failed to publish event: ${errorMessage}`);
       }
-      
+
       return eventId;
     }
   }
-  
+
   /**
    * Subscribe to an event type
    * @param eventType Type of event to subscribe to
@@ -249,9 +259,9 @@ export class EventBus {
     if (!this.subscribers.has(eventType)) {
       this.subscribers.set(eventType, []);
     }
-    
+
     this.subscribers.get(eventType)!.push(callback);
-    
+
     // Return unsubscribe function
     return () => {
       const callbacks = this.subscribers.get(eventType);
@@ -263,7 +273,7 @@ export class EventBus {
       }
     };
   }
-  
+
   /**
    * Set up Redis Stream consumer group
    */
@@ -271,20 +281,22 @@ export class EventBus {
     try {
       // Start processing events from streams
       this.processingInterval = setInterval(() => {
-        this.processEventStreams().catch(error => {
-          logger.error('Error processing event streams', { error });
+        this.processEventStreams().catch(error => { // Catch error here
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.error('Error processing event streams interval', { error: errorMessage });
         });
       }, this.processingIntervalMs);
-      
+
       logger.info('Event stream consumer setup complete', {
         consumerGroup: this.consumerGroupName,
         consumerName: this.consumerName
       });
-    } catch (error) {
-      logger.error('Failed to setup Redis Stream consumer', { error });
+    } catch (error: unknown) { // Fix: Type error as unknown
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to setup Redis Stream consumer', { error: errorMessage });
     }
   }
-  
+
   /**
    * Process events from Redis Streams
    */
@@ -293,107 +305,138 @@ export class EventBus {
     if (this.isProcessing) {
       return;
     }
-    
+
     this.isProcessing = true;
-    
+
     try {
       // Get all event stream keys
       const streamKeys = await this.redis.keys(`${this.eventStreamPrefix}*`);
-      
+
       if (streamKeys.length === 0) {
         this.isProcessing = false;
         return;
       }
-      
+
       // Process each stream
       for (const streamKey of streamKeys) {
         const eventType = streamKey.replace(this.eventStreamPrefix, '');
-        
+
         // Skip if no subscribers for this event type
         if (!this.subscribers.has(eventType) || this.subscribers.get(eventType)!.length === 0) {
           continue;
         }
-        
+
         // Check if consumer group exists for this stream
         try {
           // Try to create the consumer group
           // This will fail if the group already exists, which is fine
           await this.redis.xgroup('CREATE', streamKey, this.consumerGroupName, '$', 'MKSTREAM');
           logger.debug(`Created consumer group for stream: ${streamKey}`);
-        } catch (error) {
+        } catch (error: unknown) { // Fix: Type error as unknown
           // Ignore error if group already exists
-          if (!error.message.includes('BUSYGROUP')) {
-            logger.error(`Failed to create consumer group for stream: ${streamKey}`, { error });
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          // More specific check for ioredis error message
+          if (!errorMessage.includes('BUSYGROUP Consumer Group name already exists')) {
+            logger.error(`Failed to create/access consumer group for stream: ${streamKey}`, { error: errorMessage });
+            // If we can't create/access the group, skip processing this stream for now
+            continue;
           }
         }
-        
+
         // Read events from the stream
         try {
-          const events = await this.redis.xreadgroup(
+          // Use 'any' for response type and rely on runtime checks
+          const response: any = await this.redis.xreadgroup( 
             'GROUP', this.consumerGroupName, this.consumerName,
             'COUNT', this.processingBatchSize,
             'STREAMS', streamKey, '>'
           );
-          
-          if (!events || events.length === 0) {
-            continue;
+
+          // Check if the response is null or empty
+          if (!response || response.length === 0) {
+            continue; // No new messages for this stream
           }
-          
-          // Process the events
-          const [streamEvents] = events;
-          const [, messages] = streamEvents;
-          
-          if (!messages || messages.length === 0) {
-            continue;
+
+          // Safely access the nested structure
+          const streamData = response[0]; // Access the first (and only expected) stream's data
+          if (!Array.isArray(streamData) || streamData.length !== 2 || !Array.isArray(streamData[1])) {
+              logger.warn('Unexpected structure from xreadgroup (streamData)', { streamKey, response });
+              continue;
           }
-          
+          const messages = streamData[1]; // Access the messages array ([ [messageId, fields], ... ])
+
+          if (messages.length === 0) {
+            continue; // No messages in this batch
+          }
+
           // Process each message
-          for (const [messageId, fields] of messages) {
-            try {
-              // Convert fields array to object
-              // Redis returns [key1, value1, key2, value2, ...]
-              const fieldsObj: Record<string, string> = {};
-              for (let i = 0; i < fields.length; i += 2) {
-                fieldsObj[fields[i]] = fields[i + 1];
+          for (const message of messages) {
+              // Ensure message is [messageId, fields] structure
+              if (!Array.isArray(message) || message.length !== 2) {
+                  logger.warn('Unexpected message structure in stream', { messageId: message?.[0], streamKey });
+                  continue; // Skip malformed message
               }
-              
-              // Parse event data
-              const eventData = JSON.parse(fieldsObj.data || '{}');
-              
-              // Notify subscribers
-              this.notifySubscribers(eventType, eventData);
-              
-              // Acknowledge the message
-              await this.redis.xack(streamKey, this.consumerGroupName, messageId);
-            } catch (error) {
-              logger.error(`Failed to process event message: ${messageId}`, { error, streamKey });
-            }
+              const [messageId, fields] = message; // Destructure messageId and fields
+
+              // Ensure fields is an array of strings [key1, val1, key2, val2, ...]
+              if (!Array.isArray(fields)) {
+                  logger.warn('Received non-array fields in message', { messageId, streamKey });
+                  continue; // Skip message with malformed fields
+              }
+
+              try {
+                  // Convert fields array (string[]) to object
+                  const fieldsObj: Record<string, string> = {};
+                  for (let i = 0; i < fields.length; i += 2) {
+                      // Basic check to prevent out-of-bounds access
+                      if (i + 1 < fields.length) {
+                          fieldsObj[fields[i]] = fields[i + 1];
+                      } else {
+                           logger.warn('Odd number of elements in message fields array', { messageId, streamKey });
+                      }
+                  }
+
+                  // Parse event data
+                  const eventData = JSON.parse(fieldsObj.data || '{}');
+
+                  // Notify subscribers
+                  this.notifySubscribers(eventType, eventData);
+
+                  // Acknowledge the message
+                  await this.redis.xack(streamKey, this.consumerGroupName, messageId);
+              } catch (error: unknown) { // Fix: Type error as unknown
+                  const errorMessage = error instanceof Error ? error.message : String(error);
+                  logger.error(`Failed to process event message: ${messageId}`, { error: errorMessage, streamKey });
+              }
           }
-        } catch (error) {
-          logger.error(`Failed to read events from stream: ${streamKey}`, { error });
+        } catch (error: unknown) { // Fix: Type error as unknown
+           const errorMessage = error instanceof Error ? error.message : String(error);
+           logger.error(`Failed to read events from stream: ${streamKey}`, { error: errorMessage });
         }
       }
-    } catch (error) {
-      logger.error('Failed to process event streams', { error });
+    } catch (error: unknown) { // Fix: Type error as unknown
+       const errorMessage = error instanceof Error ? error.message : String(error);
+       logger.error('Failed to process event streams', { error: errorMessage });
     } finally {
       this.isProcessing = false;
     }
   }
-  
+
   /**
    * Set up Redis subscription for distributed events (backward compatibility)
    */
   private setupRedisSubscription(): void {
     // Subscribe to the events channel
     this.subscriberRedis.subscribe('events');
-    
+
     // Handle incoming events
     this.subscriberRedis.on('message', (_channel, message) => {
       try {
         const event = JSON.parse(message) as Event;
         this.notifySubscribers(event.type, event.data);
-      } catch (error) {
-        logger.error('Failed to process event message', { error });
+      } catch (error: unknown) { // Fix: Type error as unknown
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Failed to process event message', { error: errorMessage });
       }
     });
 
@@ -403,11 +446,12 @@ export class EventBus {
     });
 
     // Log errors
-    this.subscriberRedis.on('error', (error) => {
-      logger.error('Redis subscription error', { error });
+    this.subscriberRedis.on('error', (error: unknown) => { // Fix: Type error as unknown
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Redis subscription error', { error: errorMessage });
     });
   }
-  
+
   /**
    * Notify local subscribers of an event
    * @param eventType Type of event
@@ -419,13 +463,15 @@ export class EventBus {
       callbacks.forEach(callback => {
         try {
           callback(data);
-        } catch (error) {
-          logger.error('Error in event subscriber', { eventType, error });
+        } catch (error: unknown) { // Fix: Type error as unknown
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          // Log the error message, not the unknown object directly
+          logger.error('Error in event subscriber', { eventType, error: errorMessage });
         }
       });
     }
   }
-  
+
   /**
    * Stop event processing
    */

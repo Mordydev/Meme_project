@@ -1,6 +1,9 @@
 import 'dotenv/config'; // Load environment variables from .env file
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import { neon, neonConfig, Pool } from '@neondatabase/serverless';
+// Import necessary Drizzle types
+import { drizzle, NeonHttpDatabase } from 'drizzle-orm/neon-http'; 
+// Import sql tag from drizzle-orm main package
+import { sql as drizzleSql } from 'drizzle-orm'; 
+import { neon, neonConfig, Pool } from '@neondatabase/serverless'; 
 import { Logger } from 'pino'; // Assuming pino logger is used as per backend.md
 import * as schema from './schema';
 
@@ -15,21 +18,29 @@ if (!databaseUrl) {
   process.exit(1); // Exit if the database URL is essential
 }
 
-// Create SQL client for standard queries
-const sql = neon(databaseUrl);
-export const db = drizzle(sql, { schema });
+// Create SQL client for standard queries using neon
+const sqlClient = neon(databaseUrl);
+
+// Define the Drizzle configuration (REMOVED namingStrategy)
+const drizzleConfig = { 
+  schema
+};
+
+// Initialize Drizzle with the configuration
+// Explicitly type db for better type inference downstream
+export const db: NeonHttpDatabase<typeof schema> = drizzle(sqlClient, drizzleConfig);
 
 // Optional: Create a connection pool for high-traffic scenarios or transactions
 // Adjust pool settings based on expected load
 // const pool = new Pool({ connectionString: databaseUrl, max: 10 });
-// export const poolDb = drizzle(pool, { schema });
+// export const poolDb = drizzle(pool, drizzleConfig); // Apply config to pool client too if used
 
 // Health check function (using the standard client)
 // Assuming a logger instance is available, replace `console` if using pino or similar
 export async function checkDatabaseHealth(logger: Logger = console as any) {
   try {
-    // Drizzle doesn't have a direct ping, execute a simple query
-    const result = await db.execute(sql`SELECT 1`);
+    // Drizzle doesn't have a direct ping, execute a simple query using drizzleSql
+    const result = await db.execute(drizzleSql`SELECT 1`); 
     // Check if the query returned at least one row with a result
     if (result && result.rows && result.rows.length > 0) {
         logger.info('Database health check successful.');

@@ -1,20 +1,13 @@
 import { SQL, eq, and, desc, asc, count as drizzleCount } from 'drizzle-orm';
-import { PgTable, PgColumn, PgTransaction } from 'drizzle-orm/pg-core'; // Import PgTransaction
-import { NodePgQueryResultHKT } from 'drizzle-orm/node-postgres'; // Import specific HKT if needed, adjust based on driver
+import { PgTable, PgColumn, PgTransaction } from 'drizzle-orm/pg-core'; 
+// Import the correct HKT for neon-http adapter
+import { NeonHttpQueryResultHKT } from 'drizzle-orm/neon-http'; 
 import { ExtractTablesWithRelations } from 'drizzle-orm';
 import { db } from '../database'; // Assuming db client from ../database/index.ts
 import { schema } from '../database/schema'; // Import the combined schema
 import { Logger } from 'pino'; // Assuming pino logger
-
-// Placeholder for logger import (adjust path as needed)
-let logger: Logger;
-try {
-  const loggerModule = require('../lib/logger.js'); // Using require for CommonJS
-  logger = loggerModule.logger;
-} catch (e) {
-  console.warn("Logger module not found at '../lib/logger.js', using console.", e);
-  logger = console as any;
-}
+// Import logger using standard import (assuming it's exported correctly from lib/logger)
+import { logger } from '../lib/logger';
 
 // Interface for query options, including filtering, sorting, and pagination
 export interface QueryOptions<T> {
@@ -29,7 +22,7 @@ export interface QueryOptions<T> {
 export abstract class BaseRepository<
     TEntity, // The entity type (e.g., User, Content) - Maps to the select model
     TTable extends PgTable, // The Drizzle table schema (e.g., typeof users)
-    TInsertSchema = typeof TTable.$inferInsert // Infer the insert type
+    TInsertSchema = TTable['$inferInsert'] // Use index access type for inferring insert schema
 > {
   /**
    * Constructor for the BaseRepository.
@@ -205,14 +198,13 @@ export abstract class BaseRepository<
    * @param callback The function to execute within the transaction. It receives a PgTransaction instance.
    * @returns The result of the callback function.
    */
-  // Correct the transaction callback signature - use the imported 'schema'
+  // Correct the transaction callback signature - use NeonHttpQueryResultHKT
   async transaction<R>(
       callback: (
-          tx: PgTransaction<NodePgQueryResultHKT, typeof schema, ExtractTablesWithRelations<typeof schema>>
+          tx: PgTransaction<NeonHttpQueryResultHKT, typeof schema, ExtractTablesWithRelations<typeof schema>>
       ) => Promise<R>
   ): Promise<R> {
       // The schema context is usually inferred if the 'db' instance was created with it.
-      // Removed the explicit schema option as it caused errors.
       return db.transaction(callback);
   }
 
@@ -301,20 +293,4 @@ export abstract class BaseRepository<
    */
   protected abstract mapToEntity(record: Record<string, any>): TEntity;
 
-  /**
-   * Maps an entity object to a format suitable for database insertion/update.
-   * Default implementation assumes entity keys match database column names.
-   * Override in concrete classes if mapping is needed (e.g., camelCase to snake_case),
-   * Maps an entity object to a format suitable for database insertion/update.
-   * Default implementation assumes entity keys match database column names.
-   * Override in concrete classes if mapping is needed (e.g., camelCase to snake_case),
-   * ensuring the return type matches the expected insert/update schema.
-   * @param entity The partial entity object.
-   * @returns A record suitable for Drizzle's values() or set().
-   */
-   // Removing this for now to simplify and rely on TInsertSchema type inference
-  // protected mapToDatabase(entity: Partial<TEntity | TInsertSchema>): Record<string, any> {
-  //   // Default: return entity as is. Override if needed.
-  //   return entity as Record<string, any>;
-  // }
 }

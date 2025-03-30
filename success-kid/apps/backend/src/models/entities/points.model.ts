@@ -1,7 +1,7 @@
 /**
  * Points Model
  * 
- * Defines the UserPoints entity, validation schemas, and related data transfer objects.
+ * Defines the PointsTransaction entity, validation schemas, and related data transfer objects.
  * Success Points are earned through participation and can be redeemed for tokens.
  */
 import { z } from 'zod';
@@ -31,39 +31,39 @@ export const PointsSourceEnum = z.enum([
 
 export type PointsSource = z.infer<typeof PointsSourceEnum>;
 
-// Points Transaction Zod Schema
+// Points Transaction Zod Schema (using camelCase)
 export const pointsTransactionSchema = z.object({
   id: z.string().uuid({ message: 'Invalid transaction ID format' }),
-  user_id: z.string().uuid({ message: 'Invalid user ID format' }),
+  userId: z.string().uuid({ message: 'Invalid user ID format' }), // camelCase
   amount: z.number().int({ message: 'Points amount must be an integer' })
     .refine(val => val !== 0, { message: 'Points amount cannot be zero' }),
   source: PointsSourceEnum,
-  reference_id: z.string().nullable(),
-  created_at: z.coerce.date(),
+  referenceId: z.string().nullable(), // camelCase
+  createdAt: z.coerce.date(), // camelCase
   description: z.string().max(500).nullable(),
   
   // Additional metadata for specific transaction types
   metadata: z.record(z.string(), z.any()).default({})
 });
 
-// TypeScript Points Transaction Type derived from Zod schema
+// TypeScript Points Transaction Type derived from Zod schema (now camelCase)
 export type PointsTransaction = z.infer<typeof pointsTransactionSchema>;
 
-// Create Points Transaction Input Schema
+// Create Points Transaction Input Schema (using camelCase)
 export const createPointsTransactionSchema = z.object({
-  user_id: z.string().uuid({ message: 'Invalid user ID format' }),
+  userId: z.string().uuid({ message: 'Invalid user ID format' }), // camelCase
   amount: z.number().int({ message: 'Points amount must be an integer' })
     .refine(val => val !== 0, { message: 'Points amount cannot be zero' }),
   source: PointsSourceEnum,
-  reference_id: z.string().nullable().optional(),
+  referenceId: z.string().nullable().optional(), // camelCase
   description: z.string().max(500).nullable().optional(),
   metadata: z.record(z.string(), z.any()).optional()
 });
 
-// Create Points Transaction DTO Type
+// Create Points Transaction DTO Type (now camelCase)
 export type CreatePointsTransactionDto = z.infer<typeof createPointsTransactionSchema>;
 
-// Points Award Input Schema (for service layer)
+// Points Award Input Schema (already camelCase)
 export const pointsAwardSchema = z.object({
   userId: z.string().uuid({ message: 'Invalid user ID format' }),
   amount: z.number().int().positive({ message: 'Award amount must be a positive integer' }),
@@ -73,10 +73,10 @@ export const pointsAwardSchema = z.object({
   metadata: z.record(z.string(), z.any()).optional()
 });
 
-// Points Award Type
+// Points Award Type (already camelCase)
 export type PointsAwardData = z.infer<typeof pointsAwardSchema>;
 
-// Points Deduction Input Schema (for service layer)
+// Points Deduction Input Schema (already camelCase)
 export const pointsDeductionSchema = z.object({
   userId: z.string().uuid({ message: 'Invalid user ID format' }),
   amount: z.number().int().positive({ message: 'Deduction amount must be a positive integer' }),
@@ -86,10 +86,10 @@ export const pointsDeductionSchema = z.object({
   metadata: z.record(z.string(), z.any()).optional()
 });
 
-// Points Deduction Type
+// Points Deduction Type (already camelCase)
 export type PointsDeductionData = z.infer<typeof pointsDeductionSchema>;
 
-// Points Transfer Input Schema (for service layer)
+// Points Transfer Input Schema (already camelCase)
 export const pointsTransferSchema = z.object({
   fromUserId: z.string().uuid({ message: 'Invalid source user ID format' }),
   toUserId: z.string().uuid({ message: 'Invalid destination user ID format' }),
@@ -98,10 +98,10 @@ export const pointsTransferSchema = z.object({
   description: z.string().max(500).optional()
 });
 
-// Points Transfer Type
+// Points Transfer Type (already camelCase)
 export type PointsTransferData = z.infer<typeof pointsTransferSchema>;
 
-// Points Balance Type (for user points summary)
+// Points Balance Type (using camelCase)
 export const pointsBalanceSchema = z.object({
   userId: z.string().uuid(),
   total: z.number().int(),
@@ -111,10 +111,10 @@ export const pointsBalanceSchema = z.object({
   lastTransaction: z.coerce.date().nullable()
 });
 
-// Points Balance Type
+// Points Balance Type (now camelCase)
 export type PointsBalance = z.infer<typeof pointsBalanceSchema>;
 
-// Daily Cap Type (for monitoring source limits)
+// Daily Cap Type (using camelCase)
 export const dailyCapSchema = z.object({
   source: PointsSourceEnum,
   limit: z.number().int().positive(),
@@ -123,7 +123,7 @@ export const dailyCapSchema = z.object({
   resetsAt: z.coerce.date()
 });
 
-// Daily Cap Type
+// Daily Cap Type (now camelCase)
 export type DailyCap = z.infer<typeof dailyCapSchema>;
 
 // Points Caps Configuration
