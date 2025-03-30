@@ -5,10 +5,10 @@
  * Includes token refresh support for long-lived connections.
  */
 import { FastifyRequest } from 'fastify';
-import { verifyClerkJWT } from '../lib/clerk';
+import { verifyClerkJWT } from '../lib/clerk/client';
 import { logger } from '../lib/logger';
 import { Redis } from 'ioredis';
-import { getRedisClient } from '../lib/db-client';
+import { redisClient } from '../lib/redis/client';
 
 // Token cache for faster validation
 interface TokenCacheEntry {
@@ -19,8 +19,8 @@ interface TokenCacheEntry {
 // In-memory token cache with TTL
 const tokenCache = new Map<string, TokenCacheEntry>();
 
-// Redis client for distributed token cache
-const redis = getRedisClient();
+// Get Redis client
+const redis = redisClient.getClient();
 const TOKEN_CACHE_PREFIX = 'ws:token:';
 const TOKEN_CACHE_TTL = 3600; // 1 hour in seconds
 
@@ -67,7 +67,8 @@ export async function authenticateWebSocketConnection(request: FastifyRequest): 
  */
 function extractToken(request: FastifyRequest): string | null {
   // Extract token from query parameter (preferred for WebSockets)
-  const token = request.query.token as string;
+  const query = request.query as { token?: string };
+  const token = query.token;
   
   // If no token in query, try Authorization header
   if (!token && request.headers.authorization) {

@@ -41,7 +41,8 @@ export function authMiddleware(options: AuthOptions = { required: true }) {
       
       // Check if user has required roles (if specified)
       if (options.roles && options.roles.length > 0) {
-        const hasRole = options.roles.includes(user.role);
+        const userRole = user.role || ''; // Provide default empty string
+        const hasRole = options.roles.includes(userRole);
         
         if (!hasRole) {
           throw new ForbiddenError(`Required role: ${options.roles.join(' or ')}`);
@@ -90,19 +91,3 @@ export const requiresAdmin = authMiddleware({ required: true, roles: ['admin'] }
 export const requiresModerator = authMiddleware({ required: true, roles: ['admin', 'moderator'] });
 export const requiresUser = authMiddleware({ required: true });
 export const optionalAuth = authMiddleware({ required: false });
-
-// Type augmentation for Fastify
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: {
-      id: string;
-      email: string;
-      displayName: string;
-      role: string;
-      firstName?: string;
-      lastName?: string;
-      profileImageUrl?: string;
-      metadata?: Record<string, any>;
-    };
-  }
-}

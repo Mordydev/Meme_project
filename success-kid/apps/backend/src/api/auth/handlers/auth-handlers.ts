@@ -1,14 +1,14 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { authService } from '../service';
-import { sessionService } from '../../services/session-service';
-import { logger } from '../../lib/logger';
+import { authService } from '../../../services/auth-service';
+import { sessionService } from '../../../services/session-service';
+import { logger } from '../../../lib/logger';
 import { 
   UnauthorizedError, 
   ValidationError, 
   ForbiddenError, 
   RateLimitExceededError
-} from '../../lib/errors';
-import { verifyClerkJWT, extractToken } from '../clerk/client';
+} from '../../../lib/errors';
+import { verifyClerkJWT, extractToken } from '../../../lib/clerk/client';
 
 /**
  * Handler for login endpoint
@@ -17,6 +17,7 @@ import { verifyClerkJWT, extractToken } from '../clerk/client';
 export async function loginHandler(
   request: FastifyRequest<{
     Body: { email: string; password: string };
+    Reply: any;
   }>,
   reply: FastifyReply
 ) {

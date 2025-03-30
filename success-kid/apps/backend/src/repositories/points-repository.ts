@@ -3,17 +3,7 @@ import { randomUUID } from 'crypto'; // Import randomUUID
 import { BaseRepository, QueryOptions } from './base-repository'; // Import base class and options
 import { userPoints, UserPoints, NewUserPoints } from '../database/schema/points'; // Import schema and types
 import { db } from '../database'; // Import db instance
-import { Logger } from 'pino';
-
-// Placeholder for logger import (adjust path as needed)
-let logger: Logger;
-try {
-  const loggerModule = require('../lib/logger.js'); // Using require for CommonJS
-  logger = loggerModule.logger;
-} catch (e) {
-  console.warn("Logger module not found at '../lib/logger.js', using console.", e);
-  logger = console as any;
-}
+import { logger } from '../lib/logger'; // Standardized import
 
 // Define the specific entity type for the repository
 type PointsEntity = UserPoints; // Using the inferred type from schema/points.ts

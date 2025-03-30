@@ -2,17 +2,7 @@ import { eq } from 'drizzle-orm';
 import { BaseRepository, QueryOptions } from './base-repository'; // Import base class and options
 import { walletConnections, WalletConnection, NewWalletConnection } from '../database/schema/wallets'; // Import schema and types
 import { db } from '../database'; // Import db instance
-import { Logger } from 'pino';
-
-// Placeholder for logger import (adjust path as needed)
-let logger: Logger;
-try {
-  const loggerModule = require('../lib/logger.js'); // Using require for CommonJS
-  logger = loggerModule.logger;
-} catch (e) {
-  console.warn("Logger module not found at '../lib/logger.js', using console.", e);
-  logger = console as any;
-}
+import { logger } from '../lib/logger'; // Standard logger import
 
 // Define the specific entity type for the repository
 type WalletConnectionEntity = WalletConnection;

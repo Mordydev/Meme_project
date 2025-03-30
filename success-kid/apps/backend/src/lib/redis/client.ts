@@ -1,16 +1,6 @@
 import 'dotenv/config'; // Load environment variables
-import Redis, { RedisOptions } from 'ioredis';
-import { Logger } from 'pino';
-
-// Placeholder for logger import (adjust path as needed)
-let logger: Logger;
-try {
-  const loggerModule = require('../logger.js'); // Using require for CommonJS, assuming logger is in ../lib
-  logger = loggerModule.logger;
-} catch (e) {
-  console.warn("Logger module not found at '../logger.js', using console.", e);
-  logger = console as any;
-}
+import { Redis } from 'ioredis';
+import { logger } from '../logger';
 
 const redisUrl = process.env.REDIS_URL;
 
@@ -21,30 +11,12 @@ if (!redisUrl) {
   throw new Error('REDIS_URL environment variable is required.');
 }
 
-// Connection options based on the plan
-const connectionOptions: RedisOptions = {
-  maxRetriesPerRequest: 3,
-  retryStrategy(times: number): number | null {
-    // Exponential backoff with a cap
-    const delay = Math.min(times * 100, 3000); // 100ms, 200ms, ..., 3000ms max
-    logger.warn(`Redis connection retry attempt ${times}, delaying for ${delay}ms`);
-    return delay;
-  },
-  enableReadyCheck: true, // Ensures commands are only sent when ready
-  // keepAlive: 10000, // keepAlive is often managed by TCP stack, ioredis might not need explicit setting
-  connectionName: 'success-kid-app', // Helps identify connections in Redis monitoring
-  // Add TLS options if connecting to a cloud provider that requires it
-  // tls: {},
-  // Enable lazyConnect to avoid immediate connection attempt if Redis might not be ready
-  lazyConnect: true,
-};
-
 /**
  * Encapsulates the ioredis client for better management and abstraction.
  * Provides main client, subscription client, health checks, and connection status.
  */
 export class RedisClient {
-  private client: Redis;
+  private client: Redis | null = null;
   private subscriptionClient: Redis | null = null;
   private isReady = false;
   private isConnecting = false; // Track connection attempts
@@ -52,7 +24,7 @@ export class RedisClient {
   constructor() {
     logger.info('Initializing RedisClient...');
     // Add non-null assertion '!' as redisUrl is checked above
-    this.client = new Redis(redisUrl!, connectionOptions);
+    this.client = new Redis(redisUrl!);
     this.setupEventHandlers(this.client, 'main');
     this.connectClient(); // Initiate connection explicitly due to lazyConnect
   }
@@ -139,7 +111,7 @@ export class RedisClient {
     if (!this.isReady && !this.isConnecting) {
         this.connectClient(); // Attempt connection if needed
     }
-    return this.client;
+    return this.client!;
   }
 
   /**
@@ -150,7 +122,7 @@ export class RedisClient {
   getSubscriptionClient(): Redis {
     if (!this.subscriptionClient) {
       logger.info('Creating dedicated Redis subscription client...');
-      this.subscriptionClient = this.client.duplicate();
+      this.subscriptionClient = this.client!.duplicate();
       this.setupEventHandlers(this.subscriptionClient, 'subscription');
       // Subscription client connects automatically when subscribe/psubscribe is called
     }
@@ -163,7 +135,7 @@ export class RedisClient {
    */
   isConnected(): boolean {
     // Use client.status for a more accurate check
-    return this.client.status === 'ready';
+    return this.client!.status === 'ready';
     // return this.isReady; // Previous implementation
   }
 
@@ -212,7 +184,7 @@ export class RedisClient {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const pingResponse = await this.client.ping();
+      const pingResponse = await this.client!.ping();
       const success = pingResponse === 'PONG';
       if (!success) {
           logger.warn('Redis health check failed: Unexpected PING response.', { response: pingResponse });

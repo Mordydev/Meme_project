@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { verifyClerkJWT } from '../lib/clerk';
+import { verifyClerkJWT, ClerkUser } from '../lib/clerk/client';
 import { logger } from '../lib/logger';
 
 /**
@@ -19,9 +19,9 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     
     const token = authHeader.split(' ')[1];
     
-    const user = await verifyClerkJWT(token);
+    const clerkUser = await verifyClerkJWT(token);
     
-    if (!user) {
+    if (!clerkUser) {
       return reply.code(401).send({ 
         error: 'Unauthorized', 
         message: 'Invalid or expired token'
@@ -29,7 +29,15 @@ export async function authMiddleware(request: FastifyRequest, reply: FastifyRepl
     }
     
     // Add user to request for downstream handlers
-    request.user = user;
+    // Map ClerkUser to the expected request.user format
+    request.user = {
+      id: clerkUser.id,
+      email: clerkUser.email || '',
+      role: clerkUser.role || 'user',
+      firstName: clerkUser.firstName,
+      lastName: clerkUser.lastName,
+      profileImageUrl: clerkUser.profileImageUrl
+    };
   } catch (error) {
     logger.error('Authentication failed', { error });
     return reply.code(401).send({ 
@@ -68,6 +76,9 @@ declare module 'fastify' {
       id: string;
       email: string;
       role: string;
+      firstName?: string | null;
+      lastName?: string | null;
+      profileImageUrl?: string | null;
       [key: string]: any;
     };
   }

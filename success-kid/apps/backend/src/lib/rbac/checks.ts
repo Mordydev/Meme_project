@@ -1,8 +1,8 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { getRolePermissions } from './roles';
-import { ForbiddenError } from '../../lib/errors';
-import { redisClient } from '../../lib/redis-client';
-import { logger } from '../../lib/logger';
+import { ForbiddenError } from '../errors';
+import { redisClient } from '../redis/client';
+import { logger } from '../logger';
 
 /**
  * Cache TTL for permission checks (5 minutes)
@@ -11,12 +11,17 @@ const PERMISSION_CACHE_TTL = 5 * 60; // seconds
 
 /**
  * Check if a user has a specific permission
+ * 
+ * @param userId User ID
+ * @param permission Permission to check
+ * @returns True if user has permission, false otherwise
  */
 export async function hasPermission(userId: string, permission: string): Promise<boolean> {
   try {
     // Try to get from cache first
     const cacheKey = `perm:${userId}:${permission}`;
-    const cached = await redisClient.get(cacheKey);
+    const redis = redisClient.getClient();
+    const cached = await redis.get(cacheKey);
     
     if (cached !== null) {
       return cached === 'true';
@@ -32,16 +37,16 @@ export async function hasPermission(userId: string, permission: string): Promise
       
       if (rolePermissions.includes(permission)) {
         // Cache positive result
-        await redisClient.set(cacheKey, 'true', PERMISSION_CACHE_TTL);
+        await redis.set(cacheKey, 'true', 'EX', PERMISSION_CACHE_TTL);
         return true;
       }
     }
     
     // Cache negative result
-    await redisClient.set(cacheKey, 'false', PERMISSION_CACHE_TTL);
+    await redis.set(cacheKey, 'false', 'EX', PERMISSION_CACHE_TTL);
     return false;
   } catch (error) {
-    logger.error('Permission check error', { userId, permission, error });
+    logger.error('Error checking permission', { userId, permission, error });
     return false;
   }
 }

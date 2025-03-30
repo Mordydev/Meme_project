@@ -69,6 +69,22 @@ Migrate the Success Kid Community Platform to a modern technology stack includin
 *   Updated `SessionService` to use the new `RedisClient`.
 *   Verified the frontend uses the App Router structure (no `pages` directory found).
 
-## Next Steps (Task 6)
+## Phase 2 Refactoring (In Progress)
+
+*   **Objective:** Reorganize backend code into a layered architecture (`api/`, `services/`, `lib/`, `middleware/`, etc.).
+*   **Module: `auth`**
+    *   Removed duplicated session logic (`apps/backend/src/auth/session/`).
+    *   Moved `auth/service.ts` to `services/auth-service.ts` (overwriting previous).
+    *   Moved `auth/clerk/` contents to `lib/clerk/` and `middleware/`.
+    *   Moved `auth/rbac/` contents to `lib/rbac/`.
+    *   Moved `auth/security/` contents to `services/audit-service.ts`, `middleware/auth-security-middleware.ts`, and `api/security/`.
+    *   Moved `auth/tokens/` contents to `services/token-service.ts` and `api/tokens/`.
+    *   Moved `auth/verification/` contents to `services/verification/`.
+    *   Moved `auth/wallet/` contents to `services/wallet-auth-service.ts` and `api/wallet-auth/`.
+    *   Moved `auth/providers/` contents to `lib/auth-providers/`.
+    *   Removed the original `apps/backend/src/auth/` subdirectories after moving contents.
+    *   **Note:** Import paths within moved files and files importing them still need updating.
+
+## Next Steps (Task 6 & Refactoring)
 
 The subsequent phase involves executing the testing plan (unit, integration, E2E), performing the phased deployment strategy outlined in the original plan, setting up monitoring, and updating documentation.
