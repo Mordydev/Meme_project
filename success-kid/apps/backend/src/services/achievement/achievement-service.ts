@@ -7,7 +7,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../../lib/logger';
 import { EventBus, EventType } from '../../lib/event-bus';
 import { AchievementRepository } from '../../repositories/achievement/achievement-repository';
-import { PointsService } from '../points/points-service';
+import { EnhancedPointsService } from '../points/points-service-enhanced';
+import { NotificationService } from '../notifications/notification-service';
 import { 
   Achievement, 
   AchievementFilter, 
@@ -29,13 +30,15 @@ export class AchievementService {
    * Create a new AchievementService
    * 
    * @param achievementRepository Repository for achievement data access
-   * @param pointsService Service for awarding points
    * @param eventBus Event bus for publishing events
+   * @param pointsService Service for awarding points
+   * @param notificationService Service for sending notifications
    */
   constructor(
     private achievementRepository: AchievementRepository,
-    private pointsService: PointsService,
-    private eventBus: EventBus
+    private eventBus: EventBus,
+    private pointsService: EnhancedPointsService,
+    private notificationService: NotificationService
   ) {
     this.rulesEngine = new AchievementRulesEngine();
     this.subscribeToEvents();
@@ -288,7 +291,7 @@ export class AchievementService {
       if (filter) {
         return this.achievementRepository.findByFilter(filter);
       } else {
-        return this.achievementRepository.findAll();
+        return this.achievementRepository.findByFilter({});
       }
     } catch (error) {
       logger.error('Error getting achievements', { filter, error });

@@ -7,8 +7,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Pool } from 'pg';
 import { logger } from '../../../lib/logger';
-import { PointsService } from '../points-service';
+import { RedemptionRepository } from '../../../repositories/redemption-repository';
 import { EventBus, EventType } from '../../../lib/event-bus';
+import { EnhancedPointsService } from '../points-service-enhanced';
+import { RedisService } from '../../../lib/redis-service';
+import { RedemptionJobPublisher } from './jobs/redemption-job-publisher';
 import { 
   ValidationError, 
   InsufficientPointsError, 
@@ -61,13 +64,19 @@ export class RedemptionService {
    * Create a new RedemptionService
    * 
    * @param db Database connection pool
-   * @param pointsService Points service for point operations
+   * @param redemptionRepository Redemption repository for database operations
    * @param eventBus Event bus for publishing events
+   * @param pointsService Points service for point operations
+   * @param redisService Redis service for caching/locking
+   * @param jobPublisher Service to publish redemption jobs
    */
   constructor(
     private db: Pool,
-    private pointsService: PointsService,
-    private eventBus: EventBus
+    private redemptionRepository: RedemptionRepository,
+    private eventBus: EventBus,
+    private pointsService: EnhancedPointsService,
+    private redisService: RedisService,
+    private jobPublisher: RedemptionJobPublisher
   ) {}
   
   /**

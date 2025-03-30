@@ -8,9 +8,10 @@ import {
   RedemptionRequest, 
   REDEMPTION_CONSTANTS 
 } from '../../../models/entities/redemption';
-import { PointsService } from '../points-service';
 import { RedemptionRepository } from '../../../repositories/redemption-repository';
-import { getWalletModule } from '../../../wallet';
+import { UserRepository } from '../../../repositories/user-repository';
+import { EnhancedPointsService } from '../points-service-enhanced';
+import { WalletService } from '../../wallet/wallet-service';
 import { WalletConnectionService } from '../../../wallet/connection/service';
 import { WalletVerificationService } from '../../../wallet/verification/service';
 import { ValidationError, InsufficientPointsError } from '../../../errors';
@@ -59,12 +60,16 @@ export class RedemptionValidationService {
   /**
    * Create redemption validation service
    * 
-   * @param pointsService Points service
    * @param redemptionRepository Redemption repository
+   * @param userRepository User repository
+   * @param pointsService Points service
+   * @param walletService Wallet service
    */
   constructor(
-    private readonly pointsService: PointsService,
-    private readonly redemptionRepository: RedemptionRepository
+    private readonly redemptionRepository: RedemptionRepository,
+    private readonly userRepository: UserRepository,
+    private readonly pointsService: EnhancedPointsService,
+    private readonly walletService: WalletService
   ) {
     // Get wallet services
     const walletModule = getWalletModule();

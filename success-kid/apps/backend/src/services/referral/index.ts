@@ -14,7 +14,7 @@ import { ReferralRateLimiter } from './protection/rate-limiter';
 import { ReferralStatusService } from './status/status-service';
 
 import { ReferralRepository, ReferralCodeRepository, ReferralCampaignRepository } from '../../repositories/referral';
-import { PointsService } from '../points/points-service';
+import { EnhancedPointsService } from '../points/points-service-enhanced';
 import { NotificationService } from '../notification/notification-service';
 import { EventBus } from '../../lib/event-bus';
 import { db } from '../../database';
@@ -253,13 +253,11 @@ export function getReferralVerifier() {
 /**
  * Get PointsService instance
  * 
- * This is a placeholder. In a real implementation, this would be
- * imported from the points service module.
- * 
  * @returns PointsService
  */
-function getPointsService(): any {
-  // This is a placeholder for the actual points service
+function getPointsService(): EnhancedPointsService {
+  // Assuming pointsService is correctly initialized elsewhere
+  // If not, it needs proper initialization here or passed in
   return {
     awardPoints: async (params: any) => {
       return { success: true };

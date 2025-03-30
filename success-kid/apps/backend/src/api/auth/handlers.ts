@@ -1,10 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { sendSuccess, sendError } from '../../lib/response';
-
-interface LoginRequest {
-  email: string;
-  password: string;
-}
+import { LoginRequest } from './types'; // Import from types.ts
 
 /**
  * @openapi

@@ -4,15 +4,11 @@
  * Registers all achievement and gamification-related API endpoints
  */
 import { FastifyInstance } from 'fastify';
-import achievementRoutes from './achievement-routes';
-import levelRoutes from './level-routes';
-import badgeRoutes from './badge-routes';
-import streakRoutes from './streak-routes';
-import challengeRoutes from './challenge-routes';
-import leaderboardRoutes from './leaderboard-routes';
+import achievementRoutes from './routes'; // Updated import to the consolidated routes file
+// Removed imports for levelRoutes, badgeRoutes, streakRoutes, challengeRoutes, leaderboardRoutes
 
 /**
- * Register all achievement and gamification-related routes
+ * Register achievement and gamification-related routes
  * 
  * @param fastify Fastify instance
  * @param options Plugin options
@@ -28,20 +24,11 @@ export default async function registerAchievementRoutes(
   });
 
   // Register achievement routes
+  // Register the consolidated achievement routes
+  // The prefix '/achievements' should cover the routes defined in ./routes.ts for now.
+  // Prefixes for levels, badges, etc., will need to be handled within the consolidated routes file later.
   fastify.register(achievementRoutes, { prefix: '/achievements' });
-  
-  // Register level routes
-  fastify.register(levelRoutes, { prefix: '/levels' });
-  
-  // Register badge routes
-  fastify.register(badgeRoutes, { prefix: '/badges' });
-  
-  // Register streak routes
-  fastify.register(streakRoutes, { prefix: '/streaks' });
-  
-  // Register challenge routes
-  fastify.register(challengeRoutes, { prefix: '/challenges' });
-  
-  // Register leaderboard routes
-  fastify.register(leaderboardRoutes, { prefix: '/leaderboards' });
+
+  // Removed registration for levelRoutes, badgeRoutes, streakRoutes, challengeRoutes, leaderboardRoutes
+  // TODO: Ensure the consolidated achievementRoutes handles registration for all sub-routes (levels, badges, etc.) eventually.
 }

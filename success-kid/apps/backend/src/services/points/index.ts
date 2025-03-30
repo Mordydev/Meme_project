@@ -6,7 +6,7 @@
 import { getPgPool } from '../../lib/db-client';
 import { eventBus } from '../../lib/event-bus';
 import { PointsRepository } from '../../repositories/points-repository';
-import { PointsService } from './points-service';
+import { EnhancedPointsService } from './points-service-enhanced'; // Changed import
 import { PointsVerifier } from './verification/points-verifier';
 
 // Create dependencies
@@ -14,7 +14,7 @@ const pointsRepository = new PointsRepository(getPgPool());
 const pointsVerifier = new PointsVerifier();
 
 // Create and export service instance
-export const pointsService = new PointsService(
+export const pointsService = new EnhancedPointsService( // Changed class name
   pointsRepository,
   eventBus,
   pointsVerifier
@@ -25,5 +25,5 @@ export * from './analytics';
 export * from './redemption';
 
 // Export types
-export * from './points-service';
+export * from './points-service-enhanced'; // Changed export
 export * from './verification/points-verifier';

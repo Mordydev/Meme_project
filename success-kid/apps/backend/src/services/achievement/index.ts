@@ -14,7 +14,7 @@ import {
   ChallengeRepository,
   LeaderboardRepository
 } from '../../repositories/achievement';
-import { PointsService } from '../points/points-service';
+import { EnhancedPointsService } from '../points/points-service-enhanced';
 import { AchievementService } from './achievement-service';
 import { LevelService } from './level-service';
 import { StreakService } from './streak-service';
@@ -43,7 +43,7 @@ export interface AchievementServices {
 export function initializeAchievementServices(
   db: Pool,
   eventBus: EventBus,
-  pointsService: PointsService
+  pointsService: EnhancedPointsService
 ): AchievementServices {
   // Initialize repositories
   const repositories = createAchievementRepositories(db);

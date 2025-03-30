@@ -4,13 +4,29 @@
  * This service validates user eligibility for redemption operations.
  */
 import { WalletRepository } from '../../repositories/wallet-repository';
-import { PointsService } from '../../services/points/points-service';
+import { EnhancedPointsService } from '../../services/points'; // Updated import
 import { RedemptionRepository } from '../../repositories/redemption-repository';
 import { logger } from '../../lib/logger';
 import { 
-  REDEMPTION_CONSTANTS, 
-  EligibilityResult 
+  REDEMPTION_CONSTANTS
+  // EligibilityResult type is defined below
 } from '../../models/entities/redemption.model';
+
+// Define the missing EligibilityResult interface
+interface EligibilityResult {
+  eligible: boolean;
+  reasons?: string[];
+  limits?: {
+    weekly: {
+      limit: number;
+      used: number;
+      remaining: number;
+    };
+    minimum: number;
+  };
+  walletVerified: boolean;
+  accountStatus: string; // Consider using an enum if status values are fixed
+}
 
 /**
  * Redemption eligibility service
@@ -25,7 +41,7 @@ export class RedemptionEligibilityService {
    */
   constructor(
     private readonly walletRepository: WalletRepository,
-    private readonly pointsService: PointsService,
+    private readonly pointsService: EnhancedPointsService, // Updated type hint
     private readonly redemptionRepository: RedemptionRepository
   ) {}
 
@@ -43,9 +59,9 @@ export class RedemptionEligibilityService {
       reasons: [],
       limits: {
         weekly: {
-          limit: REDEMPTION_CONSTANTS.WEEKLY_LIMIT,
+          limit: REDEMPTION_CONSTANTS.WEEKLY_CAP, // Use WEEKLY_CAP
           used: 0,
-          remaining: REDEMPTION_CONSTANTS.WEEKLY_LIMIT
+          remaining: REDEMPTION_CONSTANTS.WEEKLY_CAP // Use WEEKLY_CAP
         },
         minimum: REDEMPTION_CONSTANTS.MINIMUM_AMOUNT
       },
@@ -75,11 +91,11 @@ export class RedemptionEligibilityService {
     );
     
     result.limits!.weekly.used = weeklyUsed;
-    result.limits!.weekly.remaining = Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_LIMIT - weeklyUsed);
+    result.limits!.weekly.remaining = Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_CAP - weeklyUsed); // Use WEEKLY_CAP
     
     if (result.limits!.weekly.remaining <= 0) {
       result.eligible = false;
-      result.reasons!.push(`Weekly redemption limit reached (${REDEMPTION_CONSTANTS.WEEKLY_LIMIT} SP)`);
+      result.reasons!.push(`Weekly redemption limit reached (${REDEMPTION_CONSTANTS.WEEKLY_CAP} SP)`); // Use WEEKLY_CAP
     }
 
     // Check user has enough points
@@ -144,8 +160,8 @@ export class RedemptionEligibilityService {
     }
 
     // Check weekly limit
-    const weeklyUsed = await this.redemptionRepository.getWeeklyRedemptionTotal(userId);
-    const weeklyRemaining = Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_LIMIT - weeklyUsed);
+    const weeklyUsed = await this.redemptionRepository.getWeeklyRedemptionTotal(userId); // This method needs to be added to the repository
+    const weeklyRemaining = Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_CAP - weeklyUsed); // Use WEEKLY_CAP
     
     if (weeklyRemaining < pointsAmount) {
       errors.push(`Weekly redemption limit exceeded (${weeklyRemaining} remaining, ${pointsAmount} requested)`);
@@ -164,7 +180,7 @@ export class RedemptionEligibilityService {
    * @returns Remaining weekly limit
    */
   async getRemainingWeeklyLimit(userId: string): Promise<number> {
-    const weeklyUsed = await this.redemptionRepository.getWeeklyRedemptionTotal(userId);
-    return Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_LIMIT - weeklyUsed);
+    const weeklyUsed = await this.redemptionRepository.getWeeklyRedemptionTotal(userId); // This method needs to be added to the repository
+    return Math.max(0, REDEMPTION_CONSTANTS.WEEKLY_CAP - weeklyUsed); // Use WEEKLY_CAP
   }
 }

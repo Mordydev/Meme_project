@@ -25,7 +25,8 @@ export const PointsSourceEnum = z.enum([
   'special_event',          // Special platform events
   'competition_prize',      // Winning platform competitions
   'transfer_in',            // Transfer from another user
-  'transfer_out'            // Transfer to another user
+  'transfer_out',           // Transfer to another user
+  'redemption_refund'       // Points refunded from a failed/cancelled redemption
 ]);
 
 export type PointsSource = z.infer<typeof PointsSourceEnum>;
@@ -143,5 +144,17 @@ export const POINTS_VALUES = {
   daily_login: 20,          // Daily login bonus
   profile_completion: 100,  // One-time bonus
   wallet_connection: 50,    // One-time bonus
-  // Other values...
+  streak_bonus: 0,          // TODO: Define value
+  achievement: 0,           // Points awarded per achievement definition
+  referral: 0,              // TODO: Define value
+  referral_conversion: 0,   // TODO: Define value
+  milestone: 0,             // TODO: Define value
+  redemption: 0,            // N/A - handled by deduction
+  admin_award: 0,           // Variable
+  content_featured: 0,      // TODO: Define value
+  special_event: 0,         // Variable
+  competition_prize: 0,     // Variable
+  transfer_in: 0,           // N/A
+  transfer_out: 0,          // N/A
+  redemption_refund: 0,     // N/A
 };

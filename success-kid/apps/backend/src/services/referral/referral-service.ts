@@ -6,7 +6,7 @@
 import { ReferralRepository } from '../../repositories/referral';
 import { ReferralCodeRepository } from '../../repositories/referral';
 import { ReferralCampaignRepository } from '../../repositories/referral';
-import { PointsService } from '../points/points-service';
+import { EnhancedPointsService } from '../points/points-service-enhanced';
 import { EventBus, EventType } from '../../lib/event-bus';
 import { 
   Referral, 
@@ -17,6 +17,9 @@ import {
 import { logger } from '../../lib/logger';
 import { NotFoundError, ValidationError, ConflictError } from '../../errors';
 import { ReferralVerifier } from './verification/referral-verifier';
+import { UserRepository } from '../../repositories/user-repository';
+import { ProfileRepository } from '../../repositories/profile-repository';
+import { NotificationService } from '../notifications/notification-service';
 
 /**
  * Interface for tracking a referral visit
@@ -110,9 +113,12 @@ export class ReferralService {
     private referralRepository: ReferralRepository,
     private referralCodeRepository: ReferralCodeRepository,
     private referralCampaignRepository: ReferralCampaignRepository,
-    private pointsService: PointsService,
+    private pointsService: EnhancedPointsService,
     private eventBus: EventBus,
-    private referralVerifier: ReferralVerifier
+    private referralVerifier: ReferralVerifier,
+    private userRepository: UserRepository,
+    private profileRepository: ProfileRepository,
+    private notificationService: NotificationService
   ) {}
 
   /**

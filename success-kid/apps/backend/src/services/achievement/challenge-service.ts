@@ -6,7 +6,8 @@
 import { logger } from '../../lib/logger';
 import { EventBus } from '../../lib/event-bus';
 import { ChallengeRepository } from '../../repositories/achievement/challenge-repository';
-import { PointsService } from '../points/points-service';
+import { NotificationService } from '../notifications/notification-service';
+import { EnhancedPointsService } from '../points/points-service-enhanced';
 import { BadgeService } from './badge-service';
 import { LevelService } from './level-service';
 import {
@@ -31,17 +32,19 @@ export class ChallengeService {
    * Create a new ChallengeService
    * 
    * @param challengeRepository Repository for challenge data access
+   * @param eventBus Event bus for publishing events
+   * @param notificationService Service for sending notifications
    * @param pointsService Service for awarding points
    * @param badgeService Service for awarding badges
    * @param levelService Service for awarding XP
-   * @param eventBus Event bus for publishing events
    */
   constructor(
     private challengeRepository: ChallengeRepository,
-    private pointsService: PointsService,
+    private eventBus: EventBus,
+    private notificationService: NotificationService,
+    private pointsService: EnhancedPointsService,
     private badgeService: BadgeService,
-    private levelService: LevelService,
-    private eventBus: EventBus
+    private levelService: LevelService
   ) {
     // Schedule challenge status update job
     this.scheduleChallengeStatusUpdate();

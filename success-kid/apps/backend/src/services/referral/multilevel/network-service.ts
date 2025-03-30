@@ -7,8 +7,9 @@ import {
   ReferralRepository,
   ReferralCodeRepository
 } from '../../../repositories/referral';
-import { PointsService } from '../../points/points-service';
-import { EventBus } from '../../../lib/event-bus';
+import { UserRepository } from '../../../repositories/user-repository';
+import { EventBus, EventType } from '../../../lib/event-bus';
+import { EnhancedPointsService } from '../../points/points-service-enhanced';
 import { logger } from '../../../lib/logger';
 import { NotFoundError, ValidationError } from '../../../errors';
 import { db } from '../../../database';
@@ -108,7 +109,8 @@ export class ReferralNetworkService {
    */
   constructor(
     private referralRepository: ReferralRepository,
-    private pointsService: PointsService,
+    private userRepository: UserRepository,
+    private pointsService: EnhancedPointsService,
     private eventBus: EventBus
   ) {}
 

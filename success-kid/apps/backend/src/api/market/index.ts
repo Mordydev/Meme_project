@@ -1,30 +1,18 @@
-/**
- * Market API Routes
- * 
- * This module registers all market-related API routes.
- */
-import { FastifyInstance } from 'fastify';
-import { priceRoutes } from './price';
-import { marketCapRoutes } from './marketcap';
-import { transactionRoutes } from './transactions';
-import { milestoneRoutes } from './milestones';
-import { visualizationRoutes } from './visualization';
-import { handleApiError } from '../../errors/api-error-handler';
+import { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import marketApiRoutes from './routes';
 
 /**
- * Register all market routes
- * 
- * @param fastify Fastify instance
- * @param opts Options
+ * Market API Module
+ * Encapsulates all routes related to market data (stats, price, milestones, transactions).
  */
-export const marketRoutes = async (fastify: FastifyInstance, opts: any) => {
-  // Register all market-related routes
-  fastify.register(priceRoutes, { prefix: '/price' });
-  fastify.register(marketCapRoutes, { prefix: '/cap' });
-  fastify.register(transactionRoutes, { prefix: '/transactions' });
-  fastify.register(milestoneRoutes, { prefix: '/milestones' });
-  fastify.register(visualizationRoutes, { prefix: '' });
-  
-  // Register global error handler
-  fastify.setErrorHandler(handleApiError);
-};
+export default async function marketModule(
+  fastify: FastifyInstance,
+  options: FastifyPluginOptions
+): Promise<void> {
+  // Register routes with /api/v1 prefix, consistent with plan
+  fastify.register(marketApiRoutes, { prefix: '/api/v1/market' }); 
+}
+
+// Export types and schemas if needed for external use
+export * from './types';
+export * from './schema';

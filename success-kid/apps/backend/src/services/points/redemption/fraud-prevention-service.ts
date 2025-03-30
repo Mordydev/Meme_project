@@ -5,9 +5,14 @@
  */
 import { logger } from '../../../lib/logger';
 import { RedemptionRequest } from '../../../models/entities/redemption';
-import { PointsService } from '../points-service';
+import { EnhancedPointsService } from '../points-service-enhanced';
 import { isValidAddress } from '../../../blockchain/utils/address';
 import { RedemptionRepository } from '../../../repositories/redemption-repository';
+import { UserRepository } from '../../../repositories/user-repository';
+import { ProfileRepository } from '../../../repositories/profile-repository';
+import { RedisService } from '../../../lib/redis-service';
+import { IPLookupService } from '../../../services/iplookup-service';
+import { RiskScorer } from '../../../services/risk-scorer';
 
 /**
  * Risk factor type
@@ -68,12 +73,22 @@ export class FraudPreventionService {
   /**
    * Create fraud prevention service
    * 
+   * @param userRepository User repository
+   * @param profileRepository Profile repository
+   * @param redisService Redis service
    * @param pointsService Points service
    * @param redemptionRepository Redemption repository
+   * @param ipLookupService IP Lookup service
+   * @param riskScorer Risk scorer
    */
   constructor(
-    private readonly pointsService: PointsService,
-    private readonly redemptionRepository: RedemptionRepository
+    private readonly userRepository: UserRepository,
+    private readonly profileRepository: ProfileRepository,
+    private readonly redisService: RedisService,
+    private readonly pointsService: EnhancedPointsService,
+    private readonly redemptionRepository: RedemptionRepository,
+    private readonly ipLookupService: IPLookupService,
+    private readonly riskScorer: RiskScorer
   ) {}
 
   /**

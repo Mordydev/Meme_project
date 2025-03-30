@@ -11,8 +11,10 @@ import { CategoryRepository } from '../../repositories/category-repository';
 import { ThreadRepository } from '../../repositories/thread-repository';
 import { ContentRepository } from '../../repositories/content-repository';
 import { CommentRepository } from '../../repositories/comment-repository';
-import { PointsService } from '../points/points-service';
 import { EventBus, EventType } from '../../lib/event-bus';
+import { EnhancedPointsService } from '../points/points-service-enhanced';
+import { NotificationService } from '../notifications/notification-service';
+import { UserService } from '../user-service';
 import { 
   Forum,
   CreateForumDto,
@@ -59,8 +61,10 @@ export class ForumService {
    * @param threadRepository Repository for thread data
    * @param contentRepository Repository for content data
    * @param commentRepository Repository for comment data
-   * @param pointsService Service for managing points
+   * @param userService Service for managing users
    * @param eventBus Event bus for publishing events
+   * @param pointsService Service for managing points
+   * @param notificationService Service for sending notifications
    */
   constructor(
     private forumRepository: ForumRepository,
@@ -68,8 +72,10 @@ export class ForumService {
     private threadRepository: ThreadRepository,
     private contentRepository: ContentRepository,
     private commentRepository: CommentRepository,
-    private pointsService: PointsService,
-    private eventBus: EventBus
+    private userService: UserService,
+    private eventBus: EventBus,
+    private pointsService: EnhancedPointsService,
+    private notificationService: NotificationService
   ) {}
 
   /**

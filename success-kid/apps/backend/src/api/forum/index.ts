@@ -1,54 +1,19 @@
 /**
- * Forum API Routes
- * 
- * Defines API endpoints for forums, categories, and threads
+ * Forum API Module Entry Point
+ *
+ * Registers the forum routes.
  */
+import { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import fp from 'fastify-plugin';
+import forumApiRoutes from './routes';
+// Assuming ForumService is decorated onto the Fastify instance during app setup
+// import { ForumService } from '../../services/forum/forum-service';
 
-import { FastifyInstance } from 'fastify';
-import { ForumService } from '../../services/forum/forum-service';
-import * as controllers from './controllers';
-import { authenticate } from '../../middleware/auth';
+const forumApiPlugin: FastifyPluginAsync = async (fastify: FastifyInstance) => {
+  // Register routes with a suitable prefix, e.g., '/forum'
+  // The routes file assumes the service is available via decoration (request.server.forumService)
+  await fastify.register(forumApiRoutes, { prefix: '/forum' });
+  fastify.log.info('Forum API routes registered');
+};
 
-export default async function forumRoutes(fastify: FastifyInstance) {
-  // Create instances
-  const forumService = fastify.diContainer.resolve('forumService') as ForumService;
-  
-  // Get all forums
-  fastify.get('/forums', controllers.getAllForums(forumService));
-  
-  // Get forum by slug
-  fastify.get('/forums/:slug', controllers.getForumBySlug(forumService));
-  
-  // Get category with threads
-  fastify.get('/categories/:id/threads', controllers.getCategoryWithThreads(forumService));
-  
-  // Create a thread (requires authentication)
-  fastify.post('/threads', {
-    preHandler: [authenticate],
-    handler: controllers.createThread(forumService)
-  });
-  
-  // Get thread with replies
-  fastify.get('/threads/:id', controllers.getThreadWithReplies(forumService));
-  
-  // Create a reply to a thread (requires authentication)
-  fastify.post('/threads/:id/replies', {
-    preHandler: [authenticate],
-    handler: controllers.createThreadReply(forumService)
-  });
-  
-  // Update a thread (requires authentication)
-  fastify.put('/threads/:id', {
-    preHandler: [authenticate],
-    handler: controllers.updateThread(forumService)
-  });
-  
-  // Get user's threads (requires authentication)
-  fastify.get('/users/:id/threads', {
-    preHandler: [authenticate],
-    handler: controllers.getUserThreads(forumService)
-  });
-  
-  // Get trending threads
-  fastify.get('/trending-threads', controllers.getTrendingThreads(forumService));
-}
+export default fp(forumApiPlugin);

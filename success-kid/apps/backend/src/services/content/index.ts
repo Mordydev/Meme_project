@@ -10,7 +10,7 @@ import { CommentRepository } from '../../repositories/comment-repository';
 import { CategoryRepository } from '../../repositories/category-repository';
 import { TagRepository } from '../../repositories/tag-repository';
 import { ReportRepository } from '../../repositories/report-repository';
-import { PointsService } from '../points/points-service';
+import { EnhancedPointsService } from '../points/points-service-enhanced';
 import { EventBus } from '../../lib/event-bus';
 import { ContentService } from './content-service';
 import { FeedService } from './feed/feed-service';
@@ -23,7 +23,7 @@ export function createContentService(
   commentRepository: CommentRepository,
   categoryRepository: CategoryRepository,
   tagRepository: TagRepository,
-  pointsService: PointsService,
+  pointsService: EnhancedPointsService,
   moderationService: any, // Avoid circular dependency
   eventBus: EventBus
 ): ContentService {

@@ -15,18 +15,22 @@ import {
   POINTS_VALUES,
   DailyCap 
 } from '../../models/entities/points.model';
+import { NewUserPoints } from '../../database/schema/points'; // Import NewUserPoints type
 import { EventBus, EventType } from '../../lib/event-bus';
 import { PointsVerifier } from './verification/points-verifier';
 import { 
-  PointsCapExceededError, 
+  PointsLimitExceededError, // Corrected name
   InsufficientPointsError, 
   ValidationError,
   SuspiciousActivityError
 } from '../../errors';
 import { redisCapTracker, CapType } from './rate-limiting/redis-cap-tracker';
 import { redisClient } from '../../lib/redis-client';
-import { walletService } from '../wallet/wallet-service';
-import { profileService } from '../profiles/profile-service';
+import { WalletService } from '../wallet/wallet-service'; // Import class
+import { ProfileService } from '../profiles/profile-service'; // Import class
+// Import service instances needed internally if not passed via constructor
+import { walletService, profileService } from '../../services'; 
+import { cacheService } from '../../lib/cache'; // Import cache service
 
 /**
  * Interface for suspicious activity report
@@ -178,13 +182,17 @@ export class EnhancedPointsService {
 
     // Create a transaction with the repository
     try {
-      const transaction = await this.pointsRepository.addPointsTransaction({
+      // Generate ID before calling repository
+      const transactionData: NewUserPoints = {
+        id: uuidv4(), 
         userId: data.userId,
         amount: data.amount,
         source: data.source,
         referenceId: data.referenceId,
-        description: data.description || this.getDefaultDescription(data.source)
-      });
+        description: data.description || this.getDefaultDescription(data.source),
+        // metadata can be added if the schema/type supports it
+      };
+      const transaction = await this.pointsRepository.addPointsTransaction(transactionData);
 
       // Update Redis cap trackers
       await redisCapTracker.incrementCap(data.userId, data.source, data.amount, CapType.DAILY);
@@ -207,6 +215,9 @@ export class EnhancedPointsService {
 
       // Check for achievements
       await this.checkForAchievements(data.userId, data.source, data.amount, newTotal);
+
+      // Invalidate relevant caches
+      await this.invalidateUserPointsCache(data.userId);
 
       logger.info(`Awarded ${data.amount} points to ${data.userId} for ${data.source}`);
       return { success: true, amount: data.amount, total: newTotal };
@@ -242,7 +253,7 @@ export class EnhancedPointsService {
       const weeklyRedemptionCap = 10000; // 10,000 SP per week (100 SKC)
       
       if (weeklyRedemptions + data.amount > weeklyRedemptionCap) {
-        throw new PointsCapExceededError(
+        throw new PointsLimitExceededError( // Corrected error name
           `Weekly redemption cap exceeded: ${weeklyRedemptions} used, ${weeklyRedemptionCap} limit`
         );
       }
@@ -286,6 +297,9 @@ export class EnhancedPointsService {
         // Update weekly redemption counter in Redis
         await this.incrementWeeklyRedemptionCounter(data.userId, data.amount);
       }
+
+      // Invalidate relevant caches
+      await this.invalidateUserPointsCache(data.userId);
 
       logger.info(`Deducted ${data.amount} points from ${data.userId} for ${data.source}`);
       return { success: true, amount: data.amount, total: newTotal };
@@ -728,6 +742,73 @@ export class EnhancedPointsService {
       // 2. If not, award the achievement
       // 3. Emit an achievement event
       // 4. Award any bonus points for the achievement
+    }
+  }
+
+  /**
+   * Get the end of the current day for cap resets
+   * 
+   * @returns Date representing the end of the day
+   */
+  private getEndOfDay(): Date {
+    const date = new Date();
+    date.setHours(23, 59, 59, 999);
+    return date;
+  }
+
+  /**
+   * Get points earning trends over a specified period
+   * TODO: Implement actual database query and aggregation logic
+   * 
+   * @param userId User ID
+   * @param period Time period ('day', 'week', 'month', 'year')
+   * @returns Array of trend data points or null if fetch fails
+   */
+  async getTrends(userId: string, period: 'day' | 'week' | 'month' | 'year'): Promise<any[] | null> {
+    const cacheKey = `trends:${userId}:${period}`;
+    const cacheOptions = { namespace: 'points', ttl: 60 * 60 }; // Cache for 1 hour
+
+    const trendsData = await cacheService.getOrSet(cacheKey, async () => {
+        logger.info(`Fetching points trends for user ${userId} over period ${period} (cache miss or stale)`, { key: cacheKey });
+        // TODO: Implement actual database query and aggregation logic in repository
+        // const results = await this.pointsRepository.getPointsTrends(userId, period);
+        // return results; 
+
+        // Placeholder data:
+        const placeholderData = [
+          { date: '2025-W10', totalPoints: 150, sources: { content_creation: 100, comment: 50 } },
+          { date: '2025-W11', totalPoints: 200, sources: { content_creation: 100, comment: 50, daily_login: 50 } },
+          { date: '2025-W12', totalPoints: 180, sources: { content_creation: 50, comment: 80, daily_login: 50 } },
+        ];
+        return placeholderData; 
+    }, cacheOptions);
+
+    // Handle potential null return from cacheService if fetch fails
+    // Handle potential null return from cacheService if fetch fails
+    return trendsData ?? []; // Return empty array if null for now
+  }
+
+  /**
+   * Invalidates caches related to a user's points data.
+   * @param userId The ID of the user whose cache needs invalidation.
+   */
+  private async invalidateUserPointsCache(userId: string): Promise<void> {
+    try {
+      // Invalidate dashboard cache
+      const dashboardCacheKey = `dashboard:${userId}`; // Assuming this prefix is used in dashboard handler
+      await cacheService.delete(dashboardCacheKey); 
+      logger.debug(`Invalidated dashboard cache for user ${userId}`, { key: dashboardCacheKey });
+
+      // Invalidate all trends cache entries for the user
+      const trendsPattern = `points:trends:${userId}:*`; // Use namespace and pattern
+      await cacheService.deleteByPattern(trendsPattern);
+      logger.debug(`Invalidated trends cache for user ${userId}`, { pattern: trendsPattern });
+
+      // TODO: Invalidate other relevant caches (e.g., leaderboards) if they exist
+      
+    } catch (error) {
+        logger.error('Failed to invalidate user points cache', { userId, error });
+        // Log error but don't block the main operation
     }
   }
 }

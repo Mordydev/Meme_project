@@ -5,7 +5,6 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 import { RedemptionRepository } from '../../repositories/redemption-repository';
-import { PointsService } from '../../services/points/points-service';
 import { RedemptionEligibilityService } from '../validation/eligibility-service';
 import { TransactionService } from '../transactions/transaction-service';
 import { logger } from '../../lib/logger';
@@ -24,6 +23,10 @@ import {
   InsufficientPointsError,
   RateLimitExceededError
 } from '../../errors';
+import { UserRepository } from '../../repositories/user-repository';
+import { NotificationService } from '../../services/notifications/notification-service';
+import { EnhancedPointsService } from '../../services/points/points-service-enhanced';
+import { WalletService } from '../../services/wallet/wallet-service';
 
 /**
  * Redemption result interface
@@ -55,14 +58,20 @@ export class RedemptionService {
    * Create a new RedemptionService
    * 
    * @param redemptionRepository Repository for redemption data
+   * @param userRepository Repository for user data
+   * @param notificationService Service for sending notifications
    * @param pointsService Service for managing points
+   * @param walletService Service for managing wallets
    * @param eligibilityService Service for checking redemption eligibility
    * @param transactionService Service for blockchain transactions
    * @param eventBus Event bus for publishing events
    */
   constructor(
     private redemptionRepository: RedemptionRepository,
-    private pointsService: PointsService,
+    private userRepository: UserRepository,
+    private notificationService: NotificationService,
+    private pointsService: EnhancedPointsService,
+    private walletService: WalletService,
     private eligibilityService: RedemptionEligibilityService,
     private transactionService: TransactionService,
     private eventBus: EventBus

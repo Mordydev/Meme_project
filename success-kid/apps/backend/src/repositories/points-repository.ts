@@ -128,6 +128,78 @@ export class PointsRepository extends BaseRepository<PointsEntity, typeof userPo
       createdAt: record.createdAt
     };
   }
+
+  // --- Placeholder methods to satisfy EnhancedPointsService ---
+
+  // Placeholder for adding a transaction (award or deduction)
+  // TODO: Implement actual logic using BaseRepository.create or specific db calls
+  async addPointsTransaction(data: NewUserPoints): Promise<PointsEntity> {
+    logger.warn('addPointsTransaction called - using placeholder implementation');
+    // Simulate creation and return data matching PointsEntity structure
+    const newRecord = {
+      ...data,
+      id: data.id || randomUUID(), // Ensure ID exists
+      createdAt: new Date(), // Simulate DB default
+    };
+    // In a real scenario, you'd insert into DB and return the inserted record
+    return this.mapToEntity(newRecord); 
+  }
+
+  // Placeholder for deducting points (creates a negative transaction)
+  // TODO: Implement actual logic
+  async deductPoints(data: Omit<NewUserPoints, 'id'> & { amount: number }): Promise<PointsEntity> {
+    logger.warn('deductPoints called - using placeholder implementation');
+    const deductionData: NewUserPoints = {
+      ...data,
+      id: randomUUID(),
+      amount: -Math.abs(data.amount), // Ensure amount is negative
+    };
+    return this.addPointsTransaction(deductionData);
+  }
+
+  // Placeholder for getting transactions (renamed from getPointsHistory)
+  // TODO: Implement actual logic, potentially with filtering by source
+  async getUserPointsTransactions(userId: string, limit: number = 20, offset: number = 0): Promise<PointsEntity[]> {
+     logger.warn('getUserPointsTransactions called - using placeholder implementation (calls getPointsHistory)');
+     return this.getPointsHistory(userId, limit, offset);
+  }
+
+  // Placeholder for transferring points between users
+  // TODO: Implement actual logic using DB transaction
+  async transferPointsBetweenUsers(
+    fromUserId: string,
+    toUserId: string,
+    amount: number,
+    source: string,
+    description?: string
+  ): Promise<{ success: boolean; from: PointsEntity; to: PointsEntity }> {
+    logger.warn('transferPointsBetweenUsers called - using placeholder implementation');
+    // Simulate deduction from sender
+    const deductionData: NewUserPoints = {
+      userId: fromUserId,
+      amount: -Math.abs(amount),
+      source: 'transfer_out',
+      referenceId: toUserId,
+      description: description || `Transfer to user ${toUserId}`,
+      id: randomUUID(),
+    };
+    const fromTransaction = await this.addPointsTransaction(deductionData);
+
+    // Simulate award to receiver
+    const awardData: NewUserPoints = {
+      userId: toUserId,
+      amount: Math.abs(amount),
+      source: 'transfer_in',
+      referenceId: fromUserId,
+      description: description || `Transfer from user ${fromUserId}`,
+      id: randomUUID(),
+    };
+    const toTransaction = await this.addPointsTransaction(awardData);
+
+    return { success: true, from: fromTransaction, to: toTransaction };
+  }
+  // --- End Placeholder methods ---
+
 }
 
 // Export a singleton instance

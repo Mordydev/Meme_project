@@ -10,7 +10,10 @@ import { ContentRepository } from '../../repositories/content-repository';
 import { CommentRepository } from '../../repositories/comment-repository';
 import { CategoryRepository } from '../../repositories/category-repository';
 import { TagRepository } from '../../repositories/tag-repository';
-import { PointsService } from '../points/points-service';
+import { UserRepository } from '../../repositories/user-repository';
+import { BlobService } from '../blob/blob-service';
+import { EnhancedPointsService } from '../points/points-service-enhanced';
+import { NotificationService } from '../notifications/notification-service';
 import { EventBus, EventType } from '../../lib/event-bus';
 import { 
   Content, 
@@ -68,7 +71,10 @@ export class ContentService {
    * @param commentRepository Repository for comment data
    * @param categoryRepository Repository for category data
    * @param tagRepository Repository for tag data
+   * @param userRepository Repository for user data
+   * @param blobService Service for managing blob storage
    * @param pointsService Service for managing points
+   * @param notificationService Service for sending notifications
    * @param moderationService Service for content moderation
    * @param eventBus Event bus for publishing events
    */
@@ -77,7 +83,10 @@ export class ContentService {
     private commentRepository: CommentRepository,
     private categoryRepository: CategoryRepository,
     private tagRepository: TagRepository,
-    private pointsService: PointsService,
+    private userRepository: UserRepository,
+    private blobService: BlobService,
+    private pointsService: EnhancedPointsService,
+    private notificationService: NotificationService,
     private moderationService: ModerationService,
     private eventBus: EventBus
   ) {}

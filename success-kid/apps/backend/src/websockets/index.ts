@@ -2,9 +2,9 @@ import { Server as HttpServer } from 'http'; // Import HttpServer type
 import { Server as SocketIoServer, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { redisClient } from '../lib/redis/client'; // Import our RedisClient instance
-// import { verifyToken } from '../lib/auth'; // Placeholder for auth token verification
+// // import { verifyToken } from '../lib/auth'; // Placeholder for auth token verification
 import { Logger } from 'pino';
-// import { registerEventHandlers } from './handlers'; // Placeholder for event handlers registration
+import { setupWebSocketEventHandlers, registerSocketEventHandlers } from './handlers'; // Import actual handlers
 
 // --- Placeholder Types/Functions (Replace with actual imports/implementations) ---
 interface User {
@@ -142,8 +142,8 @@ export function setupWebSocketServer(httpServer: HttpServer) {
     logger.debug(`Socket ${socket.id} joined room user:${user.id}`);
 
     // --- Register Event Handlers ---
-    // Pass the io instance and the specific socket to the handler registration function
-    registerEventHandlers(io, socket);
+    // Register handlers for events received *from* this specific client socket
+    registerSocketEventHandlers(io, socket);
 
     // --- Disconnection Handler ---
     socket.on('disconnect', (reason) => {
@@ -170,6 +170,10 @@ export function setupWebSocketServer(httpServer: HttpServer) {
   });
 
   logger.info('WebSocket server setup complete.');
+
+  // --- Setup Redis Subscriptions for Backend Events ---
+  // This listens for events published by backend services and broadcasts them
+  setupWebSocketEventHandlers(io); 
 
   // --- Return Interface for Server-Side Emitting ---
   // Provides methods for sending events from other parts of the backend

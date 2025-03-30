@@ -41,6 +41,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@fastify/compress": "^8.0.1",
     "@types/bull": "^4.10.0",
     "@types/node": "^22.13.10",
     "@types/pg": "^8.11.0",

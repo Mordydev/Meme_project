@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, text, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
 import { users } from './users'; // Import users table for the foreign key
 
 export const content = pgTable('content', {
@@ -11,7 +11,9 @@ export const content = pgTable('content', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   status: text('status').notNull().default('active') // Consider pgEnum if statuses are fixed
-});
+}, (table) => ({
+  userIdCreatedAtIdx: index('content_user_id_created_at_idx').on(table.userId, table.createdAt),
+}));
 
 // Type inference (optional but good practice)
 export type Content = typeof content.$inferSelect;

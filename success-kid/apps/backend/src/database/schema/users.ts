@@ -1,4 +1,4 @@
-import { pgTable, varchar, timestamp, text, integer, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, timestamp, text, integer, jsonb, index } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: varchar('id', { length: 255 }).primaryKey(), // Assuming ID is varchar based on example, adjust if UUID or other type
@@ -8,7 +8,9 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   lastLogin: timestamp('last_login', { withTimezone: true }),
   status: varchar('status', { length: 50 }).notNull().default('active')
-});
+}, (table) => ({
+  statusIdx: index('users_status_idx').on(table.status),
+}));
 
 export const profiles = pgTable('profiles', {
   userId: varchar('user_id', { length: 255 }) // Assuming ID is varchar based on example
@@ -20,7 +22,9 @@ export const profiles = pgTable('profiles', {
   title: varchar('title', { length: 255 }),
   socialLinks: jsonb('social_links').default({}),
   preferences: jsonb('preferences').default({})
-});
+}, (table) => ({
+  levelIdx: index('profiles_level_idx').on(table.level),
+}));
 
 // Type inference (optional but good practice)
 export type User = typeof users.$inferSelect;

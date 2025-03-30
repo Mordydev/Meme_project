@@ -1,4 +1,4 @@
-import { pgTable, varchar, boolean, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, boolean, timestamp, index } from 'drizzle-orm/pg-core';
 import { users } from './users'; // Import users table for the foreign key
 
 export const walletConnections = pgTable('wallet_connections', {
@@ -8,7 +8,9 @@ export const walletConnections = pgTable('wallet_connections', {
   isVerified: boolean('is_verified').default(false).notNull(),
   connectedAt: timestamp('connected_at', { withTimezone: true }).defaultNow().notNull(),
   lastVerifiedAt: timestamp('last_verified_at', { withTimezone: true })
-});
+}, (table) => ({
+  userIdIdx: index('wallet_connections_user_id_idx').on(table.userId),
+}));
 
 // Type inference (optional but good practice)
 export type WalletConnection = typeof walletConnections.$inferSelect;
