@@ -5,6 +5,7 @@
  */
 import { FastifyInstance } from 'fastify';
 import { logger } from '../lib/logger';
+import mediaModule from './media/index'; // Import the new media module
 // Removed incorrect healthRoutes import
 import featuresRoutes from './features/index'; // Assuming standard structure
 import registerPointsRoutes from './points/routes'; // Keep as is for now, check later
@@ -35,7 +36,7 @@ export default async function apiRoutes(fastify: FastifyInstance): Promise<void>
   fastify.register(featuresRoutes); // Register plugin from index.ts
   fastify.register(registerPointsRoutes, { prefix: '/points' }); // Keep specific registration for now
   fastify.register(contentRoutes); // Register plugin from index.ts
-  // fastify.register(mediaRoutes); // Removed incorrect registration
+  fastify.register(mediaModule, { prefix: '/api/v1/media' }); // Register the new media module
   fastify.register(marketModule); // Register market module (prefix handled internally)
   fastify.register(achievementRoutes); // Register plugin from index.ts (prefix handled internally?) - Check achievement/index.ts
   fastify.register(notificationRoutes, { prefix: '/notifications' }); // Keep prefix here as index.ts doesn't handle it

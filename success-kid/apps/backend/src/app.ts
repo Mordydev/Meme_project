@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart'; // Import multipart plugin
 import { logger } from './lib/logging/logger';
 import { handleApiError, setupGlobalErrorHandlers } from './errors/handlers';
 import { env } from './config';
@@ -127,6 +128,20 @@ export async function buildApp(options = {}): Promise<FastifyInstance> {
       };
     }
   });
+
+  // Register multipart plugin for file uploads
+  await app.register(multipart, {
+    limits: {
+      fieldNameSize: 100, // Max field name size in bytes
+      fieldSize: 1024 * 1024, // Max field value size in bytes (1MB) - Adjust if needed for other fields
+      fields: 10, // Max number of non-file fields
+      fileSize: 5 * 1024 * 1024, // Max file size in bytes (5MB) - Matches MediaService validation
+      files: 1, // Max number of file fields (allow only one file per request for media upload)
+      headerPairs: 2000, // Max number of header key=>value pairs
+    },
+    // attachFieldsToBody: true, // Optional: Attach non-file fields to request.body
+  });
+
 
   // TODO: Initialize WebSocket server *after* http server starts listening (likely in index.ts or server.ts)
   // setupWebSocketServer(app.server); // Pass the underlying http server

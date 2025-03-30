@@ -108,3 +108,20 @@ Focus on resolving the remaining persistent TypeScript errors:
 2.  Address the `contentText` type mismatch in `feed-service.ts`.
 3.  Resolve the partial update type error in `content-service.ts`.
 4.  Continue with Phase 1, Task 4: Complete Content Service (Implement Drafts, Media Integration).
+5.  Integrate Media Service (Task 5) into Content Service (Task 4).
+
+## Task 5: Implement Media Upload Service
+
+*   **Status:** Completed (2025-03-30)
+*   **Key Changes:**
+    *   **Dependencies:** Installed `nanoid` and `@fastify/multipart`.
+    *   **Service Structure:** Standardized location to `services/media/`. Created `BlobProvider` using `@vercel/blob` for uploads. Created `MediaService` for validation (type, size), upload orchestration, and DB persistence via `MediaRepository`. Added `nanoid` for ID generation. Corrected `AppError` usage.
+    *   **API Module:** Created `api/media/` module with `types.ts`, `schema.ts` (including local `ErrorResponseSchema`), `handler.ts` (using `request.file()`), `routes.ts` (POST `/upload`), and `index.ts`.
+    *   **Plugin Registration:** Registered `@fastify/multipart` in `app.ts` with file size limits.
+    *   **API Registration:** Registered `mediaModule` in `api/index.ts` with `/api/v1/media` prefix.
+
+*   **Remaining TODOs / Future Work:**
+    *   Integrate `MediaService` into `ContentService` (Task 4).
+    *   Add unit/integration tests.
+    *   Consider moving `ErrorResponseSchema` to a shared location.
+    *   Address the `request.file()` TypeScript error in `handler.ts` (likely a type definition issue).
