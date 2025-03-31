@@ -4,21 +4,10 @@ import { AppError } from '../../lib/errors'; // Assuming AppError is correctly l
 import { logger } from '../../lib/logger';
 import { UploadMediaResponse } from './types'; // Corrected import name if needed
 import { UploadMediaResponseSchema } from './schema'; // Corrected import name
-
-// Define the expected structure of a multipart file part from fastify-multipart
-interface MultipartFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  file: NodeJS.ReadableStream; // The file stream
-  fields: { [key: string]: any }; // Other form fields
-  toBuffer: () => Promise<Buffer>; // Method to get the buffer
-  // Potentially other properties depending on the plugin version
-}
+import { MultipartFile } from '@fastify/multipart'; // Import the type directly
 
 export async function uploadMediaHandler(
-  request: FastifyRequest, // No specific body type needed for multipart
+  request: FastifyRequest, // Type augmentation will add .file()
   reply: FastifyReply
 ): Promise<UploadMediaResponse> {
   // Ensure authentication middleware has run and added user info
@@ -40,19 +29,19 @@ export async function uploadMediaHandler(
     throw new AppError('No file uploaded.', 'VALIDATION_ERROR', 400);
   }
 
-  // Cast to expected type (adjust based on actual plugin behavior)
-  const filePart = data as unknown as MultipartFile;
+  // Type augmentation should make casting unnecessary if data is not undefined
+  const filePart = data; // Type should be MultipartFile | undefined
 
   // Get the file buffer
   const buffer = await filePart.toBuffer();
   const size = buffer.length; // Get size from buffer
 
-  logger.info({ userId, filename: filePart.originalname, mimetype: filePart.mimetype, size }, 'Received file for upload');
+  logger.info({ userId, filename: filePart.filename, mimetype: filePart.mimetype, size }, 'Received file for upload');
 
   const fileData: FileData = {
     buffer: buffer,
     mimetype: filePart.mimetype,
-    filename: filePart.originalname,
+    filename: filePart.filename, // Use filename instead of originalname
     size: size,
   };
 

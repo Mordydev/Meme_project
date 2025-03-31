@@ -51,6 +51,9 @@ importers:
       '@fastify/helmet':
         specifier: ^11.1.1
         version: 11.1.1
+      '@fastify/multipart':
+        specifier: ^9.0.3
+        version: 9.0.3
       '@fastify/rate-limit':
         specifier: ^9.1.0
         version: 9.1.0
@@ -102,6 +105,9 @@ importers:
       ioredis:
         specifier: ^5.6.0
         version: 5.6.0
+      nanoid:
+        specifier: ^5.1.5
+        version: 5.1.5
       pg:
         specifier: ^8.11.3
         version: 8.14.1
@@ -1647,6 +1653,9 @@ packages:
     resolution: {integrity: sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==}
     engines: {node: '>=14'}
 
+  '@fastify/busboy@3.1.1':
+    resolution: {integrity: sha512-5DGmA8FTdB2XbDeEwc/5ZXBl6UbBAyBOOLlPuBnZ/N1SwdH9Ii+cOX3tBROlDgcTXxjOYnLMVoKk9+FXAw0CJw==}
+
   '@fastify/compress@8.0.1':
     resolution: {integrity: sha512-yWNfKhvL4orfN45LKCHCo8Fcsbj1kdNgwyShw2xpdHfzPf4A3MESmgSfUm3TCKQwgqDdrPnLfy1E+3I/DVP+BQ==}
 
@@ -1655,6 +1664,9 @@ packages:
 
   '@fastify/cors@9.0.1':
     resolution: {integrity: sha512-YY9Ho3ovI+QHIL2hW+9X4XqQjXLjJqsU+sMV/xFsxZkE8p3GNnYVFpoOxF7SsP5ZL76gwvbo3V9L+FIekBGU4Q==}
+
+  '@fastify/deepmerge@2.0.2':
+    resolution: {integrity: sha512-3wuLdX5iiiYeZWP6bQrjqhrcvBIf0NHbQH1Ur1WbHvoiuTYUEItgygea3zs8aHpiitn0lOB8gX20u1qO+FDm7Q==}
 
   '@fastify/error@4.1.0':
     resolution: {integrity: sha512-KeFcciOr1eo/YvIXHP65S94jfEEqn1RxTRBT1aJaHxY5FK0/GDXYozsQMMWlZoHgi8i0s+YtrLsgj/JkUUjSkQ==}
@@ -1670,6 +1682,9 @@ packages:
 
   '@fastify/merge-json-schemas@0.2.1':
     resolution: {integrity: sha512-OA3KGBCy6KtIvLf8DINC5880o5iBlDX4SxzLQS8HorJAbqluzLRn80UXU0bxZn7UOFhFgpRJDasfwn9nG4FG4A==}
+
+  '@fastify/multipart@9.0.3':
+    resolution: {integrity: sha512-pJogxQCrT12/6I5Fh6jr3narwcymA0pv4B0jbC7c6Bl9wnrxomEUnV0d26w6gUls7gSXmhG8JGRMmHFIPsxt1g==}
 
   '@fastify/proxy-addr@5.0.0':
     resolution: {integrity: sha512-37qVVA1qZ5sgH7KpHkkC4z9SK6StIsIcOmpjvMPXNb3vx2GQxhZocogVYbr2PbbeLCQxYIPDok307xEvRZOzGA==}
@@ -6530,6 +6545,11 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
+  nanoid@5.1.5:
+    resolution: {integrity: sha512-Ir/+ZpE9fDsNH0hQ3C68uyThDXzYcim2EqcZ8zn8Chtt1iylPT9xXJB0kPCnqzgcEGikO9RxSrh63MsmVCU7Fw==}
+    engines: {node: ^18 || >=20}
+    hasBin: true
+
   napi-build-utils@2.0.0:
     resolution: {integrity: sha512-GEbrYkbfF7MoNaoh2iGG84Mnf/WZfB0GdGEsM8wz7Expx/LlWf5U8t9nvJKXSp3qr5IsEbK04cBGhol/KwOsWA==}
 
@@ -9815,6 +9835,8 @@ snapshots:
 
   '@fastify/busboy@2.1.1': {}
 
+  '@fastify/busboy@3.1.1': {}
+
   '@fastify/compress@8.0.1':
     dependencies:
       '@fastify/accept-negotiator': 2.0.1
@@ -9836,6 +9858,8 @@ snapshots:
       fastify-plugin: 4.5.1
       mnemonist: 0.39.6
 
+  '@fastify/deepmerge@2.0.2': {}
+
   '@fastify/error@4.1.0': {}
 
   '@fastify/fast-json-stringify-compiler@5.0.2':
@@ -9852,6 +9876,14 @@ snapshots:
   '@fastify/merge-json-schemas@0.2.1':
     dependencies:
       dequal: 2.0.3
+
+  '@fastify/multipart@9.0.3':
+    dependencies:
+      '@fastify/busboy': 3.1.1
+      '@fastify/deepmerge': 2.0.2
+      '@fastify/error': 4.1.0
+      fastify-plugin: 5.0.1
+      secure-json-parse: 3.0.2
 
   '@fastify/proxy-addr@5.0.0':
     dependencies:
@@ -16029,6 +16061,8 @@ snapshots:
       thenify-all: 1.6.0
 
   nanoid@3.3.10: {}
+
+  nanoid@5.1.5: {}
 
   napi-build-utils@2.0.0: {}
 

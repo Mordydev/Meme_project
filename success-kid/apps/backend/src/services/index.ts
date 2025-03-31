@@ -1,38 +1,10 @@
-// Create a MediaService adapter using BlobService
-class MediaServiceAdapter {
-  constructor(private blobProvider: any) {}
-
-  // Add missing methods from MediaService
-  mediaRepository = null;
-
-  async uploadMedia(file: any) {
-    return this.blobProvider.uploadFile(file);
-  }
-
-  async validateFile(file: any) {
-    return { valid: true, errors: [] };
-  }
-
-  // Add more methods based on MediaService interface as needed
-  getMediaUrl(path: string) {
-    return this.blobProvider.getUrl(path);
-  }
-
-  deleteMedia(path: string) {
-    return this.blobProvider.deleteFile(path);
-  }
-}
-
-// Create a MediaService adapter from BlobService
-const mediaService = new MediaServiceAdapter(blobService);
-
 /**
  * Services Exports
  *
  * Exports all application service instances
  */
 import { db } from '../database';
-import { redisClient } from '../lib/redis-client'; // Assuming this path is correct
+// import { redisClient } from '../lib/redis-client'; // Assuming this path is correct - Check if used
 import { eventBus } from '../lib/event-bus';
 import { PointsRepository } from '../repositories/points-repository';
 import { RedemptionRepository } from '../repositories/redemption-repository';
@@ -44,6 +16,7 @@ import { CategoryRepository } from '../repositories/category-repository';
 import { contentRepository } from '../repositories/content-repository'; // Assuming singleton export
 import { tagRepository } from '../repositories/tag-repository'; // Assuming singleton export
 import { achievementRepository } from '../repositories/achievement-repository'; // Assuming singleton export
+import { mediaRepository } from '../repositories/media-repository'; // Import mediaRepository
 
 import { EnhancedPointsService } from './points/points-service-enhanced';
 import { NotificationService } from './notifications/notification-service';
@@ -55,10 +28,11 @@ import { WalletService } from './wallet/wallet-service';
 import { BlockchainService } from './blockchain/blockchain-service';
 import { ProfileService } from './profiles/profile-service';
 import { AchievementService } from './achievements/achievement-service';
-import { ContentService } from './content/content-service';
+// import { ContentService } from './content/content-service'; // Class likely not needed here if using factory
 import { ModerationService } from './moderation/moderation-service';
-import { blobService } from './blob'; // Assuming singleton export
 import { reactionService } from './content/reaction/reaction-service'; // Assuming singleton export
+import { mediaService } from './media/media-service'; // Import the actual mediaService instance
+// import { BlobProvider, blobProvider } from './media/storage/blob-provider'; // blobProvider is used within mediaService
 
 // --- Instantiate Repositories ---
 const pointsRepository = new PointsRepository(); // 0 args constructor
@@ -129,7 +103,7 @@ export const contentService = createContentService(
   tagRepository,
   enhancedPointsService,
   moderationServiceInstance,
-  mediaService, // Use mediaService adapter instead of directly using blobService
+  mediaService, // Use the correctly imported mediaService instance
   eventBus
 );
 
