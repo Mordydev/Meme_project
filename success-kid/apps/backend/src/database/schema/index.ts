@@ -8,6 +8,7 @@ import * as notificationsSchema from './notifications'; // Import the new notifi
 import * as redemptionsSchema from './redemptions'; // Import the new redemptions schema
 import * as reactionsSchema from './reactions'; // Import the new reactions schema
 import * as commentsSchema from './comments'; // Import the new comments schema
+import * as draftsSchema from './drafts'; // Import the drafts schema
 
 // Export all schemas combined
 export const schema = {
@@ -21,6 +22,7 @@ export const schema = {
   ...redemptionsSchema, // Add redemptions schema to the combined export
   ...reactionsSchema, // Add reactions schema to the combined export
   ...commentsSchema, // Add comments schema to the combined export
+  ...draftsSchema, // Add drafts schema to the combined export
 };
 
 // Optionally, export individual schemas if needed elsewhere
@@ -34,3 +36,4 @@ export * from './notifications'; // Export notifications schema types
 export * from './redemptions'; // Export redemptions schema types
 export * from './reactions'; // Export reactions schema types
 export * from './comments'; // Export comments schema types
+export * from './drafts'; // Export drafts schema types

@@ -48,6 +48,7 @@ export class PointsRepository extends BaseRepository<PointsTransactionModel, typ
             // metadata: userPoints.metadata // Removed - Not in schema
         }
     );
+  }
   // Map from Drizzle result (camelCase) to Model type (PointsTransactionModel)
   protected mapToEntity(record: PointsEntitySchema): PointsTransactionModel {
     // Map schema fields to the model type

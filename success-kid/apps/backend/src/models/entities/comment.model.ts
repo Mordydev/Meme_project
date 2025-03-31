@@ -89,7 +89,10 @@ export type CommentResponseDto = z.infer<typeof commentResponseSchema>;
 // Comment Thread Structure (for hierarchical comment responses)
 // This interface might be redundant now if CommentResponseDtoRecursive covers it,
 // but keep it for clarity if used elsewhere.
-export interface CommentThread extends Comment {
+// Aligning metadata type with Drizzle's inference for jsonb
+export interface CommentThread extends Omit<Comment, 'metadata'> { // Omit the original metadata
+  metadata: unknown; // Align with Drizzle's inferred type for jsonb
+  updatedAt?: Date; // Add optional updatedAt field
   author: {
     id: string;
     displayName: string; // camelCase

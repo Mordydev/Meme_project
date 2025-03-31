@@ -45,6 +45,15 @@ export class CommentRepository extends BaseRepository<CommentEntity, typeof comm
   }
 
   /**
+   * Find a comment by ID.
+   * @param id Comment ID
+   * @returns Comment entity or null if not found
+   */
+  async findById(id: string): Promise<CommentEntity | null> {
+    return super.findById(id);
+  }
+  
+  /**
    * Create a new comment using the base class method.
    * @param data Comment data (already camelCase from service)
    * @returns Created comment entity (camelCase)
@@ -185,8 +194,18 @@ export class CommentRepository extends BaseRepository<CommentEntity, typeof comm
         repliesResults.forEach(row => {
             const parentId = row.comment.parentId;
             if (parentId) {
+                // Explicitly construct the reply object to ensure correct metadata type
+                const mappedComment = this.mapToEntity(row.comment);
                 const reply: CommentThread = {
-                    ...this.mapToEntity(row.comment),
+                    id: mappedComment.id,
+                    contentId: mappedComment.contentId,
+                    userId: mappedComment.userId,
+                    commentText: mappedComment.commentText,
+                    parentId: mappedComment.parentId,
+                    createdAt: mappedComment.createdAt,
+                    status: mappedComment.status,
+                    metadata: mappedComment.metadata, // Already cast in mapToEntity
+                    updatedAt: mappedComment.updatedAt,
                     author: row.author,
                     stats: { likes: 0 }, // Placeholder
                     replies: [] // Replies don't have further nesting in this query
@@ -251,7 +270,8 @@ export class CommentRepository extends BaseRepository<CommentEntity, typeof comm
         parentId: record.parentId,
         createdAt: record.createdAt,
         status: record.status,
-        metadata: record.metadata || {},
+        // Explicitly cast or ensure the default satisfies Record<string, any>
+        metadata: (record.metadata || {}) as Record<string, any>, 
         updatedAt: record.updatedAt // Ensure updatedAt is included if it's in the Comment type
     };
   }

@@ -1,43 +1,56 @@
-// Placeholder types - will be refined based on actual service responses
-// Assuming types exist in other modules or will be created
+// Dashboard API Types
+// These types define the structure of data returned by the Dashboard API
 
-// Example: Assuming PointTransaction, AchievementStatus, ActivityItem, MarketStats, ReferralInfo types exist
-// import { PointTransaction } from '../points/types'; // Example
-// import { AchievementStatus } from '../achievements/types'; // Example
-// import { ActivityItem } from '../activity/types'; // Example
-// import { MarketStats } from '../market/types'; // Example
-
-interface PointsSummary {
+/**
+ * Points summary for the dashboard
+ */
+export interface PointsSummary {
   currentBalance: number;
   lifetimeEarned: number;
   redeemedTotal: number;
   dailyEarned: number;
-  recentTransactions: any[]; // Replace 'any' with actual PointTransaction type
-  dailyCapStatus: { used: number; limit: number };
-  weeklyCapStatus: { used: number; limit: number };
+  recentTransactions: PointsTransaction[];
+  dailyCapStatus: CapStatus;
+  weeklyCapStatus: CapStatus;
 }
 
-interface AchievementsSummary {
-  recentUnlocks: any[]; // Replace 'any' with actual AchievementStatus type
-  topInProgress: any[]; // Replace 'any' with actual AchievementStatus type (with progress)
+/**
+ * Achievements summary for the dashboard
+ */
+export interface AchievementsSummary {
+  recentUnlocks: AchievementUnlock[];
+  topInProgress: AchievementProgress[];
 }
 
-interface ActivitySummary {
-  recentItems: any[]; // Replace 'any' with actual ActivityItem type
+/**
+ * Activity summary for the dashboard
+ */
+export interface ActivitySummary {
+  recentItems: ActivityItem[];
 }
 
-interface MarketSummary {
+/**
+ * Market summary for the dashboard
+ */
+export interface MarketSummary {
   currentPrice: number;
   change24h: number;
   marketCap: number;
   nextMilestoneProgress: number;
 }
 
-interface ReferralSummary {
+/**
+ * Referral summary for the dashboard
+ */
+export interface ReferralSummary {
   referralCode: string;
   successfulReferrals: number;
+  pendingReferrals: number;
 }
 
+/**
+ * Main dashboard data structure
+ */
 export interface DashboardData {
   points: PointsSummary;
   achievements: AchievementsSummary;
@@ -46,8 +59,71 @@ export interface DashboardData {
   referral: ReferralSummary;
 }
 
-// Type for the Fastify route handler context or request
+/**
+ * Points transaction for the dashboard
+ */
+export interface PointsTransaction {
+  id: string;
+  userId: string;
+  amount: number;
+  source: string;
+  referenceId?: string;
+  description?: string;
+  createdAt: Date | string;
+}
+
+/**
+ * Cap status for daily/weekly points limits
+ */
+export interface CapStatus {
+  used: number;
+  limit: number;
+}
+
+/**
+ * Achievement unlock for the dashboard
+ */
+export interface AchievementUnlock {
+  id: string;
+  name: string;
+  description?: string;
+  iconUrl?: string;
+  pointsAwarded: number;
+  unlockedAt: Date | string;
+}
+
+/**
+ * Achievement in progress for the dashboard
+ */
+export interface AchievementProgress {
+  id: string;
+  name: string;
+  iconUrl?: string;
+  progressPercent: number;
+}
+
+/**
+ * Activity item for the dashboard
+ */
+export interface ActivityItem {
+  id: string;
+  type: string;
+  userId: string;
+  userName?: string;
+  userAvatarUrl?: string;
+  title?: string;
+  contentText?: string;
+  mediaUrls?: string[];
+  createdAt: Date | string;
+  stats?: {
+    comments?: number;
+    reactions?: number;
+  };
+}
+
+/**
+ * Get dashboard request parameters
+ */
 export interface GetDashboardRequest {
-  // Potentially include user ID if not automatically inferred from auth middleware
-  // userId: string;
+  // Currently no parameters needed, authentication is handled through request.user
 }

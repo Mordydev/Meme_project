@@ -10,7 +10,7 @@ import { EnhancedPointsService } from './points-service-enhanced'; // Changed im
 import { PointsVerifier } from './verification/points-verifier';
 
 // Create dependencies
-const pointsRepository = new PointsRepository(getPgPool());
+const pointsRepository = new PointsRepository();
 const pointsVerifier = new PointsVerifier();
 
 // Create and export service instance

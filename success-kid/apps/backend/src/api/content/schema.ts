@@ -37,7 +37,10 @@ export const commentsQuerySchema = z.object({
 export const createContentApiSchema = createContentModelSchema;
 export const updateContentApiSchema = updateContentModelSchema;
 // Adjust comment schemas if API differs slightly from model (e.g., omitting fields)
-export const createCommentApiSchema = createCommentModelSchema.omit({ content_id: true, user_id: true });
+export const createCommentApiSchema = z.object({
+  commentText: z.string().min(1).max(1000),
+  parentId: z.string().uuid().nullable().optional()
+});
 export const updateCommentApiSchema = updateCommentModelSchema;
 
 // Reaction Schemas

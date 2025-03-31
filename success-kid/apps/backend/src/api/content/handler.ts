@@ -232,40 +232,34 @@ export async function getContentCommentsHandler(
  * Create comment for content (Uses ContentService)
  */
 export async function createCommentHandler(
-  request: FastifyRequest<{ Params: ContentIdParam; Body: { comment_text: string; parent_id?: string | null } }>,
+  request: FastifyRequest<{ Params: ContentIdParam; Body: { commentText: string; parentId?: string | null } }>,
   reply: FastifyReply
 ) {
   try {
     const { id } = request.params;
-    // The request body should already be validated by Fastify if the schema is attached to the route.
-    // If not, we should parse against the full createCommentSchema.
-    // Assuming Fastify handles validation based on route schema, request.body should match CreateCommentDto.
-    // Let's parse explicitly for safety and clarity, using the correct schema.
     
     // @ts-ignore - Assuming request.user is populated
     const userId = request.user.id;
 
-    // Construct the object to validate against createCommentSchema
-    // Access request.body using camelCase as defined in the updated comment.model.ts
-    const dataToValidate = {
-        contentId: id, 
-        userId: userId,
-        commentText: request.body.commentText, 
-        parentId: request.body.parentId 
-    };
-
-    // Validate the constructed object
-    const validationResult = createCommentSchema.safeParse(dataToValidate);
-
-    if (!validationResult.success) {
-        throw new ValidationError('Invalid comment data', validationResult.error.flatten().fieldErrors);
+    // Parse directly with the API schema to validate the provided input
+    const apiValidationResult = createCommentApiSchema.safeParse(request.body);
+    
+    if (!apiValidationResult.success) {
+        throw new ValidationError('Invalid comment data', apiValidationResult.error.flatten().fieldErrors);
     }
     
-    // Use the validated data (which is camelCase)
-    const validatedData = validationResult.data;
+    // Construct complete DTO for service with contentId and userId
+    const serviceData = {
+        contentId: id,
+        userId: userId,
+        commentText: apiValidationResult.data.commentText,
+        parentId: apiValidationResult.data.parentId,
+        // Add metadata field with empty default to match schema
+        metadata: {}
+    };
 
-    // Call service with validated data (already camelCase)
-    const comment = await contentService.createComment(userId, validatedData); // Pass validatedData
+    // Call service with complete data
+    const comment = await contentService.createComment(userId, serviceData);
 
     // Points awarding is handled within contentService.createComment
 

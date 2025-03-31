@@ -13,14 +13,26 @@ import {
 } from '../models/entities/taxonomy/category.model';
 import { logger } from '../lib/logger';
 
-export class CategoryRepository extends BaseRepository<Category> {
+// Importing the database schema
+import { categories } from '../database/schema/categories';
+
+export class CategoryRepository extends BaseRepository<Category, typeof categories> {
   /**
    * Create a new CategoryRepository instance
-   * 
-   * @param db Database connection pool
    */
-  constructor(db: Pool) {
-    super(db, 'categories');
+  constructor() {
+    // Use the Drizzle schema table and ID column
+    super(categories, categories.id);
+  }
+  
+  /**
+   * Find a category by ID
+   * 
+   * @param id Category ID
+   * @returns Category or null if not found
+   */
+  async findById(id: string): Promise<Category | null> {
+    return super.findById(id);
   }
 
   /**

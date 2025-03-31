@@ -39,8 +39,13 @@ export class RedisClient {
       this.isConnecting = true;
       logger.info('Attempting to connect main Redis client...');
       try {
-          await this.client.connect();
-          // Ready event will set isReady and isConnecting
+          if (this.client) {
+              await this.client.connect();
+              // Ready event will set isReady and isConnecting
+          } else {
+              logger.error('Redis client is null, cannot connect');
+              this.isConnecting = false;
+          }
       } catch (error) {
           logger.error('Initial Redis connection failed', { error });
           this.isConnecting = false; // Allow retry later if needed
@@ -108,10 +113,13 @@ export class RedisClient {
    * @returns The ioredis client instance.
    */
   getClient(): Redis {
+    if (!this.client) {
+      throw new Error('Redis client is not initialized');
+    }
     if (!this.isReady && !this.isConnecting) {
         this.connectClient(); // Attempt connection if needed
     }
-    return this.client!;
+    return this.client;
   }
 
   /**
@@ -120,9 +128,12 @@ export class RedisClient {
    * @returns The ioredis client instance for subscriptions.
    */
   getSubscriptionClient(): Redis {
+    if (!this.client) {
+      throw new Error('Main Redis client is not initialized');
+    }
     if (!this.subscriptionClient) {
       logger.info('Creating dedicated Redis subscription client...');
-      this.subscriptionClient = this.client!.duplicate();
+      this.subscriptionClient = this.client.duplicate();
       this.setupEventHandlers(this.subscriptionClient, 'subscription');
       // Subscription client connects automatically when subscribe/psubscribe is called
     }
@@ -135,7 +146,10 @@ export class RedisClient {
    */
   isConnected(): boolean {
     // Use client.status for a more accurate check
-    return this.client!.status === 'ready';
+    if (!this.client) {
+      return false;
+    }
+    return this.client.status === 'ready';
     // return this.isReady; // Previous implementation
   }
 
@@ -183,8 +197,12 @@ export class RedisClient {
    * @returns True if the ping is successful ('PONG'), false otherwise.
    */
   async healthCheck(): Promise<boolean> {
+    if (!this.client) {
+      logger.error('Redis health check failed: Client not initialized');
+      return false;
+    }
     try {
-      const pingResponse = await this.client!.ping();
+      const pingResponse = await this.client.ping();
       const success = pingResponse === 'PONG';
       if (!success) {
           logger.warn('Redis health check failed: Unexpected PING response.', { response: pingResponse });

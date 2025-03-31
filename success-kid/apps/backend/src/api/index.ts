@@ -25,6 +25,7 @@ import tokenRoutes from './tokens/routes';
 import securityRoutes from './security/routes';
 import usersRoutes from './users';
 import walletRoutes from './wallet';
+import { draftModule } from './drafts'; // Import the new drafts module
 
 /**
  * Register all API routes
@@ -45,6 +46,7 @@ export default async function apiRoutes(fastify: FastifyInstance): Promise<void>
   fastify.register(dashboardModule); // Register the dashboard module
   // fastify.register(jobRoutes); // Removed incorrect registration
   fastify.register(forumRoutes); // Register plugin from index.ts
+  fastify.register(draftModule, { prefix: '/api/v1' }); // Register the drafts module
 
   // Register auth-related routes - Assuming these might need specific prefixes/options
   await fastify.register(authRoutes, { prefix: '/api/v1/auth' });

@@ -136,9 +136,21 @@ export class FeedService {
 
       // Get content feed with tag filter
       return await this.getFeed({
-        ...options,
-        tags: [tagSlug] // Pass slug, getFeed will resolve ID (assuming findManyBySlugs works)
+      ...options,
+      tags: [tagSlug] // Pass slug, getFeed will resolve ID (assuming findManyBySlugs works)
       });
+    // Handle contentText nullability - ContentListItem might expect non-null contentText
+    // This ensures we return a consistent type even if DB allows nulls
+    return await this.getFeed({
+      ...options,
+      tags: [tagSlug] // Pass slug, getFeed will resolve ID (assuming findManyBySlugs works)
+    }).then(items => {
+      // Ensure contentText is at least an empty string if null
+      return items.map(item => ({
+        ...item,
+        contentText: item.contentText || ''
+      }));
+    });
     } catch (error: unknown) { // Fix unknown error type
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Error getting content by tag', { tagSlug, options, error: errorMessage });

@@ -33,13 +33,13 @@ import { blobService } from './blob'; // Assuming singleton export
 import { reactionService } from './content/reaction/reaction-service'; // Assuming singleton export
 
 // --- Instantiate Repositories ---
-const pointsRepository = new PointsRepository(); // Corrected: 0 args based on latest error
+const pointsRepository = new PointsRepository(); // 0 args constructor
 const redemptionRepository = new RedemptionRepository(); // Assuming 0 args
-const userRepository = new UserRepository(); // Corrected: Takes 0 arguments
-const walletRepository = new WalletRepository(db as any); // Assuming 1 arg
-const reportRepository = new ReportRepository(db as any);
-const commentRepositoryInstance = new CommentRepository(db as any);
-const categoryRepositoryInstance = new CategoryRepository(db as any);
+const userRepository = new UserRepository(); // 0 args constructor
+const walletRepository = new WalletRepository(); // Corrected: 0 args
+const reportRepository = new ReportRepository();
+const commentRepositoryInstance = new CommentRepository();
+const categoryRepositoryInstance = new CategoryRepository();
 
 // --- Instantiate Core Services/Utilities ---
 const pointsVerifier = new PointsVerifier();

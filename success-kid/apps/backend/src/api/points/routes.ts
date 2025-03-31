@@ -194,28 +194,35 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
          }
          
          // Delegate to redemption service using camelCase DTO
+         // The redemptionService.requestRedemption should handle:
+         // 1. Eligibility checks (balance, caps, wallet verification)
+         // 2. Deducting points atomically
+         // 3. Enqueuing the redemption job for background processing
+         // 4. Returning the initial 'pending' redemption record
          const result: RedemptionResult = await redemptionService.requestRedemption({ userId, pointsAmount, walletAddress: finalWalletAddress });
-         // result contains { success: boolean, redemption: Redemption }
+         // result should contain { success: true, redemption: Redemption } where redemption status is 'pending'
          
+         // Calculate estimated processing time (next Sunday UTC)
          const now = new Date();
          const daysUntilSunday = (7 - now.getUTCDay()) % 7; // Use UTC day
          const nextSunday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilSunday));
          nextSunday.setUTCHours(0, 0, 0, 0);
 
-         // Construct the response matching RedemptionResult { success: boolean, redemption: Redemption }
-         // Add estimatedProcessingTime separately if needed by the schema
+         // Ensure the result from the service matches the expected RedemptionResult interface
+         // The service should return the created 'pending' redemption record.
+         if (!result || !result.success || !result.redemption) {
+            // If the service indicates failure or doesn't return the redemption object, throw an error
+            throw new AppError('Redemption request failed to process.', 'REDEMPTION_FAILED', 500);
+         }
+
+         // Add estimatedProcessingTime to the response data (not part of the core Redemption type)
          const responseData = {
-             success: result.success,
-             redemption: { // Ensure redemption object matches schema expectations
-                 ...result.redemption,
-                 // Format dates to ISO strings for API response consistency
-                 createdAt: result.redemption.createdAt.toISOString(), 
-                 processedAt: result.redemption.processedAt?.toISOString() ?? null 
-             },
-             estimatedProcessingTime: nextSunday.toISOString() 
+             ...result, // Includes success: true and the redemption object
+             estimatedProcessingTime: nextSunday.toISOString() // Send as ISO string
          };
 
-         return reply.code(202).send({ // 202 Accepted
+         // Return 202 Accepted status code as the request is queued for processing
+         return reply.code(202).send({ 
            data: responseData,
            meta: { timestamp: new Date().toISOString() },
          });
@@ -247,13 +254,10 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
          // Expecting PaginatedRedemptionResult { data: Redemption[], pagination: PaginationMeta }
          const result: PaginatedRedemptionResult = await redemptionService.getUserRedemptions(userId, (offset / limit) + 1, limit); // Calculate page number
          
-         // Construct the response matching PaginatedRedemptionResult { data: Redemption[], pagination: PaginationMeta }
-         // Map data to ensure correct shape and format dates
-         const responseData = result.data.map((r: Redemption) => ({ 
-             ...r, // Spread all properties from Redemption
-             createdAt: r.createdAt.toISOString(), // Format date
-             processedAt: r.processedAt?.toISOString() ?? null // Format date
-         }));
+         // Use the result data directly without transforming dates
+         // The PaginatedRedemptionResult interface expects Date objects
+         // JSON serialization will handle Date to string conversion
+         const responseData = result.data;
 
          // Construct pagination object explicitly matching expected structure
          // Assuming PaginationMeta has { total, limit, offset, hasMore }
@@ -297,17 +301,10 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
          const result: RedemptionResult = await redemptionService.cancelRedemption(request.params.id, userId);
          // result contains { success: boolean, redemption: Redemption }
          
-         // Construct the response matching RedemptionResult { success: boolean, redemption: Redemption }
-         const responseData: RedemptionResult = {
-             success: result.success,
-             // Map redemption fields to match schema if necessary, otherwise pass directly
-             redemption: {
-                 ...result.redemption, // Spread the redemption object
-                 // Ensure date fields are formatted if schema expects strings
-                 createdAt: result.redemption.createdAt.toISOString(), 
-                 processedAt: result.redemption.processedAt?.toISOString() ?? null 
-             }
-         };
+         // Use the RedemptionResult directly as returned from the service
+         // The RedemptionResult interface expects Date objects
+         // JSON serialization will handle Date to string conversion
+         const responseData: RedemptionResult = result;
          return reply.code(200).send({
            data: responseData, // Send the RedemptionResult object
            meta: { timestamp: new Date().toISOString() },

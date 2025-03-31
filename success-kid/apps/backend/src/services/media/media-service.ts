@@ -4,7 +4,7 @@ import { MediaRepository, mediaRepository } from '../../repositories/media-repos
 import { BlobProvider, blobProvider } from './storage/blob-provider';
 import { AppError, ErrorCode } from '../../lib/errors'; // Corrected path and filename
 import { logger } from '../../lib/logger';
-import { Media, NewMedia } from '../../database/schema'; // Assuming Media and NewMedia types are exported from schema/index or media.ts
+import { Media, NewMedia } from '../../database/schema/media'; // Assuming Media and NewMedia types are exported from schema/index or media.ts
 
 // Define allowed MIME types and max size
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -98,11 +98,34 @@ export class MediaService {
     }
   }
 
-  // Optional: Method to get media by ID
+  /**
+   * Get media by ID
+   * @param id Media ID
+   * @returns Media or null if not found
+   */
   async getMediaById(id: string): Promise<Media | null> {
     // Assuming findById exists and returns Media | null
     const media = await this.mediaRepository.findById(id);
     return media ?? null; // Ensure null is returned if undefined/falsy
+  }
+
+  /**
+   * Get media by URL
+   * @param url Media URL
+   * @returns Media or null if not found
+   */
+  async getMediaByUrl(url: string): Promise<Media | null> {
+    try {
+      // Find media by its blob URL
+      const media = await this.mediaRepository.findOne({
+        filter: { blobUrl: url }
+      });
+      
+      return media ?? null;
+    } catch (error) {
+      logger.error(`Error retrieving media by URL: ${error}`);
+      return null;
+    }
   }
 }
 

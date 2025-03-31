@@ -1,7 +1,10 @@
-import { pgTable, text, timestamp, uuid, varchar, foreignKey } from 'drizzle-orm/pg-core'; // Import foreignKey
+import { pgTable, text, timestamp, uuid, varchar, foreignKey, jsonb, pgEnum } from 'drizzle-orm/pg-core'; // Added pgEnum
 import { users } from './users';
 import { content } from './content';
 import { relations } from 'drizzle-orm'; // Import relations
+
+// Define the enum for comment status
+export const commentStatusEnum = pgEnum('comment_status', ['active', 'deleted', 'flagged', 'pending_review']);
 
 export const comments = pgTable('comments', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -10,7 +13,9 @@ export const comments = pgTable('comments', {
   contentId: uuid('content_id').notNull().references(() => content.id, { onDelete: 'cascade' }),
   parentId: uuid('parent_id'), // Define column first
   commentText: text('comment_text').notNull(),
-  status: varchar('status', { length: 50 }).notNull().default('active'), // e.g., active, deleted, flagged
+  // Use the pgEnum for the status column
+  status: commentStatusEnum('status').notNull().default('active'),
+  metadata: jsonb('metadata').default({}),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
@@ -38,6 +43,6 @@ export const commentsRelations = relations(comments, ({ one, many }) => ({
 }));
 
 
-// Types inferred from the schema will have camelCase properties
+// Types inferred from the schema will now have status as the specific enum type
 export type Comment = typeof comments.$inferSelect;
 export type NewComment = typeof comments.$inferInsert; // This defines the type for inserts

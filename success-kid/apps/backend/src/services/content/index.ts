@@ -16,6 +16,7 @@ import { ContentService } from './content-service';
 import { FeedService } from './feed/feed-service';
 import { ContentAnalyticsService } from './analytics/content-analytics-service';
 import { SearchService } from './search/search-service';
+import { MediaService } from '../media/media-service';
 
 // Content service factory
 export function createContentService(
@@ -25,6 +26,7 @@ export function createContentService(
   tagRepository: TagRepository,
   pointsService: EnhancedPointsService,
   moderationService: any, // Avoid circular dependency
+  mediaService: MediaService, // Add media service
   eventBus: EventBus
 ): ContentService {
   return new ContentService(
@@ -34,6 +36,7 @@ export function createContentService(
     tagRepository,
     pointsService,
     moderationService,
+    mediaService, // Add media service
     eventBus
   );
 }
@@ -89,3 +92,6 @@ export { ContentService } from './content-service';
 export { FeedService } from './feed/feed-service';
 export { ContentAnalyticsService } from './analytics/content-analytics-service';
 export { SearchService } from './search/search-service';
+
+// Export draft service
+export * from './drafts';

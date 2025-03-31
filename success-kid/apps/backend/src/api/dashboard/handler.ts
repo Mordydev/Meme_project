@@ -1,113 +1,255 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { DashboardData, GetDashboardRequest } from './types';
-import { GetDashboardResponseSchema } from './schema';
-import { AppError } from '../../errors/base-error'; // Import base error class
-import { cacheService } from '../../lib/cache'; // Assuming cache service exists
-import { logger } from '../../lib/logger'; // Assuming logger exists
+import { cacheService } from '../../lib/cache';
+import { logger } from '../../lib/logger';
+import { AppError, ErrorCode } from '../../lib/errors';
 
-// Placeholder imports for actual services - replace with real ones
-import { pointsService } from '../../services/points'; // Example
-// import { achievementService } from '../../services/achievements'; // Example
-// import { activityService } from '../../services/activity'; // Example
-// import { marketService } from '../../services/market'; // Example
-// import { userService } from '../../services/user-service'; // Example
+// Import actual services from the main service index
+import {
+  enhancedPointsService,
+  achievementService,
+  contentService,
+  feedService,
+  marketService,
+  userService,
+  referralService,
+  walletService
+} from '../../services';
+
+// Import specific types needed for casting or default values
+import {
+  PointsSummary,
+  AchievementsSummary,
+  ActivitySummary,
+  MarketSummary,
+  ReferralSummary,
+  DashboardData
+} from './types';
 
 const CACHE_KEY_PREFIX = 'dashboard:';
-const CACHE_TTL_SECONDS = 60 * 2; // 2 minutes
+const CACHE_TTL_SECONDS = 120; // 2 minutes
 
+// Helper functions to create default summaries in case of service errors
+const createDefaultPointsSummary = (): PointsSummary => ({
+  currentBalance: 0,
+  lifetimeEarned: 0,
+  redeemedTotal: 0,
+  dailyEarned: 0,
+  recentTransactions: [],
+  dailyCapStatus: { used: 0, limit: 0 },
+  weeklyCapStatus: { used: 0, limit: 0 }
+});
+
+const createDefaultAchievementsSummary = (): AchievementsSummary => ({
+  recentUnlocks: [],
+  topInProgress: []
+});
+
+const createDefaultActivitySummary = (): ActivitySummary => ({
+  recentItems: []
+});
+
+const createDefaultMarketSummary = (): MarketSummary => ({
+  currentPrice: 0,
+  change24h: 0,
+  marketCap: 0,
+  nextMilestoneProgress: 0
+});
+
+const createDefaultReferralSummary = (): ReferralSummary => ({
+  referralCode: '',
+  successfulReferrals: 0,
+  pendingReferrals: 0
+});
+
+/**
+ * Retrieves all dashboard data for a user from multiple services concurrently.
+ * Handles partial failures gracefully and implements caching for performance.
+ */
 export async function getDashboardData(
-  request: FastifyRequest<{ Querystring: GetDashboardRequest }>, // Assuming request type if needed
+  request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  // Assuming auth middleware adds userId to request or session
-  const userId = request.user?.id; // Adjust based on actual auth implementation
+  // Get the authenticated user ID
+  const userId = request.user?.id;
   if (!userId) {
-    // Use AppError with appropriate code and status
-    throw new AppError('User not authenticated', 'UNAUTHORIZED', 401);
+    throw new AppError('User not authenticated', ErrorCode.UNAUTHORIZED, 401);
   }
 
   const cacheKey = `${CACHE_KEY_PREFIX}${userId}`;
+  const startTime = process.hrtime();
 
   try {
     // 1. Check cache first
     const cachedData = await cacheService.get<DashboardData>(cacheKey);
     if (cachedData) {
-      logger.info({ userId, cacheHit: true }, 'Dashboard data served from cache');
-      const response = { data: cachedData };
-      // Validate response against schema before sending (optional but good practice)
-      // GetDashboardResponseSchema.parse(response);
-      return reply.send(response);
+      const [seconds, nanoseconds] = process.hrtime(startTime);
+      const duration = seconds * 1000 + nanoseconds / 1000000;
+      
+      logger.info({ userId, cacheHit: true, duration }, 'Dashboard data served from cache');
+      
+      return reply.send({
+        data: cachedData,
+        meta: {
+          timestamp: new Date().toISOString(),
+          fromCache: true,
+          duration: `${duration.toFixed(2)}ms`
+        }
+      });
     }
 
     logger.info({ userId, cacheHit: false }, 'Fetching fresh dashboard data');
 
-    // 2. Fetch data concurrently if not cached
-    // Replace placeholders with actual service calls
-    const [
-      pointsData,
-      achievementsData,
-      activityData,
-      marketData,
-      referralData,
-    ] = await Promise.all([
-      // --- Points ---
-      Promise.resolve({ /* Placeholder */
-        currentBalance: 1000,
-        lifetimeEarned: 5000,
-        redeemedTotal: 500,
-        dailyEarned: 50,
-        recentTransactions: [{ id: 'tx1', amount: 10, source: 'post', createdAt: new Date() }],
-        dailyCapStatus: { used: 50, limit: 100 },
-        weeklyCapStatus: { used: 200, limit: 500 },
-      }), // pointsService.getSummary(userId),
-      // --- Achievements ---
-      Promise.resolve({ /* Placeholder */
-        recentUnlocks: [{ id: 'ach1', name: 'First Post', unlockedAt: new Date() }],
-        topInProgress: [{ id: 'ach2', name: 'Engager', progress: 50 }],
-      }), // achievementService.getSummary(userId),
-      // --- Activity ---
-      Promise.resolve({ /* Placeholder */
-        recentItems: [{ id: 'act1', type: 'comment', timestamp: new Date() }],
-      }), // activityService.getRecent(userId, 5),
-      // --- Market ---
-      Promise.resolve({ /* Placeholder */
-        currentPrice: 0.001,
-        change24h: 5.2,
-        marketCap: 1000000,
-        nextMilestoneProgress: 75,
-      }), // marketService.getSummary(),
-      // --- Referral ---
-      Promise.resolve({ /* Placeholder */
-        referralCode: 'REF123',
-        successfulReferrals: 5,
-      }), // userService.getReferralInfo(userId),
+    // 2. Fetch data concurrently from all services using Promise.allSettled
+    const results = await Promise.allSettled([
+      // Points summary data
+      enhancedPointsService.getUserBalance(userId).then(async (currentBalance) => {
+        const transactions = await enhancedPointsService.getUserTransactions(userId, { limit: 5 });
+        const dailyCaps = await enhancedPointsService.getAllDailyCaps(userId);
+        
+        // Get daily cap for content creation as an example
+        const contentCreationCap = dailyCaps.get('content_creation') || { current: 0, limit: 0 };
+        // Get weekly cap (implementation would need to be added to EnhancedPointsService)
+        const weeklyUsed = 0; // Placeholder
+        const weeklyLimit = 0; // Placeholder
+        
+        return {
+          currentBalance,
+          lifetimeEarned: 0, // This would need to be calculated
+          redeemedTotal: 0, // This would need to be calculated
+          dailyEarned: 0, // This would need to be calculated
+          recentTransactions: transactions.transactions,
+          dailyCapStatus: { 
+            used: contentCreationCap.current, 
+            limit: contentCreationCap.limit 
+          },
+          weeklyCapStatus: { 
+            used: weeklyUsed, 
+            limit: weeklyLimit 
+          }
+        };
+      }),
+      
+      // Achievement summary data
+      achievementService.getAchievementSummaryForDashboard(userId),
+      
+      // Activity summary data - recent content from feed service
+      feedService.getFeed({ 
+        limit: 5,
+        sortBy: 'latest'
+      }).then(items => ({ recentItems: items })),
+      
+      // Market summary data
+      marketService.getCurrentStats().then(async (stats) => {
+        if (!stats) return createDefaultMarketSummary();
+        
+        const milestoneProgress = await marketService.getMilestoneProgress();
+        return {
+          currentPrice: stats.price,
+          change24h: stats.priceChange24h,
+          marketCap: stats.marketCap,
+          nextMilestoneProgress: milestoneProgress?.progressPercentage || 0
+        };
+      }),
+      
+      // Referral summary data
+      referralService.getUserReferralStats(userId).then(stats => {
+        // Find or generate referral code
+        const referralCode = 'SK-' + userId.substring(0, 6); // Placeholder logic
+        
+        return {
+          referralCode,
+          successfulReferrals: stats.referrals.completed + stats.referrals.converted + stats.referrals.rewarded,
+          pendingReferrals: stats.referrals.pending
+        };
+      }),
+      
+      // Wallet information (used in error handling but not directly in dashboard)
+      walletService.getWalletInfo(userId)
     ]);
 
-    // 3. Aggregate data
+    // 3. Process results, handling potential failures gracefully
+    const pointsData = results[0].status === 'fulfilled' ? results[0].value : createDefaultPointsSummary();
+    if (results[0].status === 'rejected') {
+      logger.error({ userId, service: 'points', error: results[0].reason }, 'Dashboard: Failed to fetch points summary');
+    }
+
+    const achievementsData = results[1].status === 'fulfilled' ? results[1].value : createDefaultAchievementsSummary();
+    if (results[1].status === 'rejected') {
+      logger.error({ userId, service: 'achievements', error: results[1].reason }, 'Dashboard: Failed to fetch achievements summary');
+    }
+
+    const activityData = results[2].status === 'fulfilled' ? results[2].value : createDefaultActivitySummary();
+    if (results[2].status === 'rejected') {
+      logger.error({ userId, service: 'activity/feed', error: results[2].reason }, 'Dashboard: Failed to fetch activity summary');
+    }
+
+    const marketData = results[3].status === 'fulfilled' ? results[3].value : createDefaultMarketSummary();
+    if (results[3].status === 'rejected') {
+      logger.error({ service: 'market', error: results[3].reason }, 'Dashboard: Failed to fetch market summary');
+    }
+
+    const referralData = results[4].status === 'fulfilled' ? results[4].value : createDefaultReferralSummary();
+    if (results[4].status === 'rejected') {
+      logger.error({ userId, service: 'referral', error: results[4].reason }, 'Dashboard: Failed to fetch referral summary');
+    }
+
+    // Wallet information is used for additional context but not included in the dashboard directly
+    const walletData = results[5].status === 'fulfilled' ? results[5].value : null;
+    if (results[5].status === 'rejected') {
+      logger.error({ userId, service: 'wallet', error: results[5].reason }, 'Dashboard: Failed to fetch wallet info');
+    }
+
+    // 4. Aggregate data
     const dashboardData: DashboardData = {
-      points: pointsData,
-      achievements: achievementsData,
-      activity: activityData,
-      market: marketData,
-      referral: referralData,
+      points: pointsData as PointsSummary,
+      achievements: achievementsData as AchievementsSummary,
+      activity: activityData as ActivitySummary,
+      market: marketData as MarketSummary,
+      referral: referralData as ReferralSummary,
     };
 
-    // 4. Store in cache
-    await cacheService.set(cacheKey, dashboardData, { ttl: CACHE_TTL_SECONDS }); // Pass TTL in options object
+    // 5. Store in cache with TTL
+    try {
+      await cacheService.set(cacheKey, dashboardData, { ttl: CACHE_TTL_SECONDS });
+      logger.info({ userId }, 'Dashboard data stored in cache');
+    } catch (cacheError) {
+      logger.error({ userId, error: cacheError }, 'Failed to store dashboard data in cache');
+      // Proceed without cache, but log the error
+    }
 
-    // 5. Format and send response
-    const response = { data: dashboardData };
-    // Validate response against schema before sending
-    // GetDashboardResponseSchema.parse(response);
-    reply.send(response);
+    // 6. Calculate response time
+    const [seconds, nanoseconds] = process.hrtime(startTime);
+    const duration = seconds * 1000 + nanoseconds / 1000000;
+
+    // 7. Send response
+    reply.send({
+      data: dashboardData,
+      meta: {
+        timestamp: new Date().toISOString(),
+        fromCache: false,
+        duration: `${duration.toFixed(2)}ms`,
+        services: {
+          points: results[0].status,
+          achievements: results[1].status,
+          activity: results[2].status,
+          market: results[3].status,
+          referral: results[4].status,
+          wallet: results[5].status
+        }
+      }
+    });
 
   } catch (error) {
-    logger.error({ err: error, userId }, 'Error fetching dashboard data');
-    if (error instanceof AppError) { // Check for AppError
-      throw error;
+    // Log the error that occurred *before* sending the response
+    logger.error({ err: error, userId }, 'Error processing dashboard request');
+    
+    // Use handleApiError or rethrow AppError
+    if (error instanceof AppError) {
+      reply.code(error.statusCode); // Set status code before throwing
+      throw error; // Let the global error handler format the response
     }
-    // Consider specific error handling for service failures
-    // Use AppError with appropriate code and status
-    throw new AppError('Failed to fetch dashboard data', 'DASHBOARD_FETCH_FAILED', 500);
+    
+    // Throw a generic error if it's not an AppError
+    throw new AppError('Failed to fetch dashboard data', ErrorCode.SERVER_ERROR, 500);
   }
 }
