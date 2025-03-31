@@ -1,24 +1,13 @@
 import { z } from 'zod';
-import { AchievementSchema, UserAchievementSchema } from '../../models/entities/achievement.model'; // Assuming model exists
+import { 
+    GetUserAchievementsParamsSchema, 
+    GetUserAchievementsQuerySchema 
+} from './schema';
 
-// Example: Get User Achievements Response
-export const GetUserAchievementsResponseSchema = z.object({
-  data: z.array(UserAchievementSchema), // Use the model schema
-  meta: z.object({
-    timestamp: z.string().datetime(),
-  }),
-  // Add pagination if needed
-});
-export type GetUserAchievementsResponse = z.infer<typeof GetUserAchievementsResponseSchema>;
+// Type for route parameters when getting user achievements
+export type GetUserAchievementsParams = z.infer<typeof GetUserAchievementsParamsSchema>;
 
-// Example: List All Achievements Response
-export const ListAchievementsResponseSchema = z.object({
-    data: z.array(AchievementSchema), // Use the model schema
-    meta: z.object({
-        timestamp: z.string().datetime(),
-    }),
-    // Add pagination if needed
-});
-export type ListAchievementsResponse = z.infer<typeof ListAchievementsResponseSchema>;
+// Type for query parameters when getting user achievements
+export type GetUserAchievementsQuery = z.infer<typeof GetUserAchievementsQuerySchema>;
 
-// Add other necessary request/response types
+// Add other types related to achievements API if needed later

@@ -15,7 +15,8 @@ export const comments = pgTable('comments', {
   commentText: text('comment_text').notNull(),
   // Use the pgEnum for the status column
   status: commentStatusEnum('status').notNull().default('active'),
-  metadata: jsonb('metadata').default({}),
+  // Explicitly type jsonb column to match Zod schema expectation
+  metadata: jsonb('metadata').$type<Record<string, any>>().default({}), 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({

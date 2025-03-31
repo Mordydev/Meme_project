@@ -92,8 +92,27 @@ export const achievementService = new AchievementService(
 // Since the constructor was removed in content-service.ts, we cannot instantiate it here with arguments.
 // Exporting the class and relying on direct imports within the class or a different DI mechanism.
 // However, to fix the handler import error, we export a placeholder instance.
-// TODO: Fix ContentService dependency handling and instantiation properly.
-export const contentService = {} as ContentService; // Placeholder instance export
+// Instantiate Content Service
+import { createContentService } from './content';
+export const contentService = createContentService(
+  contentRepository,
+  commentRepositoryInstance,
+  categoryRepositoryInstance,
+  tagRepository,
+  enhancedPointsService,
+  moderationServiceInstance,
+  mediaService,
+  eventBus
+);
+
+// Instantiate Feed Service
+import { createFeedService, FeedService } from './content';
+export const feedService = createFeedService(
+  db as any,
+  contentRepository,
+  categoryRepositoryInstance,
+  tagRepository
+);
 
 
 // --- Export Service Instances ---

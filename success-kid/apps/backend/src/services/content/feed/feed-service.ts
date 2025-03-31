@@ -1,7 +1,7 @@
 import { logger } from '../../../lib/logger';
 import { ContentRepository, contentRepository } from '../../../repositories/content-repository';
-import { CategoryRepository } from '../../../repositories/category-repository'; // Import class
-import { TagRepository } from '../../../repositories/tag-repository'; // Import class
+import { CategoryRepository } from '../../../repositories/category-repository'; // Import class only
+import { TagRepository } from '../../../repositories/tag-repository'; // Import class only
 import { ContentListItem } from '../../../models/entities/content.model';
 import { NotFoundError } from '../../../errors';
 import { Tag } from '../../../database/schema/tags'; // Assuming Tag type exists
@@ -76,7 +76,22 @@ export class FeedService {
 
         // Call the repository method (assuming it handles these filters)
         // TODO: Implement/update getContentFeed in ContentRepository to handle tagIds and sorting
-        return await this.contentRepository.getContentFeed({ ...options, tagIds });
+        const items = await this.contentRepository.getContentFeed({ ...options, tagIds });
+
+        // Ensure contentText, mediaUrls, and stats are correctly typed/structured
+        return items.map(item => ({
+            ...item,
+            contentText: item.contentText || '',
+            // Ensure mediaUrls is an array, default to empty array if null/undefined/not array
+            mediaUrls: Array.isArray(item.mediaUrls) ? item.mediaUrls : [],
+            // Map stats - Ensure item.stats exists and map properties correctly
+            stats: {
+                // Assuming item.stats might be undefined or have different properties
+                likes: (item.stats as any)?.reactions || (item.stats as any)?.likes || 0, 
+                comments: (item.stats as any)?.comments || 0,
+                shares: (item.stats as any)?.shares || 0 
+            }
+        }));
 
     } catch (error: unknown) { // Fix unknown error type
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -166,9 +181,17 @@ export class FeedService {
 
 }
 
-// Import repository instances
-import { categoryRepositoryInstance } from '../../repositories/category-repository'; // Assuming this path and export name
-import { tagRepository } from '../../repositories/tag-repository'; // Assuming this path and export name
+// Import repository instances separately for instantiation
+import { tagRepository } from '../../../repositories/tag-repository'; 
+// Assuming categoryRepository instance is injected via constructor or DI setup
+// Remove the incorrect import of categoryRepository instance below
+// import { categoryRepository } from '../../../repositories/category-repository'; 
 
-// Export a singleton instance using imported repositories
-export const feedService = new FeedService(contentRepository, categoryRepositoryInstance, tagRepository);
+// Export a singleton instance using imported repository instances
+// Note: Instantiation might happen elsewhere (e.g., services/index.ts) if using DI
+// For now, assuming constructor injection works or manual instantiation happens elsewhere.
+// If this service needs a singleton export, it should likely import instances from a central index.
+// Example: export const feedService = new FeedService(contentRepository, categoryRepositoryInstance, tagRepository);
+// Removing the direct export for now as instance management seems unclear.
+// export const feedService = new FeedService(contentRepository, categoryRepository, tagRepository); 
+// ^^^ Commenting out potentially problematic direct instantiation/export

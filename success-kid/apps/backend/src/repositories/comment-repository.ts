@@ -270,8 +270,10 @@ export class CommentRepository extends BaseRepository<CommentEntity, typeof comm
         parentId: record.parentId,
         createdAt: record.createdAt,
         status: record.status,
-        // Explicitly cast or ensure the default satisfies Record<string, any>
-        metadata: (record.metadata || {}) as Record<string, any>, 
+        // Ensure metadata is Record<string, any>, default to empty object if null/undefined or not an object
+        metadata: (typeof record.metadata === 'object' && record.metadata !== null && !Array.isArray(record.metadata)) 
+                    ? record.metadata as Record<string, any> 
+                    : {},
         updatedAt: record.updatedAt // Ensure updatedAt is included if it's in the Comment type
     };
   }

@@ -88,6 +88,9 @@ export const PaginationMetaSchema = z.object({
   limit: z.number().int().positive(),
   offset: z.number().int().nonnegative(),
   hasMore: z.boolean(),
+  // Add missing fields to match handler construction and PaginatedRedemptionResult type
+  page: z.number().int().positive().optional(), 
+  totalPages: z.number().int().nonnegative().optional(),
 });
 
 export const TransactionsResponseSchema = z.object({

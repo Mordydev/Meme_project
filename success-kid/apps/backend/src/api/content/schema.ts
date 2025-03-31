@@ -1,495 +1,182 @@
-/**
- * Schemas for the Content API module (Content and Comments)
- */
 import { z } from 'zod';
-import {
-  createContentSchema as createContentModelSchema,
-  updateContentSchema as updateContentModelSchema,
-  ContentType
-} from '../../models/entities/content.model';
-import {
-  createCommentSchema as createCommentModelSchema,
-  updateCommentSchema as updateCommentModelSchema
-} from '../../models/entities/comment.model';
+import { 
+    ContentTypeEnum, 
+    ContentStatusEnum, 
+    mediaUrlsSchema, 
+    pollOptionsSchema 
+} from '../../models/entities/content.model'; // Import base content schemas/enums
+import { PaginationMetaSchema } from '../points/schema'; // Re-use pagination schema
 
-// --- Zod Schemas for Validation ---
+// --- Base Schemas (Already defined in content.model.ts, re-export or redefine for API clarity) ---
 
-export const contentFeedQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(50).default(20),
-  lastId: z.string().optional(),
-  lastCreatedAt: z.string().datetime({ message: "Invalid date format for lastCreatedAt" }).optional(),
-  // Use z.enum with expected string values since ContentType is likely a type alias
-  type: z.enum(['text', 'image', 'link', 'poll']).optional(),
-  categoryId: z.string().optional(), // Consider UUID validation if applicable
-  userId: z.string().optional(), // Consider UUID validation if applicable
-  tags: z.array(z.string()).optional(), // Add tags array
-  sortBy: z.enum(['latest', 'popular', 'trending']).optional() // Add sortBy
+// Re-export or redefine base content schema parts if needed for API-specific variations
+// For now, assume models/entities/content.model.ts is the source of truth
+
+// --- Request Schemas ---
+
+// Schema for creating content (POST /) - Reuse from model
+export { createContentSchema } from '../../models/entities/content.model';
+
+// Schema for updating content (PUT /:id) - Reuse from model
+export { updateContentSchema } from '../../models/entities/content.model';
+
+// Schema for creating a comment (POST /:id/comments) - Reuse from model
+export { createCommentSchema as createCommentRequestSchema } from '../../models/entities/comment.model';
+
+// Schema for updating a comment (PUT /comments/:commentId) - Reuse from model
+export { updateCommentSchema as updateCommentRequestSchema } from '../../models/entities/comment.model';
+
+// Schema for adding a reaction (POST /:id/reactions)
+export const addReactionRequestSchema = z.object({
+  reactionType: z.string().min(1), // e.g., 'like', 'celebrate', emoji unicode
 });
 
-export const commentsQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  offset: z.coerce.number().int().min(0).default(0),
-  threaded: z.preprocess((val) => String(val).toLowerCase() === 'true', z.boolean()).default(true),
-  includeDeleted: z.preprocess((val) => String(val).toLowerCase() === 'true', z.boolean()).default(false)
+// Schema for removing a reaction (DELETE /:id/reactions/:reactionType)
+// Params are handled separately
+
+// --- Draft Schemas ---
+
+// Schema for the Draft entity itself (matches DB/model)
+export const DraftSchema = z.object({
+    id: z.string().uuid(),
+    userId: z.string().uuid(),
+    type: ContentTypeEnum,
+    contentText: z.string().nullable(),
+    mediaUrls: mediaUrlsSchema.nullable(),
+    metadata: z.record(z.string(), z.any()).nullable(),
+    createdAt: z.coerce.date(),
+    updatedAt: z.coerce.date(),
 });
 
-// Re-export model schemas if needed for direct use, or create specific API schemas
-export const createContentApiSchema = createContentModelSchema;
-export const updateContentApiSchema = updateContentModelSchema;
-// Adjust comment schemas if API differs slightly from model (e.g., omitting fields)
-export const createCommentApiSchema = z.object({
-  commentText: z.string().min(1).max(1000),
-  parentId: z.string().uuid().nullable().optional()
-});
-export const updateCommentApiSchema = updateCommentModelSchema;
-
-// Reaction Schemas
-export const reactionTypeSchema = z.enum(['like', 'love', 'celebrate', 'insightful', 'funny']); // Use enum based on ReactionService
-
-export const addReactionApiSchema = z.object({
-  reactionType: reactionTypeSchema
+// Schema for creating a draft (POST /drafts)
+export const CreateDraftRequestSchema = DraftSchema.omit({
+    id: true,
+    userId: true, // Will be taken from authenticated user
+    createdAt: true,
+    updatedAt: true,
+}).partial({ // Most fields are optional when creating/saving
+    contentText: true,
+    mediaUrls: true,
+    metadata: true,
+}).required({
+    type: true, // Type is required to know what kind of draft it is
 });
 
-export const reactionParamsSchema = z.object({
-  contentId: z.string().uuid(),
-  reactionType: reactionTypeSchema
+// Schema for updating a draft (PUT /drafts/:draftId)
+export const UpdateDraftRequestSchema = CreateDraftRequestSchema.partial(); // All fields optional on update
+
+// Schema for draft ID parameter
+export const DraftIdParamSchema = z.object({
+    draftId: z.string().uuid(),
 });
 
+// Schema for publishing a draft (POST /drafts/:draftId/publish)
+// Body might be empty or contain minor overrides? For now, assume empty.
+export const PublishDraftRequestSchema = z.object({}); // Empty body
 
-// --- Fastify Schemas for Routes ---
+// --- Response Schemas ---
 
-const metaProperties = {
-  timestamp: { type: 'string', format: 'date-time' },
-  requestId: { type: 'string' }
-};
+// Schema for a single content item response (GET /:id) - Reuse from model
+export { contentResponseSchema } from '../../models/entities/content.model';
 
-const paginationProperties = {
-  limit: { type: 'integer' },
-  // Add other pagination fields as needed (offset, hasMore, lastId, etc.)
-};
+// Schema for a list of content items (GET /feed, GET /) - Reuse from model
+export { contentListItemSchema } from '../../models/entities/content.model';
 
-// Basic Content Object Schema (adjust properties as needed)
-const contentObjectSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    user_id: { type: 'string' },
-    type: { type: 'string' },
-    content_text: { type: 'string', nullable: true },
-    media_urls: { type: 'array', items: { type: 'string' }, nullable: true },
-    created_at: { type: 'string', format: 'date-time' },
-    // Add other relevant content properties
-  }
-};
+// Schema for a single comment item response - Reuse from model
+export { commentResponseSchema } from '../../models/entities/comment.model';
 
-// Basic Comment Object Schema (adjust properties as needed)
-const commentObjectSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    content_id: { type: 'string' },
-    user_id: { type: 'string' },
-    parent_comment_id: { type: 'string', nullable: true },
-    comment_text: { type: 'string' },
-    created_at: { type: 'string', format: 'date-time' },
-    // Add other relevant comment properties
-  }
-};
-
-export const getContentFeedFastifySchema = {
-  tags: ['Content'],
-  summary: 'Get content feed',
-  description: 'Retrieves a feed of content items based on filters.',
-  // security: [{ bearerAuth: [] }], // Optional auth
-  querystring: { $ref: 'contentFeedQuerySchema#' }, // Reference Zod schema (requires setup) or define inline
-  response: {
-    200: {
-      description: 'Content feed',
-      type: 'object',
-      properties: {
-        data: { type: 'array', items: contentObjectSchema },
-        meta: { type: 'object', properties: metaProperties },
-        pagination: { type: 'object', properties: { /* Define pagination response */ } }
-      }
-    }
-  }
-};
-
-export const getContentByIdFastifySchema = {
-  tags: ['Content'],
-  summary: 'Get content by ID',
-  description: 'Retrieves a specific content item by its ID.',
-  // security: [{ bearerAuth: [] }], // Optional auth
-  params: {
-    type: 'object',
-    required: ['id'],
-    properties: { id: { type: 'string' } }
-  },
-  response: {
-    200: {
-      description: 'Content item details',
-      type: 'object',
-      properties: {
-        data: contentObjectSchema,
-        meta: { type: 'object', properties: metaProperties }
-      }
-    },
-    404: { description: 'Content not found' }
-  }
-};
-
-export const createContentFastifySchema = {
-  tags: ['Content'],
-  summary: 'Create new content',
-  description: 'Creates a new content item.',
-  security: [{ bearerAuth: [] }], // Required auth
-  body: { $ref: 'createContentApiSchema#' }, // Reference Zod schema or define inline
-  response: {
-    201: {
-      description: 'Content created successfully',
-      type: 'object',
-      properties: {
-        data: contentObjectSchema,
-        meta: { type: 'object', properties: metaProperties }
-      }
-    }
-  }
-};
-
-export const updateContentFastifySchema = {
-  tags: ['Content'],
-  summary: 'Update content',
-  description: 'Updates an existing content item.',
-  security: [{ bearerAuth: [] }], // Required auth
-  params: {
-    type: 'object',
-    required: ['id'],
-    properties: { id: { type: 'string' } }
-  },
-  body: { $ref: 'updateContentApiSchema#' }, // Reference Zod schema or define inline
-  response: {
-    200: {
-      description: 'Content updated successfully',
-      type: 'object',
-      properties: {
-        data: contentObjectSchema,
-        meta: { type: 'object', properties: metaProperties }
-      }
-    },
-    403: { description: 'Forbidden' },
-    404: { description: 'Content not found' }
-  }
-};
-
-export const deleteContentFastifySchema = {
-  tags: ['Content'],
-  summary: 'Delete content',
-  description: 'Deletes a content item.',
-  security: [{ bearerAuth: [] }], // Required auth
-  params: {
-    type: 'object',
-    required: ['id'],
-    properties: { id: { type: 'string' } }
-  },
-  response: {
-    200: {
-      description: 'Content deleted successfully',
-      type: 'object',
-      properties: {
-        data: { type: 'object', properties: { success: { type: 'boolean' } } },
-        meta: { type: 'object', properties: metaProperties }
-      }
-    },
-    403: { description: 'Forbidden' },
-    404: { description: 'Content not found' }
-  }
-};
-
-export const getContentCommentsFastifySchema = {
-  tags: ['Comments'],
-  summary: 'Get content comments',
-  description: 'Retrieves comments for a specific content item.',
-  // security: [{ bearerAuth: [] }], // Optional auth
-  params: {
-    type: 'object',
-    required: ['id'],
-    properties: { id: { type: 'string' } }
-  },
-  querystring: { $ref: 'commentsQuerySchema#' }, // Reference Zod schema or define inline
-  response: {
-    200: {
-      description: 'List of comments',
-      type: 'object',
-      properties: {
-        data: { type: 'array', items: commentObjectSchema },
-        meta: { type: 'object', properties: metaProperties },
-        pagination: { type: 'object', properties: { /* Define pagination response */ } }
-      }
-    },
-    404: { description: 'Content not found' }
-  }
-};
-
-export const createCommentFastifySchema = {
-  tags: ['Comments'],
-  summary: 'Create comment',
-  description: 'Adds a comment to a content item.',
-  security: [{ bearerAuth: [] }], // Required auth
-  params: {
-    type: 'object',
-    required: ['id'],
-    properties: { id: { type: 'string' } }
-  },
-  body: { $ref: 'createCommentApiSchema#' }, // Reference Zod schema or define inline
-  response: {
-    201: {
-      description: 'Comment created successfully',
-      type: 'object',
-      properties: {
-        data: commentObjectSchema,
-        meta: { type: 'object', properties: metaProperties }
-      }
-    },
-    404: { description: 'Content not found' }
-  }
-};
-
-export const updateCommentFastifySchema = {
-  tags: ['Comments'],
-  summary: 'Update comment',
-  description: 'Updates an existing comment.',
-  security: [{ bearerAuth: [] }], // Required auth
-  params: {
-    type: 'object',
-    required: ['id', 'commentId'],
-    properties: {
-      id: { type: 'string' },
-      commentId: { type: 'string' }
-    }
-  },
-  body: { $ref: 'updateCommentApiSchema#' }, // Reference Zod schema or define inline
-  response: {
-    200: {
-      description: 'Comment updated successfully',
-      type: 'object',
-      properties: {
-        data: commentObjectSchema,
-        meta: { type: 'object', properties: metaProperties }
-      }
-    },
-    403: { description: 'Forbidden' },
-    404: { description: 'Comment not found' }
-  }
-};
-
-export const deleteCommentFastifySchema = {
-  tags: ['Comments'],
-  summary: 'Delete comment',
-  description: 'Deletes a comment.',
-  security: [{ bearerAuth: [] }], // Required auth
-  params: {
-    type: 'object',
-    required: ['id', 'commentId'],
-    properties: {
-      id: { type: 'string' },
-      commentId: { type: 'string' }
-    }
-  },
-  response: {
-    200: {
-      description: 'Comment deleted successfully',
-      type: 'object',
-      properties: {
-        data: { type: 'object', properties: { success: { type: 'boolean' } } },
-        meta: { type: 'object', properties: metaProperties }
-      }
-    },
-    403: { description: 'Forbidden' },
-    404: { description: 'Comment not found' }
-  }
-};
-
-// --- Zod Schema from feed-controller.ts ---
-
-export const feedQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(50).default(20),
-  lastId: z.string().optional(),
-  lastCreatedAt: z.string().datetime({ message: "Invalid date format for lastCreatedAt" }).optional(),
-  contentType: z.string().optional(), // Consider ContentType enum
-  categoryId: z.string().optional(),
-  tagId: z.string().optional(),
-  userId: z.string().optional(),
-  timeframe: z.enum(['day', 'week', 'month', 'all']).default('week'), // Removed 'year' to match FeedType
-  sortBy: z.enum(['latest', 'popular', 'trending']).optional() // Add sortBy
+// Schema for a list of comments (GET /:id/comments)
+export const ListCommentsResponseSchema = z.object({
+    data: z.array(commentResponseSchema), // Can be flat or threaded based on query/handler logic
+    meta: z.object({ timestamp: z.string().datetime() }),
+    pagination: PaginationMetaSchema.optional(), // Pagination might apply to flat lists
 });
 
-// --- Fastify Schema from feed-controller.ts ---
-
-export const getFeedFastifySchema = {
-  tags: ['Feed'], // Changed tag
-  summary: 'Get feed by type',
-  description: 'Retrieves a specific type of content feed.',
-  // security: [{ bearerAuth: [] }], // Optional auth
-  params: {
-    type: 'object',
-    required: ['type'],
-    properties: {
-      type: { type: 'string' } // Consider enum: ['latest', 'trending', 'popular', 'featured', 'discussed', 'personal']
-    }
-  },
-  querystring: { $ref: 'feedQuerySchema#' }, // Reference Zod schema or define inline
-  response: {
-    200: {
-      description: 'Content feed',
-      type: 'object',
-      properties: {
-        data: { type: 'array', items: contentObjectSchema }, // Use existing content schema
-        meta: {
-          type: 'object',
-          properties: {
-            ...metaProperties, // Reuse meta properties
-            feedType: { type: 'string' }
-          }
-        },
-        pagination: { type: 'object', properties: { /* Define pagination response */ } }
-      }
-    },
-    400: { description: 'Invalid feed type' },
-    401: { description: 'Unauthorized for personal feed' }
-  }
-};
-
-// --- Zod Schemas from search-controller.ts ---
-
-export const searchQuerySchema = z.object({
-  q: z.string().min(1, { message: "Search query must be at least 1 character" }).max(100, { message: "Search query cannot exceed 100 characters" }),
-  limit: z.coerce.number().int().min(1).max(50).default(20),
-  offset: z.coerce.number().int().min(0).default(0),
-  contentType: z.string().optional(),
-  categoryId: z.string().optional(),
-  tagId: z.string().optional(),
-  userId: z.string().optional(),
-  dateFrom: z.string().datetime({ message: "Invalid date format for dateFrom" }).optional(),
-  dateTo: z.string().datetime({ message: "Invalid date format for dateTo" }).optional()
+// Schema for reaction response (POST /:id/reactions)
+export const ReactionResponseSchema = z.object({
+    data: z.object({
+        success: z.boolean(),
+        reactionType: z.string(),
+        action: z.enum(['added', 'removed']), // Indicate if added or removed
+        newCounts: z.record(z.string(), z.number()).optional(), // Optional: return updated counts
+    }),
+    meta: z.object({ timestamp: z.string().datetime() }),
 });
 
-export const suggestionQuerySchema = z.object({
-  q: z.string().min(1, { message: "Suggestion query must be at least 1 character" }).max(100, { message: "Suggestion query cannot exceed 100 characters" }),
-  limit: z.coerce.number().int().min(1).max(10).default(5)
+// Schema for Draft list item response (GET /drafts)
+export const DraftListItemSchema = DraftSchema.pick({
+    id: true,
+    type: true,
+    updatedAt: true,
+}).extend({
+    // Add a snippet or title for preview if possible
+    previewText: z.string().optional(), 
 });
 
+// Schema for listing drafts (GET /drafts)
+export const ListDraftsResponseSchema = z.object({
+    data: z.array(DraftListItemSchema),
+    meta: z.object({ timestamp: z.string().datetime() }),
+    pagination: PaginationMetaSchema.optional(), // If pagination is added
+});
 
-// --- Fastify Schemas from search-controller.ts ---
+// Schema for single draft response (GET /drafts/:draftId)
+export const GetDraftResponseSchema = z.object({
+    data: DraftSchema, // Return the full draft object
+    meta: z.object({ timestamp: z.string().datetime() }),
+});
 
-export const searchContentFastifySchema = {
-  tags: ['Search'],
-  summary: 'Search content',
-  description: 'Performs a search across content items.',
-  // security: [{ bearerAuth: [] }], // Optional auth
-  querystring: { $ref: 'searchQuerySchema#' }, // Reference Zod schema or define inline
-  response: {
-    200: {
-      description: 'Search results',
-      type: 'object',
-      properties: {
-        data: { type: 'array', items: contentObjectSchema }, // Reuse content schema
-        meta: {
-          type: 'object',
-          properties: {
-            ...metaProperties,
-            query: { type: 'string' },
-            totalResults: { type: 'integer' },
-            filters: { type: 'object' } // Define filter options structure if needed
-          }
-        },
-        pagination: { type: 'object', properties: { /* Define pagination response */ } }
-      }
-    }
-  }
-};
+// Schema for create/update draft response (POST /drafts, PUT /drafts/:draftId)
+export const DraftMutationResponseSchema = GetDraftResponseSchema; // Return the created/updated draft
 
-export const getSearchSuggestionsFastifySchema = {
-  tags: ['Search'],
-  summary: 'Get search suggestions',
-  description: 'Retrieves type-ahead search suggestions.',
-  querystring: { $ref: 'suggestionQuerySchema#' }, // Reference Zod schema or define inline
-  response: {
-    200: {
-      description: 'Search suggestions',
-      type: 'object',
-      properties: {
-        data: { type: 'array', items: { type: 'string' } }, // Assuming suggestions are strings
-        meta: {
-          type: 'object',
-          properties: {
-            ...metaProperties,
-            query: { type: 'string' }
-          }
-        }
-      }
-    }
-  }
-};
+// Schema for publish draft response (POST /drafts/:draftId/publish)
+// Returns the newly created content item
+export const PublishDraftResponseSchema = z.object({
+    data: contentResponseSchema, // Use the standard content response schema
+    meta: z.object({ timestamp: z.string().datetime() }),
+});
 
-// --- Reaction Fastify Schemas ---
+// --- Query Schemas ---
 
-export const addReactionFastifySchema = {
-  tags: ['Reactions'],
-  summary: 'Add reaction to content',
-  description: 'Adds a reaction to a specific content item.',
-  security: [{ bearerAuth: [] }], // Required auth
-  params: {
-    type: 'object',
-    required: ['id'],
-    properties: { id: { type: 'string' } } // Content ID
-  },
-  body: { $ref: 'addReactionApiSchema#' }, // Reference Zod schema
-  response: {
-    201: {
-      description: 'Reaction added successfully',
-      type: 'object',
-      properties: {
-        data: { type: 'object', properties: { success: { type: 'boolean' } } }, // Simple success response
-        meta: { type: 'object', properties: metaProperties }
-      }
-    },
-    200: { // Handle case where reaction already exists
-        description: 'Reaction already exists',
-        type: 'object',
-        properties: {
-            data: { type: 'object', properties: { success: { type: 'boolean', default: true }, message: { type: 'string' } } },
-            meta: { type: 'object', properties: metaProperties }
-        }
-    },
-    404: { description: 'Content not found' }
-  }
-};
+// Schema for content feed query (GET /feed, GET /)
+export const FeedQuerySchema = z.object({
+    limit: z.coerce.number().int().positive().max(50).default(20).optional(),
+    cursor: z.string().optional(), // Assuming cursor pagination for feeds
+    type: z.string().optional(),
+    categoryId: z.string().uuid().optional(),
+    userId: z.string().uuid().optional(),
+    tags: z.string().transform(val => val.split(',')).optional(), // Comma-separated tags
+    sortBy: z.enum(['latest', 'popular', 'trending']).default('latest').optional(),
+    timeframe: z.enum(['day', 'week', 'month', 'all']).optional(),
+});
 
-export const removeReactionFastifySchema = {
-  tags: ['Reactions'],
-  summary: 'Remove reaction from content',
-  description: 'Removes a specific reaction from a content item.',
-  security: [{ bearerAuth: [] }], // Required auth
-  params: {
-    type: 'object',
-    required: ['id', 'reactionType'],
-    properties: {
-      id: { type: 'string' }, // Content ID
-      reactionType: { type: 'string' } // Reaction Type
-    }
-  },
-  response: {
-    200: {
-      description: 'Reaction removed successfully',
-      type: 'object',
-      properties: {
-        data: { type: 'object', properties: { success: { type: 'boolean' } } },
-        meta: { type: 'object', properties: metaProperties }
-      }
-    },
-    404: { description: 'Content or Reaction not found' }
-  }
-};
+// Schema for comments query (GET /:id/comments)
+export const CommentsQuerySchema = z.object({
+    limit: z.coerce.number().int().positive().max(100).default(50).optional(),
+    offset: z.coerce.number().int().nonnegative().default(0).optional(),
+    threaded: z.coerce.boolean().default(true).optional(),
+});
 
+// Schema for drafts query (GET /drafts)
+export const DraftsQuerySchema = z.object({
+    limit: z.coerce.number().int().positive().max(50).default(20).optional(),
+    offset: z.coerce.number().int().nonnegative().default(0).optional(),
+    // Add other filters if needed (e.g., by type)
+});
 
-// TODO: Add schemas from other controllers (taxonomy, moderation, analytics)
+// --- Param Schemas ---
+
+// Schema for content ID parameter
+export const ContentIdParamSchema = z.object({
+    id: z.string().uuid(),
+});
+
+// Schema for comment ID parameter
+export const CommentIdParamSchema = z.object({
+    commentId: z.string().uuid(),
+});
+
+// Schema for reaction type parameter
+export const ReactionTypeParamSchema = z.object({
+    reactionType: z.string().min(1),
+});

@@ -116,12 +116,13 @@ export class MediaService {
    */
   async getMediaByUrl(url: string): Promise<Media | null> {
     try {
-      // Find media by its blob URL
-      const media = await this.mediaRepository.findOne({
-        filter: { blobUrl: url }
+      // Find media by its blob URL using findMany with limit 1
+      const media = await this.mediaRepository.findMany({
+        filter: { blobUrl: url },
+        limit: 1
       });
       
-      return media ?? null;
+      return media.length > 0 ? media[0] : null;
     } catch (error) {
       logger.error(`Error retrieving media by URL: ${error}`);
       return null;

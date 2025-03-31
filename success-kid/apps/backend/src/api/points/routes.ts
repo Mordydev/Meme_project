@@ -27,9 +27,12 @@ import {
     PointsRedeemRequestSchema, 
     RedeemResponseSchema, 
     TransactionQuerySchema, 
+    TransactionsResponseSchema, // Corrected import name
     RedemptionsResponseSchema, 
     CancelRedemptionParamsSchema, 
-    CancelRedemptionResponseSchema 
+    CancelRedemptionResponseSchema,
+    // Import specific response item schemas
+    RedemptionHistoryItemSchema 
 } from './schema'; 
 import { TrendsQueryParams, TransactionQueryParams } from './types'; // Import types
 
@@ -74,20 +77,20 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
         // TODO: Add explicit types for capData and source
         caps.forEach((capData: any, source: any) => {
           formattedCaps[source] = {
-            daily: { used: capData.daily.current, limit: capData.daily.limit, remaining: capData.daily.remaining, resetsAt: capData.daily.resetsAt },
-            weekly: { used: capData.weekly.current, limit: capData.weekly.limit, remaining: capData.weekly.remaining, resetsAt: capData.weekly.resetsAt }
+            daily: { used: capData.daily.current, limit: capData.daily.limit, remaining: capData.daily.remaining, resetsAt: capData.daily.resetsAt?.toISOString() }, // Format dates
+            weekly: { used: capData.weekly.current, limit: capData.weekly.limit, remaining: capData.weekly.remaining, resetsAt: capData.weekly.resetsAt?.toISOString() } // Format dates
           };
         });
         
-        // getUserTransactions returns PointsTransactionModel[]
-        const formattedTransactions = transactionsResult.transactions.map(tx => ({ // tx is PointsTransactionModel
+        // getUserTransactions returns PointsTransaction entities (camelCase)
+        const formattedTransactions = transactionsResult.transactions.map((tx: PointsTransaction) => ({ 
             id: tx.id,
             amount: tx.amount,
             source: tx.source as PointsSource, // Cast string to PointsSource enum for response
             referenceId: tx.referenceId, // Use camelCase
-            createdAt: tx.createdAt, // Use camelCase
+            createdAt: tx.createdAt.toISOString(), // Convert Date to ISO string
             description: tx.description,
-            metadata: tx.metadata // Use metadata from the model
+            // metadata: tx.metadata // Metadata not in PointTransactionResponseItemSchema
         }));
 
         return reply.code(200).send({
@@ -116,7 +119,7 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
       tags: ['Points'],
       description: "Retrieves the user's points transaction history with pagination.",
       querystring: TransactionQuerySchema, // Use Zod schema
-      // Add detailed response schema if needed
+      response: { 200: TransactionsResponseSchema } // Correct schema name
     },
     handler: async (request: FastifyRequest<{ Querystring: TransactionQueryParams }>, reply: FastifyReply) => {
       try {
@@ -131,18 +134,18 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
         const source = request.query.source; 
         
         // Assuming getUserTransactions returns PointsTransaction entities (camelCase)
-        const { transactions, total } = await enhancedPointsService.getUserTransactions(userId, { limit, offset, source }); // Returns PointsTransactionModel[]
+        const { transactions, total } = await enhancedPointsService.getUserTransactions(userId, { limit, offset, source }); 
         
         return reply.code(200).send({
-          // Map properties from PointsTransactionModel
-          data: transactions.map(tx => ({ // tx is PointsTransactionModel
+          // Map properties from PointsTransaction to match PointTransactionResponseItemSchema
+          data: transactions.map((tx: PointsTransaction) => ({ 
               id: tx.id,
               amount: tx.amount,
               source: tx.source as PointsSource, // Cast string to PointsSource enum for response
               referenceId: tx.referenceId, // Use camelCase
-              createdAt: tx.createdAt, // Use camelCase
+              createdAt: tx.createdAt.toISOString(), // Convert Date to ISO string for response
               description: tx.description,
-              metadata: tx.metadata // Use metadata from the model
+              // metadata: tx.metadata // Metadata not in PointTransactionResponseItemSchema
           })),
           meta: { timestamp: new Date().toISOString() },
           pagination: { total, limit, offset, hasMore: offset + transactions.length < total } // Use returned total
@@ -194,34 +197,30 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
          }
          
          // Delegate to redemption service using camelCase DTO
-         // The redemptionService.requestRedemption should handle:
-         // 1. Eligibility checks (balance, caps, wallet verification)
-         // 2. Deducting points atomically
-         // 3. Enqueuing the redemption job for background processing
-         // 4. Returning the initial 'pending' redemption record
-         const result: RedemptionResult = await redemptionService.requestRedemption({ userId, pointsAmount, walletAddress: finalWalletAddress });
-         // result should contain { success: true, redemption: Redemption } where redemption status is 'pending'
+         // Explicitly type the result, assuming it matches RedemptionResult interface
+         const result: RedemptionResult = await redemptionService.requestRedemption({ userId, pointsAmount, walletAddress: finalWalletAddress }); 
          
-         // Calculate estimated processing time (next Sunday UTC)
          const now = new Date();
          const daysUntilSunday = (7 - now.getUTCDay()) % 7; // Use UTC day
          const nextSunday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilSunday));
          nextSunday.setUTCHours(0, 0, 0, 0);
 
-         // Ensure the result from the service matches the expected RedemptionResult interface
-         // The service should return the created 'pending' redemption record.
-         if (!result || !result.success || !result.redemption) {
-            // If the service indicates failure or doesn't return the redemption object, throw an error
-            throw new AppError('Redemption request failed to process.', 'REDEMPTION_FAILED', 500);
+         // Construct response matching RedeemResponseSchema
+         // Check if result has the expected structure before accessing properties
+         if (!result || typeof result.success !== 'boolean' || !result.redemption) {
+             throw new Error('Invalid response structure from redemptionService.requestRedemption');
          }
-
-         // Add estimatedProcessingTime to the response data (not part of the core Redemption type)
          const responseData = {
-             ...result, // Includes success: true and the redemption object
-             estimatedProcessingTime: nextSunday.toISOString() // Send as ISO string
+             success: result.success, 
+             requestId: result.redemption.id, 
+             pointsAmount: result.redemption.pointsAmount,
+             tokenAmount: result.redemption.tokenAmount,
+             status: result.redemption.status,
+             estimatedProcessingTime: nextSunday.toISOString(), 
+             walletAddress: result.redemption.walletAddress,
+             conversionRate: REDEMPTION_CONSTANTS.CONVERSION_RATE 
          };
 
-         // Return 202 Accepted status code as the request is queued for processing
          return reply.code(202).send({ 
            data: responseData,
            meta: { timestamp: new Date().toISOString() },
@@ -251,30 +250,42 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
          const offset = request.query.offset ?? 0;
          
          // Delegate to redemption service 
-         // Expecting PaginatedRedemptionResult { data: Redemption[], pagination: PaginationMeta }
-         const result: PaginatedRedemptionResult = await redemptionService.getUserRedemptions(userId, (offset / limit) + 1, limit); // Calculate page number
+         // Explicitly type the result, assuming it matches PaginatedRedemptionResult interface
+         const result: PaginatedRedemptionResult = await redemptionService.getUserRedemptions(userId, (offset / limit) + 1, limit); 
          
-         // Use the result data directly without transforming dates
-         // The PaginatedRedemptionResult interface expects Date objects
-         // JSON serialization will handle Date to string conversion
-         const responseData = result.data;
+         // Check if result has the expected structure
+         if (!result || !Array.isArray(result.data) || !result.pagination) {
+             throw new Error('Invalid response structure from redemptionService.getUserRedemptions');
+         }
 
-         // Construct pagination object explicitly matching expected structure
-         // Assuming PaginationMeta has { total, limit, offset, hasMore }
-         const responsePagination: PaginationMeta & { limit: number; offset: number } = { 
+         // Construct pagination object matching the API standard { total, limit, offset, hasMore, page, totalPages }
+         const responsePagination: PaginationMeta & { limit: number; offset: number; hasMore: boolean } = { 
              total: result.pagination.total,
              limit: limit, // Use the requested limit
              offset: offset, // Use the requested offset
-             page: result.pagination.page, // Include page if available
-             totalPages: result.pagination.totalPages, // Include totalPages if available
+             page: result.pagination.page, // Include page from service result
+             totalPages: result.pagination.totalPages, // Include totalPages from service result
              // Calculate hasMore based on total and current position
              hasMore: (offset + result.data.length) < result.pagination.total 
          };
 
+         // Map data to match RedemptionHistoryItemSchema
+         // Add explicit type for 'redemption' parameter
+         const responseData = result.data.map((redemption: Redemption) => ({
+             id: redemption.id,
+             pointsAmount: redemption.pointsAmount,
+             tokenAmount: redemption.tokenAmount,
+             status: redemption.status,
+             createdAt: redemption.createdAt.toISOString(), // Convert Date
+             processedAt: redemption.processedAt ? redemption.processedAt.toISOString() : null, // Convert Date or null
+             transactionHash: redemption.transactionHash,
+             walletAddress: redemption.walletAddress
+         }));
+
          return reply.code(200).send({
            data: responseData, // Send the mapped data array
            meta: { timestamp: new Date().toISOString() },
-           pagination: responsePagination // Send the constructed pagination object
+           pagination: responsePagination // Send the constructed API pagination object
          });
        } catch (error) {
          return handleApiError(request, reply, error);
@@ -298,15 +309,27 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
          }
          
          // Delegate to redemption service 
+         // Explicitly type the result, assuming it matches RedemptionResult interface
          const result: RedemptionResult = await redemptionService.cancelRedemption(request.params.id, userId);
-         // result contains { success: boolean, redemption: Redemption }
          
-         // Use the RedemptionResult directly as returned from the service
-         // The RedemptionResult interface expects Date objects
-         // JSON serialization will handle Date to string conversion
-         const responseData: RedemptionResult = result;
+         // Check if result has the expected structure
+         if (!result || typeof result.success !== 'boolean' || !result.redemption) {
+             throw new Error('Invalid response structure from redemptionService.cancelRedemption');
+         }
+
+         // Construct response matching CancelRedemptionResponseSchema
+         const responseData = {
+             success: result.success,
+             redemption: {
+                 id: result.redemption.id,
+                 status: result.redemption.status, // Should be 'cancelled'
+                 pointsAmount: result.redemption.pointsAmount,
+                 refunded: true // Indicate refund happened (based on cancellation logic)
+             }
+         }; 
+
          return reply.code(200).send({
-           data: responseData, // Send the RedemptionResult object
+           data: responseData, 
            meta: { timestamp: new Date().toISOString() },
          });
        } catch (error) {
