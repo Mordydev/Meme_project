@@ -9,11 +9,32 @@ import {
   achievementService,
   contentService,
   feedService,
-  marketService,
-  userService,
-  referralService,
+  // marketService, // This service doesn't exist yet
+  // userService, // This service doesn't exist yet
+  // referralService, // This service doesn't exist yet
   walletService
 } from '../../services';
+
+// Create placeholder services for ones that don't exist yet
+const marketService = {
+  getCurrentStats: async () => ({ price: 0, priceChange24h: 0, marketCap: 0 }),
+  getMilestoneProgress: async () => ({ progressPercentage: 0 })
+};
+
+const userService = {
+  // Add any methods needed here
+};
+
+const referralService = {
+  getUserReferralStats: async (userId: string) => ({ 
+    referrals: { 
+      completed: 0, 
+      converted: 0, 
+      rewarded: 0, 
+      pending: 0 
+    } 
+  })
+};
 
 // Import specific types needed for casting or default values
 import {
@@ -139,7 +160,7 @@ export async function getDashboardData(
       }).then(items => ({ recentItems: items })),
       
       // Market summary data
-      marketService.getCurrentStats().then(async (stats) => {
+      marketService.getCurrentStats().then(async (stats: any) => {
         if (!stats) return createDefaultMarketSummary();
         
         const milestoneProgress = await marketService.getMilestoneProgress();
@@ -152,7 +173,7 @@ export async function getDashboardData(
       }),
       
       // Referral summary data
-      referralService.getUserReferralStats(userId).then(stats => {
+      referralService.getUserReferralStats(userId).then((stats: any) => {
         // Find or generate referral code
         const referralCode = 'SK-' + userId.substring(0, 6); // Placeholder logic
         
@@ -164,7 +185,7 @@ export async function getDashboardData(
       }),
       
       // Wallet information (used in error handling but not directly in dashboard)
-      walletService.getWalletInfo(userId)
+      walletService.getUserWallet(userId)
     ]);
 
     // 3. Process results, handling potential failures gracefully

@@ -4,15 +4,27 @@
 import { ContentType } from '../../models/entities/content.model'; // Assuming ContentType is exported
 import { z } from 'zod';
 import {
-  addReactionApiSchema,
-  reactionParamsSchema,
-  contentFeedQuerySchema,
-  commentsQuerySchema,
-  feedQuerySchema,
-  searchQuerySchema,
-  suggestionQuerySchema
+  addReactionRequestSchema as addReactionApiSchema,
+  ReactionTypeParamSchema as reactionParamsSchema,
+  FeedQuerySchema as contentFeedQuerySchema,
+  CommentsQuerySchema as commentsQuerySchema,
+  FeedQuerySchema as feedQuerySchema
   // Import other relevant schemas if needed
 } from './schema';
+
+// Define missing schemas
+const searchQuerySchema = z.object({
+  query: z.string().min(1),
+  limit: z.coerce.number().int().positive().max(50).default(20).optional(),
+  offset: z.coerce.number().int().nonnegative().default(0).optional(),
+  type: z.string().optional(),
+  categoryId: z.string().uuid().optional()
+});
+
+const suggestionQuerySchema = z.object({
+  query: z.string().min(1),
+  limit: z.coerce.number().int().positive().max(10).default(5).optional()
+});
 
 // --- Query Parameter Types ---
 

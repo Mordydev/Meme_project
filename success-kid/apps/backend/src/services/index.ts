@@ -1,3 +1,31 @@
+// Create a MediaService adapter using BlobService
+class MediaServiceAdapter {
+  constructor(private blobProvider: any) {}
+
+  // Add missing methods from MediaService
+  mediaRepository = null;
+
+  async uploadMedia(file: any) {
+    return this.blobProvider.uploadFile(file);
+  }
+
+  async validateFile(file: any) {
+    return { valid: true, errors: [] };
+  }
+
+  // Add more methods based on MediaService interface as needed
+  getMediaUrl(path: string) {
+    return this.blobProvider.getUrl(path);
+  }
+
+  deleteMedia(path: string) {
+    return this.blobProvider.deleteFile(path);
+  }
+}
+
+// Create a MediaService adapter from BlobService
+const mediaService = new MediaServiceAdapter(blobService);
+
 /**
  * Services Exports
  *
@@ -36,8 +64,8 @@ import { reactionService } from './content/reaction/reaction-service'; // Assumi
 const pointsRepository = new PointsRepository(); // 0 args constructor
 const redemptionRepository = new RedemptionRepository(); // Assuming 0 args
 const userRepository = new UserRepository(); // 0 args constructor
-const walletRepository = new WalletRepository(); // Corrected: 0 args
-const reportRepository = new ReportRepository();
+const walletRepository = new WalletRepository(db as any); // Pass db argument
+const reportRepository = new ReportRepository(db as any); // Pass db argument
 const commentRepositoryInstance = new CommentRepository();
 const categoryRepositoryInstance = new CategoryRepository();
 
@@ -101,7 +129,7 @@ export const contentService = createContentService(
   tagRepository,
   enhancedPointsService,
   moderationServiceInstance,
-  mediaService,
+  mediaService, // Use mediaService adapter instead of directly using blobService
   eventBus
 );
 

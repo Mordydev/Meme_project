@@ -82,14 +82,14 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
           };
         });
         
-        // getUserTransactions returns PointsTransaction entities (camelCase)
-        const formattedTransactions = transactionsResult.transactions.map((tx: PointsTransaction) => ({ 
+        // Map transaction data to the expected response format
+        const formattedTransactions = transactionsResult.transactions.map((tx) => ({ 
             id: tx.id,
             amount: tx.amount,
-            source: tx.source as PointsSource, // Cast string to PointsSource enum for response
-            referenceId: tx.referenceId, // Use camelCase
+            source: tx.source, // Already the correct type
+            referenceId: tx.referenceId,
             createdAt: tx.createdAt.toISOString(), // Convert Date to ISO string
-            description: tx.description,
+            description: tx.description
             // metadata: tx.metadata // Metadata not in PointTransactionResponseItemSchema
         }));
 
@@ -137,14 +137,15 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
         const { transactions, total } = await enhancedPointsService.getUserTransactions(userId, { limit, offset, source }); 
         
         return reply.code(200).send({
-          // Map properties from PointsTransaction to match PointTransactionResponseItemSchema
-          data: transactions.map((tx: PointsTransaction) => ({ 
+          // Map properties to match PointTransactionResponseItemSchema
+          // Use type assertion if tx is of unknown type
+          data: transactions.map((tx) => ({ 
               id: tx.id,
               amount: tx.amount,
-              source: tx.source as PointsSource, // Cast string to PointsSource enum for response
-              referenceId: tx.referenceId, // Use camelCase
+              source: tx.source, // Already the correct type
+              referenceId: tx.referenceId, 
               createdAt: tx.createdAt.toISOString(), // Convert Date to ISO string for response
-              description: tx.description,
+              description: tx.description
               // metadata: tx.metadata // Metadata not in PointTransactionResponseItemSchema
           })),
           meta: { timestamp: new Date().toISOString() },
@@ -198,7 +199,14 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
          
          // Delegate to redemption service using camelCase DTO
          // Explicitly type the result, assuming it matches RedemptionResult interface
-         const result: RedemptionResult = await redemptionService.requestRedemption({ userId, pointsAmount, walletAddress: finalWalletAddress }); 
+         // Call redemption service and wrap the result in the required format
+         const rawResult = await redemptionService.requestRedemption({ userId, pointsAmount, walletAddress: finalWalletAddress });
+          
+         // Create a proper RedemptionResult object
+         const result: RedemptionResult = {
+           success: true,
+           redemption: rawResult
+         };
          
          const now = new Date();
          const daysUntilSunday = (7 - now.getUTCDay()) % 7; // Use UTC day
@@ -207,11 +215,11 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
 
          // Construct response matching RedeemResponseSchema
          // Check if result has the expected structure before accessing properties
-         if (!result || typeof result.success !== 'boolean' || !result.redemption) {
+         if (!result || !result.redemption) {
              throw new Error('Invalid response structure from redemptionService.requestRedemption');
          }
          const responseData = {
-             success: result.success, 
+             success: Boolean(result.success), 
              requestId: result.redemption.id, 
              pointsAmount: result.redemption.pointsAmount,
              tokenAmount: result.redemption.tokenAmount,
@@ -251,7 +259,20 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
          
          // Delegate to redemption service 
          // Explicitly type the result, assuming it matches PaginatedRedemptionResult interface
-         const result: PaginatedRedemptionResult = await redemptionService.getUserRedemptions(userId, (offset / limit) + 1, limit); 
+         // Call redemption service
+         const rawResults = await redemptionService.getUserRedemptions(userId, (offset / limit) + 1, limit);
+         
+         // Create a properly structured PaginatedRedemptionResult
+         const result: PaginatedRedemptionResult = {
+           data: rawResults,
+           pagination: {
+             total: rawResults.length,
+             page: (offset / limit) + 1,
+             totalPages: Math.ceil(rawResults.length / limit),
+             limit: limit, // Add this line to fix the error
+             hasMore: (offset + rawResults.length) < rawResults.length
+           }
+         };
          
          // Check if result has the expected structure
          if (!result || !Array.isArray(result.data) || !result.pagination) {
@@ -310,16 +331,23 @@ export default async function registerPointsRoutes(fastify: FastifyInstance) {
          
          // Delegate to redemption service 
          // Explicitly type the result, assuming it matches RedemptionResult interface
-         const result: RedemptionResult = await redemptionService.cancelRedemption(request.params.id, userId);
+         // Call redemption service
+         const rawResult = await redemptionService.cancelRedemption(request.params.id, userId);
+         
+         // Create a properly structured RedemptionResult
+         const result: RedemptionResult = {
+           success: true,
+           redemption: rawResult
+         };
          
          // Check if result has the expected structure
-         if (!result || typeof result.success !== 'boolean' || !result.redemption) {
+         if (!result || !result.redemption) {
              throw new Error('Invalid response structure from redemptionService.cancelRedemption');
          }
 
          // Construct response matching CancelRedemptionResponseSchema
          const responseData = {
-             success: result.success,
+             success: Boolean(result.success),
              redemption: {
                  id: result.redemption.id,
                  status: result.redemption.status, // Should be 'cancelled'

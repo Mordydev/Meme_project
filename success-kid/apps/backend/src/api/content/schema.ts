@@ -76,15 +76,31 @@ export const PublishDraftRequestSchema = z.object({}); // Empty body
 
 // --- Response Schemas ---
 
-// Schema for a single content item response (GET /:id) - Reuse from model
-export { contentResponseSchema } from '../../models/entities/content.model';
+// Define content response schemas
+const contentResponseSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  type: ContentTypeEnum,
+  contentText: z.string().nullable(),
+  // Add other fields as needed
+});
 
-// Schema for a list of content items (GET /feed, GET /) - Reuse from model
+export { contentResponseSchema };
 export { contentListItemSchema } from '../../models/entities/content.model';
 
-// Schema for a single comment item response - Reuse from model
-export { commentResponseSchema } from '../../models/entities/comment.model';
+// Define comment response schema
+const commentResponseSchema = z.object({
+  id: z.string().uuid(),
+  contentId: z.string().uuid(),
+  userId: z.string().uuid(),
+  commentText: z.string(),
+  parentId: z.string().uuid().nullable().optional(),
+  // Add other fields as needed
+});
 
+export { commentResponseSchema };
+
+// Use the imported schema for ListCommentsResponseSchema
 // Schema for a list of comments (GET /:id/comments)
 export const ListCommentsResponseSchema = z.object({
     data: z.array(commentResponseSchema), // Can be flat or threaded based on query/handler logic
@@ -129,10 +145,13 @@ export const GetDraftResponseSchema = z.object({
 // Schema for create/update draft response (POST /drafts, PUT /drafts/:draftId)
 export const DraftMutationResponseSchema = GetDraftResponseSchema; // Return the created/updated draft
 
+// Import and use the contentResponseSchema
+import { contentResponseSchema as importedContentResponseSchema } from '../../models/entities/content.model';
+
 // Schema for publish draft response (POST /drafts/:draftId/publish)
 // Returns the newly created content item
 export const PublishDraftResponseSchema = z.object({
-    data: contentResponseSchema, // Use the standard content response schema
+    data: importedContentResponseSchema, // Use the standard content response schema
     meta: z.object({ timestamp: z.string().datetime() }),
 });
 

@@ -34,13 +34,14 @@ This phase focused on establishing the foundational backend services for core pl
     *   **Service Logic:** Implemented basic event filtering and achievement unlocking logic (points awarding, event publishing).
     *   **API Support:** Implemented basic API helper methods.
     *   **Type Safety:** Resolved various TypeScript errors.
+    *   **API Module:** Created basic API structure (`schema.ts`, `types.ts`, `routes.ts`, `handler.ts`). Refactored routes and handlers to align with defined schemas and service methods.
 
 *   **Remaining TODOs / Future Work:**
     *   Implement detailed logic in criteria evaluators.
     *   Refine event filtering logic.
     *   Add handlers for more event types.
     *   Decide on subscriber implementation strategy.
-    *   Implement detailed API logic.
+    *   Implement detailed API logic (service method calls in handlers).
     *   Add comprehensive tests.
 
 ## Task 3: Implement Market Data Service
@@ -66,11 +67,10 @@ This phase focused on establishing the foundational backend services for core pl
 *   **Status:** Completed (2025-03-31)
 *   **Key Changes:**
     *   **Refactoring:** Created `FeedService` and `SearchService`. Moved feed and search logic from `ContentService` to these new services. Updated `api/content/handler.ts` to use the new services.
-    *   **Schema:** Created `tags.ts` schema including `content_tags` join table. Created `comments.ts` schema. Created `reactions.ts` schema. Updated schema `index.ts`.
-    *   **Repositories:** Added placeholder methods to `TagRepository` and `ContentRepository`. Created `ReactionRepository` with CRUD methods. Fixed issues in `BaseRepository` and related repository constructors in `services/index.ts`.
-    *   **Services:** Created `ReactionService` with logic for adding/removing reactions, awarding points (`reaction_received`), and publishing events. Fixed issues in `ContentService` for naming conventions and imports. Fixed service instantiation in `services/index.ts`.
-    *   **API:** Added Zod schemas, TypeScript types, handlers, and routes for Reactions (`POST /:id/reactions`, `DELETE /:id/reactions/:reactionType`) within the `api/content/` module.
-    *   **Error Correction:** Fixed numerous import errors, type errors (camelCase vs snake_case, enum values, `unknown` type), and Drizzle query issues across multiple files. Corrected `PointsSource` usage. Removed `categoryId` references where schema didn't support it.
+    *   **Schema:** Created `tags.ts` schema including `content_tags` join table. Created `comments.ts` schema (including explicit type for `metadata`). Created `reactions.ts` schema. Updated schema `index.ts`.
+    *   **Repositories:** Added placeholder methods to `TagRepository` and `ContentRepository`. Created `ReactionRepository` with CRUD methods. Fixed issues in `BaseRepository` and related repository constructors in `services/index.ts`. Updated `CommentRepository` mapping for `metadata`.
+    *   **Services:** Created `ReactionService` with logic for adding/removing reactions, awarding points (`reaction_received`), and publishing events. Fixed issues in `ContentService` for naming conventions and imports. Fixed service instantiation in `services/index.ts`. Corrected `FeedService` imports and mapping logic for `contentText` and `stats`.
+    *   **API:** Added Zod schemas, TypeScript types, handlers, and routes for Reactions (`POST /:id/reactions`, `DELETE /:id/reactions/:reactionType`) within the `api/content/` module. Added Drafts API schemas.
     *   **Draft System Implementation:** 
         *   **Schema:** Created `drafts.ts` schema with appropriate fields (id, userId, type, contentText, mediaUrls, metadata, timestamps).
         *   **Repository:** Created `DraftRepository` extending the BaseRepository pattern with CRUD operations.
@@ -128,41 +128,25 @@ This phase focused on establishing the foundational backend services for core pl
     *   Implement circuit breakers for frequently failing services.
     *   Add telemetry for more detailed performance tracking.
 
-## Debugging Progress (2025-03-30)
+## Persistent Errors (as of 2025-03-31)
 
-*   **Standardization & Refactoring:**
-    *   Standardized logger import in `BaseRepository`.
-    *   Refactored Zod schemas in `content.model.ts` and `comment.model.ts` to use camelCase properties.
-    *   Refactored `CommentRepository` to extend the correct Drizzle `BaseRepository` and use its methods. Updated entity mapping to camelCase.
-    *   Corrected service instantiation for `UserRepository` and `RedemptionService` in `services/index.ts`. Exported `eligibilityService`.
-    *   Updated `createCommentHandler` in `api/content/handler.ts` to use camelCase property access for request body.
-    *   Updated `content.ts` schema to use `pgEnum` for `type` and `status`. Corrected enum usage in `content-repository.ts`.
-*   **API Fixes:**
-    *   Attempted to fix return structures in redemption handlers (`api/points/routes.ts`) to match `RedemptionResult` and `PaginatedRedemptionResult` types. (Errors still persist).
-    *   Corrected service call in `/redemption/eligibility` handler to use `eligibilityService`.
-
-*   **Persistent Errors:**
-    *   Type mismatches remain in `api/points/routes.ts` regarding redemption result structures.
-    *   Type mismatch for `contentText` in `feed-service.ts`.
-    *   Partial update type error (`string | undefined` vs `string`) in `content-service.ts` when calling `commentRepository.updateComment`.
+*   **`apps/backend/drizzle.config.ts`:** Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node`.
+*   **`apps/backend/src/api/media/handler.ts`:** Property 'file' does not exist on type 'FastifyRequest'.
+*   **`apps/backend/src/app.ts`:** Cannot find module '@fastify/multipart' or its corresponding type declarations.
+*   **`apps/backend/src/repositories/tag-repository.ts`:** Cannot find module 'nanoid' or its corresponding type declarations.
+*   **`apps/backend/src/services/index.ts`:** Type 'MediaServiceAdapter' is missing properties from type 'MediaService'.
+*   **`apps/backend/src/services/media/media-service.ts`:** Cannot find module 'nanoid' or its corresponding type declarations.
+*   **`apps/backend/src/services/media/storage/blob-provider.ts`:** Cannot find module 'nanoid' or its corresponding type declarations.
 
 ## Next Steps
 
-1. Resolve the remaining persistent TypeScript errors:
-   * Investigate and fix the return type mismatches in `api/points/routes.ts`.
-   * Address the `contentText` type mismatch in `feed-service.ts`.
-   * Resolve the partial update type error in `content-service.ts`.
+1.  **Resolve Critical Errors:**
+    *   Fix Node.js type definitions for `process` in drizzle.config.ts
+    *   Fix FastifyRequest file property issue in media/handler.ts
+    *   Install missing @fastify/multipart module
+    *   Install missing nanoid package
+    *   Implement missing methods in MediaServiceAdapter to match MediaService interface
 
-2. Complete Phase 2: API Implementation & Integration:
-   * ✅ Complete Dashboard API aggregating data (Task 6).
-   * Finalize API endpoints for Points, Achievements, Content, Market, Profile (Task 7).
-   * Standardize API response formats and error handling.
-   * Generate comprehensive API documentation.
-   * Configure API-level caching.
+2.  **Complete Task 7 (API Implementation):** Once critical errors are resolved, continue implementing and finalizing API endpoints for Achievements, Content (Drafts/Reactions), Market, and Profile, ensuring adherence to standards.
 
-3. Begin Phase 3: Real-Time & Optimization:
-   * Implement WebSocket system (Task 8).
-   * Add event publishers to relevant services (Task 9).
-   * Implement multi-level caching strategy (Task 10).
-   * Optimize database queries for critical paths (Task 11).
-   * Implement background processing for necessary tasks (Task 12).
+3.  **Begin Phase 3:** Proceed with WebSocket implementation (Task 8) and other Phase 3 tasks.

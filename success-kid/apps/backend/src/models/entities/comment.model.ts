@@ -26,8 +26,18 @@ export const commentSchema = z.object({
   metadata: z.record(z.string(), z.any()).nullable().default({}) 
 });
 
-// TypeScript Comment Type derived from Zod schema (will now be Record<string, any> | null)
-export type Comment = z.infer<typeof commentSchema>;
+// TypeScript Comment Type derived from Zod schema
+// Explicitly define the Comment type to avoid circular reference issues
+export interface Comment {
+  id: string;
+  contentId: string;
+  userId: string;
+  commentText: string;
+  parentId: string | null;
+  createdAt: Date;
+  status: 'active' | 'deleted' | 'flagged' | 'pending_review';
+  metadata: Record<string, any> | null;
+}
 
 // Create Comment Input Schema
 export const createCommentSchema = commentSchema
@@ -69,10 +79,8 @@ interface CommentResponseDtoRecursive extends Comment {
   replies?: CommentResponseDtoRecursive[];
 }
 
-// Now define the Zod schema using z.lazy 
-// Add back the explicit ZodType hint
-export const commentResponseSchema: z.ZodType<CommentResponseDtoRecursive> = commentSchema
-  .extend({
+// Now define the Zod schema
+export const commentResponseSchema = commentSchema.extend({
     author: z.object({
       id: z.string(),
       displayName: z.string(), // camelCase
@@ -93,8 +101,7 @@ export type CommentResponseDto = z.infer<typeof commentResponseSchema>;
 // This interface might be redundant now if CommentResponseDtoRecursive covers it,
 // but keep it for clarity if used elsewhere.
 // Aligning metadata type with the updated Comment type
-export interface CommentThread extends Omit<Comment, 'metadata'> { 
-  metadata: Record<string, any> | null; // Align with updated Comment type
+export interface CommentThread extends Comment {
   updatedAt?: Date; // Add optional updatedAt field
   author: {
     id: string;

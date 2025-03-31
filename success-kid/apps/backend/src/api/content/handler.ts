@@ -3,8 +3,7 @@
  */
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { enhancedPointsService as pointsService, contentService } from '../../services'; // Import services
-import { feedService } from '../../services/content/feed/feed-service'; // For feeds
+import { enhancedPointsService as pointsService, contentService, feedService } from '../../services'; // Import services
 import { searchService } from '../../services/content/search/search-service'; // For search
 import { reactionService } from '../../services/content/reaction/reaction-service'; // Import ReactionService
 import {
@@ -37,17 +36,38 @@ import {
   // Import body types if needed
 } from './types';
 import {
-  contentFeedQuerySchema,
-  commentsQuerySchema,
-  feedQuerySchema, // Added import
-  createCommentApiSchema, // Added import
-  // Search Schemas
-  searchQuerySchema, // Added import
-  suggestionQuerySchema, // Added import
+  FeedQuerySchema as contentFeedQuerySchema,
+  CommentsQuerySchema as commentsQuerySchema,
+  FeedQuerySchema as feedQuerySchema, // Added import
+  // createCommentSchema as createCommentApiSchema - Create locally below
   // Reaction Schemas
-  addReactionApiSchema,
-  reactionParamsSchema
+  addReactionRequestSchema as addReactionApiSchema,
+  ReactionTypeParamSchema as reactionParamsSchema
 } from './schema'; // Import Zod schemas
+
+// Define the search query schemas here since they're not exported from types.ts
+const searchQuerySchema = z.object({
+  q: z.string().min(1),
+  limit: z.coerce.number().int().positive().max(50).default(20).optional(),
+  offset: z.coerce.number().int().nonnegative().default(0).optional(),
+  contentType: z.string().optional(),
+  categoryId: z.string().uuid().optional(),
+  tagId: z.string().uuid().optional(),
+  userId: z.string().uuid().optional(),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional()
+});
+
+const suggestionQuerySchema = z.object({
+  q: z.string().min(1),
+  limit: z.coerce.number().int().positive().max(10).default(5).optional()
+});
+
+// Create the missing createCommentApiSchema
+const createCommentApiSchema = z.object({
+  commentText: z.string().min(1).max(1000),
+  parentId: z.string().uuid().nullable().optional()
+});
 import { ContentListItem } from '../../repositories/content-repository'; // Import from repository
 
 // Remove helper functions, import/use services directly
@@ -64,8 +84,8 @@ export async function getContentFeedHandler(
     const query = contentFeedQuerySchema.parse(request.query);
     const options = {
       limit: query.limit,
-      lastId: query.lastId,
-      lastCreatedAt: query.lastCreatedAt ? new Date(query.lastCreatedAt) : undefined,
+      cursor: query.cursor, // Use cursor instead of lastId
+      lastCreatedAt: query.cursor ? new Date(query.cursor) : undefined, // Use cursor as lastCreatedAt
       type: query.type,
       categoryId: query.categoryId,
       userId: query.userId,
@@ -78,7 +98,7 @@ export async function getContentFeedHandler(
       data: contentItems,
       meta: { timestamp: new Date().toISOString(), requestId: request.id },
       pagination: {
-        lastId: contentItems.length > 0 ? contentItems[contentItems.length - 1].id : null,
+        cursor: contentItems.length > 0 ? contentItems[contentItems.length - 1].id : null, // Use cursor instead of lastId
         // Ensure createdAt exists before accessing
         lastCreatedAt: contentItems.length > 0 ? contentItems[contentItems.length - 1].createdAt?.toISOString() : null,
         limit: query.limit,
@@ -208,8 +228,7 @@ export async function getContentCommentsHandler(
     const comments = await contentService.getContentComments(id, { // Use imported contentService
       limit: query.limit,
       offset: query.offset,
-      threaded: query.threaded,
-      includeDeleted: query.includeDeleted
+      threaded: query.threaded
     });
     return reply.code(200).send({
       data: comments,
@@ -341,11 +360,11 @@ export async function getFeedHandler(
     // Build options object for FeedService
     const options = {
       limit: query.limit,
-      lastId: query.lastId,
-      lastCreatedAt: query.lastCreatedAt ? new Date(query.lastCreatedAt) : undefined,
-      contentType: query.contentType,
+      cursor: query.cursor, // Use cursor instead of lastId
+      lastCreatedAt: query.cursor ? new Date(query.cursor) : undefined, // Use cursor as lastCreatedAt
+      type: query.type, // Use type instead of contentType
       categoryId: query.categoryId,
-      tagId: query.tagId, // Assuming feedService handles tagId lookup if needed
+      tags: query.tags, // Use tags array instead of tagId
       userId: query.userId,
       timeframe: query.timeframe,
       sortBy: query.sortBy // Pass sortBy
@@ -376,7 +395,7 @@ export async function getFeedHandler(
         feedType
       },
       pagination: {
-        lastId: contentItems.length > 0 ? contentItems[contentItems.length - 1].id : null,
+        cursor: contentItems.length > 0 ? contentItems[contentItems.length - 1].id : null, // Use cursor instead of lastId
         // Ensure createdAt exists before accessing
         lastCreatedAt: contentItems.length > 0 ? contentItems[contentItems.length - 1].createdAt?.toISOString() : null,
         limit: query.limit,

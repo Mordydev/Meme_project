@@ -1,39 +1,28 @@
-import { Type, Static } from '@sinclair/typebox'; // Added Static
+import { z } from 'zod';
 
 // Define a standard Error Response Schema
-export const ErrorResponseSchema = Type.Object(
-  {
-    statusCode: Type.Integer({ description: 'HTTP status code' }),
-    code: Type.String({ description: 'Application-specific error code' }),
-    message: Type.String({ description: 'Human-readable error message' }),
-    details: Type.Optional(Type.Any({ description: 'Optional additional error details' })),
-  },
-  { $id: 'ErrorResponse', description: 'Standard error response format' }
-);
-export type ErrorResponse = Static<typeof ErrorResponseSchema>;
+export const ErrorResponseSchema = z.object({
+  statusCode: z.number().int().describe('HTTP status code'),
+  code: z.string().describe('Application-specific error code'),
+  message: z.string().describe('Human-readable error message'),
+  details: z.any().optional().describe('Optional additional error details')
+});
 
-
-// Note: Zod/Typebox schema validation for multipart/form-data files
-// is typically handled by the multipart plugin configuration (e.g., file size limits)
-// and manual validation within the handler, rather than a request body schema.
+export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 
 // Schema for the successful response body
-export const UploadMediaResponseSchema = Type.Object(
-  {
-    id: Type.String({ description: 'Unique ID of the uploaded media record' }),
-    userId: Type.String({ description: 'ID of the user who uploaded the media' }),
-    originalName: Type.String({ description: 'Original filename of the uploaded media' }),
-    mimeType: Type.String({ description: 'MIME type of the uploaded media' }),
-    size: Type.Integer({ description: 'Size of the media in bytes' }),
-    blobUrl: Type.String({ format: 'uri', description: 'Public URL of the uploaded media in Vercel Blob' }),
-    blobPath: Type.String({ description: 'Pathname of the media in Vercel Blob storage' }),
-    status: Type.String({ description: 'Current status of the media record (e.g., active)' }),
-    createdAt: Type.String({ format: 'date-time', description: 'Timestamp when the media record was created' }),
-    updatedAt: Type.String({ format: 'date-time', description: 'Timestamp when the media record was last updated' }),
-    // metadata: Type.Optional(Type.Record(Type.String(), Type.Any())), // Optional metadata field
-  },
-  { $id: 'UploadMediaResponse', description: 'Response containing details of the successfully uploaded media' }
-);
+export const UploadMediaResponseSchema = z.object({
+  id: z.string().describe('Unique ID of the uploaded media record'),
+  userId: z.string().describe('ID of the user who uploaded the media'),
+  originalName: z.string().describe('Original filename of the uploaded media'),
+  mimeType: z.string().describe('MIME type of the uploaded media'),
+  size: z.number().int().describe('Size of the media in bytes'),
+  blobUrl: z.string().url().describe('Public URL of the uploaded media in Vercel Blob'),
+  blobPath: z.string().describe('Pathname of the media in Vercel Blob storage'),
+  status: z.string().describe('Current status of the media record (e.g., active)'),
+  createdAt: z.string().or(z.date()).describe('Timestamp when the media record was created'),
+  updatedAt: z.string().or(z.date()).describe('Timestamp when the media record was last updated')
+});
 
 // Define the overall route schema for Fastify
 export const UploadMediaRouteSchema = {
