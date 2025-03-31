@@ -11,6 +11,7 @@ export const achievements = pgTable('achievements', {
   criteriaThreshold: integer('criteria_threshold'), // e.g., number of posts, days in streak
   pointsAwarded: integer('points_awarded').notNull().default(0),
   iconUrl: text('icon_url'),
+  isSecret: boolean('is_secret').notNull().default(false), // Added isSecret field
   isEnabled: boolean('is_enabled').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

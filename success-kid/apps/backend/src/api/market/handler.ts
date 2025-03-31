@@ -4,29 +4,19 @@ import { MarketHistoryQuery, MarketTransactionsQuery } from './types';
 import { MarketHistoryQuerySchema, MarketTransactionsQuerySchema } from './schema';
 import { logger } from '../../lib/logger';
 import { handleApiError } from '../../errors/handlers'; // Assuming this exists
-// Assuming MarketService exists and is decorated or imported
-// import { MarketService } from '../../services/market/market-service'; 
-
-// Helper to get marketService from the request instance
-function getMarketService(request: FastifyRequest): any { // Use 'any' for now
-    // @ts-ignore 
-    if (!request.server.marketService) {
-        throw new Error('MarketService not found on Fastify instance');
-    }
-    // @ts-ignore
-    return request.server.marketService;
-}
+import { marketService } from '../../services'; // Import the actual marketService
+import { NotFoundError } from '../../lib/errors'; // Import specific errors if needed
 
 /**
  * Get current market statistics
  */
 export async function getMarketStatsHandler(request: FastifyRequest, reply: FastifyReply) {
-    const marketService = getMarketService(request);
     try {
-        // TODO: Implement marketService.getCurrentStats()
-        const stats = await marketService.getCurrentStats(); 
-        // const stats = { currentPrice: 0.001, change24h: 5.2, marketCap: 1000000, volume24h: 50000 }; // Placeholder
-        
+        const stats = await marketService.getCurrentStats();
+        if (!stats) {
+            // Handle case where service returns null (e.g., API error)
+            throw new NotFoundError('Market stats');
+        }
         return reply.code(200).send({
             data: stats,
             meta: { timestamp: new Date().toISOString() }
@@ -40,17 +30,16 @@ export async function getMarketStatsHandler(request: FastifyRequest, reply: Fast
  * Get historical market price data
  */
 export async function getMarketPriceHistoryHandler(
-    request: FastifyRequest<{ Querystring: MarketHistoryQuery }>, 
+    request: FastifyRequest<{ Querystring: MarketHistoryQuery }>,
     reply: FastifyReply
 ) {
-    const marketService = getMarketService(request);
     try {
         const query = MarketHistoryQuerySchema.parse(request.query);
+        // Provide a default period if not specified or if 'all' is passed (service doesn't support 'all')
+        const period = (query.period && query.period !== 'all') ? query.period : '24h'; 
         
-        // TODO: Implement marketService.getPriceHistory(period, interval)
-        const history = await marketService.getPriceHistory(query.period, query.interval);
-        // const history = [{ timestamp: Date.now()/1000 - 3600, price: 0.00095 }, { timestamp: Date.now()/1000, price: 0.001 }]; // Placeholder
-        
+        const history = await marketService.getPriceHistory(period);
+
         return reply.code(200).send({
             data: history,
             meta: { timestamp: new Date().toISOString() }
@@ -67,17 +56,11 @@ export async function getMarketPriceHistoryHandler(
  * Get market milestone progress
  */
 export async function getMarketMilestonesHandler(request: FastifyRequest, reply: FastifyReply) {
-     const marketService = getMarketService(request);
     try {
-        // TODO: Implement marketService.getMilestoneProgress()
         const progress = await marketService.getMilestoneProgress();
-        /* const progress = { // Placeholder
-            currentMarketCap: 1000000,
-            nextMilestone: { id: 'm2', name: '$2M Cap', targetMarketCap: 2000000 },
-            progressPercentage: 50,
-            achievedMilestones: [{ id: 'm1', name: '$1M Cap', targetMarketCap: 1000000, achievedAt: new Date() }]
-        }; */
-        
+         if (!progress) {
+            throw new NotFoundError('Milestone progress');
+        }
         return reply.code(200).send({
             data: progress,
             meta: { timestamp: new Date().toISOString() }
@@ -91,31 +74,26 @@ export async function getMarketMilestonesHandler(request: FastifyRequest, reply:
  * Get recent market transactions
  */
 export async function getMarketTransactionsHandler(
-    request: FastifyRequest<{ Querystring: MarketTransactionsQuery }>, 
+    request: FastifyRequest<{ Querystring: MarketTransactionsQuery }>,
     reply: FastifyReply
 ) {
-     const marketService = getMarketService(request);
     try {
         const query = MarketTransactionsQuerySchema.parse(request.query);
-        
-        // TODO: Implement marketService.getTransactions(limit, beforeId, type)
-        const result = await marketService.getTransactions(query.limit, query.beforeId, query.type);
-        /* const result = { // Placeholder
-            transactions: [
-                { id: 'txhash1', timestamp: Date.now()/1000, type: 'buy', amountSKC: 10000, amountQuote: 10, pricePerSKC: 0.001, makerAddress: 'abc...' },
-                { id: 'txhash2', timestamp: Date.now()/1000 - 60, type: 'sell', amountSKC: 5000, amountQuote: 4.9, pricePerSKC: 0.00098, makerAddress: 'def...' }
-            ],
-            nextCursor: 'txhash2', // Example cursor
-            hasMore: true
-        }; */
-        
+        // Assuming service method takes limit directly
+        const transactions = await marketService.getRecentTransactions(query.limit);
+
+        // Note: The service currently returns only the data array.
+        // Pagination logic (cursor, hasMore) would need to be implemented
+        // in the service/repository if required by the API design.
+        // For now, returning just the data based on the service implementation.
+
         return reply.code(200).send({
-            data: result.transactions,
+            data: transactions,
             meta: { timestamp: new Date().toISOString() },
-            pagination: {
-                nextCursor: result.nextCursor,
+            pagination: { // Placeholder pagination
                 limit: query.limit,
-                hasMore: result.hasMore
+                // nextCursor: null, // Add cursor logic if implemented
+                // hasMore: false    // Add hasMore logic if implemented
             }
         });
     } catch (error) {

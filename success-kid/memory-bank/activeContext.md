@@ -1,28 +1,25 @@
-# Active Context: Success Kid Backend (as of 2025-03-31)
+# Active Context: Success Kid Backend (as of 2025-03-31 AM)
 
 ## 1. Current Focus
 
-*   **Primary Goal:** Complete Phase 2, Task 7: Implement/Complete Service APIs. This involves finalizing API endpoints for Achievements, Content (Drafts/Reactions), Market, and Profile/Users.
-*   **Immediate Priority:** Resolve persistent TypeScript errors identified in `docs/Summaries/Phase1_Core_Services_Summary.md` (Next Steps section). These errors block further progress, particularly related to `nanoid`, `@fastify/multipart`, `FastifyRequest` types, Node.js types in `drizzle.config.ts`, and `MediaServiceAdapter` implementation.
+*   **Primary Goal:** Begin Phase 3, Task 8: Complete WebSocket Notification System. This involves setting up the Socket.io server, implementing authentication, and handling connections/events.
+*   **Secondary Goal:** Address remaining TODOs and implementation details for Task 7 (Service APIs), particularly implementing Market Provider logic and refining ProfileService updates.
 *   **Standardization:** Continue ensuring all new and existing code adheres to the `camelCase` convention in TypeScript and utilizes standard API response/error patterns.
 
 ## 2. Recent Changes & Learnings
 
-*   **Phase 1 Completed:** Core services (Enhanced Points, Content, Media Upload) and structures (Achievements, Market Data) are largely complete or refactored. Drafts system was implemented within Content Service. Media uploads integrated with Vercel Blob.
-*   **Phase 2 Progress:** Dashboard API (Task 6) is functionally complete, leveraging concurrent fetching and caching. Initial structures for other service APIs (Task 7) are in place.
-*   **Refactoring:** Significant refactoring occurred to align with the layered architecture and standardize on `camelCase` in TypeScript, relying on Drizzle's default mapping to `snake_case` in the database.
-*   **Persistent Errors:** Several type-related errors and missing dependency issues were identified and need resolution. A key TS error in `BaseRepository` regarding transaction types persists.
+*   **Task 7 Structure Completed:** API modules (routes, handlers, schemas, types) created or updated for Achievements, Content (Drafts/Reactions), Market Data, and Profiles. Services were updated/instantiated where necessary (e.g., `MarketService`, `DraftService`, `ProfileService`). Handlers were connected to services.
+*   **Error Resolution:** Resolved several persistent TypeScript errors related to missing dependencies (`@types/node`, `nanoid`, `@fastify/multipart`), Fastify request types (`.file()`, `.locals`, `.routerPath`), service instantiation (`MediaServiceAdapter`), and type mismatches (`AchievementService`, `AchievementRepository`, `ProfileService`).
+*   **Skipped Errors:** Temporarily skipped fixing `ErrorCode.EXTERNAL_API_ERROR` usage in Market providers.
+*   **Refactoring:** Continued alignment with layered architecture and `camelCase` standard.
 
 ## 3. Next Steps (Immediate)
 
-1.  **Resolve Critical Errors:** Address the list of persistent errors from the summary document (install `@types/node`, `nanoid`, `@fastify/multipart`; fix `FastifyRequest` type issue; implement missing `MediaServiceAdapter` methods).
-2.  **Continue Task 7:**
-    *   Implement API handlers for Achievements, calling `AchievementService`.
-    *   Implement API handlers for Content Drafts and Reactions, calling respective services (`DraftService`, `ReactionService`).
-    *   Implement API handlers for Market Data, calling `MarketService` (requires implementing the service itself).
-    *   Implement API handlers for User Profile management (structure likely needed).
-    *   Ensure all endpoints have robust Zod validation, authentication, authorization, and use standard response formats.
-3.  **Address TODOs:** Review and address TODO comments within the recently modified code, particularly in Points, Achievements, and Content services/APIs.
+1.  **Begin Task 8:** Start WebSocket implementation by setting up the server and authentication middleware (replacing placeholder logic in `websockets/index.ts`).
+2.  **Implement Market Providers (Task 7):** Replace placeholder logic in `PriceProvider` and `TransactionProvider` with actual external API calls (DexScreener, SolScan).
+3.  **Refine Profile Service (Task 7):** Implement a more robust `updateProfile` method in `ProfileService` to handle partial updates efficiently.
+4.  **Database Migration (Task 7):** Generate and apply migration for the `achievements.isSecret` column.
+5.  **Address TODOs:** Review remaining TODOs in recently modified files.
 
 ## 4. Key Patterns & Preferences Reminder
 

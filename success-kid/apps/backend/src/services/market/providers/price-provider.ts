@@ -1,131 +1,162 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { logger } from '../../../lib/logger';
-// TODO: Add types for API responses
+import { AppError, ErrorCode } from '../../../lib/errors';
 
-/**
- * Interface for standardized price data.
- */
-interface PriceData {
+// TODO: Add API keys/base URLs to environment variables
+const DEXSCREENER_API_URL = 'https://api.dexscreener.com/latest/dex';
+// const BIRDEYE_API_URL = '...'; // Add if using Birdeye as fallback
+
+interface DexScreenerPairResponse {
+    pairs: {
+        priceUsd?: string;
+        priceChange?: { h24?: number };
+        volume?: { h24?: number };
+        marketCap?: number; // Note: DexScreener might use fdv (fully diluted valuation) instead of marketCap directly
+        fdv?: number;
+        pairCreatedAt?: number;
+    }[];
+}
+
+export interface PriceData { // Export interface
     price: number;
-    // Add other relevant fields like timestamp, source API, etc.
+    priceChange24h: number;
 }
 
-/**
- * Interface for standardized market stats data.
- */
-interface StatsData {
-     priceChange24h: number; // Percentage
-     volume24h: number;
-     marketCap: number;
-      // Add other relevant fields like liquidity, supply, etc.
+export interface StatsData { // Export interface
+    volume24h: number;
+    marketCap: number; // Or FDV depending on source
 }
 
-// Define PriceDataPoint here as well, or move all interfaces to a types file
-interface PriceDataPoint {
+// TODO: Define structure for historical data if needed
+export interface PriceDataPoint { // Export interface
     timestamp: number; // Unix timestamp
     price: number;
 }
 
-
-/**
- * Provides market price and statistics data by fetching from external APIs
- * like DexScreener and Birdeye, with built-in redundancy.
- */
 export class PriceProvider {
-    private readonly DEXSCREENER_API = 'https://api.dexscreener.com/latest/dex/tokens/';
-    private readonly BIRDEYE_API = 'https://public-api.birdeye.so/public/'; // Base URL
-    private readonly TOKEN_ADDRESS = process.env.SKC_TOKEN_ADDRESS; // Get token address from env
-    private readonly BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY; // Get Birdeye API key
+    private axiosInstance: AxiosInstance;
+    // private birdeyeAxiosInstance: AxiosInstance; // If using fallback
 
     constructor() {
-        if (!this.TOKEN_ADDRESS) {
-            logger.warn('SKC_TOKEN_ADDRESS environment variable is not set. Price provider may not function correctly.');
-        }
-         if (!this.BIRDEYE_API_KEY) {
-            logger.warn('BIRDEYE_API_KEY environment variable is not set. Birdeye provider will be skipped.');
-        }
+        this.axiosInstance = axios.create({
+            baseURL: DEXSCREENER_API_URL,
+            timeout: 10000, // 10 second timeout
+        });
+        // Initialize fallback instance if needed
     }
 
     /**
-     * Get the current price, trying DexScreener first, then Birdeye as fallback.
+     * Fetches the current price and 24h change.
+     * @param pairAddress The token pair address (e.g., on Raydium). Needs to be configured.
      */
-    async getCurrentPrice(): Promise<PriceData | null> {
-        if (!this.TOKEN_ADDRESS) return null;
-
+    async getCurrentPrice(pairAddress: string): Promise<PriceData | null> {
+        logger.debug(`Fetching current price for pair: ${pairAddress}`);
         try {
-            // Try DexScreener first
-            const dexScreenerUrl = `${this.DEXSCREENER_API}${this.TOKEN_ADDRESS}`;
-            logger.debug('Fetching price from DexScreener', { url: dexScreenerUrl });
-            const response = await axios.get(dexScreenerUrl);
+            const response = await this.axiosInstance.get<DexScreenerPairResponse>(`/pairs/solana/${pairAddress}`);
+            const pairData = response.data.pairs?.[0];
 
-            // TODO: Add proper type checking for response.data
-            if (response.data?.pairs?.[0]?.priceUsd) {
-                logger.info('Successfully fetched price from DexScreener');
-                return { price: parseFloat(response.data.pairs[0].priceUsd) };
+            if (!pairData?.priceUsd) {
+                logger.warn(`Price data not found for pair ${pairAddress} on DexScreener`);
+                return null; // Or try fallback
             }
-            logger.warn('Could not extract price from DexScreener response', { data: response.data });
 
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error('Error fetching price from DexScreener', { error: errorMessage });
+            return {
+                price: parseFloat(pairData.priceUsd),
+                priceChange24h: pairData.priceChange?.h24 ?? 0,
+            };
+        } catch (error: any) {
+            logger.error(`Failed to fetch current price from DexScreener for ${pairAddress}`, { error: error.message });
+            // TODO: Implement fallback logic here if needed
+            // Skipping ErrorCode.EXTERNAL_API_ERROR for now
+            throw new AppError('Failed to fetch current price data', 'EXTERNAL_API_ERROR', 503); 
         }
+    }
 
-        // Fallback to Birdeye if DexScreener failed and API key exists
-        if (this.BIRDEYE_API_KEY) {
-             try {
-                const birdeyeUrl = `${this.BIRDEYE_API}price?address=${this.TOKEN_ADDRESS}`;
-                logger.debug('Fetching price from Birdeye (fallback)', { url: birdeyeUrl });
-                const response = await axios.get(birdeyeUrl, { headers: { 'X-API-KEY': this.BIRDEYE_API_KEY } });
+    /**
+     * Fetches 24h volume and market cap/FDV.
+     * @param pairAddress The token pair address.
+     */
+    async getStats(pairAddress: string): Promise<StatsData | null> {
+         logger.debug(`Fetching stats for pair: ${pairAddress}`);
+         try {
+            const response = await this.axiosInstance.get<DexScreenerPairResponse>(`/pairs/solana/${pairAddress}`);
+            const pairData = response.data.pairs?.[0];
 
-                // TODO: Add proper type checking for response.data
-                if (response.data?.data?.value) {
-                     logger.info('Successfully fetched price from Birdeye (fallback)');
-                     return { price: response.data.data.value };
-                }
-                 logger.warn('Could not extract price from Birdeye response', { data: response.data });
+            if (!pairData) {
+                logger.warn(`Stats data not found for pair ${pairAddress} on DexScreener`);
+                return null; // Or try fallback
+            }
 
-             } catch (error: unknown) {
-                 const errorMessage = error instanceof Error ? error.message : String(error);
-                 logger.error('Error fetching price from Birdeye (fallback)', { error: errorMessage });
+            // Use FDV as marketCap if marketCap field isn't directly available
+            const marketCap = pairData.marketCap ?? pairData.fdv ?? 0;
+
+            return {
+                volume24h: pairData.volume?.h24 ?? 0,
+                marketCap: marketCap,
+            };
+        } catch (error: any) {
+            logger.error(`Failed to fetch stats from DexScreener for ${pairAddress}`, { error: error.message });
+            // TODO: Implement fallback logic here if needed
+             // Skipping ErrorCode.EXTERNAL_API_ERROR for now
+            throw new AppError('Failed to fetch market stats data', 'EXTERNAL_API_ERROR', 503);
+        }
+    }
+
+    /**
+     * Fetches historical price data.
+     * Placeholder - DexScreener free API might not offer extensive history.
+     * May need a different provider (Birdeye, TradingView) or paid API.
+     */
+    async getHistoricalPrice(pairAddress: string, period: '1h' | '24h' | '7d' | '30d'): Promise<PriceDataPoint[]> {
+        logger.debug(`Fetching historical price for ${period} for pair ${pairAddress}`);
+        // DexScreener free API has limited historical data. Using search endpoint as a proxy.
+        // A dedicated historical data provider might be better.
+        // Example: Get recent trades and derive approximate history. This is NOT ideal.
+        try {
+             // Use search endpoint to get recent trades (adjust query as needed)
+             const response = await this.axiosInstance.get(`/dex/search`, { params: { q: pairAddress } });
+             const pairData = response.data.pairs?.[0];
+
+             if (!pairData) {
+                 logger.warn(`Historical data proxy failed for pair ${pairAddress}`);
+                 return [];
              }
+
+             // This is a very rough approximation based on current data, NOT real history.
+             const now = Date.now() / 1000;
+             const currentPrice = parseFloat(pairData.priceUsd ?? '0');
+             const change24h = pairData.priceChange?.h24 ?? 0;
+             const price24hAgo = currentPrice / (1 + (change24h / 100));
+
+             let history: PriceDataPoint[] = [];
+             switch (period) {
+                 case '1h':
+                     // Highly approximate - just return current and slightly older point
+                     history = [
+                         { timestamp: now - 3600, price: currentPrice * 0.995 }, // Fake 1h ago price
+                         { timestamp: now, price: currentPrice }
+                     ];
+                     break;
+                 case '24h':
+                      history = [
+                         { timestamp: now - 86400, price: price24hAgo },
+                         { timestamp: now, price: currentPrice }
+                     ];
+                     break;
+                 // Add rough approximations for 7d/30d if needed, or return empty
+                 default:
+                     history = [];
+             }
+             return history;
+
+        } catch (error: any) {
+            logger.error(`Failed to fetch historical price proxy from DexScreener for ${pairAddress}`, { error: error.message });
+            // Skipping ErrorCode.EXTERNAL_API_ERROR for now
+            // throw new AppError('Failed to fetch historical price data', 'EXTERNAL_API_ERROR', 503);
+            return []; // Return empty on error
         }
-
-        logger.error('Failed to fetch price from all providers.');
-        return null;
-    }
-
-    /**
-     * Get current market stats (volume, market cap, price change).
-     * Tries DexScreener first, then Birdeye.
-     */
-    async getStats(): Promise<StatsData | null> {
-         if (!this.TOKEN_ADDRESS) return null;
-
-         // TODO: Implement fetching stats from DexScreener and/or Birdeye
-         // DexScreener provides h24 volume, priceChange. Market cap needs calculation (price * supply).
-         // Birdeye provides mc (market cap), v24hUSD (volume), priceChange24hPercent.
-
-         logger.warn('PriceProvider getStats() is not fully implemented.');
-         // Placeholder: Fetch price and calculate MC based on fixed supply
-         const priceData = await this.getCurrentPrice();
-         if (priceData) {
-             const totalSupply = 7_000_000_000; // 7 Billion
-             return {
-                 priceChange24h: 0, // Placeholder
-                 volume24h: 0, // Placeholder
-                 marketCap: priceData.price * totalSupply
-             };
-         }
-
-         return null;
-    }
-
-    /**
-     * Get historical price data.
-     * TODO: Implement fetching from DexScreener or Birdeye historical endpoints.
-     */
-    async getHistoricalPrice(period: '1h' | '24h' | '7d' | '30d'): Promise<PriceDataPoint[]> {
-        logger.warn('PriceProvider getHistoricalPrice() is not implemented.');
-        return []; // Placeholder
     }
 }
+
+// Export a singleton instance (or handle instantiation in services/index.ts)
+export const priceProvider = new PriceProvider();

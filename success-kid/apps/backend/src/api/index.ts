@@ -12,11 +12,12 @@ import registerPointsRoutes from './points/routes'; // Keep as is for now, check
 import contentRoutes from './content/index'; // Assuming standard structure
 // import mediaRoutes from './media/index'; // Removed incorrect import
 import marketModule from './market/index'; // Corrected import for market module
-import achievementRoutes from './achievements/index'; // Assuming standard structure
+import achievementsModule from './achievements/index'; // Assuming standard structure
 import notificationRoutes from './notifications/index'; // Updated import path
 import activityRoutes from './activity/index'; // Updated import path
 import presenceRoutes from './presence/index'; // Updated import path
 import dashboardModule from './dashboard/index'; // Import the new dashboard module
+import profileModule from './profiles/index'; // Import the new profile module
 // import jobRoutes from './jobs/index'; // Removed incorrect import
 import forumRoutes from './forum/index'; // Assuming standard structure
 import authRoutes from './auth/routes'; // Keep as is for now, check later
@@ -39,11 +40,12 @@ export default async function apiRoutes(fastify: FastifyInstance): Promise<void>
   fastify.register(contentRoutes); // Register plugin from index.ts
   fastify.register(mediaModule, { prefix: '/api/v1/media' }); // Register the new media module
   fastify.register(marketModule); // Register market module (prefix handled internally)
-  fastify.register(achievementRoutes); // Register plugin from index.ts (prefix handled internally?) - Check achievement/index.ts
+  fastify.register(achievementsModule); // Register plugin from index.ts (prefix handled internally?) - Check achievement/index.ts
   fastify.register(notificationRoutes, { prefix: '/notifications' }); // Keep prefix here as index.ts doesn't handle it
   fastify.register(activityRoutes); // Register plugin from index.ts (prefix handled internally)
   fastify.register(presenceRoutes, { prefix: '/presence' }); // Keep prefix here as index.ts doesn't handle it
   fastify.register(dashboardModule); // Register the dashboard module
+  fastify.register(profileModule); // Register the profile module (prefix handled internally)
   // fastify.register(jobRoutes); // Removed incorrect registration
   fastify.register(forumRoutes); // Register plugin from index.ts
   fastify.register(draftModule, { prefix: '/api/v1' }); // Register the drafts module

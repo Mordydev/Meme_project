@@ -4,6 +4,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { enhancedPointsService as pointsService, contentService, feedService } from '../../services'; // Import services
+import { draftService } from '../../services/content/drafts/draft-service'; // Correct path
 import { searchService } from '../../services/content/search/search-service'; // For search
 import { reactionService } from '../../services/content/reaction/reaction-service'; // Import ReactionService
 import {
@@ -17,7 +18,7 @@ import {
   updateCommentSchema
 } from '../../models/entities/comment.model';
 import { logger } from '../../lib/logger';
-import { ValidationError, NotFoundError, ForbiddenError } from '../../errors'; // Assuming these exist
+import { AppError, ValidationError, NotFoundError, ForbiddenError } from '../../lib/errors'; // Keep corrected path for errors
 import { handleApiError } from '../../errors/handlers'; // Assuming this exists
 import {
   ContentFeedQuery,
@@ -33,7 +34,7 @@ import {
   // Reaction Types
   AddReactionBody,
   ReactionParams
-  // Import body types if needed
+  // Remove Draft types from this import as they are defined inline below
 } from './types';
 import {
   FeedQuerySchema as contentFeedQuerySchema,
@@ -42,9 +43,14 @@ import {
   // createCommentSchema as createCommentApiSchema - Create locally below
   // Reaction Schemas
   addReactionRequestSchema as addReactionApiSchema,
-  ReactionTypeParamSchema as reactionParamsSchema
+  ReactionTypeParamSchema as reactionParamsSchema,
+  // Draft Schemas
+  DraftsQuerySchema,
+  CreateDraftRequestSchema,
+  UpdateDraftRequestSchema,
+  DraftIdParamSchema,
+  PublishDraftRequestSchema
 } from './schema'; // Import Zod schemas
-
 // Define the search query schemas here since they're not exported from types.ts
 const searchQuerySchema = z.object({
   q: z.string().min(1),
@@ -69,6 +75,7 @@ const createCommentApiSchema = z.object({
   parentId: z.string().uuid().nullable().optional()
 });
 import { ContentListItem } from '../../repositories/content-repository'; // Import from repository
+import { Draft } from '../../database/schema/drafts'; // Import Draft type for mapping
 
 // Remove helper functions, import/use services directly
 
@@ -256,17 +263,17 @@ export async function createCommentHandler(
 ) {
   try {
     const { id } = request.params;
-    
+
     // @ts-ignore - Assuming request.user is populated
     const userId = request.user.id;
 
     // Parse directly with the API schema to validate the provided input
     const apiValidationResult = createCommentApiSchema.safeParse(request.body);
-    
+
     if (!apiValidationResult.success) {
         throw new ValidationError('Invalid comment data', apiValidationResult.error.flatten().fieldErrors);
     }
-    
+
     // Construct complete DTO for service with contentId and userId
     const serviceData = {
         contentId: id,
@@ -573,5 +580,199 @@ export async function removeReactionHandler(
   }
 }
 
+// --- Draft Handlers ---
+
+/**
+ * List user's drafts
+ */
+ // Define Draft types inline using imported Zod schemas
+ type DraftsQuery = z.infer<typeof DraftsQuerySchema>;
+ type DraftIdParam = z.infer<typeof DraftIdParamSchema>;
+ type CreateDraftBody = z.infer<typeof CreateDraftRequestSchema>;
+ type UpdateDraftBody = z.infer<typeof UpdateDraftRequestSchema>;
+ type PublishDraftBody = z.infer<typeof PublishDraftRequestSchema>;
+
+export async function listDraftsHandler(
+  request: FastifyRequest<{ Querystring: DraftsQuery }>,
+  reply: FastifyReply
+) {
+  try {
+    // @ts-ignore - Assuming request.user is populated
+    const userId = request.user.id;
+    const query = DraftsQuerySchema.parse(request.query);
+
+    // TODO: Implement pagination in DraftService.getUserDrafts
+    // TODO: Implement pagination in DraftService.getUserDrafts
+    const drafts: Draft[] = await draftService.getUserDrafts(userId); // Add type annotation
+
+    // Map to response schema (DraftListItemSchema)
+    const responseData = drafts.map((d: Draft) => ({ // Use imported Draft type
+        id: d.id,
+        type: d.type,
+        updatedAt: d.updatedAt,
+        previewText: d.contentText?.substring(0, 100) // Example preview
+    }));
+
+    return reply.code(200).send({
+      data: responseData,
+      meta: { timestamp: new Date().toISOString(), requestId: request.id },
+      // pagination: { ... } // Add pagination info when implemented
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return reply.code(400).send({ errors: error.errors });
+    }
+    return handleApiError(request, reply, error);
+  }
+}
+
+/**
+ * Create or update a draft (Upsert logic likely in service)
+ */
+export async function createDraftHandler(
+  request: FastifyRequest<{ Body: CreateDraftBody }>,
+  reply: FastifyReply
+) {
+  try {
+    // @ts-ignore - Assuming request.user is populated
+    const userId = request.user.id;
+    const data = CreateDraftRequestSchema.parse(request.body);
+
+    // Assuming service handles upsert based on whether an ID is implicitly passed or logic inside
+    // Or, perhaps separate POST (create) and PUT (update) handlers are better REST practice
+    // For now, assuming createDraft handles creation/initial save
+    const draft = await draftService.createDraft(userId, data);
+
+    return reply.code(201).send({ // Use 201 Created
+      data: draft,
+      meta: { timestamp: new Date().toISOString(), requestId: request.id }
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return reply.code(400).send({ errors: error.errors });
+    }
+    return handleApiError(request, reply, error);
+  }
+}
+
+/**
+ * Get a specific draft
+ */
+export async function getDraftHandler(
+  request: FastifyRequest<{ Params: DraftIdParam }>,
+  reply: FastifyReply
+) {
+  try {
+    // @ts-ignore - Assuming request.user is populated
+    const userId = request.user.id;
+    const { draftId } = DraftIdParamSchema.parse(request.params);
+
+    const draft = await draftService.getDraftById(draftId, userId);
+    if (!draft) {
+      throw new NotFoundError('Draft', draftId);
+    }
+
+    return reply.code(200).send({
+      data: draft,
+      meta: { timestamp: new Date().toISOString(), requestId: request.id }
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return reply.code(400).send({ errors: error.errors });
+    }
+    return handleApiError(request, reply, error);
+  }
+}
+
+/**
+ * Update a specific draft
+ */
+export async function updateDraftHandler(
+  request: FastifyRequest<{ Params: DraftIdParam; Body: UpdateDraftBody }>,
+  reply: FastifyReply
+) {
+  try {
+    // @ts-ignore - Assuming request.user is populated
+    const userId = request.user.id;
+    const { draftId } = DraftIdParamSchema.parse(request.params);
+    const data = UpdateDraftRequestSchema.parse(request.body);
+
+    const draft = await draftService.updateDraft(draftId, userId, data);
+     if (!draft) { // Service might return null if not found or not authorized
+      throw new NotFoundError('Draft', draftId);
+    }
+
+    return reply.code(200).send({
+      data: draft,
+      meta: { timestamp: new Date().toISOString(), requestId: request.id }
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return reply.code(400).send({ errors: error.errors });
+    }
+    return handleApiError(request, reply, error);
+  }
+}
+
+/**
+ * Delete a specific draft
+ */
+export async function deleteDraftHandler(
+  request: FastifyRequest<{ Params: DraftIdParam }>,
+  reply: FastifyReply
+) {
+  try {
+    // @ts-ignore - Assuming request.user is populated
+    const userId = request.user.id;
+    const { draftId } = DraftIdParamSchema.parse(request.params);
+
+    const deleted = await draftService.deleteDraft(draftId, userId);
+    if (!deleted) {
+      throw new NotFoundError('Draft', draftId);
+    }
+
+    return reply.code(200).send({
+      data: { success: true },
+      meta: { timestamp: new Date().toISOString(), requestId: request.id }
+    });
+  } catch (error) {
+     if (error instanceof z.ZodError) {
+        return reply.code(400).send({ errors: error.errors });
+    }
+    return handleApiError(request, reply, error);
+  }
+}
+
+/**
+ * Publish a draft as content
+ */
+export async function publishDraftHandler(
+  request: FastifyRequest<{ Params: DraftIdParam; Body: PublishDraftBody }>,
+  reply: FastifyReply
+) {
+  try {
+    // @ts-ignore - Assuming request.user is populated
+    const userId = request.user.id;
+    const { draftId } = DraftIdParamSchema.parse(request.params);
+    // Body might be empty, parse just in case
+    const body = PublishDraftRequestSchema.parse(request.body);
+
+    const content = await draftService.publishDraft(draftId, userId);
+    if (!content) {
+        // Handle cases where publish might fail (e.g., draft not found, validation issues on publish)
+        throw new AppError('Failed to publish draft', 'PUBLISH_ERROR', 400);
+    }
+
+    return reply.code(201).send({ // Return 201 Created for the new content resource
+      data: content,
+      meta: { timestamp: new Date().toISOString(), requestId: request.id }
+    });
+  } catch (error) {
+     if (error instanceof z.ZodError) {
+        return reply.code(400).send({ errors: error.errors });
+    }
+    return handleApiError(request, reply, error);
+  }
+}
 
 // TODO: Add handlers from other controllers (taxonomy, moderation, analytics)

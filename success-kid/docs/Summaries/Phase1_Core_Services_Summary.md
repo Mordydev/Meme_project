@@ -150,3 +150,21 @@ This phase focused on establishing the foundational backend services for core pl
 2.  **Complete Task 7 (API Implementation):** Once critical errors are resolved, continue implementing and finalizing API endpoints for Achievements, Content (Drafts/Reactions), Market, and Profile, ensuring adherence to standards.
 
 3.  **Begin Phase 3:** Proceed with WebSocket implementation (Task 8) and other Phase 3 tasks.
+
+---
+
+## Task 7: Implement/Complete Service APIs
+
+*   **Status:** Structure Complete (2025-03-31)
+*   **Key Changes:**
+    *   **Achievements API:** Handlers refactored to delegate filtering/pagination to service. Repository updated for filtering/pagination and `isSecret` field. Service updated to handle repository changes. Schema updated for `isSecret`.
+    *   **Content API:** Drafts routes and handlers implemented. Reaction routes and handlers verified.
+    *   **Market API:** Module structure created (`schema.ts`, `types.ts`, `handler.ts`, `routes.ts`, `index.ts`). `PriceProvider`, `TransactionProvider`, `MilestoneTracker`, `MarketRepository` created with placeholder logic. `MarketService` updated to use dependencies. Handlers updated to call service.
+    *   **Profile API:** Module structure created (`schema.ts`, `types.ts`, `handler.ts`, `routes.ts`, `index.ts`). `ProfileService` updated with `updateProfile` method. Handlers implemented. Module registered.
+*   **Remaining TODOs / Future Work:**
+    *   Implement actual external API calls in Market providers (`PriceProvider`, `TransactionProvider`).
+    *   Refine `ProfileService.updateProfile` for efficiency.
+    *   Generate and apply DB migration for `achievements.isSecret`.
+    *   Address remaining TODOs in related files.
+    *   Add comprehensive tests for all endpoints.
+    *   Resolve skipped `ErrorCode` errors in Market providers.

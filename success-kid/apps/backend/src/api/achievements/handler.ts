@@ -11,13 +11,13 @@ import { GetUserAchievementsParams, GetUserAchievementsQuery } from './types'; /
  */
 export async function getAllAchievementsHandler(request: FastifyRequest, reply: FastifyReply) {
   try {
-    // Use getAchievementsForApi - assuming it returns the list of all definitions when userId is null
+    // Use getAchievementsForApi - it returns { data: AchievementListItem[], total: number }
     // TODO: Implement filtering/logic in getAchievementsForApi as needed (e.g., pass filters from query)
-    const achievements = await achievementService.getAchievementsForApi(null, {}); 
-    
+    const { data: achievementsData } = await achievementService.getAchievementsForApi(null, {}); // Destructure data
+
     // Map to response schema if necessary (e.g., date formatting)
-    // Assuming getAchievementsForApi returns an array of objects matching AchievementListItemSchema structure
-    const responseData = achievements.map((ach: { id: string; name: string; description: string; iconUrl: string | null; pointsAwarded: number; criteriaType: string; criteriaThreshold?: number; isSecret: boolean; category?: string }) => ({ 
+    // Map over the destructured 'data' array
+    const responseData = achievementsData.map((ach) => ({ // Map over the data array
         id: ach.id,
         name: ach.name,
         description: ach.description,
@@ -52,28 +52,17 @@ export async function getUserAchievementsHandler(
     const offset = request.query.offset ?? 0;
     const filter = request.query.filter ?? 'all';
 
-    // Use getUserAchievementsForApi as suggested by previous error
-    // TODO: Implement pagination and proper filtering ('all', 'unlocked', 'locked') directly in getUserAchievementsForApi
-    // For now, fetch all and filter/paginate manually (less efficient)
-    const allUserAchievements = await achievementService.getAchievementsForApi(userId, {}); // Fetch all for user
-
-    let filteredAchievements = allUserAchievements;
-    // Apply filtering based on query param
-    if (filter === 'unlocked') {
-        filteredAchievements = allUserAchievements.filter(ua => ua.userProgress?.isUnlocked);
-    } else if (filter === 'locked') {
-        // Filter for achievements where userProgress exists but is not unlocked
-        filteredAchievements = allUserAchievements.filter(ua => ua.userProgress && !ua.userProgress.isUnlocked);
-    } 
-    // 'all' filter requires no additional filtering here
-    
-    // Apply pagination manually
-    const total = filteredAchievements.length;
-    const paginatedData = filteredAchievements.slice(offset, offset + limit);
+    // Pass pagination and filter options to the service method
+    // Assume the service method will return { data: AchievementListItem[], total: number }
+    const { data: achievementsData, total } = await achievementService.getAchievementsForApi(userId, {
+      limit,
+      offset,
+      status: filter === 'all' ? undefined : (filter as 'locked' | 'unlocked' | 'in-progress'), // Pass filter as status, handle 'all'
+    });
 
     // Map data to response schema (e.g., date formatting)
-    // Assuming getAchievementsForApi returns objects matching the required structure
-    const responseData = paginatedData.map(ua => ({ 
+    // Map over the achievementsData array
+    const responseData = achievementsData.map(ua => ({ // Type 'ua' should be AchievementListItem
         id: ua.id,
         name: ua.name,
         description: ua.description,
@@ -89,15 +78,14 @@ export async function getUserAchievementsHandler(
         isUnlocked: ua.userProgress?.isUnlocked ?? false
     }));
 
-    // Construct pagination object based on manual pagination
+    // Construct pagination object using the total count from the service
     const responsePagination = {
         total: total,
         limit: limit,
         offset: offset,
-        // Calculate page and totalPages based on manual pagination
-        page: Math.floor(offset / limit) + 1, 
+        page: Math.floor(offset / limit) + 1,
         totalPages: Math.ceil(total / limit),
-        hasMore: (offset + paginatedData.length) < total
+        hasMore: (offset + responseData.length) < total // Check if there are more items
     };
 
     return reply.code(200).send({

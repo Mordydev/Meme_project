@@ -34,7 +34,14 @@ import {
   getSearchSuggestionsHandler,
   // Reaction Handlers
   addReactionHandler,
-  removeReactionHandler
+  removeReactionHandler,
+  // Draft Handlers (Assuming these exist in handler.ts)
+  listDraftsHandler,
+  createDraftHandler,
+  getDraftHandler,
+  updateDraftHandler,
+  deleteDraftHandler,
+  publishDraftHandler
 } from './handler';
 import { authMiddleware, authOptionalMiddleware } from '../../middleware/auth'; // Import correct middleware
 import { ContentService } from '../../services/content/content-service'; // Import ContentService type
@@ -58,7 +65,17 @@ import {
   updateContentSchema as updateContentApiSchema,
   createCommentRequestSchema as createCommentApiSchema,
   updateCommentRequestSchema as updateCommentApiSchema,
-  addReactionRequestSchema as addReactionApiSchema
+  addReactionRequestSchema as addReactionApiSchema,
+  // Draft Schemas
+  CreateDraftRequestSchema,
+  UpdateDraftRequestSchema,
+  DraftIdParamSchema,
+  PublishDraftRequestSchema,
+  ListDraftsResponseSchema,
+  GetDraftResponseSchema,
+  DraftMutationResponseSchema,
+  PublishDraftResponseSchema,
+  DraftsQuerySchema
 } from './schema';
 
 
@@ -131,25 +148,68 @@ export default async function contentCoreRoutes(fastify: FastifyInstance, opts: 
     onRequest: [authMiddleware]
   }, removeReactionHandler);
 
-  // --- Draft Routes (Placeholder) ---
-  // TODO: Implement Draft Schemas and Handlers
-  fastify.get('/drafts', {
-    // schema: getDraftsSchema,
-    onRequest: [authMiddleware],
-    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); }
-  });
+  // --- Draft Routes ---
+  fastify.get<{ Querystring: z.infer<typeof DraftsQuerySchema> }>('/drafts', {
+    schema: {
+        tags: ['Content', 'Drafts'],
+        description: "Get the current user's drafts.",
+        querystring: DraftsQuerySchema,
+        response: { 200: ListDraftsResponseSchema }
+    },
+    onRequest: [authMiddleware]
+  }, listDraftsHandler); // Use imported handler
 
-  fastify.post('/drafts', {
-    // schema: saveDraftSchema,
-    onRequest: [authMiddleware],
-    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); }
-  });
+  fastify.post<{ Body: z.infer<typeof CreateDraftRequestSchema> }>('/drafts', {
+     schema: {
+        tags: ['Content', 'Drafts'],
+        description: 'Create a new draft or update an existing one.', // Combined create/update
+        body: CreateDraftRequestSchema, // Use create schema, service handles upsert
+        response: { 200: DraftMutationResponseSchema, 201: DraftMutationResponseSchema } // Can be 200 (update) or 201 (create)
+     },
+     onRequest: [authMiddleware]
+  }, createDraftHandler); // Use imported handler (assuming it handles upsert)
 
-  fastify.delete('/drafts/:draftId', { // Assuming draft ID in path
-    // schema: deleteDraftSchema,
-    onRequest: [authMiddleware],
-    handler: async (req, reply) => { reply.code(501).send('Not Implemented'); }
-  });
+  fastify.get<{ Params: z.infer<typeof DraftIdParamSchema> }>('/drafts/:draftId', {
+      schema: {
+          tags: ['Content', 'Drafts'],
+          description: 'Get a specific draft by ID.',
+          params: DraftIdParamSchema,
+          response: { 200: GetDraftResponseSchema }
+      },
+      onRequest: [authMiddleware]
+  }, getDraftHandler); // Use imported handler
+
+  fastify.put<{ Params: z.infer<typeof DraftIdParamSchema>; Body: z.infer<typeof UpdateDraftRequestSchema> }>('/drafts/:draftId', {
+      schema: {
+          tags: ['Content', 'Drafts'],
+          description: 'Update a specific draft.',
+          params: DraftIdParamSchema,
+          body: UpdateDraftRequestSchema,
+          response: { 200: DraftMutationResponseSchema }
+      },
+      onRequest: [authMiddleware]
+  }, updateDraftHandler); // Use imported handler
+
+  fastify.delete<{ Params: z.infer<typeof DraftIdParamSchema> }>('/drafts/:draftId', {
+    schema: {
+        tags: ['Content', 'Drafts'],
+        description: 'Delete a specific draft.',
+        params: DraftIdParamSchema,
+        response: { 200: z.object({ data: z.object({ success: z.boolean() }) }) } // Simple success response
+    },
+    onRequest: [authMiddleware]
+  }, deleteDraftHandler); // Use imported handler
+
+  fastify.post<{ Params: z.infer<typeof DraftIdParamSchema>; Body: z.infer<typeof PublishDraftRequestSchema> }>('/drafts/:draftId/publish', {
+      schema: {
+          tags: ['Content', 'Drafts'],
+          description: 'Publish a specific draft as content.',
+          params: DraftIdParamSchema,
+          body: PublishDraftRequestSchema, // Likely empty body
+          response: { 201: PublishDraftResponseSchema } // Returns the created content
+      },
+      onRequest: [authMiddleware]
+  }, publishDraftHandler); // Use imported handler
 
   // --- Specific Feed Routes (e.g., trending, popular) ---
   fastify.get<{ Params: { type: string }; Querystring: FeedQuery }>('/feeds/:type', {

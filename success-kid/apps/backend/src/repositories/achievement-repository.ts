@@ -82,29 +82,59 @@ export class AchievementRepository extends BaseRepository<AchievementEntity, typ
         }
     }
 
-    async findUserAchievements(userId: string, options?: { unlocked?: boolean, limit?: number }): Promise<UserAchievementEntity[]> {
+    /**
+     * Finds user achievements with filtering and pagination.
+     * @param userId The user's ID.
+     * @param options Options for filtering (status) and pagination (limit, offset).
+     * @returns A promise resolving to an object containing the data array and total count.
+     */
+    async findUserAchievements(
+        userId: string,
+        options: {
+            status?: 'locked' | 'unlocked' | 'in-progress';
+            limit?: number;
+            offset?: number;
+        } = {} // Default to empty options object
+    ): Promise<{ data: UserAchievementEntity[]; total: number }> { // Update return type
         try {
+            const { status, limit = 50, offset = 0 } = options; // Default limit and offset
             const conditions = [eq(userAchievements.userId, userId)];
-            if (options?.unlocked !== undefined) {
-                conditions.push(eq(userAchievements.isUnlocked, options.unlocked));
-            }
 
-            // Start query and cast to 'any' to allow flexible chaining
-            let query: any = db
-                .select()
+            // Apply status filter
+            if (status === 'unlocked') {
+                conditions.push(eq(userAchievements.isUnlocked, true));
+            } else if (status === 'locked') {
+                conditions.push(eq(userAchievements.isUnlocked, false));
+                // Optionally add condition for progress = 0 if 'locked' means no progress
+                // conditions.push(eq(userAchievements.progress, 0));
+            } else if (status === 'in-progress') {
+                conditions.push(eq(userAchievements.isUnlocked, false));
+                conditions.push(sql`${userAchievements.progress} > 0`); // Use sql helper for comparison
+            }
+            // 'all' status (or undefined) means no additional status filter
+
+            // --- Get Total Count ---
+            const countQuery = db
+                .select({ value: sql<number>`count(*)::int` }) // Use SQL count
                 .from(userAchievements)
                 .where(and(...conditions));
 
-            // Apply orderBy
-            query = query.orderBy(desc(userAchievements.updatedAt)); 
+            const countResult = await countQuery;
+            const total = countResult[0]?.value ?? 0;
 
-            // Apply limit
-            if (options?.limit) {
-                query = query.limit(options.limit); 
-            }
+            // --- Get Paginated Data ---
+            let dataQuery = db
+                .select()
+                .from(userAchievements)
+                .where(and(...conditions))
+                .orderBy(desc(userAchievements.updatedAt)) // Keep ordering
+                .limit(limit)
+                .offset(offset);
 
-            const results = await query;
-            return results.map((record: Record<string, any>) => this.mapUserAchievementToEntity(record)); 
+            const results = await dataQuery;
+            const data = results.map((record: Record<string, any>) => this.mapUserAchievementToEntity(record));
+
+            return { data, total }; // Return object with data and total
         } catch (error) {
             this.logError('findUserAchievements', error, { userId, options });
             throw this.wrapError('Failed to find user achievements', error);
@@ -230,10 +260,11 @@ export class AchievementRepository extends BaseRepository<AchievementEntity, typ
             criteriaType: record.criteria_type, 
             criteriaThreshold: record.criteria_threshold, 
             pointsAwarded: record.points_awarded, 
-            iconUrl: record.icon_url, 
-            isEnabled: record.is_enabled, 
-            createdAt: record.created_at, 
-            updatedAt: record.updated_at, 
+            iconUrl: record.icon_url,
+            isSecret: record.is_secret, // Map the is_secret column
+            isEnabled: record.is_enabled,
+            createdAt: record.created_at,
+            updatedAt: record.updated_at,
         };
     }
 }

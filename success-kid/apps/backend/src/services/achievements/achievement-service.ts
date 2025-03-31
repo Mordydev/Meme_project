@@ -10,6 +10,27 @@ import { CollectionEvaluator } from './criteria/collection-evaluator';
 import { OneTimeEvaluator } from './criteria/one-time-evaluator';
 import { inArray } from 'drizzle-orm'; // Import inArray for repository filtering
 
+// Define the structure returned by getAchievementsForApi
+// This should match the structure expected/mapped in the handler
+interface AchievementListItem {
+    id: string;
+    name: string;
+    description: string;
+    category?: string | null; // Make optional or nullable based on schema/logic
+    iconUrl: string | null;
+    pointsAwarded: number;
+    criteriaType: string;
+    criteriaThreshold: number;
+    isSecret: boolean; // Added based on handler mapping
+    userProgress: {
+        current: number;
+        percent: number;
+        isUnlocked: boolean;
+        unlockedAt: Date | null;
+        status: 'locked' | 'in-progress' | 'unlocked';
+    } | null;
+}
+
 // Placeholder for event data types
 interface PointsAwardedEvent { userId: string; source: string; amount: number; total: number; transactionId: string; }
 interface ContentCreatedEvent { userId: string; contentId: string; contentType: string; category?: string; } // Added optional category
@@ -210,74 +231,148 @@ export class AchievementService {
     // --- API Support Methods ---
 
     /**
-     * Get all achievements, potentially including user progress.
+     * Get all achievements, potentially including user progress, with pagination and filtering.
      */
-    async getAchievementsForApi(userId: string | null, filters: { category?: string; status?: 'locked' | 'unlocked' | 'in-progress' }): Promise<any[]> {
-         logger.debug('getAchievementsForApi called', { userId, filters });
-         // 1. Get all enabled achievement definitions
+    async getAchievementsForApi(
+        userId: string | null,
+        options: {
+            limit?: number;
+            offset?: number;
+            category?: string;
+            status?: 'locked' | 'unlocked' | 'in-progress'; // Keep status filter
+        }
+    ): Promise<{ data: AchievementListItem[]; total: number }> { // Update return type
+         logger.debug('getAchievementsForApi called', { userId, options });
+         const { limit = 50, offset = 0, category, status } = options;
+
+         // 1. Get all enabled achievement definitions (potentially filtered by category later if needed)
+         // TODO: Consider filtering definitions by category in the repository if performance becomes an issue
          const definitions = await this.repository.findEnabledAchievements();
          let userAchievementsMap: Map<string, UserAchievement> = new Map();
 
-         // 2. If userId is provided, get user's progress
+         // 2. If userId is provided, get user's progress (we'll fetch paginated/filtered later if needed)
          if (userId) {
-             const userProgress = await this.repository.findUserAchievements(userId);
-             userProgress.forEach(ua => userAchievementsMap.set(ua.achievementId, ua));
+             // Fetch all progress for the user initially to build the map
+             const { data: allUserProgressData } = await this.repository.findUserAchievements(userId, {}); // Fetch all initially
+             allUserProgressData.forEach(ua => userAchievementsMap.set(ua.achievementId, ua));
          }
 
-         // 3. Combine and format
-         const results = definitions
-            .filter(def => !filters.category || def.category === filters.category) // Filter by category
-            .map(def => {
+         // 3. Combine, format, and filter
+         const combinedData = definitions
+            .filter(def => !category || def.category === category) // Filter by category
+            .map((def): AchievementListItem | null => { // Add return type hint
                 // Explicitly handle undefined from map lookup, default to null
-                const userProgress = userId ? (userAchievementsMap.get(def.id) ?? null) : null; 
+                const userProgress = userId ? (userAchievementsMap.get(def.id) ?? null) : null;
                 // Pass userProgress (now UserAchievement | null), getCurrentProgress handles null
-                const currentProgressValue = getCurrentProgress(userProgress); 
+                const currentProgressValue = getCurrentProgress(userProgress);
                 const threshold = def.criteriaThreshold ?? 1;
                 const progressPercent = threshold > 0 ? Math.min(100, Math.floor((currentProgressValue / threshold) * 100)) : (userProgress?.isUnlocked ? 100 : 0);
-                const status = userProgress?.isUnlocked ? 'unlocked' : (currentProgressValue > 0 ? 'in-progress' : 'locked');
+                 const calculatedStatus = userProgress?.isUnlocked ? 'unlocked' : (currentProgressValue > 0 ? 'in-progress' : 'locked');
 
-                return {
-                    id: def.id,
-                    name: def.name,
-                    description: def.description,
-                    category: def.category,
-                    iconUrl: def.iconUrl,
-                    pointsAwarded: def.pointsAwarded,
-                    criteriaType: def.criteriaType,
-                    criteriaThreshold: threshold,
+                 // Filter by status only if userId is null (otherwise repo handles it)
+                 if (!userId && status && calculatedStatus !== status) {
+                     return null;
+                 }
+
+                 return {
+                    id: def.id, // Ensure this matches AchievementListItem
+                    name: def.name, // Ensure this matches AchievementListItem
+                    description: def.description, // Ensure this matches AchievementListItem
+                    category: def.category, // Ensure this matches AchievementListItem
+                    iconUrl: def.iconUrl, // Ensure this matches AchievementListItem
+                    pointsAwarded: def.pointsAwarded, // Ensure this matches AchievementListItem
+                    criteriaType: def.criteriaType, // Ensure this matches AchievementListItem
+                    criteriaThreshold: threshold, // Ensure this matches AchievementListItem
+                    isSecret: def.isSecret, // Add isSecret based on handler mapping
                     userProgress: userId ? {
-                        current: currentProgressValue, // Use calculated value
+                        current: currentProgressValue,
                         percent: progressPercent,
                         isUnlocked: userProgress?.isUnlocked ?? false,
                         unlockedAt: userProgress?.unlockedAt ?? null,
-                        status: status
+                        status: calculatedStatus
                     } : null
                 };
             })
-            .filter(ach => !filters.status || ach.userProgress?.status === filters.status); // Filter by status
+            .filter((item): item is AchievementListItem => item !== null); // Filter out nulls and assert type
 
-         return results;
-    }
+         // 4. Apply pagination (if userId is null, otherwise repo handles it)
+         let finalData = combinedData;
+         let total = combinedData.length;
+
+         if (userId) {
+            // If userId is provided, pagination and total count should come from the repository call
+            // Re-fetch with pagination/filtering applied at the repo level
+            const { data: paginatedUserProgress, total: userTotal } = await this.repository.findUserAchievements(userId, { status, limit, offset });
+            const paginatedUserAchievementsMap = new Map(paginatedUserProgress.map(ua => [ua.achievementId, ua]));
+            total = userTotal; // Use total count from repository
+
+            // Map definitions based on the paginated user progress
+            finalData = definitions
+                .filter(def => !category || def.category === category) // Keep category filter
+                .map((def): AchievementListItem | null => {
+                    const userProgress = paginatedUserAchievementsMap.get(def.id) ?? null;
+                    // If filtering by status, only include achievements that match the user's status
+                    if (status && !userProgress) return null; // Exclude if no user progress for this status
+
+                    const currentProgressValue = getCurrentProgress(userProgress);
+                    const threshold = def.criteriaThreshold ?? 1;
+                    const progressPercent = threshold > 0 ? Math.min(100, Math.floor((currentProgressValue / threshold) * 100)) : (userProgress?.isUnlocked ? 100 : 0);
+                    const calculatedStatus = userProgress?.isUnlocked ? 'unlocked' : (currentProgressValue > 0 ? 'in-progress' : 'locked');
+
+                    // Status filter already applied in repo query if userId is present
+                    // if (status && calculatedStatus !== status) {
+                    //     return null;
+                    // }
+
+                    return {
+                        id: def.id,
+                        name: def.name,
+                        description: def.description,
+                        category: def.category,
+                        iconUrl: def.iconUrl,
+                        pointsAwarded: def.pointsAwarded,
+                        criteriaType: def.criteriaType,
+                        criteriaThreshold: threshold,
+                        isSecret: def.isSecret,
+                        userProgress: userProgress ? { // Only include userProgress if it exists
+                            current: currentProgressValue,
+                            percent: progressPercent,
+                            isUnlocked: userProgress.isUnlocked,
+                            unlockedAt: userProgress.unlockedAt,
+                            status: calculatedStatus
+                        } : null
+                    };
+                })
+                .filter((item): item is AchievementListItem => item !== null);
+
+         } else {
+             // Apply pagination manually if userId is null
+             finalData = combinedData.slice(offset, offset + limit);
+         }
+
+
+         // 5. Return paginated data and total count
+         return { data: finalData, total };
+    } // <-- Corrected closing brace placement
 
     /**
      * Get specific achievements for a user based on status.
      */
     async getUserAchievementsForApi(userId: string, status: 'unlocked' | 'in-progress'): Promise<any[]> {
          logger.debug('getUserAchievementsForApi called', { userId, status });
-         // 1. Get user achievement records based on status
-         const userProgressList = await this.repository.findUserAchievements(userId, { unlocked: status === 'unlocked' });
+         // 1. Get user achievement records based on status using the correct parameter
+         // The repository method expects 'status', not 'unlocked'
+         const { data: userProgressList, total } = await this.repository.findUserAchievements(userId, { status: status }); // Pass status correctly
 
-         // Filter further for 'in-progress' (progress > 0 and not unlocked)
-         const filteredUserProgress = status === 'in-progress'
-            ? userProgressList.filter(ua => !ua.isUnlocked && ua.progress > 0)
-            : userProgressList;
+         // Filtering is done in the repository. Use the returned data directly.
+         const filteredUserProgress = userProgressList; // userProgressList is already the data array
 
          // 2. Get corresponding achievement definitions (can optimize by fetching only needed IDs)
          const achievementIds = filteredUserProgress.map(ua => ua.achievementId);
          if (achievementIds.length === 0) return [];
 
          // Use the dedicated findByIds method added to the repository
-         const definitions = await this.repository.findByIds(achievementIds); 
+         const definitions = await this.repository.findByIds(achievementIds);
          const definitionsMap = new Map(definitions.map(def => [def.id, def]));
 
          // 3. Combine and format data
@@ -359,41 +454,6 @@ export class AchievementService {
             }));
         return { recentUnlocks, topInProgress };
     }
-
-    // --- REMOVE DUPLICATE METHODS BELOW ---
-
-    // async getAchievementsForApi(userId: string | null, filters: { category?: string; status?: 'locked' | 'unlocked' | 'in-progress' }): Promise<any[]> {
-    //      logger.debug('getAchievementsForApi called', { userId, filters });
-    //      // 1. Get all enabled achievement definitions
-    //      // 2. If userId is provided, get all user achievement progress/status for that user
-    //      // 3. Combine the data, calculate progress %, filter based on status
-    //      // 4. Return formatted data
-    //      return []; // Placeholder
-    // }
-
-    // async getUserAchievementsForApi(userId: string, status: 'unlocked' | 'in-progress'): Promise<any[]> {
-    //      logger.debug('getUserAchievementsForApi called', { userId, status });
-    //      // 1. Get user achievement records based on status
-    //      // 2. Get corresponding achievement definitions
-    //      // 3. Combine and format data
-    //      return []; // Placeholder
-    // }
-
-    // async getRecentUnlocksForApi(userId: string, limit: number = 3): Promise<any[]> {
-    //      logger.debug('getRecentUnlocksForApi called', { userId, limit });
-    //      // 1. Get recent unlocks from repository
-    //      // 2. Get corresponding achievement definitions
-    //      // 3. Combine and format data
-    //      return []; // Placeholder
-    // }
-
-    // async getAchievementSummaryForDashboard(userId: string): Promise<{ recentUnlocks: any[], topInProgress: any[] }> {
-    //     logger.debug('getAchievementSummaryForDashboard called', { userId });
-    //     // Placeholder - combine calls to repo/other methods
-    //     const recentUnlocks = await this.getRecentUnlocksForApi(userId, 3);
-    //     const topInProgress: any[] = []; // TODO: Implement logic for top in-progress and add specific type
-    //     return { recentUnlocks, topInProgress };
-    // }
 }
 
 // Export a singleton instance (or handle instantiation in services/index.ts)

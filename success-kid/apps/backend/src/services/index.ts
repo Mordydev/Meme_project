@@ -17,6 +17,7 @@ import { contentRepository } from '../repositories/content-repository'; // Assum
 import { tagRepository } from '../repositories/tag-repository'; // Assuming singleton export
 import { achievementRepository } from '../repositories/achievement-repository'; // Assuming singleton export
 import { mediaRepository } from '../repositories/media-repository'; // Import mediaRepository
+import { DraftRepository } from '../repositories/draft-repository'; // Import DraftRepository
 
 import { EnhancedPointsService } from './points/points-service-enhanced';
 import { NotificationService } from './notifications/notification-service';
@@ -32,6 +33,12 @@ import { AchievementService } from './achievements/achievement-service';
 import { ModerationService } from './moderation/moderation-service';
 import { reactionService } from './content/reaction/reaction-service'; // Assuming singleton export
 import { mediaService } from './media/media-service'; // Import the actual mediaService instance
+import { DraftService } from './content/drafts/draft-service'; // Import DraftService class
+import { MarketService } from './market/market-service'; // Import MarketService class
+import { priceProvider } from './market/providers/price-provider'; // Import provider instances
+import { transactionProvider } from './market/providers/transaction-provider';
+import { milestoneTracker } from './market/milestone-tracker'; // Import tracker instance
+import { marketRepository } from './market/repository/market-repository'; // Import repository instance
 // import { BlobProvider, blobProvider } from './media/storage/blob-provider'; // blobProvider is used within mediaService
 
 // --- Instantiate Repositories ---
@@ -42,6 +49,7 @@ const walletRepository = new WalletRepository(db as any); // Pass db argument
 const reportRepository = new ReportRepository(db as any); // Pass db argument
 const commentRepositoryInstance = new CommentRepository();
 const categoryRepositoryInstance = new CategoryRepository();
+const draftRepository = new DraftRepository(); // Instantiate DraftRepository
 
 // --- Instantiate Core Services/Utilities ---
 const pointsVerifier = new PointsVerifier();
@@ -116,11 +124,31 @@ export const feedService = createFeedService(
   tagRepository
 );
 
+// Instantiate Draft Service
+export const draftService = new DraftService(
+    draftRepository,
+    tagRepository,
+    mediaService, // Add missing mediaService dependency
+    moderationServiceInstance, // Add missing moderationService dependency
+    contentService // Pass the already instantiated contentService
+    // eventBus // eventBus is not listed as a dependency in the constructor
+);
+
+// Instantiate Market Service
+export const marketService = new MarketService(
+    eventBus,
+    priceProvider,
+    transactionProvider,
+    milestoneTracker,
+    marketRepository
+);
 
 // --- Export Service Instances ---
 export { reactionService };
 export { notificationService };
 export { moderationServiceInstance as moderationService };
+// marketService is exported where it's instantiated
+// draftService is exported where it's instantiated
 // eligibilityService is already exported above
 
 // --- Re-export Classes (Optional) ---

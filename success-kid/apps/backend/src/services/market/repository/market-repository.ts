@@ -1,48 +1,96 @@
+import { cacheService, CacheOptions } from '../../../lib/cache'; // Assuming global cacheService
 import { logger } from '../../../lib/logger';
-import { cacheService } from '../../../lib/cache';
-// No database schema needed for market data currently, relies on cache and external APIs.
 
-/**
- * Repository for market-related data.
- * Currently primarily interacts with the cache service for storing/retrieving
- * processed or fetched market data to reduce external API calls.
- * Could be expanded later to interact with a database table if needed for
- * persistent storage of historical trends, aggregated stats, or milestone status.
- */
-export class MarketRepository {
-    private readonly CACHE_NAMESPACE = 'market';
-
-    constructor() {
-        logger.info('MarketRepository initialized');
-    }
-
-    // Example method (can be expanded based on service needs)
-    async getCachedData<T>(key: string): Promise<T | null> {
-        try {
-            const fullKey = `${this.CACHE_NAMESPACE}:${key}`; // Ensure consistent namespacing
-            const data = await cacheService.get<T>(fullKey); // Use the key directly as namespace is handled by cacheService now
-            logger.debug(`Cache lookup for key: ${fullKey}`, { found: data !== null });
-            return data;
-        } catch (error) {
-            logger.error('Error getting data from market cache', { key, error });
-            return null;
-        }
-    }
-
-    async setCachedData<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
-        try {
-            const fullKey = `${this.CACHE_NAMESPACE}:${key}`; // Ensure consistent namespacing
-            await cacheService.set(fullKey, value, { ttl: ttlSeconds }); // Use the key directly
-            logger.debug(`Cache set for key: ${fullKey}`, { ttl: ttlSeconds });
-        } catch (error) {
-            logger.error('Error setting data in market cache', { key, error });
-            // Decide if the error should be re-thrown
-        }
-    }
-
-    // Add more methods as needed, e.g., for interacting with a potential future DB table
-    // for market data history or milestone persistence.
+// Define interfaces for cached data structures (match service interfaces)
+interface MarketStats {
+    price: number;
+    priceChange24h: number;
+    volume24h: number;
+    marketCap: number;
 }
 
-// Export a singleton instance
+interface PriceDataPoint {
+    timestamp: number;
+    price: number;
+}
+
+interface TransactionData {
+    hash: string;
+    timestamp: number;
+    from: string;
+    to: string;
+    amount: number;
+}
+
+const DEFAULT_NAMESPACE = 'market';
+
+/**
+ * Repository for interacting with cached market data.
+ * This primarily acts as a wrapper around the cacheService for market-specific keys and namespaces.
+ */
+export class MarketRepository {
+
+    constructor(
+        // Potentially inject cacheService if not using global import
+    ) {}
+
+    // --- Cache Keys ---
+    private statsCacheKey = 'currentMarketStats';
+    private priceHistoryCacheKey = (period: string) => `priceHistory:${period}`;
+    private recentTransactionsCacheKey = (limit: number) => `recentTransactions:${limit}`;
+    private completedMilestonesCacheKey = 'completedMilestones';
+
+    // --- Cache Options ---
+    private statsCacheOpts: CacheOptions = { namespace: DEFAULT_NAMESPACE, ttl: 60 }; // 1 min
+    private historyCacheOpts: CacheOptions = { namespace: DEFAULT_NAMESPACE, ttl: 5 * 60 }; // 5 min
+    private txCacheOpts: CacheOptions = { namespace: DEFAULT_NAMESPACE, ttl: 2 * 60 }; // 2 min
+    private milestoneCacheOpts: CacheOptions = { namespace: DEFAULT_NAMESPACE, ttl: 3600 * 24 }; // 24 hours
+
+    // --- Methods ---
+
+    async getCurrentStats(): Promise<MarketStats | null> {
+        return cacheService.get<MarketStats>(this.statsCacheKey, this.statsCacheOpts);
+    }
+
+    async setCurrentStats(stats: MarketStats): Promise<void> {
+        await cacheService.set(this.statsCacheKey, stats, this.statsCacheOpts);
+    }
+
+    async getPriceHistory(period: string): Promise<PriceDataPoint[] | null> {
+        return cacheService.get<PriceDataPoint[]>(this.priceHistoryCacheKey(period), this.historyCacheOpts);
+    }
+
+    async setPriceHistory(period: string, history: PriceDataPoint[]): Promise<void> {
+        await cacheService.set(this.priceHistoryCacheKey(period), history, this.historyCacheOpts);
+    }
+
+    async getRecentTransactions(limit: number): Promise<TransactionData[] | null> {
+        return cacheService.get<TransactionData[]>(this.recentTransactionsCacheKey(limit), this.txCacheOpts);
+    }
+
+    async setRecentTransactions(limit: number, transactions: TransactionData[]): Promise<void> {
+        await cacheService.set(this.recentTransactionsCacheKey(limit), transactions, this.txCacheOpts);
+    }
+
+    async getCompletedMilestones(): Promise<number[] | null> {
+        return cacheService.get<number[]>(this.completedMilestonesCacheKey, this.milestoneCacheOpts);
+    }
+
+    async setCompletedMilestones(milestones: number[]): Promise<void> {
+        await cacheService.set(this.completedMilestonesCacheKey, milestones, this.milestoneCacheOpts);
+    }
+
+    /**
+     * Generic getOrSet wrapper for market data.
+     */
+    async getOrSet<T>(
+        key: string,
+        fetcher: () => Promise<T | null>,
+        options: CacheOptions = { namespace: DEFAULT_NAMESPACE, ttl: 300 } // Default 5 min TTL
+    ): Promise<T | null> {
+        return cacheService.getOrSet(key, fetcher, options);
+    }
+}
+
+// Export a singleton instance (or handle instantiation in services/index.ts)
 export const marketRepository = new MarketRepository();

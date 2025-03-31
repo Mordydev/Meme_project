@@ -1,68 +1,92 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { logger } from '../../../lib/logger';
-// TODO: Add types for API responses
+import { AppError, ErrorCode } from '../../../lib/errors'; // Use InternalServerError if needed
 
-/**
- * Interface for standardized transaction data (defined in market-service.ts for now).
- */
-// Re-using interface from market-service.ts for now
-interface TransactionData {
-    hash: string;
-    timestamp: number;
-    from: string;
-    to: string;
-    amount: number;
-    // Add other relevant transaction details
+// TODO: Add SolScan API URL and potentially API Key to environment variables
+const SOLSCAN_API_URL = 'https://public-api.solscan.io';
+
+// Interface for the expected transaction data structure from SolScan (adjust based on actual API response)
+interface SolScanTx {
+    slot: number;
+    txHash: string;
+    blockTime: number; // Unix timestamp
+    signer: string[]; // Array of signers
+    // Add other relevant fields like token transfers, instructions etc.
 }
 
-/**
- * Provides transaction data by fetching from external blockchain explorers like SolScan.
- */
+// Interface for the normalized transaction data we want to return
+export interface TransactionData { // Export interface
+    hash: string;
+    timestamp: number;
+    from: string; // Primary signer or source address
+    to: string; // Destination address (might need logic to determine)
+    amount: number; // Amount transferred (might need logic to parse instructions)
+}
+
 export class TransactionProvider {
-    private readonly SOLSCAN_API = 'https://public-api.solscan.io/'; // Base URL
-    private readonly TOKEN_ADDRESS = process.env.SKC_TOKEN_ADDRESS; // Get token address from env
-    // SolScan public API might not require a key for basic token transfers, but check their docs.
-    // private readonly SOLSCAN_API_KEY = process.env.SOLSCAN_API_KEY; 
+    private axiosInstance: AxiosInstance;
 
     constructor() {
-        if (!this.TOKEN_ADDRESS) {
-            logger.warn('SKC_TOKEN_ADDRESS environment variable is not set. Transaction provider may not function correctly.');
-        }
+        this.axiosInstance = axios.create({
+            baseURL: SOLSCAN_API_URL,
+            timeout: 15000, // 15 second timeout
+            // headers: { 'Authorization': `Bearer ${process.env.SOLSCAN_API_KEY}` } // If API key is needed
+        });
     }
 
     /**
-     * Get recent transactions involving the token address.
-     * @param limit Max number of transactions to return.
+     * Fetches recent transactions related to a specific token address.
+     * @param tokenAddress The address of the token (e.g., SKC token address).
+     * @param limit The maximum number of transactions to fetch.
      */
-    async getRecentTransactions(limit: number = 20): Promise<TransactionData[]> {
-        if (!this.TOKEN_ADDRESS) return [];
-
+    async getRecentTransactions(tokenAddress: string, limit: number = 20): Promise<TransactionData[]> {
+        logger.debug(`Fetching recent transactions for token: ${tokenAddress}, limit: ${limit}`);
         try {
-            // Example: Fetch token transfers from SolScan
-            const url = `${this.SOLSCAN_API}account/splTransfers?account=${this.TOKEN_ADDRESS}&limit=${limit}`;
-            logger.debug('Fetching recent transactions from SolScan', { url });
-            const response = await axios.get(url);
+            // TODO: Verify the correct SolScan endpoint and parameters for token transactions
+            // This is a placeholder endpoint, likely needs adjustment
+            const response = await this.axiosInstance.get<{ data: SolScanTx[] }>(`/token/transactions`, {
+                params: {
+                    tokenAddress: tokenAddress,
+                    limit: limit,
+                    // offset might also be needed depending on the API
+                }
+            });
 
-            // TODO: Add proper type checking and data mapping for SolScan response
-            if (Array.isArray(response.data?.data)) {
-                logger.info(`Successfully fetched ${response.data.data.length} transactions from SolScan`);
-                // Map the SolScan response structure to TransactionData interface
-                return response.data.data.map((tx: any) => ({
+            if (!response.data || !response.data.data) {
+                logger.warn(`No transaction data found for token ${tokenAddress} on SolScan`);
+                return [];
+            }
+
+            // Map the SolScan response to our internal TransactionData structure
+            // This mapping logic is highly dependent on the actual SolScan response structure
+            // and might require parsing transaction instructions to get 'from', 'to', 'amount'.
+            const transactions = response.data.data.map((tx): TransactionData | null => {
+                // Placeholder mapping - needs actual logic based on SolScan response
+                const fromAddress = tx.signer?.[0] ?? 'unknown';
+                const toAddress = 'unknown'; // Requires parsing instructions
+                const transferAmount = 0; // Requires parsing instructions
+
+                if (!tx.txHash || !tx.blockTime) return null; // Skip invalid entries
+
+                return {
                     hash: tx.txHash,
                     timestamp: tx.blockTime,
-                    from: tx.source_owner ?? tx.owner, // Adjust based on actual API response field names
-                    to: tx.destination_owner ?? tx.owner, // Adjust based on actual API response field names
-                    amount: parseFloat(tx.changeAmount) // Ensure amount is a number
-                    // Map other relevant fields
-                }));
-            }
-            logger.warn('Could not extract transactions from SolScan response', { data: response.data });
-            return [];
+                    from: fromAddress,
+                    to: toAddress,
+                    amount: transferAmount,
+                };
+            }).filter((tx): tx is TransactionData => tx !== null); // Filter out any null results
 
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            logger.error('Error fetching transactions from SolScan', { error: errorMessage });
-            return [];
+            return transactions;
+
+        } catch (error: any) {
+            logger.error(`Failed to fetch recent transactions from SolScan for ${tokenAddress}`, { error: error.message });
+            // Consider not throwing an error but returning empty array or cached data if available
+            // throw new AppError('Failed to fetch recent transaction data', 'EXTERNAL_API_ERROR', 503); // Skipping ErrorCode for now
+             return []; // Return empty array on error for now
         }
     }
 }
+
+// Export a singleton instance (or handle instantiation in services/index.ts)
+export const transactionProvider = new TransactionProvider();

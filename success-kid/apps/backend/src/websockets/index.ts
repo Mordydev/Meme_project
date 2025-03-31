@@ -1,10 +1,10 @@
-import { Server as HttpServer } from 'http'; // Import HttpServer type
+import { Server as HttpServer } from 'http';
 import { Server as SocketIoServer, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { redisClient } from '../lib/redis/client'; // Import our RedisClient instance
-// // import { verifyToken } from '../lib/auth'; // Placeholder for auth token verification
+import { redisClient } from '../lib/redis/client';
+import { clerkClient, ClerkJWTClaims } from '@clerk/fastify'; // Import Clerk client and types
 import { Logger } from 'pino';
-import { setupWebSocketEventHandlers, registerSocketEventHandlers } from './handlers'; // Import actual handlers
+import { setupWebSocketEventHandlers, registerSocketEventHandlers } from './handlers';
 
 // --- Placeholder Types/Functions (Replace with actual imports/implementations) ---
 interface User {
@@ -12,15 +12,7 @@ interface User {
     // Add other relevant user properties from your auth system
 }
 
-// Placeholder for verifyToken function
-async function verifyToken(token: string): Promise<User | null> {
-    // Replace with your actual token verification logic (e.g., using Clerk, JWT library)
-    console.warn("Using placeholder verifyToken function.");
-    if (token === 'valid-token-user123') {
-        return { id: 'user123' };
-    }
-    return null;
-}
+// Removed placeholder verifyToken function
 
 // Placeholder for registerEventHandlers function
 function registerEventHandlers(io: SocketIoServer, socket: Socket): void {
@@ -97,20 +89,26 @@ export function setupWebSocketServer(httpServer: HttpServer) {
         return next(new Error('Authentication required: No token provided.'));
       }
 
-      // Verify the token using your auth logic
-      const user = await verifyToken(token);
+      // Verify the token using Clerk SDK
+      let claims: ClerkJWTClaims | null = null;
+      try {
+          claims = await clerkClient.verifyToken(token);
+      } catch (verifyError: any) {
+           logger.warn('WebSocket token verification failed', { socketId: socket.id, error: verifyError.message });
+           return next(new Error('Authentication failed: Invalid token.'));
+      }
 
-      if (!user) {
-        logger.warn('WebSocket authentication failed: Invalid token', { socketId: socket.id });
-        return next(new Error('Authentication failed: Invalid token.'));
+      if (!claims || !claims.sub) {
+        logger.warn('WebSocket authentication failed: Invalid claims or missing user ID (sub)', { socketId: socket.id });
+        return next(new Error('Authentication failed: Invalid claims.'));
       }
 
       // --- Success ---
-      // Store user data in the socket instance for easy access in event handlers
-      socket.data.user = user;
+      // Store user ID and potentially other relevant claims in socket data
+      socket.data.user = { id: claims.sub /* Add other needed fields from claims */ };
       // Increment IP connection count
       connectionsByIp.set(ip, currentConnections + 1);
-      logger.debug('WebSocket authentication successful', { socketId: socket.id, userId: user.id });
+      logger.debug('WebSocket authentication successful', { socketId: socket.id, userId: claims.sub });
 
       next(); // Proceed with the connection
 
