@@ -4,8 +4,21 @@ import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 're
 import { useFrame, useThree } from '@react-three/fiber';
 import { useGame, GameState } from '@/lib/game-engine/GameContext';
 import * as THREE from 'three';
+import ClownFish from './models/ClownFish';
 
-// Simple player model (clownfish-inspired)
+// Lane configuration
+const LANES = {
+  LEFT: -2.5,
+  CENTER: 0,
+  RIGHT: 2.5
+};
+
+// Jump/dive configuration
+const JUMP_HEIGHT = 3;
+const DIVE_DEPTH = -1.5;
+const BASE_HEIGHT = 0;
+const VERTICAL_DURATION = 0.5; // seconds
+
 const Player = forwardRef<THREE.Group, {}>((props, ref) => {
   const { state, speed } = useGame();
   const isPlaying = state === GameState.PLAYING;
@@ -20,202 +33,269 @@ const Player = forwardRef<THREE.Group, {}>((props, ref) => {
   // Expose the player group ref to parent components
   useImperativeHandle(ref, () => playerGroup.current!);
   
-  // Movement state
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [velocity, setVelocity] = useState({ x: 0, y: 0 });
-  const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0 });
-  const [keys, setKeys] = useState({
-    ArrowUp: false,
-    ArrowDown: false,
-    ArrowLeft: false,
-    ArrowRight: false,
-  });
+  // Lane state
+  const [currentLane, setCurrentLane] = useState('CENTER');
+  const [targetX, setTargetX] = useState(LANES.CENTER);
+  const [currentX, setCurrentX] = useState(LANES.CENTER);
   
-  // Camera and viewport
-  const { camera, viewport } = useThree();
+  // Vertical movement state
+  const [verticalState, setVerticalState] = useState('NORMAL'); // NORMAL, JUMPING, DIVING
+  const [verticalProgress, setVerticalProgress] = useState(0);
+  const [targetY, setTargetY] = useState(BASE_HEIGHT);
+  const [currentY, setCurrentY] = useState(BASE_HEIGHT);
+  
+  // Internal refs for animation
+  const currentXRef = useRef(LANES.CENTER);
+  const currentYRef = useRef(BASE_HEIGHT);
+  const verticalProgressRef = useRef(0);
+  const verticalStateRef = useRef('NORMAL');
+  
+  // Touch refs
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
   
   // Setup key listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        setKeys(prev => ({ ...prev, [e.key]: true }));
+      if (!isPlaying) return;
+      
+      switch (e.key) {
+        case 'ArrowLeft':
+          moveLaneLeft();
+          break;
+        case 'ArrowRight':
+          moveLaneRight();
+          break;
+        case 'ArrowUp':
+          jump();
+          break;
+        case 'ArrowDown':
+          dive();
+          break;
       }
     };
     
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        setKeys(prev => ({ ...prev, [e.key]: false }));
+    // Handle touch events for mobile
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!isPlaying) return;
+      
+      const touchEndX = e.changedTouches[0].clientX;
+      const touchEndY = e.changedTouches[0].clientY;
+      
+      const deltaX = touchEndX - touchStartX.current;
+      const deltaY = touchEndY - touchStartY.current;
+      
+      // Determine if it's a horizontal or vertical swipe
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        // Horizontal swipe
+        if (deltaX > 50) {
+          moveLaneRight();
+        } else if (deltaX < -50) {
+          moveLaneLeft();
+        }
+      } else {
+        // Vertical swipe
+        if (deltaY > 50) {
+          dive();
+        } else if (deltaY < -50) {
+          jump();
+        }
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('touchstart', handleTouchStart);
+    window.addEventListener('touchend', handleTouchEnd);
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, []);
+  }, [isPlaying, currentLane]);
   
-  // Use refs for velocity and position to avoid React state in animation loop
-  const velocityRef = useRef({ x: 0, y: 0 });
-  const positionRef = useRef({ x: 0, y: 0 });
+  // Lane movement functions
+  const moveLaneLeft = () => {
+    if (currentLane === 'CENTER') {
+      setCurrentLane('LEFT');
+      setTargetX(LANES.LEFT);
+    } else if (currentLane === 'RIGHT') {
+      setCurrentLane('CENTER');
+      setTargetX(LANES.CENTER);
+    }
+  };
   
-  // Initialize refs with state values
-  useEffect(() => {
-    positionRef.current = { ...position };
-    velocityRef.current = { ...velocity };
-  }, []);
+  const moveLaneRight = () => {
+    if (currentLane === 'CENTER') {
+      setCurrentLane('RIGHT');
+      setTargetX(LANES.RIGHT);
+    } else if (currentLane === 'LEFT') {
+      setCurrentLane('CENTER');
+      setTargetX(LANES.CENTER);
+    }
+  };
   
-  // Handle movement and animation
+  // Vertical movement functions
+  const jump = () => {
+    if (verticalStateRef.current === 'NORMAL') {
+      setVerticalState('JUMPING');
+      verticalStateRef.current = 'JUMPING';
+      setVerticalProgress(0);
+      verticalProgressRef.current = 0;
+      setTargetY(JUMP_HEIGHT);
+    }
+  };
+  
+  const dive = () => {
+    if (verticalStateRef.current === 'NORMAL') {
+      setVerticalState('DIVING');
+      verticalStateRef.current = 'DIVING';
+      setVerticalProgress(0);
+      verticalProgressRef.current = 0;
+      setTargetY(DIVE_DEPTH);
+    }
+  };
+  
+  // Camera and viewport
+  const { camera } = useThree();
+  
+  // Animation frame update
   useFrame((_, delta) => {
     if (!isPlaying || !playerGroup.current) return;
     
-    // Calculate acceleration based on input
-    const acceleration = { x: 0, y: 0 };
-    const accelerationRate = 40; // Units per second
+    // Lane movement animation (horizontal)
+    const lerpFactor = Math.min(1, delta * 10); // Smooth transition speed
+    currentXRef.current = THREE.MathUtils.lerp(
+      currentXRef.current, 
+      targetX, 
+      lerpFactor
+    );
     
-    if (keys.ArrowUp) acceleration.y += accelerationRate;
-    if (keys.ArrowDown) acceleration.y -= accelerationRate;
-    if (keys.ArrowLeft) acceleration.x -= accelerationRate;
-    if (keys.ArrowRight) acceleration.x += accelerationRate;
-    
-    // Apply acceleration to velocity
-    velocityRef.current.x += acceleration.x * delta;
-    velocityRef.current.y += acceleration.y * delta;
-    
-    // Apply drag (water resistance)
-    const drag = 0.92;
-    velocityRef.current.x *= drag;
-    velocityRef.current.y *= drag;
-    
-    // Apply velocity to position
-    positionRef.current.x += velocityRef.current.x * delta;
-    positionRef.current.y += velocityRef.current.y * delta;
-    
-    // Clamp position to keep fish on screen
-    // Using viewport bounds with margin
-    const margin = 1;
-    const bounds = {
-      xMin: -viewport.width / 2 + margin,
-      xMax: viewport.width / 2 - margin,
-      yMin: -viewport.height / 2 + margin,
-      yMax: viewport.height / 2 - margin,
-    };
-    
-    const clampedX = Math.max(bounds.xMin, Math.min(bounds.xMax, positionRef.current.x));
-    const clampedY = Math.max(bounds.yMin, Math.min(bounds.yMax, positionRef.current.y));
-    
-    if (clampedX !== positionRef.current.x || clampedY !== positionRef.current.y) {
-      positionRef.current.x = clampedX;
-      positionRef.current.y = clampedY;
-      velocityRef.current.x = 0;
-      velocityRef.current.y = 0; // Stop at bounds
+    // Vertical movement (jump/dive)
+    if (verticalStateRef.current !== 'NORMAL') {
+      // Update progress
+      verticalProgressRef.current += delta / VERTICAL_DURATION;
+      
+      if (verticalProgressRef.current >= 1) {
+        // Complete the jump/dive
+        verticalStateRef.current = 'NORMAL';
+        setVerticalState('NORMAL');
+        verticalProgressRef.current = 0;
+        setVerticalProgress(0);
+        currentYRef.current = BASE_HEIGHT;
+        setTargetY(BASE_HEIGHT);
+      } else {
+        // Animation progress
+        if (verticalStateRef.current === 'JUMPING') {
+          // Parabolic jump
+          const jumpProgress = verticalProgressRef.current;
+          // Use sin curve for smooth up and down
+          currentYRef.current = Math.sin(jumpProgress * Math.PI) * JUMP_HEIGHT;
+        } else if (verticalStateRef.current === 'DIVING') {
+          // Quick dive down and slow return
+          const diveProgress = verticalProgressRef.current;
+          if (diveProgress < 0.3) {
+            // Quick dive down (0-30% of animation)
+            currentYRef.current = diveProgress / 0.3 * DIVE_DEPTH;
+          } else {
+            // Slow return (30-100% of animation)
+            currentYRef.current = DIVE_DEPTH * (1 - (diveProgress - 0.3) / 0.7);
+          }
+        }
+      }
+      
+      // Update React state occasionally for components that need it
+      if (Math.abs(verticalProgress - verticalProgressRef.current) > 0.1) {
+        setVerticalProgress(verticalProgressRef.current);
+      }
     }
+    
+    // Update position
+    playerGroup.current.position.x = currentXRef.current;
+    playerGroup.current.position.y = currentYRef.current;
     
     // Update React state occasionally for components that need it
-    // This prevents the infinite loop by not updating state every frame
-    if (Math.abs(position.x - positionRef.current.x) > 0.1 || 
-        Math.abs(position.y - positionRef.current.y) > 0.1) {
-      setPosition({
-        x: positionRef.current.x,
-        y: positionRef.current.y
-      });
-      setVelocity({
-        x: velocityRef.current.x,
-        y: velocityRef.current.y
-      });
+    if (Math.abs(currentX - currentXRef.current) > 0.1) {
+      setCurrentX(currentXRef.current);
     }
     
-    // Update player group position - use positionRef for animation, not React state
-    playerGroup.current.position.x = positionRef.current.x;
-    playerGroup.current.position.y = positionRef.current.y;
+    if (Math.abs(currentY - currentYRef.current) > 0.1) {
+      setCurrentY(currentYRef.current);
+    }
     
-    // Rotate player based on movement direction
-    if (Math.abs(velocityRef.current.x) > 0.01 || Math.abs(velocityRef.current.y) > 0.01) {
-      const targetRotation = Math.atan2(velocityRef.current.x, velocityRef.current.y);
-      playerGroup.current.rotation.z = -targetRotation * 0.5; // Less dramatic tilt
+    // Add tilt based on lane change direction
+    const xDiff = targetX - currentXRef.current;
+    if (Math.abs(xDiff) > 0.1) {
+      // Tilt in the direction of movement
+      playerGroup.current.rotation.z = -xDiff * 0.2;
     } else {
-      // Return to neutral position when still
-      playerGroup.current.rotation.z *= 0.9;
+      // Return to neutral rotation
+      playerGroup.current.rotation.z = THREE.MathUtils.lerp(
+        playerGroup.current.rotation.z,
+        0,
+        lerpFactor * 2
+      );
     }
     
-    // Animate tail and fins
+    // Animate tail and fins - faster during lane changes and jumps/dives
+    const actionSpeed = Math.abs(xDiff) + 
+      (verticalStateRef.current !== 'NORMAL' ? 2 : 0);
+    
     if (tailRef.current) {
-      // Faster tail wag when moving faster
-      const speed = Math.sqrt(velocityRef.current.x * velocityRef.current.x + velocityRef.current.y * velocityRef.current.y);
-      const wagSpeed = 5 + speed * 2; // Base + velocity factor
+      const wagSpeed = 5 + actionSpeed * 3;
       tailRef.current.rotation.y = Math.sin(Date.now() * 0.01 * wagSpeed) * 0.3;
     }
     
     if (finTopRef.current && finBottomRef.current) {
-      const finWagSpeed = 3; // Slower than tail
+      const finWagSpeed = 3 + actionSpeed * 2;
       finTopRef.current.rotation.y = Math.sin(Date.now() * 0.01 * finWagSpeed) * 0.2;
       finBottomRef.current.rotation.y = Math.sin(Date.now() * 0.01 * finWagSpeed + 1) * 0.2;
     }
     
-    // Update camera to follow player
-    camera.position.x = positionRef.current.x * 0.5; // Partial follow
-    camera.position.y = positionRef.current.y * 0.5 + 2; // Keep camera above player
-    camera.lookAt(new THREE.Vector3(positionRef.current.x, positionRef.current.y, -10));
+    // Camera follows player smoothly
+    camera.position.x = currentXRef.current * 0.5;
+    camera.position.y = currentYRef.current * 0.5 + 2;
+    camera.lookAt(new THREE.Vector3(currentXRef.current, currentYRef.current, -10));
   });
   
+  // Determine current action state based on player movement
+  const getActionState = () => {
+    const xDiff = targetX - currentXRef.current;
+    
+    if (verticalStateRef.current === 'JUMPING') {
+      return 'jumping';
+    } else if (verticalStateRef.current === 'DIVING') {
+      return 'diving';
+    } else if (Math.abs(xDiff) > 0.1) {
+      return 'turning';
+    } else {
+      // Default swimming state
+      return 'idle';
+    }
+  };
+
+  // Calculate action speed based on movement
+  const getActionSpeed = () => {
+    const xDiff = targetX - currentXRef.current;
+    const baseSpeed = 1;
+    const movementFactor = Math.abs(xDiff) * 2;
+    const verticalFactor = verticalStateRef.current !== 'NORMAL' ? 1.5 : 1;
+    
+    return baseSpeed + movementFactor + (verticalFactor - 1);
+  };
+
   return (
     <group ref={playerGroup} position={[0, 0, 0]}>
-      {/* Fish body (orange-white clownfish style) */}
-      <mesh ref={bodyRef} castShadow>
-        <sphereGeometry args={[0.5, 32, 16]} />
-        <meshStandardMaterial color="#FF7E00" />
-      </mesh>
-      
-      {/* White stripes (simplified) */}
-      <mesh position={[0, 0, 0.05]} rotation={[0, 0, Math.PI / 2]}>
-        <torusGeometry args={[0.35, 0.08, 16, 32, Math.PI]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      
-      <mesh position={[0, 0, 0.05]} rotation={[0, 0, Math.PI / 2]}>
-        <torusGeometry args={[0.35, 0.08, 16, 32, Math.PI]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      
-      {/* Tail */}
-      <mesh ref={tailRef} position={[-0.6, 0, 0]} rotation={[0, 0, 0]}>
-        <coneGeometry args={[0.3, 0.6, 16, 1]} />
-        <meshStandardMaterial color="#FF7E00" />
-      </mesh>
-      
-      {/* Eyes */}
-      <mesh position={[0.3, 0.15, 0.3]}>
-        <sphereGeometry args={[0.12, 16, 16]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      
-      <mesh position={[0.3, 0.15, 0.3]}>
-        <sphereGeometry args={[0.06, 16, 16]} />
-        <meshStandardMaterial color="#000000" />
-      </mesh>
-      
-      <mesh position={[0.3, -0.15, 0.3]}>
-        <sphereGeometry args={[0.12, 16, 16]} />
-        <meshStandardMaterial color="#FFFFFF" />
-      </mesh>
-      
-      <mesh position={[0.3, -0.15, 0.3]}>
-        <sphereGeometry args={[0.06, 16, 16]} />
-        <meshStandardMaterial color="#000000" />
-      </mesh>
-      
-      {/* Fins */}
-      <mesh ref={finTopRef} position={[0, 0.4, 0]} rotation={[0, 0, Math.PI / 8]}>
-        <coneGeometry args={[0.2, 0.4, 16, 1]} />
-        <meshStandardMaterial color="#FF7E00" />
-      </mesh>
-      
-      <mesh ref={finBottomRef} position={[0, -0.4, 0]} rotation={[0, 0, -Math.PI / 8]}>
-        <coneGeometry args={[0.2, 0.4, 16, 1]} />
-        <meshStandardMaterial color="#FF7E00" />
-      </mesh>
+      {/* Import the enhanced ClownFish model */}
+      <ClownFish 
+        actionState={getActionState()}
+        actionSpeed={getActionSpeed()}
+      />
       
       {/* Hitbox visualization (normally invisible) */}
       {/* <mesh position={[0, 0, 0]} visible={false}>

@@ -2,6 +2,12 @@
 
 import * as THREE from 'three';
 import { Object3D, Vector3 } from 'three';
+import React from 'react';
+import Coral from '@/components/game/models/Coral';
+import Jellyfish from '@/components/game/models/Jellyfish';
+import Pufferfish from '@/components/game/models/Pufferfish';
+import SharkModel from '@/components/game/models/SharkModel';
+import Rock from '@/components/game/models/Rock';
 
 export enum ObstacleType {
   CORAL,
@@ -10,6 +16,13 @@ export enum ObstacleType {
   PUFFERFISH,
   ROCK
 }
+
+// Lane configuration (must match Player.tsx)
+const LANES = {
+  LEFT: -2.5,
+  CENTER: 0,
+  RIGHT: 2.5
+};
 
 interface ObstacleDefinition {
   type: ObstacleType;
@@ -125,187 +138,58 @@ export default class ObstacleManager {
     });
   }
   
-  // Create a simple obstacle mesh for the given type
-  private createObstacleMesh(type: ObstacleType): Object3D {
+  // Import advanced models for obstacles
+  private getAdvancedObstacleModel(type: ObstacleType): JSX.Element {
     switch (type) {
       case ObstacleType.CORAL:
-        const coral = new THREE.Group();
-        
-        // Main body
-        const coralBase = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.5, 1, 2, 8),
-          new THREE.MeshStandardMaterial({ color: '#FF5A5F' })
-        );
-        coralBase.position.y = 1;
-        coral.add(coralBase);
-        
-        // Branches
-        for (let i = 0; i < 5; i++) {
-          const branch = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.2, 0.1, 1 + Math.random(), 6),
-            new THREE.MeshStandardMaterial({ color: '#FF5A5F' })
-          );
-          
-          const angle = (i / 5) * Math.PI * 2;
-          const radius = 0.5;
-          
-          branch.position.set(
-            Math.cos(angle) * radius,
-            2 + Math.random() * 0.5,
-            Math.sin(angle) * radius
-          );
-          
-          branch.rotation.x = Math.random() * 0.5 - 0.25;
-          branch.rotation.z = Math.random() * 0.5 - 0.25;
-          
-          coral.add(branch);
-        }
-        
-        return coral;
+        return <Coral scale={1.2} />;
         
       case ObstacleType.JELLYFISH:
-        const jellyfish = new THREE.Group();
-        
-        // Bell (dome)
-        const bell = new THREE.Mesh(
-          new THREE.SphereGeometry(1, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2),
-          new THREE.MeshStandardMaterial({ 
-            color: '#9C59B6', 
-            transparent: true, 
-            opacity: 0.8 
-          })
-        );
-        bell.rotation.x = Math.PI;
-        jellyfish.add(bell);
-        
-        // Tentacles
-        for (let i = 0; i < 8; i++) {
-          const tentacle = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.05, 0.02, 2, 4),
-            new THREE.MeshStandardMaterial({ 
-              color: '#9C59B6',
-              transparent: true,
-              opacity: 0.7
-            })
-          );
-          
-          const angle = (i / 8) * Math.PI * 2;
-          const radius = 0.7;
-          
-          tentacle.position.set(
-            Math.cos(angle) * radius,
-            -1,
-            Math.sin(angle) * radius
-          );
-          
-          tentacle.rotation.x = Math.PI / 2;
-          jellyfish.add(tentacle);
-        }
-        
-        return jellyfish;
-        
-      case ObstacleType.SHARK:
-        const shark = new THREE.Group();
-        
-        // Body
-        const body = new THREE.Mesh(
-          new THREE.CapsuleGeometry(1, 3, 8, 8),
-          new THREE.MeshStandardMaterial({ color: '#7F8C8D' })
-        );
-        body.rotation.z = Math.PI / 2;
-        shark.add(body);
-        
-        // Tail
-        const tail = new THREE.Mesh(
-          new THREE.ConeGeometry(1, 2, 4),
-          new THREE.MeshStandardMaterial({ color: '#7F8C8D' })
-        );
-        tail.position.x = -2.5;
-        tail.rotation.z = Math.PI / 2;
-        shark.add(tail);
-        
-        // Dorsal fin
-        const dorsalFin = new THREE.Mesh(
-          new THREE.ConeGeometry(0.5, 1, 4),
-          new THREE.MeshStandardMaterial({ color: '#7F8C8D' })
-        );
-        dorsalFin.position.set(0, 1.5, 0);
-        dorsalFin.rotation.z = Math.PI;
-        shark.add(dorsalFin);
-        
-        return shark;
+        return <Jellyfish scale={1.0} />;
         
       case ObstacleType.PUFFERFISH:
-        const pufferfish = new THREE.Group();
+        return <Pufferfish scale={1.2} inflated={false} proximityInflation={true} />;
         
-        // Body
-        const puffBody = new THREE.Mesh(
-          new THREE.SphereGeometry(0.8, 16, 16),
-          new THREE.MeshStandardMaterial({ color: '#F39C12' })
-        );
-        pufferfish.add(puffBody);
-        
-        // Spikes
-        for (let i = 0; i < 20; i++) {
-          const spike = new THREE.Mesh(
-            new THREE.ConeGeometry(0.1, 0.5, 4),
-            new THREE.MeshStandardMaterial({ color: '#F39C12' })
-          );
-          
-          // Random position on sphere
-          const theta = Math.random() * Math.PI * 2;
-          const phi = Math.random() * Math.PI;
-          const radius = 0.8;
-          
-          spike.position.set(
-            radius * Math.sin(phi) * Math.cos(theta),
-            radius * Math.sin(phi) * Math.sin(theta),
-            radius * Math.cos(phi)
-          );
-          
-          // Point away from center
-          spike.lookAt(spike.position.clone().multiplyScalar(2));
-          
-          pufferfish.add(spike);
-        }
-        
-        return pufferfish;
+      case ObstacleType.SHARK:
+        // Shark model to be added - for now use a placeholder
+        return <SharkModel scale={1.5} />;
         
       case ObstacleType.ROCK:
       default:
-        const rock = new THREE.Group();
-        
-        // Main boulder
-        const boulder = new THREE.Mesh(
-          new THREE.DodecahedronGeometry(1.5, 0),
-          new THREE.MeshStandardMaterial({ color: '#7F8C8D' })
-        );
-        rock.add(boulder);
-        
-        // Smaller rocks
-        for (let i = 0; i < 3; i++) {
-          const smallRock = new THREE.Mesh(
-            new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.5, 0),
-            new THREE.MeshStandardMaterial({ color: '#7F8C8D' })
-          );
-          
-          smallRock.position.set(
-            (Math.random() - 0.5) * 2,
-            -0.5 + Math.random() * 0.5,
-            (Math.random() - 0.5) * 2
-          );
-          
-          smallRock.rotation.set(
-            Math.random() * Math.PI,
-            Math.random() * Math.PI,
-            Math.random() * Math.PI
-          );
-          
-          rock.add(smallRock);
-        }
-        
-        return rock;
+        return <Rock scale={1.2} />;
     }
+  }
+  
+  // Create a simple obstacle mesh for the given type - fallback for compatibility
+  private createObstacleMesh(type: ObstacleType): Object3D {
+    // Create a placeholder object that will be populated by the proper React components
+    // This maintains compatibility with the existing object pooling system
+    const placeholder = new THREE.Group();
+    
+    switch (type) {
+      case ObstacleType.CORAL:
+        placeholder.userData = { type: 'coral' };
+        break;
+        
+      case ObstacleType.JELLYFISH:
+        placeholder.userData = { type: 'jellyfish' };
+        break;
+        
+      case ObstacleType.SHARK:
+        placeholder.userData = { type: 'shark' };
+        break;
+        
+      case ObstacleType.PUFFERFISH:
+        placeholder.userData = { type: 'pufferfish' };
+        break;
+        
+      case ObstacleType.ROCK:
+      default:
+        placeholder.userData = { type: 'rock' };
+        break;
+    }
+    
+    return placeholder;
   }
   
   private getObstacleFromPool(type: ObstacleType): Object3D {
@@ -406,27 +290,68 @@ export default class ObstacleManager {
         else type = ObstacleType.SHARK;
       }
       
-      // Determine position based on type and pattern
-      let xPos, yPos;
+      // Select which lane(s) to place obstacles in
+      const lanePattern = this.selectLanePattern();
       
-      if (type === ObstacleType.SHARK) {
-        // Sharks start from edges
-        xPos = Math.random() < 0.5 ? -10 : 10;
-        yPos = Math.random() * 6 - 3;
-      } else if (type === ObstacleType.JELLYFISH) {
-        // Jellyfish in upper areas
-        xPos = Math.random() * 16 - 8;
-        yPos = Math.random() * 3 + 2;
-      } else {
-        // Other obstacles can be anywhere
-        xPos = Math.random() * 16 - 8;
-        yPos = Math.random() * 8 - 4;
+      // Place obstacles in the selected lanes
+      for (const lane of lanePattern) {
+        let xPos = LANES.CENTER;
+        
+        switch (lane) {
+          case 'LEFT':
+            xPos = LANES.LEFT;
+            break;
+          case 'CENTER':
+            xPos = LANES.CENTER;
+            break;
+          case 'RIGHT':
+            xPos = LANES.RIGHT;
+            break;
+        }
+        
+        // Determine vertical position (for jumps and dives)
+        let yPos = 0; // Default ground level
+        
+        // Some obstacles should be in the air (requiring jumps)
+        if (type === ObstacleType.JELLYFISH && Math.random() < 0.7) {
+          yPos = 1.5; // Above ground - player must jump
+        } 
+        // Some obstacles should be lower (requiring dives)
+        else if (type === ObstacleType.PUFFERFISH && Math.random() < 0.4) {
+          yPos = -1.0; // Below ground - player must dive
+        }
+        
+        this.spawnObstacle(
+          type, 
+          new Vector3(xPos, yPos, zPosition)
+        );
       }
-      
-      this.spawnObstacle(
-        type, 
-        new Vector3(xPos, yPos, zPosition)
-      );
+    }
+  }
+  
+  // Helper method to select lane patterns based on difficulty
+  private selectLanePattern(): string[] {
+    const patterns = [
+      ['LEFT'], 
+      ['CENTER'], 
+      ['RIGHT'],
+      ['LEFT', 'CENTER'],
+      ['CENTER', 'RIGHT'],
+      ['LEFT', 'RIGHT'],
+      ['LEFT', 'CENTER', 'RIGHT']
+    ];
+    
+    // Early game has simpler patterns
+    if (this.difficultyLevel < 3) {
+      return patterns[Math.floor(Math.random() * 3)]; // Single lane obstacles
+    } 
+    // Mid game introduces double-lane obstacles
+    else if (this.difficultyLevel < 6) {
+      return patterns[Math.floor(Math.random() * 6)]; // Single or double lane
+    } 
+    // Late game introduces triple-lane obstacles that require timing
+    else {
+      return patterns[Math.floor(Math.random() * patterns.length)];
     }
   }
   

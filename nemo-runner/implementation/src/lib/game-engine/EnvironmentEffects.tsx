@@ -428,12 +428,74 @@ export const WaterSurface: React.FC<{ position?: [number, number, number] }> = (
  * Main component that brings all environment effects together
  */
 export const EnvironmentEffects: React.FC = () => {
+  // Get environment parameters
+  const environmentParams = useEnvironmentStore(state => state.getInterpolatedParameters());
+  
+  // Lighting references
+  const directionalLightRef = useRef<THREE.DirectionalLight>(null);
+  const ambientLightRef = useRef<THREE.AmbientLight>(null);
+  const pointLightRef = useRef<THREE.PointLight>(null);
+  
+  // Update lights based on environment
+  useFrame(() => {
+    if (directionalLightRef.current) {
+      directionalLightRef.current.color.set(environmentParams.lightColor);
+      directionalLightRef.current.intensity = environmentParams.lightIntensity;
+    }
+    
+    if (ambientLightRef.current) {
+      ambientLightRef.current.color.set(environmentParams.ambientColor);
+      ambientLightRef.current.intensity = environmentParams.ambientIntensity;
+    }
+  });
+
   return (
     <>
+      {/* Original effects */}
       <GodRaysEffect />
       <CausticsEffect />
       <WaterSurface />
       <WaterEffects />
+      
+      {/* Enhanced lighting */}
+      <directionalLight
+        ref={directionalLightRef}
+        position={[0, 10, 5]}
+        intensity={environmentParams.lightIntensity}
+        color={environmentParams.lightColor}
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+      />
+      
+      {/* Additional ambient light for general illumination */}
+      <ambientLight 
+        ref={ambientLightRef} 
+        intensity={environmentParams.ambientIntensity} 
+        color={environmentParams.ambientColor}
+      />
+      
+      {/* Player-following light for better visibility */}
+      <pointLight
+        ref={pointLightRef}
+        position={[0, 2, 5]}
+        intensity={0.5}
+        color="#FFFFFF"
+        distance={10}
+        decay={2}
+      />
+      
+      {/* Volume light shafts - light rays through water */}
+      <spotLight
+        position={[10, 15, -5]}
+        angle={0.3}
+        penumbra={0.9}
+        intensity={0.8}
+        color="#A7C5FF"
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+      />
     </>
   );
 };

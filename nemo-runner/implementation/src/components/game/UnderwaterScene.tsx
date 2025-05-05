@@ -13,6 +13,13 @@ import AmbientAudioSystem from './audio/AmbientAudioSystem';
 import EnvironmentAudioEffects from './audio/EnvironmentAudioEffects';
 import { AudioProvider } from '@/lib/game-engine/AudioContext';
 
+// Lane configuration (must match Player.tsx)
+const LANES = {
+  LEFT: -2.5,
+  CENTER: 0,
+  RIGHT: 2.5
+};
+
 export default function UnderwaterScene() {
   const { state, speed, increaseDistance, distance } = useGame();
   const isPlaying = state === GameState.PLAYING;
@@ -52,6 +59,49 @@ export default function UnderwaterScene() {
       updateEnvironmentDistance(distance);
     }
   }, [distance, isPlaying, updateEnvironmentDistance]);
+  
+  // Lane visual guides
+  const createLaneGuides = () => {
+    return (
+      <group>
+        {/* Left lane marker */}
+        <mesh position={[LANES.LEFT, -1.9, -40]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.5, 100]} />
+          <meshStandardMaterial 
+            color="#75C2F6" 
+            transparent={true} 
+            opacity={0.3}
+            emissive="#75C2F6"
+            emissiveIntensity={0.5}
+          />
+        </mesh>
+        
+        {/* Center lane marker */}
+        <mesh position={[LANES.CENTER, -1.9, -40]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.5, 100]} />
+          <meshStandardMaterial 
+            color="#75C2F6" 
+            transparent={true} 
+            opacity={0.3}
+            emissive="#75C2F6"
+            emissiveIntensity={0.5}
+          />
+        </mesh>
+        
+        {/* Right lane marker */}
+        <mesh position={[LANES.RIGHT, -1.9, -40]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.5, 100]} />
+          <meshStandardMaterial 
+            color="#75C2F6" 
+            transparent={true} 
+            opacity={0.3}
+            emissive="#75C2F6"
+            emissiveIntensity={0.5}
+          />
+        </mesh>
+      </group>
+    );
+  };
   
   // Handle zone transitions
   useFrame((state, delta) => {
@@ -112,6 +162,9 @@ export default function UnderwaterScene() {
   return (
     <AudioProvider>
       <group ref={sceneRef}>
+        {/* Lane guides */}
+        {createLaneGuides()}
+        
         {/* Audio Systems */}
         <AmbientAudioSystem />
         <EnvironmentAudioEffects />
