@@ -1,0 +1,88 @@
+.main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(to bottom, var(--color-surface), var(--color-mid-water));
+  padding: 2rem;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 800px;
+  text-align: center;
+}
+
+.title {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  color: var(--color-text-dark);
+  text-shadow: 0 2px 10px rgba(255,255,255,0.3);
+}
+
+.description {
+  font-size: 1.5rem;
+  margin-bottom: 2rem;
+  color: var(--color-text-dark);
+  opacity: 0.9;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.playButton, .leaderboardButton {
+  padding: 0.8rem 2rem;
+  border-radius: 2rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.playButton {
+  background-color: var(--color-secondary);
+  color: white;
+  border: none;
+}
+
+.playButton:hover {
+  background-color: var(--color-coral);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 126, 0, 0.3);
+}
+
+.leaderboardButton {
+  background-color: transparent;
+  color: var(--color-text-dark);
+  border: 2px solid var(--color-text-dark);
+}
+
+.leaderboardButton:hover {
+  background-color: var(--color-text-dark);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(25, 55, 70, 0.2);
+}
+
+@media (max-width: 768px) {
+  .title {
+    font-size: 2.5rem;
+  }
+  
+  .description {
+    font-size: 1.2rem;
+  }
+  
+  .actions {
+    flex-direction: column;
+    width: 100%;
+    max-width: 300px;
+  }
+}

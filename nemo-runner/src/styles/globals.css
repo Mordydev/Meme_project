@@ -1,0 +1,49 @@
+:root {
+  /* Core Brand Colors */
+  --color-primary: #1A8FE3;     /* Ocean Blue */
+  --color-secondary: #FF7E00;   /* Clownfish Orange */
+  
+  /* Environment Colors */
+  --color-deep-sea: #05445E;    /* Deep Ocean */
+  --color-mid-water: #0C6B9C;   /* Mid-depth Water */
+  --color-surface: #75C2F6;     /* Surface Water */
+  
+  /* Accent Colors */
+  --color-coral: #FF5A5F;       /* Coral Pink */
+  --color-seaweed: #3EC483;     /* Seaweed Green */
+  --color-sand: #F2D0A4;        /* Sandy Bottom */
+  
+  /* UI Colors */
+  --color-bubbles: #FFFFFF;     /* Bubble White */
+  --color-text-dark: #193746;   /* Dark Text */
+  --color-danger: #FF3B5C;      /* Danger/Obstacle */
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+body {
+  color: var(--color-text-dark);
+  background: var(--color-surface);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+    Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+canvas {
+  display: block;
+}
