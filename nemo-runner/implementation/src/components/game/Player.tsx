@@ -19,7 +19,140 @@ const DIVE_DEPTH = -1.5;
 const BASE_HEIGHT = 0;
 const VERTICAL_DURATION = 0.5; // seconds
 
-const Player = forwardRef<THREE.Group, {}>((props, ref) => {
+// Movement physics parameters
+const LANE_CHANGE_SMOOTHING = 0.15; // Lower = more responsive, higher = more inertia
+const REACTION_TIME = 0.08; // Slight delay for natural feeling
+const COYOTE_TIME = 0.1; // Forgiveness window for actions
+
+// Particle system for bubble trail
+class BubbleTrailSystem {
+  particles: THREE.Vector3[];
+  sizes: number[];
+  lifetimes: number[];
+  maxParticles: number;
+  emissionRate: number;
+  lastEmitTime: number;
+  geometry: THREE.BufferGeometry;
+  material: THREE.PointsMaterial;
+  points: THREE.Points;
+
+  constructor(maxParticles: number = 100) {
+    this.particles = [];
+    this.sizes = [];
+    this.lifetimes = [];
+    this.maxParticles = maxParticles;
+    this.emissionRate = 5; // particles per frame
+    this.lastEmitTime = 0;
+
+    this.geometry = new THREE.BufferGeometry();
+    this.geometry.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+    this.geometry.setAttribute('size', new THREE.Float32BufferAttribute([], 1));
+
+    // Load bubble texture
+    const textureLoader = new THREE.TextureLoader();
+    const bubbleTexture = textureLoader.load('/textures/bubble.png'); 
+
+    this.material = new THREE.PointsMaterial({
+      size: 0.5,
+      map: bubbleTexture,
+      transparent: true,
+      opacity: 0.7,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+
+    this.points = new THREE.Points(this.geometry, this.material);
+  }
+
+  emit(position: THREE.Vector3, velocity: number, direction: THREE.Vector3) {
+    // Limit emission rate
+    if (performance.now() - this.lastEmitTime < 16 / this.emissionRate) return;
+    this.lastEmitTime = performance.now();
+
+    // Calculate bubble position with slight randomness
+    const particlePos = position.clone().add(
+      new THREE.Vector3(
+        (Math.random() - 0.5) * 0.4,
+        (Math.random() - 0.5) * 0.4,
+        (Math.random() - 0.5) * 0.4
+      )
+    );
+
+    // Add velocity-based offset
+    particlePos.add(direction.clone().multiplyScalar(-0.3));
+
+    // Size based on velocity
+    const size = 0.1 + Math.random() * 0.2 + velocity * 0.1;
+    
+    // Add new particle
+    this.particles.push(particlePos);
+    this.sizes.push(size);
+    this.lifetimes.push(1.0); // Full lifetime
+
+    // Limit max particles
+    if (this.particles.length > this.maxParticles) {
+      this.particles.shift();
+      this.sizes.shift();
+      this.lifetimes.shift();
+    }
+
+    this.updateGeometry();
+  }
+
+  update(delta: number) {
+    // Update particle lifetimes and positions
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      this.lifetimes[i] -= delta * 0.8;
+      
+      // Move particles slightly upward and random horizontal
+      this.particles[i].y += delta * 0.5;
+      this.particles[i].x += (Math.random() - 0.5) * delta * 0.2;
+      
+      // Remove dead particles
+      if (this.lifetimes[i] <= 0) {
+        this.particles.splice(i, 1);
+        this.sizes.splice(i, 1);
+        this.lifetimes.splice(i, 1);
+      }
+    }
+
+    this.updateGeometry();
+  }
+
+  updateGeometry() {
+    const positions: number[] = [];
+    const sizes: number[] = [];
+
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      positions.push(p.x, p.y, p.z);
+      
+      // Size fades with lifetime
+      sizes.push(this.sizes[i] * this.lifetimes[i]);
+    }
+
+    this.geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    this.geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    this.geometry.attributes.position.needsUpdate = true;
+    this.geometry.attributes.size.needsUpdate = true;
+  }
+
+  get mesh() {
+    return this.points;
+  }
+}
+
+export interface PlayerState {
+  hasShield: boolean;
+  isInvincible: boolean;
+  activePowerUps: string[];
+}
+
+interface PlayerProps {
+  onCollision?: () => void;
+}
+
+const Player = forwardRef<THREE.Group, PlayerProps>((props, ref) => {
   const { state, speed } = useGame();
   const isPlaying = state === GameState.PLAYING;
   
@@ -49,28 +182,92 @@ const Player = forwardRef<THREE.Group, {}>((props, ref) => {
   const currentYRef = useRef(BASE_HEIGHT);
   const verticalProgressRef = useRef(0);
   const verticalStateRef = useRef('NORMAL');
+  const lastInputTimeRef = useRef(0);
+  const inputBufferRef = useRef<{action: string, time: number} | null>(null);
+  
+  // Player state
+  const [playerState, setPlayerState] = useState<PlayerState>({
+    hasShield: false,
+    isInvincible: false,
+    activePowerUps: []
+  });
+  
+  // Visual effect states
+  const [showNearMissEffect, setShowNearMissEffect] = useState(false);
+  const bubbleTrailRef = useRef<BubbleTrailSystem | null>(null);
+  const { scene } = useThree();
+  
+  // Initialize bubble trail system
+  useEffect(() => {
+    // Create bubble trail system
+    bubbleTrailRef.current = new BubbleTrailSystem(100);
+    
+    if (playerGroup.current && bubbleTrailRef.current) {
+      playerGroup.current.add(bubbleTrailRef.current.mesh);
+    }
+    
+    return () => {
+      // Clean up bubble trail system
+      if (playerGroup.current && bubbleTrailRef.current) {
+        playerGroup.current.remove(bubbleTrailRef.current.mesh);
+      }
+    };
+  }, []);
   
   // Touch refs
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  
+  // Process input buffer for more responsive controls
+  const processInputBuffer = () => {
+    if (!inputBufferRef.current) return;
+    
+    // If we're within the reaction time window, process the input
+    if (performance.now() - inputBufferRef.current.time < REACTION_TIME * 1000) {
+      const action = inputBufferRef.current.action;
+      
+      switch (action) {
+        case 'LEFT':
+          moveLaneLeft();
+          break;
+        case 'RIGHT':
+          moveLaneRight();
+          break;
+        case 'JUMP':
+          jump();
+          break;
+        case 'DIVE':
+          dive();
+          break;
+      }
+      
+      // Clear the buffer
+      inputBufferRef.current = null;
+    }
+  };
   
   // Setup key listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isPlaying) return;
       
+      lastInputTimeRef.current = performance.now();
+      
       switch (e.key) {
         case 'ArrowLeft':
-          moveLaneLeft();
+          inputBufferRef.current = { action: 'LEFT', time: performance.now() };
           break;
         case 'ArrowRight':
-          moveLaneRight();
+          inputBufferRef.current = { action: 'RIGHT', time: performance.now() };
           break;
         case 'ArrowUp':
-          jump();
+          inputBufferRef.current = { action: 'JUMP', time: performance.now() };
           break;
         case 'ArrowDown':
-          dive();
+          inputBufferRef.current = { action: 'DIVE', time: performance.now() };
+          break;
+        case ' ':
+          activatePowerUp();
           break;
       }
     };
@@ -79,6 +276,14 @@ const Player = forwardRef<THREE.Group, {}>((props, ref) => {
     const handleTouchStart = (e: TouchEvent) => {
       touchStartX.current = e.touches[0].clientX;
       touchStartY.current = e.touches[0].clientY;
+      lastInputTimeRef.current = performance.now();
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isPlaying) return;
+      
+      // Prevent default to avoid scrolling while playing
+      e.preventDefault();
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
@@ -90,75 +295,167 @@ const Player = forwardRef<THREE.Group, {}>((props, ref) => {
       const deltaX = touchEndX - touchStartX.current;
       const deltaY = touchEndY - touchStartY.current;
       
+      // More sensitive touch controls with adaptive threshold
+      const threshold = Math.min(window.innerWidth * 0.05, 30); // 5% of screen width up to 30px
+      
+      // Check if it's a tap (minimal movement)
+      const isTap = Math.abs(deltaX) < threshold / 2 && Math.abs(deltaY) < threshold / 2;
+      
+      if (isTap) {
+        // Handle tap as power-up activation
+        activatePowerUp();
+        return;
+      }
+      
       // Determine if it's a horizontal or vertical swipe
       if (Math.abs(deltaX) > Math.abs(deltaY)) {
         // Horizontal swipe
-        if (deltaX > 50) {
-          moveLaneRight();
-        } else if (deltaX < -50) {
-          moveLaneLeft();
+        if (deltaX > threshold) {
+          inputBufferRef.current = { action: 'RIGHT', time: performance.now() };
+        } else if (deltaX < -threshold) {
+          inputBufferRef.current = { action: 'LEFT', time: performance.now() };
         }
       } else {
         // Vertical swipe
-        if (deltaY > 50) {
-          dive();
-        } else if (deltaY < -50) {
-          jump();
+        if (deltaY > threshold) {
+          inputBufferRef.current = { action: 'DIVE', time: performance.now() };
+        } else if (deltaY < -threshold) {
+          inputBufferRef.current = { action: 'JUMP', time: performance.now() };
         }
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('touchstart', handleTouchStart);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd);
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isPlaying, currentLane]);
+  }, [isPlaying]);
   
-  // Lane movement functions
+  // Lane movement functions with improved physics
   const moveLaneLeft = () => {
+    // Already at left lane, can't move further
+    if (currentLane === 'LEFT') return;
+    
+    // Moving from center to left
     if (currentLane === 'CENTER') {
       setCurrentLane('LEFT');
       setTargetX(LANES.LEFT);
-    } else if (currentLane === 'RIGHT') {
+    } 
+    // Moving from right to center
+    else if (currentLane === 'RIGHT') {
       setCurrentLane('CENTER');
       setTargetX(LANES.CENTER);
     }
+    
+    // Play movement sound
+    // playSwishSound();
   };
   
   const moveLaneRight = () => {
+    // Already at right lane, can't move further
+    if (currentLane === 'RIGHT') return;
+    
+    // Moving from center to right
     if (currentLane === 'CENTER') {
       setCurrentLane('RIGHT');
       setTargetX(LANES.RIGHT);
-    } else if (currentLane === 'LEFT') {
+    } 
+    // Moving from left to center
+    else if (currentLane === 'LEFT') {
       setCurrentLane('CENTER');
       setTargetX(LANES.CENTER);
     }
+    
+    // Play movement sound
+    // playSwishSound();
   };
   
-  // Vertical movement functions
+  // Vertical movement functions with improved physics
   const jump = () => {
-    if (verticalStateRef.current === 'NORMAL') {
+    // Check if already jumping or within coyote time of a previous action
+    if (verticalStateRef.current === 'NORMAL' || 
+        (verticalStateRef.current === 'DIVING' && verticalProgressRef.current < COYOTE_TIME)) {
+      
       setVerticalState('JUMPING');
       verticalStateRef.current = 'JUMPING';
       setVerticalProgress(0);
       verticalProgressRef.current = 0;
       setTargetY(JUMP_HEIGHT);
+      
+      // Play jump sound
+      // playJumpSound();
     }
   };
   
   const dive = () => {
-    if (verticalStateRef.current === 'NORMAL') {
+    // Check if already diving or within coyote time of a previous action
+    if (verticalStateRef.current === 'NORMAL' || 
+        (verticalStateRef.current === 'JUMPING' && verticalProgressRef.current < COYOTE_TIME)) {
+      
       setVerticalState('DIVING');
       verticalStateRef.current = 'DIVING';
       setVerticalProgress(0);
       verticalProgressRef.current = 0;
       setTargetY(DIVE_DEPTH);
+      
+      // Play dive sound
+      // playDiveSound();
     }
+  };
+  
+  // Power-up activation function
+  const activatePowerUp = () => {
+    // Check if we have any power-ups
+    if (playerState.activePowerUps.length > 0) {
+      // Implement power-up logic here
+      console.log('Activating power-up:', playerState.activePowerUps[0]);
+      
+      // Remove the used power-up
+      setPlayerState(prev => ({
+        ...prev,
+        activePowerUps: prev.activePowerUps.slice(1)
+      }));
+      
+      // Play power-up sound
+      // playPowerUpSound();
+    }
+  };
+  
+  // Add a shield power-up (demonstration)
+  const addShield = () => {
+    setPlayerState(prev => ({
+      ...prev,
+      hasShield: true
+    }));
+  };
+  
+  // Make player temporarily invincible (demonstration)
+  const makeInvincible = (duration: number = 3) => {
+    setPlayerState(prev => ({
+      ...prev,
+      isInvincible: true
+    }));
+    
+    // Reset after duration
+    setTimeout(() => {
+      setPlayerState(prev => ({
+        ...prev,
+        isInvincible: false
+      }));
+    }, duration * 1000);
+  };
+  
+  // Trigger near-miss effect (demonstration)
+  const triggerNearMissEffect = () => {
+    setShowNearMissEffect(true);
+    setTimeout(() => setShowNearMissEffect(false), 500);
   };
   
   // Camera and viewport
@@ -168,15 +465,27 @@ const Player = forwardRef<THREE.Group, {}>((props, ref) => {
   useFrame((_, delta) => {
     if (!isPlaying || !playerGroup.current) return;
     
-    // Lane movement animation (horizontal)
-    const lerpFactor = Math.min(1, delta * 10); // Smooth transition speed
+    // Process input buffer for more responsive controls
+    processInputBuffer();
+    
+    // Calculate current velocity for effects
+    const prevX = currentXRef.current;
+    const prevY = currentYRef.current;
+    
+    // Lane movement animation (horizontal) with improved physics
+    const lerpSpeed = 1 - Math.pow(1 - LANE_CHANGE_SMOOTHING, delta * 60);
     currentXRef.current = THREE.MathUtils.lerp(
       currentXRef.current, 
       targetX, 
-      lerpFactor
+      lerpSpeed
     );
     
-    // Vertical movement (jump/dive)
+    // Calculate actual velocity for effects
+    const velocityX = (currentXRef.current - prevX) / delta;
+    const velocityY = (currentYRef.current - prevY) / delta;
+    const totalVelocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+    
+    // Vertical movement (jump/dive) with improved physics
     if (verticalStateRef.current !== 'NORMAL') {
       // Update progress
       verticalProgressRef.current += delta / VERTICAL_DURATION;
@@ -192,19 +501,22 @@ const Player = forwardRef<THREE.Group, {}>((props, ref) => {
       } else {
         // Animation progress
         if (verticalStateRef.current === 'JUMPING') {
-          // Parabolic jump
+          // Improved parabolic jump with natural easing
           const jumpProgress = verticalProgressRef.current;
-          // Use sin curve for smooth up and down
-          currentYRef.current = Math.sin(jumpProgress * Math.PI) * JUMP_HEIGHT;
+          // Use sin curve for smooth up and down with slight asymmetry
+          currentYRef.current = Math.sin(jumpProgress * Math.PI) * JUMP_HEIGHT * 
+                               (1 - Math.pow(jumpProgress - 0.5, 2) * 0.2); // Extra height at peak
         } else if (verticalStateRef.current === 'DIVING') {
-          // Quick dive down and slow return
+          // Improved dive with better physics
           const diveProgress = verticalProgressRef.current;
           if (diveProgress < 0.3) {
-            // Quick dive down (0-30% of animation)
-            currentYRef.current = diveProgress / 0.3 * DIVE_DEPTH;
+            // Quick dive down (0-30% of animation) with acceleration
+            const eased = diveProgress / 0.3;
+            currentYRef.current = DIVE_DEPTH * eased * eased; // Quadratic ease-in
           } else {
-            // Slow return (30-100% of animation)
-            currentYRef.current = DIVE_DEPTH * (1 - (diveProgress - 0.3) / 0.7);
+            // Slow return (30-100% of animation) with deceleration
+            const eased = (diveProgress - 0.3) / 0.7;
+            currentYRef.current = DIVE_DEPTH * (1 - eased * eased); // Quadratic ease-out
           }
         }
       }
@@ -228,23 +540,44 @@ const Player = forwardRef<THREE.Group, {}>((props, ref) => {
       setCurrentY(currentYRef.current);
     }
     
-    // Add tilt based on lane change direction
+    // Add tilt based on lane change direction with improved physics
     const xDiff = targetX - currentXRef.current;
-    if (Math.abs(xDiff) > 0.1) {
-      // Tilt in the direction of movement
-      playerGroup.current.rotation.z = -xDiff * 0.2;
+    if (Math.abs(xDiff) > 0.05) {
+      // Calculate tilt angle based on velocity and direction
+      const tiltAngle = -xDiff * 0.2 - velocityX * 0.01;
+      
+      // Apply tilt with natural easing
+      playerGroup.current.rotation.z = THREE.MathUtils.lerp(
+        playerGroup.current.rotation.z,
+        tiltAngle,
+        lerpSpeed * 1.5
+      );
+      
+      // Add slight yaw/rotation based on direction
+      playerGroup.current.rotation.y = THREE.MathUtils.lerp(
+        playerGroup.current.rotation.y,
+        xDiff * 0.1,
+        lerpSpeed
+      );
     } else {
-      // Return to neutral rotation
+      // Return to neutral rotation with natural easing
       playerGroup.current.rotation.z = THREE.MathUtils.lerp(
         playerGroup.current.rotation.z,
         0,
-        lerpFactor * 2
+        lerpSpeed * 1.2
+      );
+      
+      playerGroup.current.rotation.y = THREE.MathUtils.lerp(
+        playerGroup.current.rotation.y,
+        0,
+        lerpSpeed
       );
     }
     
     // Animate tail and fins - faster during lane changes and jumps/dives
-    const actionSpeed = Math.abs(xDiff) + 
-      (verticalStateRef.current !== 'NORMAL' ? 2 : 0);
+    const actionSpeed = Math.abs(velocityX) * 0.1 + 
+                       Math.abs(velocityY) * 0.1 + 
+                       (verticalStateRef.current !== 'NORMAL' ? 2 : 0);
     
     if (tailRef.current) {
       const wagSpeed = 5 + actionSpeed * 3;
@@ -257,10 +590,52 @@ const Player = forwardRef<THREE.Group, {}>((props, ref) => {
       finBottomRef.current.rotation.y = Math.sin(Date.now() * 0.01 * finWagSpeed + 1) * 0.2;
     }
     
-    // Camera follows player smoothly
-    camera.position.x = currentXRef.current * 0.5;
-    camera.position.y = currentYRef.current * 0.5 + 2;
-    camera.lookAt(new THREE.Vector3(currentXRef.current, currentYRef.current, -10));
+    // Update bubble trail effect
+    if (bubbleTrailRef.current) {
+      // Update existing particles
+      bubbleTrailRef.current.update(delta);
+      
+      // Emit new particles based on velocity
+      if (totalVelocity > 5 || verticalStateRef.current !== 'NORMAL') {
+        const emissionCount = Math.ceil(totalVelocity * 0.2) + 
+                             (verticalStateRef.current !== 'NORMAL' ? 2 : 0);
+        
+        // Get player position and create a direction vector
+        const playerPos = new THREE.Vector3(
+          playerGroup.current.position.x,
+          playerGroup.current.position.y,
+          playerGroup.current.position.z
+        );
+        
+        // Create direction vector based on movement
+        const direction = new THREE.Vector3(velocityX, velocityY, 0).normalize();
+        
+        // Emit particles
+        for (let i = 0; i < emissionCount; i++) {
+          bubbleTrailRef.current.emit(playerPos, totalVelocity, direction);
+        }
+      }
+    }
+    
+    // Camera follows player with improved dynamics
+    // Calculate camera target position based on player position and movement
+    const camTargetX = currentXRef.current * 0.7; // Reduced influence for smoother follow
+    const camTargetY = currentYRef.current * 0.5 + 2;
+    
+    // Apply inertia to camera movement
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, camTargetX, delta * 3);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, camTargetY, delta * 3);
+    
+    // Add subtle camera rotation based on player movement
+    const camRotX = velocityY * -0.01;
+    const camRotY = velocityX * -0.01;
+    
+    // Look slightly ahead of player based on velocity
+    camera.lookAt(new THREE.Vector3(
+      currentXRef.current + velocityX * 0.1,
+      currentYRef.current + velocityY * 0.1,
+      -10
+    ));
   });
   
   // Determine current action state based on player movement
@@ -297,10 +672,55 @@ const Player = forwardRef<THREE.Group, {}>((props, ref) => {
         actionSpeed={getActionSpeed()}
       />
       
+      {/* Shield effect when active */}
+      {playerState.hasShield && (
+        <mesh>
+          <sphereGeometry args={[1.2, 16, 16]} />
+          <meshPhysicalMaterial 
+            color="#75C2F6"
+            transparent={true}
+            opacity={0.3}
+            roughness={0.2}
+            metalness={0.8}
+            clearcoat={1}
+            clearcoatRoughness={0.2}
+            envMapIntensity={1.5}
+          />
+        </mesh>
+      )}
+      
+      {/* Invincibility effect */}
+      {playerState.isInvincible && (
+        <mesh>
+          <sphereGeometry args={[1.0, 16, 16]} />
+          <meshBasicMaterial 
+            color="#FFFFFF"
+            transparent={true}
+            opacity={0.5}
+            blending={THREE.AdditiveBlending}
+          >
+            <color attach="color" args={["#FFFFFF"]} />
+          </meshBasicMaterial>
+        </mesh>
+      )}
+      
+      {/* Near miss effect */}
+      {showNearMissEffect && (
+        <mesh>
+          <ringGeometry args={[1.2, 1.5, 32]} />
+          <meshBasicMaterial 
+            color="#FF5A5F"
+            transparent={true}
+            opacity={0.7}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      )}
+      
       {/* Hitbox visualization (normally invisible) */}
       {/* <mesh position={[0, 0, 0]} visible={false}>
-        <sphereGeometry args={[0.5, 8, 8]} />
-        <meshBasicMaterial color="#FF0000" wireframe={true} />
+        <sphereGeometry args={[0.7, 16, 16]} />
+        <meshBasicMaterial color="#FF0000" wireframe={true} opacity={0.5} transparent={true} />
       </mesh> */}
     </group>
   );

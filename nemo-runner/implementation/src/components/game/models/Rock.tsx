@@ -5,7 +5,7 @@ import * as THREE from 'three';
 
 // Enhanced rock model with better geometry and materials
 export default function Rock({ scale = 1 }) {
-  const group = useRef<THREE.Group>();
+  const group = useRef<THREE.Group>(null);
   
   // Generate a random value within a range
   const random = (min: number, max: number) => Math.random() * (max - min) + min;

@@ -3,7 +3,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { 
-  Effects, 
   GodRays, 
   EffectComposer,
   Bloom,
@@ -75,60 +74,60 @@ export function AdvancedWaterEffects() {
       </mesh>
       
       {/* Post-processing effects */}
-      <EffectComposer multisampling={0}>
-        {/* God rays from sun */}
+      <EffectComposer multisampling={2}>
+        {/* God rays from sun - reduced intensity */}
         {sunRef.current && (
           <GodRays
             sun={sunRef.current}
             blendFunction={BlendFunction.ADD}
-            samples={60}
-            density={0.96}
-            decay={0.93}
-            weight={0.4}
-            exposure={0.6}
+            samples={30}
+            density={0.7}
+            decay={0.88}
+            weight={0.25}
+            exposure={0.4}
             clampMax={1}
-            kernelSize={KernelSize.LARGE}
+            kernelSize={KernelSize.MEDIUM}
             blur={true}
           />
         )}
         
-        {/* Bloom effect for underwater glow */}
+        {/* Bloom effect for underwater glow - reduced intensity */}
         <Bloom
-          intensity={bloomIntensity}
-          luminanceThreshold={0.2}
-          luminanceSmoothing={0.9}
+          intensity={bloomIntensity * 0.6}
+          luminanceThreshold={0.4}
+          luminanceSmoothing={0.7}
           height={Resolution.AUTO_SIZE}
-          kernelSize={KernelSize.VERY_LARGE}
+          kernelSize={KernelSize.LARGE}
         />
         
-        {/* Depth of field effect */}
+        {/* Lighter depth of field effect for better clarity */}
         <DepthOfField
-          focusDistance={0.02}
-          focalLength={0.5}
-          bokehScale={6}
+          focusDistance={0.2}
+          focalLength={0.2}
+          bokehScale={3}
         />
         
-        {/* Vignette for underwater feel */}
+        {/* Reduced vignette for underwater feel */}
         <Vignette
-          offset={0.5}
-          darkness={0.5}
+          offset={0.7}
+          darkness={0.3}
           blendFunction={BlendFunction.NORMAL}
         />
         
-        {/* Brightness/contrast adjustments based on environment */}
+        {/* Improved brightness/contrast adjustments for clarity */}
         <BrightnessContrast
-          brightness={0.03}
-          contrast={0.15}
+          brightness={0.08}
+          contrast={0.1}
         />
       </EffectComposer>
       
-      {/* Underwater fog */}
+      {/* Underwater fog with improved visibility */}
       <fog 
         attach="fog" 
         args={[
           fogColor,
-          10, // Near
-          70  // Far - adjusted based on environment
+          15, // Increased near distance for better visibility
+          100  // Increased far distance for better clarity
         ]} 
       />
     </>

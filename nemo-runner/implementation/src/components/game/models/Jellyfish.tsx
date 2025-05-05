@@ -6,8 +6,8 @@ import * as THREE from 'three';
 
 // Enhanced jellyfish model with better visuals and animations
 export default function Jellyfish({ scale = 1, color = '#9C59B6' }) {
-  const group = useRef<THREE.Group>();
-  const bellRef = useRef<THREE.Mesh>();
+  const group = useRef<THREE.Group>(null);
+  const bellRef = useRef<THREE.Mesh>(null);
   const tentacleRefs = useRef<THREE.Mesh[]>([]);
   
   // Initialize tentacle refs array
@@ -89,7 +89,7 @@ export default function Jellyfish({ scale = 1, color = '#9C59B6' }) {
     <group ref={group} scale={scale}>
       {/* Bell (dome) with translucent material */}
       <mesh ref={bellRef} rotation={[Math.PI, 0, 0]}>
-        <hemisphereGeometry args={[1, 1, 24, 16]} />
+        <sphereGeometry args={[1, 24, 16, 0, Math.PI]} />
         <meshPhysicalMaterial 
           color={color} 
           roughness={0.3}
@@ -105,7 +105,7 @@ export default function Jellyfish({ scale = 1, color = '#9C59B6' }) {
       
       {/* Inner bell tissue */}
       <mesh position={[0, -0.3, 0]} rotation={[Math.PI, 0, 0]} scale={[0.7, 0.3, 0.7]}>
-        <hemisphereGeometry args={[1, 0.5, 16, 8]} />
+        <sphereGeometry args={[1, 16, 8, 0, Math.PI]} />
         <meshStandardMaterial 
           color={color} 
           roughness={0.4}

@@ -139,31 +139,33 @@ function GameContent({ powerUpSystemRef }: GameContentProps = {}) {
       <Canvas 
         shadows 
         className="w-full h-full"
-        dpr={[1, 2]} // Support pixel ratios from 1 to 2 for crisp rendering
+        dpr={[1.5, 2]} // Increased minimum DPR for sharper rendering
         gl={{ 
           antialias: true, // Enable anti-aliasing
           alpha: false, // No need for alpha as we have a background
           powerPreference: 'high-performance',
-          precision: 'highp' // Use high precision for better visual quality
+          precision: 'highp', // Use high precision for better visual quality
+          stencil: true, // Enable stencil buffer for better effects
+          depth: true // Ensure depth buffer is enabled for proper 3D rendering
         }}
       >
         {/* Dynamic background color based on environment */}
         <color attach="background" args={[zoneParams.backgroundColor]} />
         
-        {/* Dynamic fog based on environment */}
+        {/* Dynamic fog based on environment - improved for clarity */}
         <fog 
           attach="fog" 
           args={[
             zoneParams.fogColor, 
-            10, // Near
-            80  // Far
+            20, // Near - increased from 10 for better visibility
+            150  // Far - increased from 80 for better depth
           ]} 
         />
         <fogExp2 
           attach="fog" 
           args={[
             zoneParams.fogColor, 
-            zoneParams.fogDensity
+            zoneParams.fogDensity * 0.7 // Reduced by 30% for better visibility
           ]} 
         />
         
