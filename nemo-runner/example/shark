@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Shark Obstacle</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #3498DB; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="dynamicTextureCanvas" style="display:none;"></canvas> 
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.module.min.js",
+          "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
+        let scene, camera, renderer, controls;
+        let sharkArray = [];
+        let floorMesh, causticTexture, causticCanvas, causticCtx; // For environment context if needed
+        const clock = new THREE.Clock();
+        const simplex = new SimplexNoise();
+        const UP_VECTOR = new THREE.Vector3(0, 1, 0);
+
+        // --- Noise Functions (Copied) ---
+        function hash(p) { /* ... */ let p_ = new THREE.Vector2(p.dot(new THREE.Vector2(127.1,311.7)), p.dot(new THREE.Vector2(269.5,183.3))); return -1.0 + 2.0 * new THREE.Vector2(Math.fract(Math.sin(p_.x)*43758.5453123), Math.fract(Math.sin(p_.y)*43758.5453123)); }
+        function noise(p) { /* ... */ let i=p.clone().floor(); let f=p.clone().fract(); let u=f.clone().multiply(f).multiplyScalar(3.0).addScaledVector(f.clone().multiply(f).multiplyScalar(-2.0),1.0); let h00=hash(i); let h10=hash(i.clone().add(new THREE.Vector2(1.,0.))); let h01=hash(i.clone().add(new THREE.Vector2(0.,1.))); let h11=hash(i.clone().add(new THREE.Vector2(1.,1.))); let r1=h00.clone().addScaledVector(h10.clone().sub(h00),u.x); let r2=h01.clone().addScaledVector(h11.clone().sub(h01),u.x); return r1.clone().addScaledVector(r2.clone().sub(r1),u.y).x; }
+        function fbm(p, octaves=3, persistence=0.5) { /* ... */ let t=0.; let f=1.; let a=1.; let mv=0.; for(let i=0;i<octaves;i++){t+=noise(p.clone().multiplyScalar(f))*a; mv+=a; a*=persistence; f*=2.;} return t/mv; }
+
+        // --- Shark Shaders ---
+        const sharkVertexShader = `
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            varying float vCountershadeFactor; // Pass factor for countershading
+            varying float vBodyZ; // Pass normalized Z position along body
+
+            uniform float uTime;
+            uniform float uBodyLength;
+            uniform float uWaveFrequency;
+            uniform float uWaveAmplitude;
+
+            void main() {
+                vec3 pos = position;
+                
+                // --- Body Undulation Animation ---
+                // Normalize Z relative to body length (assuming centered origin)
+                vBodyZ = (position.z + uBodyLength * 0.5) / uBodyLength; // Range 0 (tail) to 1 (nose)
+                float wave = sin(vBodyZ * M_PI * 2.0 - uTime * uWaveFrequency) * uWaveAmplitude; // Sine wave along body
+                // Apply more wave towards the tail (e.g., using power)
+                float waveIntensity = pow(vBodyZ, 1.5); 
+                pos.x += wave * waveIntensity; 
+
+                // --- Calculate World Position & Normal ---
+                vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+                vWorldPosition = worldPos.xyz;
+                
+                vec3 worldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+                vNormal = normalize(normalMatrix * normal); // View space normal for lighting
+
+                // --- Countershading Factor ---
+                // Based on world normal's Y component (higher Y = top = darker)
+                vCountershadeFactor = smoothstep(-0.1, 0.4, worldNormal.y); // Adjust range for desired blend
+
+                gl_Position = projectionMatrix * viewMatrix * worldPos;
+            }
+        `;
+
+        const sharkFragmentShader = `
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            varying float vCountershadeFactor; // Receive countershade factor
+            varying float vBodyZ; // Receive normalized Z pos
+
+            uniform float uTime;
+            uniform vec3 uColorDark;  // Darker top color
+            uniform vec3 uColorLight; // Lighter belly color
+            uniform sampler2D uCausticMap;
+
+            // Re-declare noise functions if needed (e.g., for skin detail)
+             float hashFS(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+             float noiseFS(vec2 p) { /* ... */ vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f); float a=hashFS(i+vec2(0.,0.)); float b=hashFS(i+vec2(1.,0.)); float c=hashFS(i+vec2(0.,1.)); float d=hashFS(i+vec2(1.,1.)); return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
+             float fbmFS(vec2 p, int octaves, float persistence) { /* ... */ float v=0.; float a=1.; float f=1.; float mv=0.; for(int i=0;i<octaves;++i){v+=noiseFS(p*f)*a; mv+=a; a*=persistence; f*=2.;} return v/mv; }
+
+            void main() {
+                vec3 normal = normalize(vNormal);
+
+                // --- Determine Base Color with Countershading ---
+                vec3 baseColor = mix(uColorLight, uColorDark, vCountershadeFactor);
+
+                // Add subtle FBM noise for skin texture/variation
+                float skinNoise = fbmFS(vWorldPosition.xz * 1.5, 3, 0.5); // Noise based on world pos
+                baseColor += skinNoise * 0.04 * vec3(1.0); // Very subtle brightness variation
+
+                // --- Lighting (Blinn-Phong) ---
+                vec3 viewDir = normalize(cameraPosition - vWorldPosition); // Correct view direction
+                vec3 lightDir = normalize(vec3(0.4, 0.9, 0.6)); // Main light source direction
+                
+                // Diffuse
+                float diff = max(dot(normal, lightDir), 0.0);
+                vec3 diffuseColor = baseColor * (diff * 0.7 + 0.3); // Diffuse + Ambient term
+                
+                // Specular
+                vec3 halfwayDir = normalize(lightDir + viewDir);
+                float specAngle = max(dot(normal, halfwayDir), 0.0);
+                // Lower power for broader, less intense shine appropriate for skin
+                float specularPower = 10.0; 
+                float spec = pow(specAngle, specularPower);
+                // Specular intensity reduced, slightly brighter for lighter belly
+                vec3 specularColor = vec3(spec * (0.15 + (1.0 - vCountershadeFactor) * 0.1)); 
+
+                vec3 litColor = diffuseColor + specularColor;
+
+                // --- Apply Caustics ---
+                vec2 causticUv = vWorldPosition.xz * 0.08 + vec2(uTime * 0.03, uTime * 0.02); 
+                vec3 caustics = texture2D(uCausticMap, causticUv).rgb * 0.15 * (1.0 - vCountershadeFactor); // Caustics stronger on lighter belly?
+
+                // --- Final Color ---
+                gl_FragColor = vec4(litColor + caustics, 1.0);
+                gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2)); // Gamma Correction
+            }
+        `;
+
+        // --- Shark Geometry Creation ---
+
+        /** Creates the main body geometry using a deformed sphere. */
+        function createSharkBodyGeometry(length = 4.0, width = 1.0, height = 1.2) {
+            // Start with enough segments for smooth deformation
+            const geometry = new THREE.SphereGeometry(1, 32, 24); 
+            const positions = geometry.attributes.position;
+            const vertex = new THREE.Vector3();
+
+            // Deform into shark shape
+            for (let i = 0; i < positions.count; i++) {
+                vertex.fromBufferAttribute(positions, i);
+
+                // Normalize z to -1 (tail) to 1 (nose) relative to sphere radius
+                let normZ = vertex.z; 
+                
+                // --- Shaping Logic ---
+                // Taper tail: reduce x/y radius significantly towards back
+                float tailTaper = smoothstep(-1.0, -0.5, normZ); // Start tapering from mid-back
+                float tailFactor = 1.0 - tailTaper * 0.8; // Reduce radius by up to 80% at tail
+
+                // Bulge mid-section slightly: increase x/y radius around middle
+                float midBulge = 1.0 - abs(normZ * 0.8); // Factor peaks at z=0
+                float bulgeFactor = 1.0 + pow(midBulge, 2.0) * 0.1; // Add slight bulge
+
+                // Flatten belly: reduce y radius based on vertex y position
+                float bellyFactor = smoothstep(-1.0, -0.2, vertex.y); // Factor for bottom part
+                float flattenAmount = 1.0 - bellyFactor * 0.2; // Reduce Y scale by up to 20% on bottom
+
+                // Apply factors
+                vertex.x *= tailFactor * bulgeFactor;
+                vertex.y *= tailFactor * bulgeFactor * flattenAmount;
+                vertex.z *= 1.0; // Length controlled by final scaling
+
+                 // Add subtle FBM noise for organic surface
+                 let noiseVal = fbm(vertex.clone().multiplyScalar(2.0).xz, 3, 0.5) * 0.03; // Small noise amplitude
+                 vertex.addScaledVector(vertex.clone().normalize(), noiseVal);
+
+                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+            }
+
+            // Apply overall scaling to match desired dimensions
+            geometry.scale(width * 0.5, height * 0.5, length * 0.5); 
+
+            geometry.computeVertexNormals();
+            geometry.attributes.position.needsUpdate = true;
+            return geometry;
+        }
+
+        /** Creates geometry for a fin (Dorsal, Pectoral). */
+        function createSharkFinGeometry(type = 'dorsal') {
+            const finShape = new THREE.Shape();
+            
+            if (type === 'pectoral') {
+                // Swept-back shape
+                finShape.moveTo(-0.5, 0); // Base start
+                finShape.lineTo(-0.4, 0.1);
+                finShape.quadraticCurveTo(0.3, 0.3, 0.5, 1.0); // Outer curve to tip
+                finShape.quadraticCurveTo(0.2, 0.4, -0.1, 0.1); // Trailing edge curve
+                finShape.lineTo(-0.5, 0); // Close base
+            } else { // Dorsal (default)
+                // Classic triangular shape
+                finShape.moveTo(-0.5, 0); // Base start
+                finShape.lineTo(0, 1.0); // Straight to tip
+                finShape.lineTo(0.5, 0); // Straight back edge
+                finShape.lineTo(-0.5, 0); // Close base
+            }
+
+            const extrudeSettings = { depth: 0.06, bevelEnabled: true, bevelSize: 0.02, bevelSegments: 2 };
+            const geometry = new THREE.ExtrudeGeometry(finShape, extrudeSettings);
+            geometry.center();
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        /** Creates geometry for the asymmetrical tail fin. */
+        function createSharkTailGeometry() {
+            const tailShape = new THREE.Shape();
+            // Asymmetrical shape - larger top lobe
+            tailShape.moveTo(0, -0.2); // Base center
+            tailShape.quadraticCurveTo(0.2, 0.1, 0.3, 0.8); // Lower lobe right curve
+            tailShape.lineTo(0.1, 0.6); // Notch inward slightly
+            tailShape.lineTo(0.3, 1.5); // Upper lobe tip (higher)
+            tailShape.quadraticCurveTo(-0.1, 0.8, -0.3, 0.4); // Upper lobe left curve
+            tailShape.lineTo(-0.2, -0.1); // Lower lobe left curve point
+            tailShape.quadraticCurveTo(-0.1, -0.3, 0, -0.2); // Close base
+
+            const extrudeSettings = { depth: 0.05, bevelEnabled: true, bevelSize: 0.015, bevelSegments: 2 };
+            const geometry = new THREE.ExtrudeGeometry(tailShape, extrudeSettings);
+            geometry.center();
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+
+        // --- Shark Material Creation ---
+        function createSharkMaterial() {
+            return new THREE.ShaderMaterial({
+                vertexShader: sharkVertexShader,
+                fragmentShader: sharkFragmentShader,
+                uniforms: {
+                    uTime: { value: 0.0 },
+                    uColorDark: { value: new THREE.Color(0x506070) }, // Dark bluish grey
+                    uColorLight: { value: new THREE.Color(0xD0D0D5) }, // Light grey/white belly
+                    uBodyLength: { value: 4.0 }, // Default, will be updated
+                    uWaveFrequency: { value: 3.0 + Math.random() * 1.5 }, // Randomize swim speed slightly
+                    uWaveAmplitude: { value: 0.08 + Math.random() * 0.04 }, // Randomize swim intensity slightly
+                    uCausticMap: { value: causticTexture } 
+                },
+                lights: false // Using custom lighting in shader
+            });
+        }
+
+        // --- Shark Assembly ---
+        function createShark(options = {}) {
+            const { 
+                length = 4.0, 
+                width = 1.0, 
+                height = 1.2,
+                colorDark = new THREE.Color(0x506070),
+                colorLight = new THREE.Color(0xD0D0D5)
+            } = options;
+            
+            const group = new THREE.Group();
+            group.userData.length = length; // Store length for animation
+
+            // Create Material
+            const material = createSharkMaterial();
+            material.uniforms.uBodyLength.value = length;
+            material.uniforms.uColorDark.value = colorDark;
+            material.uniforms.uColorLight.value = colorLight;
+            group.userData.material = material; // Store for time update
+
+            // Create Body
+            const bodyGeo = createSharkBodyGeometry(length, width, height);
+            const bodyMesh = new THREE.Mesh(bodyGeo, material);
+            bodyMesh.castShadow = true; bodyMesh.receiveShadow = true;
+            group.add(bodyMesh);
+
+            // Create & Position Fins
+            const dorsalGeo = createSharkFinGeometry('dorsal');
+            const dorsalFin = new THREE.Mesh(dorsalGeo, material);
+            dorsalFin.scale.set(0.5, 0.7, 0.5); // Adjust size
+            dorsalFin.position.set(0, height * 0.4, length * 0.1); // Position on back, slightly forward
+            dorsalFin.rotation.x = -0.1; // Slight forward tilt
+            dorsalFin.castShadow = true; dorsalFin.receiveShadow = true;
+            group.add(dorsalFin);
+
+            const pectoralGeo = createSharkFinGeometry('pectoral');
+            const leftPectoral = new THREE.Mesh(pectoralGeo, material);
+            leftPectoral.scale.set(0.6, 0.6, 0.6);
+            leftPectoral.position.set(-width * 0.45, -height * 0.1, length * 0.25); // Position side-forward-down
+            leftPectoral.rotation.y = -Math.PI / 2 - 0.3; // Angle outward/backward
+            leftPectoral.rotation.z = 0.4; // Angle downward
+            leftPectoral.castShadow = true; leftPectoral.receiveShadow = true;
+            group.add(leftPectoral);
+            group.userData.leftPectoral = leftPectoral;
+
+            const rightPectoral = leftPectoral.clone();
+            rightPectoral.position.x *= -1;
+            rightPectoral.rotation.y *= -1; // Mirror Y rotation
+            rightPectoral.rotation.z *= 1; // Keep Z rotation same (downward angle)
+            group.add(rightPectoral);
+            group.userData.rightPectoral = rightPectoral;
+
+            const tailGeo = createSharkTailGeometry();
+            const tailFin = new THREE.Mesh(tailGeo, material);
+            tailFin.scale.set(0.8, 0.8, 0.8);
+            tailFin.position.set(0, height*0.05, -length * 0.48); // Position at the very back
+            tailFin.rotation.x = Math.PI / 2; // Orient vertically
+            tailFin.castShadow = true; tailFin.receiveShadow = true;
+            group.add(tailFin);
+            group.userData.tailFin = tailFin; // Store for JS animation
+
+            // Add basic patrol behavior data
+            group.userData.patrolTarget = new THREE.Vector3((Math.random()-0.5)*20, 0, (Math.random()-0.5)*20);
+            group.userData.speed = 0.8 + Math.random() * 0.4;
+
+            return group;
+        }
+
+        // --- Shark Animation (JavaScript part) ---
+        function animateShark(sharkGroup, time, deltaTime) {
+            const material = sharkGroup.userData.material;
+            const tailFin = sharkGroup.userData.tailFin;
+            const leftPectoral = sharkGroup.userData.leftPectoral;
+            const rightPectoral = sharkGroup.userData.rightPectoral;
+            const length = sharkGroup.userData.length;
+            
+            // Update shader time
+            if (material?.uniforms?.uTime) {
+                material.uniforms.uTime.value = time;
+            }
+
+            // --- Tail Animation ---
+            // Calculate the body wave phase near the tail (vBodyZ approx 0)
+            // Wave = sin(vBodyZ * PI*2 - time * freq) * amp 
+            // At vBodyZ=0, Wave = sin(-time * freq) * amp
+            // We want rotation proportional to the *slope* of the wave (derivative w.r.t time or Z)
+            // d(sin(-t*f))/dt = -f*cos(-t*f)
+            if (tailFin && material) {
+                const freq = material.uniforms.uWaveFrequency.value;
+                const amp = material.uniforms.uWaveAmplitude.value;
+                // Calculate target rotation based on wave derivative (cosine)
+                const tailRotationY = -Math.cos(-time * freq) * freq * amp * 5.0; // Scale factor needs tuning
+                // Smoothly interpolate tail rotation for less jerky movement
+                 tailFin.rotation.y = THREE.MathUtils.lerp(tailFin.rotation.y, tailRotationY, 0.1);
+            }
+
+            // --- Pectoral Fin Subtle Adjustment --- (Optional)
+            // Could add slight tilting based on turn direction or just subtle flutter
+            if (leftPectoral && rightPectoral) {
+                 const flutterFreq = 5.0;
+                 const flutterAmp = 0.05;
+                 leftPectoral.rotation.x = Math.sin(time * flutterFreq + 2.0) * flutterAmp;
+                 rightPectoral.rotation.x = Math.sin(time * flutterFreq + 2.5) * flutterAmp; // Slightly offset phase
+            }
+
+            // --- Basic Patrol Movement ---
+            const speed = sharkGroup.userData.speed * deltaTime;
+            const direction = sharkGroup.userData.patrolTarget.clone().sub(sharkGroup.position).normalize();
+            
+            // Smoothly turn towards target
+            const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), direction); // Assumes shark model faces +Z
+            sharkGroup.quaternion.slerp(targetQuaternion, 0.02); // Adjust slerp factor for turn speed
+
+            // Move forward
+            sharkGroup.position.addScaledVector(sharkGroup.getWorldDirection(new THREE.Vector3()), speed);
+
+            // Simple target switching
+            if (sharkGroup.position.distanceTo(sharkGroup.userData.patrolTarget) < 2.0) {
+                sharkGroup.userData.patrolTarget.set((Math.random()-0.5)*30, 0, (Math.random()-0.5)*30);
+            }
+        }
+
+
+        // --- Caustic Effect (Copied) ---
+        function createCausticTexture(size = 256) { /* ... */ causticCanvas=document.getElementById('dynamicTextureCanvas');if(!causticCanvas){causticCanvas=document.createElement('canvas');} causticCanvas.width=size; causticCanvas.height=size; causticCtx=causticCanvas.getContext('2d'); const t=new THREE.CanvasTexture(causticCanvas); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.minFilter=THREE.LinearFilter; return t;}
+        function updateCausticTexture(texture, time) { /* ... */ const s=texture.image.width; const c=causticCtx; c.fillStyle='rgb(15,15,25)'; c.fillRect(0,0,s,s); const l=4; for(let i=0;i<l;i++){ c.strokeStyle=`rgba(${180+Math.random()*50},${210+Math.random()*45},255,${0.05+Math.random()*0.05})`; c.lineWidth=Math.random()*1.5+1.; c.beginPath(); const f=(i+1)*.04+.03; const a=s*.18; const sp=(i+1)*.25+.15; const ox=Math.sin(time*sp*.6+i*2.)*s*.25; const oy=Math.cos(time*sp*.45+i*3.)*s*.25; for(let x=0;x<s;x++){ const y=Math.sin((x+ox)*f+time*sp+Math.cos(x*.03)*.5)*a+s/2+oy+Math.cos(x*.04+time*.15+i*1.5)*15; if(x===0)c.moveTo(x,y); else c.lineTo(x,y); } c.stroke(); } texture.needsUpdate=true; }
+
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x3498DB); 
+            scene.fog = new THREE.Fog(0x3498DB, 20, 60); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 150); 
+            camera.position.set(0, 5, 15); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.outputEncoding = THREE.sRGBEncoding; 
+            renderer.shadowMap.enabled = true; 
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x80B0FF, 0.5); 
+            scene.add(ambientLight);
+            const hemisphereLight = new THREE.HemisphereLight(0xB0D0FF, 0x205080, 0.4); 
+            scene.add(hemisphereLight);
+            const directionalLight = new THREE.DirectionalLight(0xFFF0D0, 1.1); 
+            directionalLight.position.set(15, 25, 20);
+            directionalLight.castShadow = true; 
+            directionalLight.shadow.camera.near = 1; directionalLight.shadow.camera.far = 80;
+            directionalLight.shadow.camera.left = -30; directionalLight.shadow.camera.right = 30; 
+            directionalLight.shadow.camera.top = 30; directionalLight.shadow.camera.bottom = -30;
+            directionalLight.shadow.mapSize.width = 1024; directionalLight.shadow.mapSize.height = 1024;
+            directionalLight.shadow.bias = -0.002; 
+            scene.add(directionalLight);
+            
+            // Caustic Setup
+            causticTexture = createCausticTexture(256); 
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 1, 0); 
+
+            // Create Example Sharks
+            for(let i=0; i<3; ++i) {
+                const shark = createShark({length: 3.5 + Math.random() * 1.5});
+                shark.position.set((Math.random()-0.5)*20, Math.random()*2, (Math.random()-0.5)*20);
+                shark.rotateY(Math.random() * Math.PI * 2);
+                scene.add(shark);
+                sharkArray.push(shark);
+            }
+
+            // Optional: Add floor for context
+            // floorMesh = createFloor(); scene.add(floorMesh); 
+
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // --- Resize Handler ---
+        function onWindowResize() { /* ... */ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+            const deltaTime = clock.getDelta();
+
+            if (causticTexture) { updateCausticTexture(causticTexture, elapsedTime); }
+
+            // Animate Sharks
+            sharkArray.forEach(shark => {
+                animateShark(shark, elapsedTime, deltaTime);
+            });
+            
+            controls.update(); 
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>

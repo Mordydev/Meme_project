@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Active Power-Up VFX</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #3498DB; }
+        canvas { display: block; }
+        #info { position: absolute; top: 10px; width: 100%; text-align: center; color: white; font-family: sans-serif; z-index: 10; }
+        #info button { margin: 5px; padding: 8px 12px; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        Controls: Arrow Keys (Move) | W/Space (Jump) | S (Dive) <br>
+        Toggle Effects:
+        <button id="shieldBtn">Shield (1)</button>
+        <button id="invisBtn">Invisibility (2)</button>
+        <button id="speedBtn">Speed Boost (3)</button>
+        <button id="magnetBtn">Magnet (4)</button>
+    </div>
+    <canvas id="dynamicTextureCanvas" style="display:none;"></canvas> 
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.module.min.js",
+          "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
+        let scene, camera, renderer, controls;
+        let characterController; 
+        let shieldEffect = null, speedBoostEffect = null, magnetAuraEffect = null;
+        const clock = new THREE.Clock();
+        const simplex = new SimplexNoise(); 
+
+        // Constants (Copied from Character Controller)
+        const LANE_WIDTH = 2.5; const LANES = [-LANE_WIDTH, 0, LANE_WIDTH]; const LANE_CHANGE_SPEED = 8.0; const JUMP_HEIGHT = 2.5; const JUMP_DURATION = 0.6; const DIVE_DEPTH = 1.5; const DIVE_DURATION = 0.5; const GRAVITY = 9.8*3;
+
+        // --- Bubbles Shaders (MODIFIED for Invisibility) ---
+        const bubblesVertexShader = `/* ... Same as Character Controller version ... */
+             varying vec3 vNormal; varying vec3 vViewPosition; varying vec3 vObjectPosition; varying vec2 vUv; 
+            void main() { vUv = uv; vNormal = normalize(normalMatrix * normal); vObjectPosition = position; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); vViewPosition = -mvPosition.xyz; gl_Position = projectionMatrix * mvPosition; }`;
+        
+        // MODIFIED bubblesFragmentShader to include uInvisibilityFactor
+        const bubblesFragmentShader_MODIFIED = `
+            uniform vec3 uBaseColor; uniform vec3 uStripeColor; uniform vec3 uBorderColor; uniform float uTime; uniform float uNoiseFactor; uniform float uIsFinOrTail;
+            uniform float uInvisibilityFactor; // *** NEW UNIFORM *** (0 = visible, 1 = invisible)
+
+            varying vec3 vNormal; varying vec3 vViewPosition; varying vec3 vObjectPosition; varying vec2 vUv;
+
+            float hashFS(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);} float noiseFS(vec2 p){vec2 i=floor(p);vec2 f=fract(p); f=f*f*(3.-2.*f);float a=hashFS(i+vec2(0,0));float b=hashFS(i+vec2(1,0));float c=hashFS(i+vec2(0,1));float d=hashFS(i+vec2(1,1));return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);} float fbmFS(vec2 p,int o,float pe){float t=0.;float f=1.;float a=1.;float mv=0.;for(int i=0;i<o;i++){t+=noiseFS(p*f)*a;mv+=a;a*=pe;f*=2.;} return t/mv;}
+            vec3 calculateLighting(vec3 n,vec3 v,vec3 l,vec3 lc,vec3 o){float d=max(dot(n,l),0.);vec3 h=normalize(l+v);float sa=max(dot(n,h),0.);float sp=20.;float s=pow(sa,sp); return(d*.7+s*.6)*o;} float smoothstep(float e0,float e1,float x){float t=clamp((x-e0)/(e1-e0),0.,1.); return t*t*(3.-2.*t);}
+
+            // Simple distortion function for invisibility
+             vec2 distort(vec2 uv, float time, float amount) {
+                 float angle = fbmFS(uv * 2.0 + time * 0.1, 3, 0.5) * 3.14159 * 2.0; // Noise determines angle
+                 float strength = fbmFS(uv * 1.5 + time * 0.2, 3, 0.5) * amount * 0.1; // Noise determines strength
+                 return uv + vec2(cos(angle), sin(angle)) * strength;
+             }
+
+
+            void main() { 
+                vec3 n=normalize(vNormal); vec3 v=normalize(vViewPosition); vec3 fc; 
+                float sn=fbmFS(vObjectPosition.xy*4.+uTime*.05,3,.4); vec3 bn=uBaseColor*(1.+(sn-.5)*uNoiseFactor); 
+                if(uIsFinOrTail<.5){ float z=vObjectPosition.z; float l=2.4; float nz=z/l*.5; float s1c=.6,s1w=.14; float s2c=0.,s2w=.14; float s3c=-.6,s3w=.14; float bw=.04; float sf=.035; float s1=smoothstep(s1c-s1w,s1c-s1w+sf,nz)-smoothstep(s1c+s1w-sf,s1c+s1w,nz); float s2=smoothstep(s2c-s2w,s2c-s2w+sf,nz)-smoothstep(s2c+s2w-sf,s2c+s2w,nz); float s3=smoothstep(s3c-s3w,s3c-s3w+sf,nz)-smoothstep(s3c+s3w-sf,s3c+s3w,nz); float b1=smoothstep(s1c-s1w-bw,s1c-s1w-bw+sf,nz)-smoothstep(s1c+s1w+bw-sf,s1c+s1w+bw,nz); float b2=smoothstep(s2c-s2w-bw,s2c-s2w-bw+sf,nz)-smoothstep(s2c+s2w+bw-sf,s2c+s2w+bw,nz); float b3=smoothstep(s3c-s3w-bw,s3c-s3w-bw+sf,nz)-smoothstep(s3c+s3w+bw-sf,s3c+s3w+bw,nz); float br=clamp(max(b1-s1,0.)+max(b2-s2,0.)+max(b3-s3,0.),0.,1.); float sr=clamp(max(s1,max(s2,s3)),0.,1.); fc=mix(bn,uStripeColor,sr); fc=mix(fc,uBorderColor,br); }else{ float tg=smoothstep(.7,.9,vUv.y); fc=mix(bn,uBorderColor,tg); } 
+                vec3 ld1=normalize(vec3(1.,1.5,.8)); vec3 lc1=vec3(1.,1.,.95); vec3 lt=calculateLighting(n,v,ld1,lc1,fc); vec3 al=vec3(.45)*fc; float rd=1.-dot(v,n); float ra=smoothstep(.15,.6,rd); vec3 rc=uBaseColor*1.2*ra*.7; 
+                vec4 finalColor = vec4(al+lt+rc,1.); 
+
+                // --- INVISIBILITY LOGIC ---
+                 if (uInvisibilityFactor > 0.0) {
+                     // Calculate distortion based on screen position (if possible) or world pos
+                     // Using world pos for simplicity here:
+                     vec2 distortedUV = distort(vWorldPosition.xy * 0.1, uTime, uInvisibilityFactor);
+                     float distortionNoise = noiseFS(distortedUV * 5.0);
+
+                     // Reduce alpha based on factor and add noise
+                     finalColor.a *= (1.0 - uInvisibilityFactor * 0.8); // Max 80% invisible
+                     finalColor.a *= (0.5 + distortionNoise * 0.5); // Flicker alpha
+
+                     // Slightly distort color too
+                     finalColor.rgb += (distortionNoise - 0.5) * 0.2 * uInvisibilityFactor;
+                     
+                     // Make it slightly more emissive/less affected by light when invisible
+                     finalColor.rgb = mix(finalColor.rgb, fc * 0.8, uInvisibilityFactor * 0.5); 
+                 }
+                 // Clamp alpha just in case
+                 finalColor.a = clamp(finalColor.a, 0.0, 1.0);
+
+
+                gl_FragColor = finalColor;
+            }
+        `;
+
+
+        // --- Shield Effect Shaders ---
+        const shieldVertexShader = `
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            varying float vFresnelFactor;
+            uniform float uTime;
+            uniform float uNoiseAmount; // How much noise deforms the shield
+
+            void main() {
+                vec3 pos = position;
+                
+                // Noise deformation
+                float noise = simplex.noise3D(
+                    pos.x * 2.0 + uTime * 0.3,
+                    pos.y * 2.0 + uTime * 0.4,
+                    pos.z * 2.0 + uTime * 0.2
+                ) * uNoiseAmount;
+                pos += normal * noise; // Displace along normal
+
+                vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+                vWorldPosition = worldPos.xyz;
+                vec4 mvPosition = viewMatrix * worldPos; // Use viewMatrix directly
+
+                vNormal = normalize( normalMatrix * normal );
+
+                // Fresnel calculation (adjust power for shield look)
+                vec3 viewVector = normalize( mvPosition.xyz );
+                vFresnelFactor = pow( 1.0 + dot( viewVector, vNormal ), 4.0 ); 
+
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+        const shieldFragmentShader = `
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            varying float vFresnelFactor;
+            uniform float uTime;
+            uniform vec3 uColor;
+            uniform float uOpacity;
+            uniform float uPulseIntensity;
+
+             float hashFS(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);} float noiseFS(vec2 p){/* ... */ vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.-2.*f); float a=hashFS(i+vec2(0,0)); float b=hashFS(i+vec2(1,0)); float c=hashFS(i+vec2(0,1)); float d=hashFS(i+vec2(1,1)); return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
+
+            void main() {
+                 // --- Fresnel Edge ---
+                 float fresnel = smoothstep(0.0, 1.0, vFresnelFactor) * 0.8 + 0.2; // Bias towards brighter edge
+
+                 // --- Pulsating Opacity/Glow ---
+                 float pulse = sin(uTime * 4.0) * 0.5 + 0.5; // Faster pulse
+                 float glow = (0.5 + pulse * uPulseIntensity);
+
+                 // --- Noise Pattern (Hex Grid look) ---
+                 vec2 coord = vWorldPosition.xy * 2.5 + vec2(uTime * 0.1, -uTime*0.05); // Moving noise coords
+                 float hexNoise = noiseFS(coord) + 0.5 * noiseFS(coord*2.0) + 0.25 * noiseFS(coord*4.0); // FBM
+                 // Create hexagon shapes using smoothstep on noise value
+                 float hexPattern = smoothstep(0.45, 0.5, abs(fract(hexNoise * 6.0) * 2.0 - 1.0)); // Creates lines
+
+                 // --- Color & Opacity ---
+                 vec3 baseColor = uColor * glow * fresnel;
+                 float baseAlpha = uOpacity * glow * fresnel;
+                 
+                 // Combine base with hex pattern
+                 vec3 finalColor = mix(baseColor * 0.5, baseColor * 1.2, hexPattern); // Make hex lines brighter
+                 float finalAlpha = mix(baseAlpha * 0.3, baseAlpha, hexPattern); // Make hex lines more opaque
+
+                 gl_FragColor = vec4(finalColor, finalAlpha);
+                  gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2));
+            }
+        `;
+
+        // --- Speed Boost Particle Shaders ---
+        const speedParticleVertexShader = `
+            attribute float aLifetime;  // How long the particle has been alive (0 to 1)
+            attribute vec3 aVelocity;  // Initial velocity (direction)
+            varying float vLifetime;
+
+            uniform float uTime; // Not directly used here, but good practice
+            uniform float uTravelDistance; // How far particles travel
+            
+            void main() {
+                vLifetime = aLifetime;
+                
+                // Position moves from origin along velocity direction based on lifetime
+                vec3 pos = position + aVelocity * uTravelDistance * aLifetime; 
+                
+                // Fade size based on lifetime (start small, end small)
+                float sizeFactor = sin(aLifetime * 3.14159); // Sine curve (0 -> 1 -> 0)
+                
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                
+                // Make particle face camera (Billboard) - simple version scales by distance
+                float pointSize = 3.0 * sizeFactor; // Base size * lifetime factor
+                gl_PointSize = pointSize * ( 300.0 / -mvPosition.z ); // Adjust size based on distance
+                
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+         const speedParticleFragmentShader = `
+            varying float vLifetime; // Receive lifetime (0 to 1)
+            uniform vec3 uColor;
+            
+            void main() {
+                // Fade alpha based on lifetime (fade in quickly, fade out slowly)
+                float alpha = smoothstep(0.0, 0.2, vLifetime) * (1.0 - smoothstep(0.5, 1.0, vLifetime));
+
+                // Optional: Make center brighter
+                 float dist = length(gl_PointCoord - vec2(0.5)); // Distance from center (0 to 0.5)
+                 float strength = 1.0 - smoothstep(0.0, 0.5, dist); // Brighter center
+
+                gl_FragColor = vec4(uColor * strength * 1.5, alpha * 0.8); // Apply alpha and brightness
+            }
+        `;
+
+        // --- Magnet Aura Shaders (Simple version using shield shaders) ---
+        // Can reuse shieldVertexShader and shieldFragmentShader with different uniforms
+
+
+        // --- Geometry & Material Creation --- (Bubbles parts copied)
+        function createBubblesBodyGeometry(){/*...*/} function createPectoralFinGeometry(){/*...*/} function createTailGeometry(){/*...*/} function createDorsalFinGeometry(){/*...*/} function createPelvicFinGeometry(){/*...*/}
+         function createBubblesMaterial(isFinOrTail=false) { 
+             const m=new THREE.ShaderMaterial({vertexShader:bubblesVertexShader,fragmentShader:bubblesFragmentShader_MODIFIED,uniforms:THREE.UniformsUtils.merge([{uTime:{value:0.},uBaseColor:{value:new THREE.Color(0xFF7000)},uStripeColor:{value:new THREE.Color(0xFFFFFF)},uBorderColor:{value:new THREE.Color(0x0A0A0A)},uNoiseFactor:{value:.08},uIsFinOrTail:{value:isFinOrTail?1.:0.},uInvisibilityFactor:{value:0.}}]),lights:false}); 
+             return isFinOrTail?m.clone():m; 
+         }
+        function createBubblesCharacter(){/*... Same assembly using the MODIFIED material func ... */ 
+            const grp=new THREE.Group(); const bG=createBubblesBodyGeometry(); const bM=createBubblesMaterial(false); const b=new THREE.Mesh(bG,bM); grp.add(b); grp.userData.bodyMaterial=bM; const pFG=createPectoralFinGeometry(); const pFM=createBubblesMaterial(true); const lF=new THREE.Mesh(pFG,pFM); lF.position.set(.6,-.05,.35); lF.rotation.y=Math.PI/6; lF.rotation.z=-Math.PI/8; grp.add(lF); grp.userData.leftFin=lF; const rF=new THREE.Mesh(pFG,pFM.clone()); rF.position.x*=-1; rF.rotation.y*=-1; grp.add(rF); grp.userData.rightFin=rF; const tG=createTailGeometry(); const tM=createBubblesMaterial(true); const t=new THREE.Mesh(tG,tM); t.position.set(0,.1,-1.15); t.rotation.x=Math.PI/2; grp.add(t); grp.userData.tail=t; const dFG=createDorsalFinGeometry(); const dFM=createBubblesMaterial(true); const dF=new THREE.Mesh(dFG,dFM); dF.position.set(0,.55,-.1); dF.rotation.y=Math.PI/2; grp.add(dF); grp.userData.dorsalFin=dF; const pvFG=createPelvicFinGeometry(); const pvFM=createBubblesMaterial(true); const lPF=new THREE.Mesh(pvFG,pvFM); lPF.position.set(.25,-.45,.1); lPF.rotation.y=-Math.PI/12; lPF.rotation.z=Math.PI/10; grp.add(lPF); grp.userData.leftPelvicFin=lPF; const rPF=new THREE.Mesh(pvFG,pvFM.clone()); rPF.position.x*=-1; rPF.rotation.y*=-1; grp.add(rPF); grp.userData.rightPelvicFin=rPF; const eG=new THREE.SphereGeometry(.16,24,18); const eM=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.1,metalness:0}); const lE=new THREE.Mesh(eG,eM); lE.position.set(.4,.18,.85); grp.add(lE); const pG=new THREE.SphereGeometry(.075,18,14); const pM=new THREE.MeshStandardMaterial({color:0x050505}); const lP=new THREE.Mesh(pG,pM); lP.position.z=.14; lE.add(lP); const rE=lE.clone(); rE.position.x*=-1; grp.add(rE); grp.userData.leftPupil=lP; grp.userData.rightPupil=rE.children[0]; 
+            
+            // Store references to all materials that need invisibility uniform updated
+             grp.userData.invisibilityMaterials = [bM, pFM, rF.material, tM, dFM, pvFM, rPF.material];
+
+            return grp;
+        }
+
+        // --- VFX Creation Functions ---
+        function createShieldEffect() {
+             const geometry = new THREE.IcosahedronGeometry(1.4, 3); // Slightly larger than char, more detail
+             const material = new THREE.ShaderMaterial({
+                 vertexShader: shieldVertexShader,
+                 fragmentShader: shieldFragmentShader,
+                 uniforms: {
+                     uTime: { value: 0.0 },
+                     uColor: { value: new THREE.Color(0x00BFFF) }, // DeepSkyBlue
+                     uOpacity: { value: 0.4 },
+                     uPulseIntensity: { value: 0.6 },
+                     uNoiseAmount: { value: 0.05 }
+                 },
+                 transparent: true,
+                 depthWrite: false,
+                 side: THREE.BackSide // Render inner side for effect contained within
+             });
+             const mesh = new THREE.Mesh(geometry, material);
+             mesh.userData.isShield = true; // Flag for identification
+             return mesh;
+        }
+
+        function createSpeedBoostParticles(count = 50, color = 0xFFD700) {
+            const geometry = new THREE.BufferGeometry(); // We only need position
+            const positions = new Float32Array(count * 3); // x, y, z for each particle origin (usually 0,0,0)
+            const lifetimes = new Float32Array(count); // Lifetime [0, 1]
+            const velocities = new Float32Array(count * 3); // Initial velocity direction
+
+            // Initialize particles (all at origin, hidden initially)
+            for (let i = 0; i < count; i++) {
+                 positions[i*3] = 0; positions[i*3+1] = 0; positions[i*3+2] = 0;
+                 lifetimes[i] = 1.1; // Start > 1 to be initially hidden/inactive
+                 velocities[i*3] = 0; velocities[i*3+1] = 0; velocities[i*3+2] = -1; // Default velocity backwards
+            }
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('aLifetime', new THREE.InstancedBufferAttribute(lifetimes, 1)); // Use Instanced for efficiency if updating often, else BufferAttribute ok
+            geometry.setAttribute('aVelocity', new THREE.InstancedBufferAttribute(velocities, 3));
+
+            const material = new THREE.ShaderMaterial({
+                vertexShader: speedParticleVertexShader,
+                fragmentShader: speedParticleFragmentShader,
+                uniforms: {
+                    uTime: { value: 0.0 },
+                    uColor: { value: new THREE.Color(color) },
+                    uTravelDistance: { value: 5.0 } // How far particles travel
+                },
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending // Make particles glow brightly
+            });
+
+            const points = new THREE.Points(geometry, material);
+            points.userData.particles = []; // Array to manage particle state
+             for (let i = 0; i < count; i++) {
+                 points.userData.particles.push({ 
+                     lifetime: 1.1, // Start inactive
+                     velocity: new THREE.Vector3(0, 0, -1) 
+                 });
+             }
+            points.userData.spawnTimer = 0;
+            points.userData.spawnRate = 0.02; // Time between spawns
+            points.userData.isSpeedBoost = true;
+            return points;
+        }
+
+        function createMagnetAura() {
+            // Reuse shield geometry/shader but with different uniforms for a subtle pulse
+             const geometry = new THREE.IcosahedronGeometry(1.3, 2); // Slightly smaller than shield
+             const material = new THREE.ShaderMaterial({
+                 vertexShader: shieldVertexShader, // Reuse shield VS
+                 fragmentShader: shieldFragmentShader, // Reuse shield FS
+                 uniforms: {
+                     uTime: { value: 0.0 },
+                     uColor: { value: new THREE.Color(0xFF4500) }, // Magnet OrangeRed
+                     uOpacity: { value: 0.15 }, // Much lower base opacity
+                     uPulseIntensity: { value: 0.2 }, // Very subtle pulse
+                     uNoiseAmount: { value: 0.02 } // Very subtle deformation
+                 },
+                 transparent: true,
+                 depthWrite: false,
+                 side: THREE.FrontSide // Render outer side for aura
+             });
+             const mesh = new THREE.Mesh(geometry, material);
+             mesh.userData.isMagnetAura = true;
+             return mesh;
+        }
+
+        // --- VFX Management ---
+        function activateShield(character) {
+             if (!shieldEffect) {
+                 shieldEffect = createShieldEffect();
+                 character.add(shieldEffect); // Attach to character group
+             }
+        }
+        function deactivateShield(character) {
+            if (shieldEffect) {
+                 character.remove(shieldEffect);
+                 shieldEffect.geometry.dispose();
+                 shieldEffect.material.dispose();
+                 shieldEffect = null;
+            }
+        }
+
+         function applyInvisibilityEffect(character, factor = 1.0) {
+             if(character.userData.invisibilityMaterials) {
+                 character.userData.invisibilityMaterials.forEach(mat => {
+                     if(mat?.uniforms?.uInvisibilityFactor) {
+                         mat.uniforms.uInvisibilityFactor.value = factor;
+                         mat.needsUpdate = true; // Might be needed for uniform changes
+                     }
+                 });
+                 // Optionally make eyes semi-transparent too? Requires accessing their materials.
+             }
+         }
+         function removeInvisibilityEffect(character) {
+             applyInvisibilityEffect(character, 0.0); // Set factor to 0
+         }
+        
+        function activateSpeedBoost(character) {
+            if (!speedBoostEffect) {
+                speedBoostEffect = createSpeedBoostParticles();
+                 // Position slightly behind the character
+                 speedBoostEffect.position.z = -1.0; 
+                character.add(speedBoostEffect);
+            }
+             speedBoostEffect.userData.isActive = true;
+        }
+         function deactivateSpeedBoost(character) {
+              if (speedBoostEffect) {
+                 speedBoostEffect.userData.isActive = false; 
+                 // Don't remove immediately, let existing particles fade out
+                 // Consider removing after a delay if no particles are active
+              }
+         }
+        function updateSpeedBoostParticles(particles, time, deltaTime, characterDirection) {
+            if (!particles) return;
+            
+            particles.userData.spawnTimer -= deltaTime;
+            const canSpawn = particles.userData.isActive && particles.userData.spawnTimer <= 0;
+            let spawnedThisFrame = false;
+
+            const lifetimeAttr = particles.geometry.getAttribute('aLifetime');
+            const velocityAttr = particles.geometry.getAttribute('aVelocity');
+            const particleStates = particles.userData.particles;
+            const baseVelocity = characterDirection.clone().negate().multiplyScalar(5.0); // Base speed backwards
+
+            for (let i = 0; i < particleStates.length; i++) {
+                 let p = particleStates[i];
+                 p.lifetime += deltaTime * 0.8; // Particle lifetime duration factor
+
+                 if (p.lifetime < 1.0) { // If active
+                     lifetimeAttr.setX(i, p.lifetime);
+                     // Optional: Update velocity slightly over time? (e.g. slow down)
+                 } else { // If inactive/dead
+                     if (canSpawn && !spawnedThisFrame) { // Spawn a new one?
+                         p.lifetime = 0; // Reset lifetime
+                         // Set initial velocity relative to character direction + some randomness
+                         p.velocity.copy(baseVelocity)
+                             .add(new THREE.Vector3(
+                                 (Math.random()-0.5)*2.0, 
+                                 (Math.random()-0.5)*2.0, 
+                                 (Math.random()-0.5)*0.5 
+                             )).normalize(); 
+                         
+                         lifetimeAttr.setX(i, p.lifetime);
+                         velocityAttr.setXYZ(i, p.velocity.x, p.velocity.y, p.velocity.z);
+                         
+                         spawnedThisFrame = true; // Only spawn one per frame ideally
+                         particles.userData.spawnTimer = particles.userData.spawnRate; // Reset timer
+                     } else {
+                         lifetimeAttr.setX(i, 1.1); // Ensure it stays hidden
+                     }
+                 }
+            }
+            lifetimeAttr.needsUpdate = true;
+            velocityAttr.needsUpdate = spawnedThisFrame; // Only update velocity if spawned
+        }
+
+
+        function activateMagnetAura(character) {
+             if (!magnetAuraEffect) {
+                 magnetAuraEffect = createMagnetAura();
+                 character.add(magnetAuraEffect); 
+             }
+        }
+        function deactivateMagnetAura(character) {
+            if (magnetAuraEffect) {
+                 character.remove(magnetAuraEffect);
+                 magnetAuraEffect.geometry.dispose();
+                 magnetAuraEffect.material.dispose();
+                 magnetAuraEffect = null;
+            }
+        }
+
+
+        // --- Character Controller (Copied & adapted slightly for VFX toggles) ---
+        class CharacterController { /* ... Same as previous version ... */ 
+            constructor(characterMesh){this.mesh=characterMesh; this.state='SWIMMING'; this.currentLane=1; this.targetLane=1; this.targetX=LANES[1]; this.actionTime=0; this.jumpStartY=0; this.jumpVelocity=Math.sqrt(2*GRAVITY*JUMP_HEIGHT); this.baseSwimParams={tailSwayFreq:2.8,tailSwayAmp:.75,finFlutterFreq:6.5,finFlutterAmp:.55}; this.keys={}; this.activePowerups={shield:false,invisibility:false,speedBoost:false,magnet:false}; document.addEventListener('keydown',(e)=>this.keys[e.code]=true); document.addEventListener('keyup',(e)=>{this.keys[e.code]=false;this.handleKeyRelease(e.code);});} // Add powerup state & key release handler
+            canAct(){return this.state==='SWIMMING';}
+            changeLane(d){if(!this.canAct())return; const nl=THREE.MathUtils.clamp(this.currentLane+d,0,2); if(nl!==this.currentLane){this.targetLane=nl;this.targetX=LANES[nl];this.state='LANE_CHANGING';}}
+            jump(){if(!this.canAct())return; this.state='JUMPING'; this.actionTime=0; this.jumpStartY=this.mesh.position.y;}
+            dive(){if(!this.canAct())return; this.state='DIVING'; this.actionTime=0;}
+            
+            // Toggle powerups (simple toggle for demo)
+            handleKeyRelease(code) {
+                 switch(code) {
+                     case 'Digit1': this.togglePowerup('shield'); break;
+                     case 'Digit2': this.togglePowerup('invisibility'); break;
+                     case 'Digit3': this.togglePowerup('speedBoost'); break;
+                     case 'Digit4': this.togglePowerup('magnet'); break;
+                 }
+            }
+            togglePowerup(type) {
+                this.activePowerups[type] = !this.activePowerups[type];
+                console.log("Toggled", type, ":", this.activePowerups[type]);
+                this.updateVFX(); // Update visuals immediately
+            }
+            updateVFX() {
+                 // Shield
+                 if(this.activePowerups.shield && !shieldEffect) activateShield(this.mesh);
+                 else if (!this.activePowerups.shield && shieldEffect) deactivateShield(this.mesh);
+                 // Invisibility
+                 applyInvisibilityEffect(this.mesh, this.activePowerups.invisibility ? 1.0 : 0.0);
+                 // Speed Boost
+                 if(this.activePowerups.speedBoost && !speedBoostEffect) activateSpeedBoost(this.mesh);
+                 else if (!this.activePowerups.speedBoost && speedBoostEffect) deactivateSpeedBoost(this.mesh);
+                 // Magnet
+                 if(this.activePowerups.magnet && !magnetAuraEffect) activateMagnetAura(this.mesh);
+                 else if (!this.activePowerups.magnet && magnetAuraEffect) deactivateMagnetAura(this.mesh);
+            }
+
+            update(time,deltaTime){ let tr=0; let tp=0; if(this.keys['ArrowLeft']||this.keys['KeyA'])this.changeLane(-1); if(this.keys['ArrowRight']||this.keys['KeyD'])this.changeLane(1); if(this.keys['ArrowUp']||this.keys['KeyW']||this.keys['Space'])this.jump(); if(this.keys['ArrowDown']||this.keys['KeyS'])this.dive(); this.keys={}; switch(this.state){case 'LANE_CHANGING': const dx=this.targetX-this.mesh.position.x; const mx=Math.sign(dx)*LANE_CHANGE_SPEED*deltaTime; const rd=-Math.sign(dx); const p=1.-Math.abs(dx)/LANE_WIDTH; tr=rd*Math.sin(p*Math.PI)*.5; if(Math.abs(dx)<Math.abs(mx)){this.mesh.position.x=this.targetX;this.currentLane=this.targetLane;this.state='SWIMMING';tr=0;}else{this.mesh.position.x+=mx;} break; case 'JUMPING': this.actionTime+=deltaTime; const jy=this.jumpStartY+this.jumpVelocity*this.actionTime-.5*GRAVITY*this.actionTime*this.actionTime; this.mesh.position.y=jy; const vv=this.jumpVelocity-GRAVITY*this.actionTime; tp=Math.atan(vv*.1)*.8; if(this.actionTime>.1&&jy<=this.jumpStartY){this.mesh.position.y=this.jumpStartY;this.state='SWIMMING';tp=0;} break; case 'DIVING': this.actionTime+=deltaTime; const dp=this.actionTime/DIVE_DURATION; const dy=-Math.sin(Math.min(dp,1.)*Math.PI)*DIVE_DEPTH; this.mesh.position.y=this.jumpStartY+dy; tp=-Math.sin(Math.min(dp,1.)*Math.PI)*.6; if(dp>=1.){this.mesh.position.y=this.jumpStartY;this.state='SWIMMING';tp=0;} break; case 'SWIMMING': this.mesh.position.x=THREE.MathUtils.lerp(this.mesh.position.x,LANES[this.currentLane],.1); tr=0; tp=0; break; } this.mesh.rotation.z=THREE.MathUtils.lerp(this.mesh.rotation.z,tr,.1); this.mesh.rotation.x=THREE.MathUtils.lerp(this.mesh.rotation.x,tp,.1); this.animateAmbient(time,deltaTime); }
+            animateAmbient(t,dt){const c=this.mesh; const m=[c.userData.bodyMaterial,c.userData.leftFin?.material,c.userData.rightFin?.material,c.userData.tail?.material,c.userData.dorsalFin?.material,c.userData.leftPelvicFin?.material,c.userData.rightPelvicFin?.material]; m.forEach(mt=>{if(mt?.uniforms?.uTime)mt.uniforms.uTime.value=t;}); let tam=1.; let ffm=1.; if(this.state==='LANE_CHANGING')tam=1.5; if(this.state==='JUMPING'||this.state==='DIVING')ffm=1.3; const tf=this.baseSwimParams.tailSwayFreq; const ta=this.baseSwimParams.tailSwayAmp*tam; const ff=this.baseSwimParams.finFlutterFreq*ffm; const fa=this.baseSwimParams.finFlutterAmp; const ds=1.2,da=.06; const pf=7.,pa=.2; const tail=c.userData.tail; if(tail){tail.rotation.y=Math.sin(t*tf)*ta;} const lf=c.userData.leftFin; const rf=c.userData.rightFin; if(lf&&rf){const fa=Math.sin(t*ff+.2)*fa; lf.rotation.y=Math.PI/6+fa; rf.rotation.y=-Math.PI/6-fa;} const df=c.userData.dorsalFin; if(df){df.rotation.z=Math.sin(t*ds+.5)*da;} const lpf=c.userData.leftPelvicFin; const rpf=c.userData.rightPelvicFin; if(lpf&&rpf){const pa=Math.sin(t*pf+.8)*pa; lpf.rotation.y=-Math.PI/12+pa; rpf.rotation.y=Math.PI/12-pa;}}
+        }
+
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x3498DB); 
+            scene.fog = new THREE.Fog(0x3498DB, 15, 40); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100); 
+            camera.position.set(0, 2.5, 6); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.outputEncoding = THREE.sRGBEncoding; 
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x90B0FF, 0.6); 
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 0.9); 
+            directionalLight.position.set(5, 10, 7);
+            scene.add(directionalLight);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 0.5, 0); 
+
+            // Create Character and Controller
+            const bubblesMesh = createBubblesCharacter();
+            bubblesMesh.position.set(0, 0.5, 0); // Start slightly higher
+            scene.add(bubblesMesh);
+            characterController = new CharacterController(bubblesMesh);
+
+            // Setup UI Buttons
+            document.getElementById('shieldBtn').onclick = () => characterController.togglePowerup('shield');
+            document.getElementById('invisBtn').onclick = () => characterController.togglePowerup('invisibility');
+            document.getElementById('speedBtn').onclick = () => characterController.togglePowerup('speedBoost');
+            document.getElementById('magnetBtn').onclick = () => characterController.togglePowerup('magnet');
+             document.addEventListener('keydown', (e) => { // Also handle num keys
+                 if(e.code === 'Digit1') characterController.togglePowerup('shield');
+                 if(e.code === 'Digit2') characterController.togglePowerup('invisibility');
+                 if(e.code === 'Digit3') characterController.togglePowerup('speedBoost');
+                 if(e.code === 'Digit4') characterController.togglePowerup('magnet');
+             });
+
+
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // --- Resize Handler ---
+        function onWindowResize() { /* ... */ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+            const deltaTime = clock.getDelta();
+
+            if (characterController) {
+                 characterController.update(elapsedTime, deltaTime);
+            }
+            
+            // Update Active VFX
+             if(shieldEffect?.material?.uniforms?.uTime) shieldEffect.material.uniforms.uTime.value = elapsedTime;
+             if(magnetAuraEffect?.material?.uniforms?.uTime) magnetAuraEffect.material.uniforms.uTime.value = elapsedTime;
+             if(speedBoostEffect) {
+                 const charDir = characterController ? characterController.mesh.getWorldDirection(new THREE.Vector3()) : new THREE.Vector3(0,0,1);
+                 updateSpeedBoostParticles(speedBoostEffect, elapsedTime, deltaTime, charDir);
+                 // Update shader time if needed (though it's often not for simple particle shaders)
+                  if(speedBoostEffect.material?.uniforms?.uTime) speedBoostEffect.material.uniforms.uTime.value = elapsedTime;
+             }
+
+
+            controls.update(); 
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>

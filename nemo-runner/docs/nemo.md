@@ -1,4 +1,100 @@
-# $NEMO (Finding Nemo) Sub-Ecosystem: Strategic Framework & Implementation Plan
+**Drizzle Configuration:**
+```typescript
+// drizzle.config.ts
+import { defineConfig } from 'drizzle-kit';
+import 'dotenv/config';
+
+export default defineConfig({
+  schema: './db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+  // For optimized migrations with Neon
+  verbose: true,
+  strict: true,
+});
+```
+
+**Migration Management:**
+- Database schema versioned in git repository
+- Migrations generated with `drizzle-kit generate`
+- Migrations applied using `drizzle-kit push`
+- CI/CD pipeline integration for automated migrations
+- Branching support for development/staging environments
+- Snapshot creation for schema versioning
+- Type-safe database access throughout the application**Sample Database Schema Implementation:**
+```typescript
+// db/schema.ts
+import { pgTable, serial, integer, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+
+// Users table (extends Clerk user data)
+export const users = pgTable('users', {
+  id: text('id').primaryKey(), // Clerk user ID
+  username: text('username').notNull().unique(),
+  walletAddress: text('wallet_address'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Game scores table
+export const scores = pgTable('scores', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  score: integer('score').notNull(),
+  distance: integer('distance').notNull(),
+  playedAt: timestamp('played_at').defaultNow().notNull(),
+  environment: text('environment'), // which environment was played
+  verified: boolean('verified').default(true),
+});
+
+// Leaderboard materialized views (refreshed on schedule)
+export const dailyLeaderboard = pgTable('daily_leaderboard_view', {
+  userId: text('user_id').notNull(),
+  username: text('username').notNull(),
+  highScore: integer('high_score').notNull(),
+  rank: integer('rank').notNull(),
+});
+
+// Generated types for type-safe queries
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type Score = typeof scores.$inferSelect;
+export type NewScore = typeof scores.$inferInsert;
+```
+
+```typescript
+// db/index.ts
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import * as schema from './schema';
+
+// For serverless environments (production)
+const sql = neon(process.env.DATABASE_URL!);
+export const db = drizzle(sql, { schema });
+
+// Utility for submitting scores
+export async function submitScore(newScore: schema.NewScore) {
+  return db.insert(schema.scores).values(newScore).returning();
+}
+
+// Utility for fetching leaderboards
+export async function getDailyLeaderboard(limit = 10) {
+  return db.query.dailyLeaderboard.findMany({
+    orderBy: (scores, { asc }) => [asc(scores.rank)],
+    limit,
+  });
+}
+```**Database Management (Drizzle ORM & Neon PostgreSQL)**
+- Drizzle ORM 0.43.1+ for TypeScript-first database interactions
+- Integration with Neon PostgreSQL 16 using the optimized neon-http driver
+- Type-safe schema definitions with pgTable for complete type inference
+- Efficient database migrations managed through drizzle-kit
+- Server-side connection pooling for improved performance
+- Support for both SQL-like query building and ORM-style queries
+- Automatic connection management with scale-to-zero capabilities
+- Environmental configuration for both development and production
+- Schema versioning with proper migration tracking# $NEMO (Finding Nemo) Sub-Ecosystem: Strategic Framework & Implementation Plan
 
 ## Executive Summary
 
@@ -436,26 +532,31 @@ For complete details on game mechanics, obstacles, power-ups, environments, anim
 ### 2. Game Development & Implementation
 
 **Technology Stack:**
-- **Framework**: Next.js for application structure
-- **Rendering Engine**: Three.js for 2.5D game visualization
-- **Authentication**: Clerk for user account management
-- **Database**: Supabase or Neon PostgreSQL for data storage
+- **Framework**: Next.js 15.3.1+ (App Router) for application structure
+- **Rendering Engine**: Three.js 0.176.0+ for 2.5D game visualization
+- **Authentication**: Clerk (latest API version 2025-04-10) for user account management
+- **Database**: Neon PostgreSQL 16 for serverless, scalable data storage
 - **Storage**: Vercel Blob for media storage
 - **Hosting**: Vercel for seamless Next.js deployment
 
 **Next.js Implementation Benefits:**
-- API routes for leaderboards, authentication, and game state
+- API routes and Server Actions for leaderboards, authentication, and game state
 - Seamless integration with Vercel Blob storage
-- Server components for efficient data handling
-- File-based routing for simplified navigation
-- Built-in optimization tools for performance
+- React Server Components for efficient data handling
+- App Router with file-based routing for simplified navigation
+- Built-in optimization tools for performance including Turbopack
+- Support for React 19 features with asynchronous request APIs
 
 **Three.js Implementation Approach:**
-- 2.5D visualization (3D visuals with constrained movement)
-- Optimized performance for both mobile and desktop
-- Efficient asset loading and management
+- 2.5D visualization (3D visuals with constrained movement paths)
+- Performance optimizations including:
+  - Level-of-Detail (LOD) for distant objects
+  - Object pooling for obstacles and collectibles
+  - Geometry instancing for repeated elements
+  - Occlusion culling for efficient rendering
+- WebGL 2.0 rendering for modern browsers (with WebGL 1.0 fallback)
 - Physics implementation for fluid underwater movement
-- Responsive design for various device capabilities
+- Adaptive quality settings for various device capabilities
 
 **Game Architecture Components:**
 - Core game engine with obstacle and scoring systems
@@ -949,30 +1050,35 @@ The unique combination of nostalgic underwater visuals with skill-based gameplay
 - Asset loading optimization for performance
 
 **Authentication Flow (Clerk)**
-- Sign-up/login via email, social providers
-- JWT token management
-- Protected routes for authenticated features
-- User profile data management
-- Session persistence
+- Sign-up/login via email, social providers, and Google One Tap
+- JWT token management with Clerk's latest API (2025-04-10)
+- Protected routes using Clerk's latest middleware for Next.js
+- User profile data management with Clerk's unstyled UI primitives (Clerk Elements)
+- Session persistence and management with active device monitoring
+- Enhanced security features including breach detection and unfamiliar device notifications
 
-**Database Schema (Supabase/Neon PostgreSQL)**
+**Database Schema (Neon PostgreSQL 16)**
 - Users table linked to Clerk authentication
 - Scores table with timestamps and verification data
-- Leaderboard views for different timeframes
-- User preferences and settings
+- Materialized views for efficient leaderboard queries (daily, weekly, monthly, all-time)
+- User preferences and game settings
 - Social connections and messaging data
+- Automatic scaling with compute that scales to zero during inactivity
+- Branching capability for development/staging environments
+- Enhanced security with data encryption at rest
 
 **Meme Generator Implementation**
-- GPT-4o API integration for image transformation
-- Simple upload interface for user images
-- Two transformation options:
+- GPT-4o native image generation API for consistent, high-quality transformations
+- Simple upload interface for user images (drag-and-drop or file selection)
+- Two transformation options with toggle selection:
   - Standard Pixarfication style
-  - Nemo-inspired underwater style
-- Backend prompt engineering (invisible to users)
-- Daily limit tracking (10 per registered user)
-- Canvas-based editing for optional text/stickers
-- Save to Vercel Blob storage
-- Social sharing integration
+  - Nemo-inspired underwater style with coral and marine elements
+- Backend prompt engineering using optimized, tested prompts (invisible to users)
+- Daily limit tracking (10 per registered user) with database persistence
+- Optional canvas-based text overlay and sticker additions using fabric.js
+- Efficient storage in Vercel Blob with metadata in Neon PostgreSQL
+- One-click social sharing to X, Discord, and Telegram
+- Personal library for saved and generated memes
 
 ## Appendix C: Game Control Implementation
 

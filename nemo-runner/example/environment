@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High Quality Procedural Underwater Environment</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #3498DB; } /* Match character BG */
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="dynamicTextureCanvas" style="display:none;"></canvas> 
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.module.min.js",
+          "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
+        let scene, camera, renderer, controls;
+        let floorMesh;
+        let causticLight, causticTexture, causticCanvas, causticCtx;
+        const clock = new THREE.Clock();
+        const simplex = new SimplexNoise();
+        const environmentObjects = new THREE.Group(); 
+        const raycaster = new THREE.Raycaster(); // Reusable raycaster
+        const UP_VECTOR = new THREE.Vector3(0, 1, 0);
+
+        // --- Noise Functions (Shared) ---
+        // Hash function for pseudo-randomness
+        function hash(p) { 
+            let p_ = new THREE.Vector2(p.dot(new THREE.Vector2(127.1,311.7)), p.dot(new THREE.Vector2(269.5,183.3)));
+            return -1.0 + 2.0 * new THREE.Vector2(Math.fract(Math.sin(p_.x)*43758.5453123), Math.fract(Math.sin(p_.y)*43758.5453123));
+        }
+        // Value noise function
+        function noise(p) {
+            let i = p.clone().floor();
+            let f = p.clone().fract();
+            let u = f.clone().multiply(f).multiplyScalar(3.0).addScaledVector(f.clone().multiply(f).multiplyScalar(-2.0), 1.0); // Smoothstep f*f*(3.0-2.0*f)
+
+            let h00 = hash(i);
+            let h10 = hash(i.clone().add(new THREE.Vector2(1.0, 0.0)));
+            let h01 = hash(i.clone().add(new THREE.Vector2(0.0, 1.0)));
+            let h11 = hash(i.clone().add(new THREE.Vector2(1.0, 1.0)));
+
+            let r1 = h00.clone().addScaledVector(h10.clone().sub(h00), u.x); // mix(h00, h10, u.x)
+            let r2 = h01.clone().addScaledVector(h11.clone().sub(h01), u.x); // mix(h01, h11, u.x)
+            
+            return r1.clone().addScaledVector(r2.clone().sub(r1), u.y).x; // mix(r1, r2, u.y).x - return only x component
+        }
+        // Fractal Brownian Motion (FBM) - Layered noise
+        function fbm(p, octaves = 4, persistence = 0.5) {
+            let total = 0.0;
+            let frequency = 1.0;
+            let amplitude = 1.0;
+            let maxValue = 0.0; 
+            for(let i = 0; i < octaves; i++) {
+                total += noise(p.clone().multiplyScalar(frequency)) * amplitude;
+                maxValue += amplitude;
+                amplitude *= persistence;
+                frequency *= 2.0;       
+            }
+            return total / maxValue; // Normalize to roughly -1 to 1 range
+        }
+        
+
+        // --- Shaders ---
+        const floorVertexShader = `
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition; 
+            varying float vSlope; // Calculate slope based on normal
+            
+            void main() {
+                vec3 worldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+                vNormal = normalize(normalMatrix * normal); // View space normal for lighting
+                vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                vWorldPosition = worldPos.xyz;
+                
+                // Calculate slope: dot product between world normal and up vector
+                // 1.0 = flat, 0.0 = vertical cliff
+                vSlope = max(0.0, dot(worldNormal, vec3(0.0, 1.0, 0.0))); 
+                
+                gl_Position = projectionMatrix * viewMatrix * worldPos;
+            }
+        `;
+
+        const floorFragmentShader = `
+            uniform vec3 uSandColor;
+            uniform vec3 uRockColor;
+            uniform vec3 uWetSandColor; // Color for slightly lower/wetter areas
+            uniform float uTime;
+            uniform sampler2D uCausticMap; 
+            
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            varying float vSlope; // Receive slope value
+
+            // Re-declare noise functions needed in fragment shader
+             float hashFS(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+             float noiseFS(vec2 p) { 
+                vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f);
+                float a = hashFS(i + vec2(0.0, 0.0)); float b = hashFS(i + vec2(1.0, 0.0));
+                float c = hashFS(i + vec2(0.0, 1.0)); float d = hashFS(i + vec2(1.0, 1.0));
+                return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+            }
+            float fbmFS(vec2 p, int octaves, float persistence) {
+                float v = 0.0; float a = 1.0; float f = 1.0; float mv = 0.0;
+                for(int i=0; i<octaves; ++i) { v+=noiseFS(p*f)*a; mv+=a; a*=persistence; f*=2.0; }
+                return v/mv;
+            }
+
+            void main() {
+                vec3 normal = normalize(vNormal);
+                
+                // --- Base Color Determination ---
+                // Mix based on slope (flatter = more sand)
+                float slopeMix = smoothstep(0.6, 0.9, vSlope); // Adjust range for desired sand coverage on slopes
+                vec3 slopeColor = mix(uRockColor, uSandColor, slopeMix);
+                
+                // Mix based on world height (lower = wetter sand/darker rock)
+                float heightMix = smoothstep(-3.0, -1.0, vWorldPosition.y); // Adjust range based on floor position
+                vec3 baseColor = mix(slopeColor, uWetSandColor * (0.7 + uRockColor * 0.3), 1.0 - heightMix); // Mix towards wet sand/dark rock blend in lower areas
+                
+                // Add high-frequency FBM noise detail
+                float detailNoise = fbmFS(vWorldPosition.xz * 0.8, 3, 0.45); // Use XZ plane, adjust scale/octaves
+                baseColor += detailNoise * 0.08 * vec3(1.0); // Add subtle brightness variation
+
+                // --- Lighting ---
+                // Simplified Blinn-Phong style lighting
+                vec3 viewDir = normalize(-vWorldPosition + cameraPosition); // Estimate view direction
+                vec3 lightDir = normalize(vec3(0.5, 0.8, 0.4)); // Main light direction
+                float diff = max(dot(normal, lightDir), 0.0);
+                vec3 halfwayDir = normalize(lightDir + viewDir);
+                float specAngle = max(dot(normal, halfwayDir), 0.0);
+                float spec = pow(specAngle, 16.0) * (0.3 + slopeMix * 0.3); // Shinier sand, rougher rock
+                vec3 litColor = baseColor * (diff * 0.8 + 0.25) + vec3(spec * 0.4); // Base diffuse/ambient + specular
+
+                // --- Apply Caustics ---
+                // Use world XZ position to sample the scrolling caustic map
+                // Scale and add time offset for movement
+                vec2 causticUv = vWorldPosition.xz * 0.08 + vec2(uTime * 0.03, uTime * 0.02); 
+                vec3 caustics = texture2D(uCausticMap, causticUv).rgb * 0.18; // Adjust caustic intensity
+
+                gl_FragColor = vec4(litColor + caustics, 1.0);
+                gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2)); // Basic gamma correction
+            }
+        `;
+        
+        // Shared Vertex Shader for simple flora (with swaying)
+        const simpleFloraVertexShader = `
+            varying vec3 vNormal;
+            varying vec2 vUv;
+            varying vec3 vWorldPosition; // Pass world pos for caustics
+            uniform float uTime;
+            uniform float uSwayFactor; // How much it sways (0.0 = no sway)
+            uniform float uInstanceOffset; // Add unique offset per instance if using InstancedMesh
+
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                vUv = uv;
+
+                vec3 pos = position;
+                if (uSwayFactor > 0.0) {
+                    // Calculate sway based on height (pos.y) and time
+                    // Add instance offset for variation if instancing
+                    float timeOffset = uTime * 1.5 + uInstanceOffset * 10.0; 
+                    float heightFactor = pow(max(0.0, position.y), 1.2); // More sway higher up
+                    float swayAmountX = sin(timeOffset + position.y * 0.5) * heightFactor * 0.08 * uSwayFactor;
+                    float swayAmountZ = cos(timeOffset * 0.8 + position.y * 0.4) * heightFactor * 0.06 * uSwayFactor;
+                    pos.x += swayAmountX;
+                    pos.z += swayAmountZ;
+                }
+                
+                vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+                vWorldPosition = worldPos.xyz;
+
+                gl_Position = projectionMatrix * viewMatrix * worldPos;
+            }
+        `;
+
+         // Shared Simple Fragment Shader for Flora
+         const simpleFloraFragmentShader = `
+            varying vec3 vNormal;
+            varying vec2 vUv;
+            varying vec3 vWorldPosition; 
+            uniform vec3 uColor;
+            uniform sampler2D uCausticMap;
+            uniform float uTime; 
+             
+            // Noise funcs if needed for detail...
+            float hashFS(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+             float noiseFS(vec2 p) { /* ... same as floor ... */ 
+                vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f);
+                float a = hashFS(i + vec2(0.0, 0.0)); float b = hashFS(i + vec2(1.0, 0.0));
+                float c = hashFS(i + vec2(0.0, 1.0)); float d = hashFS(i + vec2(1.0, 1.0));
+                return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+            }
+
+            void main() {
+                vec3 normal = normalize(vNormal);
+                
+                // Add subtle color variation using noise
+                float colorNoise = noiseFS(vWorldPosition.xy * 2.0) * 0.15; // Use different axes for variety
+                vec3 variedColor = uColor + vec3(colorNoise);
+
+                // Simple lighting
+                vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
+                float diff = max(dot(normal, lightDir), 0.0) * 0.7 + 0.3; 
+                vec3 litColor = variedColor * diff;
+
+                // Apply Caustics
+                vec2 causticUv = vWorldPosition.xz * 0.08 + vec2(uTime * 0.03, uTime * 0.02); 
+                vec3 caustics = texture2D(uCausticMap, causticUv).rgb * 0.15;
+
+                gl_FragColor = vec4(litColor + caustics, 1.0);
+                 gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2)); // Gamma correction
+            }
+        `;
+
+
+        // --- Environment Geometry & Materials ---
+
+        function createFloor() {
+            const geometry = new THREE.PlaneGeometry(120, 120, 150, 150); // Larger, more segments
+            const positions = geometry.attributes.position;
+            const vertex = new THREE.Vector3();
+
+            // Displace vertices using FBM for more natural terrain
+            for (let i = 0; i < positions.count; i++) {
+                vertex.fromBufferAttribute(positions, i);
+                // Use Vector2 for fbm function
+                let pos2D = new THREE.Vector2(vertex.x * 0.03, vertex.z * 0.03); // Base frequency scale
+                let height = fbm(pos2D, 5, 0.55) * 3.5; // 5 octaves, higher persistence, scaled amplitude
+                positions.setY(i, height);
+            }
+            geometry.computeVertexNormals();
+            geometry.attributes.position.needsUpdate = true;
+
+            const material = new THREE.ShaderMaterial({
+                vertexShader: floorVertexShader,
+                fragmentShader: floorFragmentShader,
+                uniforms: {
+                    uTime: { value: 0.0 },
+                    uSandColor: { value: new THREE.Color(0xD2B48C) }, // Tan sand
+                    uRockColor: { value: new THREE.Color(0x607080) }, // Slate grey rock
+                    uWetSandColor: { value: new THREE.Color(0xA08C6E) }, // Darker, slightly brown sand
+                    uCausticMap: { value: causticTexture } 
+                }
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.x = -Math.PI / 2; 
+            mesh.position.y = -6; // Adjust base height
+            mesh.receiveShadow = true; // Enable receiving shadows
+            return mesh;
+        }
+
+        function createRock() {
+            const detailLevel = Math.random() < 0.5 ? 1 : 2; // Randomize detail
+            const geometry = new THREE.IcosahedronGeometry(1, detailLevel); 
+            const positions = geometry.attributes.position;
+            const normals = geometry.attributes.normal;
+            const vertex = new THREE.Vector3();
+            const normal = new THREE.Vector3();
+
+            // Deform vertices using multiple noise layers
+            const noiseFreq1 = 1.5 + Math.random() * 1.0; const noiseAmp1 = 0.2 + Math.random() * 0.2;
+            const noiseFreq2 = 4.0 + Math.random() * 2.0; const noiseAmp2 = 0.05 + Math.random() * 0.05;
+             for (let i = 0; i < positions.count; i++) {
+                vertex.fromBufferAttribute(positions, i);
+                normal.fromBufferAttribute(normals, i);
+                let noise = simplex.noise3D(vertex.x*noiseFreq1, vertex.y*noiseFreq1, vertex.z*noiseFreq1) * noiseAmp1;
+                    noise += simplex.noise3D(vertex.x*noiseFreq2, vertex.y*noiseFreq2, vertex.z*noiseFreq2) * noiseAmp2;
+                vertex.addScaledVector(normal, noise);
+                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+            }
+            geometry.computeVertexNormals();
+            geometry.attributes.position.needsUpdate = true;
+
+            // Reuse floor material for consistent lighting/caustics
+            const material = floorMesh.material.clone(); 
+             // Optional: Adjust rock color slightly if needed via uniforms (requires modifying floor shader)
+             // material.uniforms.uRockColor.value.set(0x556575); 
+
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true; 
+            mesh.receiveShadow = true;
+            return mesh;
+        }
+
+        // --- Flora Creation Functions ---
+
+        function createSeaweed(height = 3 + Math.random()*2, color = 0x2E8B57) { // Sea Green default
+             // More segments for smoother bending
+             const geometry = new THREE.PlaneGeometry(0.4 + Math.random()*0.2, height, 2, 15); 
+             const material = new THREE.ShaderMaterial({
+                 vertexShader: simpleFloraVertexShader,
+                 fragmentShader: simpleFloraFragmentShader, 
+                 uniforms: {
+                     uTime: { value: 0.0 },
+                     uColor: { value: new THREE.Color(color) },
+                     uSwayFactor: { value: 1.0 + Math.random()*0.5 }, // Vary sway intensity
+                     uInstanceOffset: {value: Math.random() * 100}, // Offset animation per instance
+                     uCausticMap: { value: causticTexture } 
+                 },
+                 side: THREE.DoubleSide, 
+                 transparent: true, // Allow alpha if needed later
+                 alphaTest: 0.1 // Avoid rendering fully transparent pixels
+             });
+
+             const mesh = new THREE.Mesh(geometry, material);
+             // Add slight initial bend
+             const positions = geometry.attributes.position;
+              for(let i=0; i<positions.count; ++i) {
+                   const y = positions.getY(i);
+                   positions.setX(i, positions.getX(i) + Math.sin(y * 0.5) * 0.1);
+              }
+             mesh.geometry.attributes.position.needsUpdate = true;
+             return mesh;
+        }
+        
+        function createTubeCoral(tubes = 4 + Math.floor(Math.random()*4), heightVar = 0.6, radius = 0.08 + Math.random()*0.04, color = 0xFF6347) { // Tomato Red default
+             const group = new THREE.Group();
+             // Tube shape with more segments, bevel at top? (Harder procedurally)
+             const geometry = new THREE.CylinderGeometry(radius, radius * 0.7, 1, 10, 5, true); // Open ended
+
+              const material = new THREE.ShaderMaterial({
+                 vertexShader: simpleFloraVertexShader, // Use standard vertex shader
+                 fragmentShader: simpleFloraFragmentShader,
+                 uniforms: {
+                     uTime: { value: 0.0 },
+                     uColor: { value: new THREE.Color(color) },
+                     uSwayFactor: { value: 0.0 }, // No sway
+                     uInstanceOffset: {value: 0.0}, // Not needed
+                     uCausticMap: { value: causticTexture } 
+                 }
+             });
+
+             for(let i=0; i<tubes; ++i) {
+                 const tubeMesh = new THREE.Mesh(geometry, material);
+                 const height = 0.8 + Math.random() * heightVar;
+                 tubeMesh.scale.set(1, height, 1);
+                 // Cluster tubes together, slightly angled outward
+                 const angle = (i / tubes) * Math.PI * 2 + Math.random()*0.5 - 0.25;
+                 const dist = radius * 1.5 + Math.random()*radius;
+                 tubeMesh.position.set(
+                     Math.cos(angle) * dist, 
+                     height * 0.5 - 0.01, // Position base slightly below origin
+                     Math.sin(angle) * dist
+                 );
+                  // Tilt slightly outward
+                 tubeMesh.rotation.z = (Math.random() - 0.5) * 0.4;
+                 tubeMesh.rotation.x = (Math.random() - 0.5) * 0.4;
+                 
+                 group.add(tubeMesh);
+             }
+             return group;
+        }
+
+        function createBrainCoral(radius = 0.5 + Math.random()*0.5, color = 0x98FB98) { // Pale Green default
+            const geometry = new THREE.IcosahedronGeometry(radius, 4); // Higher detail sphere
+            const positions = geometry.attributes.position;
+            const normals = geometry.attributes.normal;
+            const vertex = new THREE.Vector3();
+            const normal = new THREE.Vector3();
+
+            // Deform vertices using multiple layers of FBM noise for convoluted pattern
+            const noiseScale = 2.5 / radius; // Adjust noise scale based on radius
+            for (let i = 0; i < positions.count; i++) {
+                vertex.fromBufferAttribute(positions, i);
+                normal.fromBufferAttribute(normals, i);
+                
+                let pos = vertex.clone().multiplyScalar(noiseScale);
+                let displacement = fbm(new THREE.Vector2(pos.x, pos.y), 5, 0.5) * 0.15 * radius; // FBM on XY
+                displacement += fbm(new THREE.Vector2(pos.y, pos.z), 5, 0.5) * 0.15 * radius; // FBM on YZ
+                displacement += fbm(new THREE.Vector2(pos.z, pos.x), 5, 0.5) * 0.15 * radius; // FBM on ZX
+                
+                vertex.addScaledVector(normal, displacement);
+                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+            }
+            geometry.computeVertexNormals();
+            geometry.attributes.position.needsUpdate = true;
+
+             const material = new THREE.ShaderMaterial({
+                 vertexShader: simpleFloraVertexShader, 
+                 fragmentShader: simpleFloraFragmentShader,
+                 uniforms: {
+                     uTime: { value: 0.0 },
+                     uColor: { value: new THREE.Color(color) },
+                     uSwayFactor: { value: 0.0 }, // No sway
+                     uInstanceOffset: {value: 0.0},
+                     uCausticMap: { value: causticTexture } 
+                 }
+             });
+
+            const mesh = new THREE.Mesh(geometry, material);
+             mesh.castShadow = true; 
+             mesh.receiveShadow = true;
+            return mesh;
+        }
+
+        function createFanCoral(width = 1 + Math.random(), height = 1 + Math.random(), color = 0xFF7F50) { // Coral color default
+            // Create a flat plane with segments for potential deformation
+             const geometry = new THREE.PlaneGeometry(width, height, Math.floor(width*5), Math.floor(height*5));
+            
+             // Add some organic waviness / holes (more complex)
+             // Basic waviness for now:
+             const positions = geometry.attributes.position;
+              for(let i=0; i<positions.count; ++i) {
+                   const x = positions.getX(i);
+                   const y = positions.getY(i);
+                   const z = Math.sin(x * 2.0 + y * 1.5) * 0.05 + simplex.noise(x*1.5, y*1.5)*0.1;
+                   positions.setZ(i, z);
+              }
+             geometry.computeVertexNormals();
+             geometry.attributes.position.needsUpdate = true;
+
+
+              const material = new THREE.ShaderMaterial({
+                 vertexShader: simpleFloraVertexShader, 
+                 fragmentShader: simpleFloraFragmentShader,
+                 uniforms: {
+                     uTime: { value: 0.0 },
+                     uColor: { value: new THREE.Color(color) },
+                     uSwayFactor: { value: 0.2 + Math.random()*0.2 }, // Very subtle sway
+                     uInstanceOffset: {value: Math.random() * 100},
+                     uCausticMap: { value: causticTexture } 
+                 },
+                 side: THREE.DoubleSide
+             });
+
+            const mesh = new THREE.Mesh(geometry, material);
+             mesh.castShadow = true; 
+             mesh.receiveShadow = true;
+            return mesh;
+        }
+
+
+        // --- Environment Population ---
+        function populateEnvironment(floor, rockCount = 40, floraCount = 80) {
+             const floraTypes = [createSeaweed, createTubeCoral, createBrainCoral, createFanCoral]; 
+             const floraColors = [0x3CB371, 0x9ACD32, 0xFF69B4, 0xDB7093, 0xDA70D6, 0xFF7F50, 0xFFFFE0, 0x87CEEB]; // Light Yellow, Sky Blue added
+
+             // Clear previous objects if any
+             environmentObjects.clear();
+
+             // Place Rocks
+            for (let i = 0; i < rockCount; i++) { 
+                 const rock = createRock();
+                 const scale = Math.random() * 1.8 + 0.4; // Wider size range
+                 rock.scale.set(scale, scale * (Math.random()*0.6 + 0.7), scale); 
+
+                 const x = Math.random() * 100 - 50; // Slightly larger placement area
+                 const z = Math.random() * 100 - 50;
+                 raycaster.set(new THREE.Vector3(x, 20, z), UP_VECTOR.clone().negate()); // Raycast from higher up
+                 const intersects = raycaster.intersectObject(floor);
+
+                 if (intersects.length > 0) {
+                     const point = intersects[0].point;
+                     const normal = intersects[0].face.normal.clone().normalize(); // Ensure normalized
+                     rock.position.copy(point);
+                     // Offset slightly along normal to embed better
+                     rock.position.addScaledVector(normal, -0.1 * scale); 
+                     // Align rock's up direction to surface normal
+                     rock.quaternion.setFromUnitVectors(UP_VECTOR, normal); 
+                     rock.rotateY(Math.random() * Math.PI * 2); // Random rotation around the normal axis
+                     environmentObjects.add(rock);
+                 }
+             }
+            
+             // Place Flora
+            for (let i = 0; i < floraCount; i++) {
+                 const typeIndex = Math.floor(Math.random() * floraTypes.length);
+                 const colorIndex = Math.floor(Math.random() * floraColors.length);
+                 const floraFunc = floraTypes[typeIndex];
+                 const flora = floraFunc(undefined, undefined, undefined, floraColors[colorIndex]); 
+
+                 const scale = Math.random() * 1.2 + 0.4; // Flora scale variation
+                 flora.scale.set(scale,scale,scale);
+
+                 const x = Math.random() * 100 - 50; 
+                 const z = Math.random() * 100 - 50;
+                 raycaster.set(new THREE.Vector3(x, 20, z), UP_VECTOR.clone().negate());
+                 const intersects = raycaster.intersectObject(floor);
+
+                 if (intersects.length > 0) {
+                     const point = intersects[0].point;
+                     const normal = intersects[0].face.normal.clone().normalize();
+                     flora.position.copy(point);
+                     // Align flora's up direction to surface normal (optional, might look weird for some flora)
+                     // flora.quaternion.setFromUnitVectors(UP_VECTOR, normal); 
+                     flora.rotation.y = Math.random() * Math.PI * 2; // Random rotation
+                     
+                     environmentObjects.add(flora);
+                 }
+             }
+            scene.add(environmentObjects);
+        }
+
+
+        // --- Caustic Effect (Copied) ---
+        function createCausticTexture(size = 256) { // Increased default size
+            causticCanvas = document.getElementById('dynamicTextureCanvas');
+             if (!causticCanvas) { causticCanvas = document.createElement('canvas'); }
+            causticCanvas.width = size; causticCanvas.height = size;
+            causticCtx = causticCanvas.getContext('2d');
+            const texture = new THREE.CanvasTexture(causticCanvas);
+            texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+            texture.minFilter = THREE.LinearFilter; // Smoother texture sampling
+            return texture;
+        }
+        function updateCausticTexture(texture, time) { 
+            const size = texture.image.width; const ctx = causticCtx;
+            ctx.fillStyle = 'rgb(15, 15, 25)'; // Slightly lighter base for less contrast
+            ctx.fillRect(0, 0, size, size);
+            const layers = 4; // More layers for complexity
+            for (let i = 0; i < layers; i++) {
+                // Varying colors and opacities for caustic lines
+                ctx.strokeStyle = `rgba(${180 + Math.random()*50}, ${210 + Math.random()*45}, 255, ${0.05 + Math.random()*0.05})`; 
+                ctx.lineWidth = Math.random() * 1.5 + 1.0; ctx.beginPath();
+                const frequency = (i + 1) * 0.04 + 0.03; const amplitude = size * 0.18;
+                const speed = (i + 1) * 0.25 + 0.15;
+                const offsetX = Math.sin(time * speed * 0.6 + i*2.0) * size * 0.25;
+                const offsetY = Math.cos(time * speed * 0.45 + i*3.0) * size * 0.25;
+                // Draw more complex wave patterns
+                for (let x = 0; x < size; x++) {
+                     const y = Math.sin((x + offsetX) * frequency + time * speed + Math.cos(x*0.03)*0.5) * amplitude + size / 2 + offsetY + Math.cos(x*0.04 + time*0.15 + i*1.5)*15;
+                     if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                 } ctx.stroke();
+            } texture.needsUpdate = true;
+         }
+
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x3498DB); 
+            scene.fog = new THREE.Fog(0x3498DB, 25, 70); // Adjusted fog start/end distances
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 150); // Increased far plane
+            camera.position.set(0, 5, 25); // Start higher up to see more environment
+
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                powerPreference: "high-performance" 
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.outputEncoding = THREE.sRGBEncoding; 
+            renderer.shadowMap.enabled = true; // Enable shadows
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x70A0D0, 0.4); // Adjusted ambient color/intensity
+            scene.add(ambientLight);
+            const hemisphereLight = new THREE.HemisphereLight(0xB0D0FF, 0x205080, 0.3); // Adjusted hemisphere intensity
+            scene.add(hemisphereLight);
+            const directionalLight = new THREE.DirectionalLight(0xFFF0D0, 1.0); // Slightly warmer main light
+            directionalLight.position.set(15, 25, 20);
+            directionalLight.castShadow = true; // Enable shadow casting
+            // Configure shadow camera properties for better quality/performance balance
+            directionalLight.shadow.camera.near = 1;
+            directionalLight.shadow.camera.far = 80;
+            directionalLight.shadow.camera.left = -30;
+            directionalLight.shadow.camera.right = 30;
+            directionalLight.shadow.camera.top = 30;
+            directionalLight.shadow.camera.bottom = -30;
+            directionalLight.shadow.mapSize.width = 1024; // Shadow map resolution
+            directionalLight.shadow.mapSize.height = 1024;
+            directionalLight.shadow.bias = -0.001; // Adjust shadow bias if needed
+            scene.add(directionalLight);
+            // scene.add(new THREE.CameraHelper(directionalLight.shadow.camera)); // Helper to visualize shadow frustum
+
+            // Caustic Setup
+            causticTexture = createCausticTexture(256); 
+            // Caustics applied directly in materials now, no separate light needed just for the map
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.maxPolarAngle = Math.PI / 2 - 0.1; // Don't let camera go below floor level easily
+            controls.target.set(0, -1, 0); // Look slightly down
+
+            // Create Environment
+            floorMesh = createFloor();
+            scene.add(floorMesh);
+            populateEnvironment(floorMesh, 50, 100); // Adjust counts as needed
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // --- Resize Handler ---
+        function onWindowResize() { 
+             camera.aspect = window.innerWidth / window.innerHeight;
+             camera.updateProjectionMatrix();
+             renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+
+            // Update Caustic Texture
+            if (causticTexture) {
+                updateCausticTexture(causticTexture, elapsedTime);
+            }
+
+            // Update time uniforms in floor and flora materials
+            if (floorMesh?.material?.uniforms?.uTime) floorMesh.material.uniforms.uTime.value = elapsedTime;
+            environmentObjects.children.forEach(obj => {
+                const mat = obj.material || (obj.children.length > 0 ? obj.children[0].material : null); // Handle groups like TubeCoral
+                if(mat?.uniforms?.uTime) {
+                    mat.uniforms.uTime.value = elapsedTime;
+                }
+            });
+            
+            controls.update(); 
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>

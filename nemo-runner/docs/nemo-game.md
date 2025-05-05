@@ -1,4 +1,103 @@
-# $NEMO Underwater Runner: Game Design Document
+#### Database Access Implementation:
+
+```typescript
+// db/index.ts - Core database client
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import * as schema from './schema';
+
+// For serverless environments (production)
+const sql = neon(process.env.DATABASE_URL!);
+export const db = drizzle(sql, { schema });
+
+// Example game functions
+
+// Submit a new score
+export async function submitScore(userId: string, score: number, distance: number, environment: string) {
+  return db.insert(schema.scores)
+    .values({
+      userId,
+      score,
+      distance,
+      environment,
+      playedAt: new Date(),
+    })
+    .returning();
+}
+
+// Get daily leaderboard
+export async function getDailyLeaderboard(limit = 10) {
+  return db.query.dailyLeaderboard.findMany({
+    orderBy: (scores, { asc }) => [asc(scores.rank)],
+    limit,
+  });
+}
+
+// Get user's personal best score
+export async function getUserBestScore(userId: string) {
+  return db.select()
+    .from(schema.scores)
+    .where(eq(schema.scores.userId, userId))
+    .orderBy(desc(schema.scores.score))
+    .limit(1);
+}
+
+// Count remaining plays for user today
+export async function getRemainingPlays(userId: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const count = await db.select({
+    count: sql`count(*)`,
+  })
+  .from(schema.scores)
+  .where(
+    and(
+      eq(schema.scores.userId, userId),
+      gte(schema.scores.playedAt, today)
+    )
+  );
+  
+  return 10 - (count[0]?.count || 0);
+}
+```### Database Schema & Data Management
+
+**Core Database Structure:**
+```typescript
+// Game scores schema
+export const scores = pgTable('scores', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').references(() => users.id).notNull(),
+  score: integer('score').notNull(),
+  distance: integer('distance').notNull(),
+  playedAt: timestamp('played_at').defaultNow().notNull(),
+  environment: text('environment'), // which environment was played
+  verified: boolean('verified').default(true),
+});
+
+// Leaderboard materialized views
+export const dailyLeaderboard = pgTable('daily_leaderboard_view', {
+  userId: text('user_id').notNull(),
+  username: text('username').notNull(),
+  highScore: integer('high_score').notNull(),
+  rank: integer('rank').notNull(),
+});
+```
+
+**Data Storage Strategy:**
+- Game scores stored in normalized tables using Drizzle ORM
+- Materialized views for optimized leaderboard queries (daily, weekly, monthly)
+- Automatic scaling with Neon PostgreSQL's compute-to-zero capability
+- Database branching for development and testing environments
+- Type-safe queries throughout the application code
+- Efficient migration management using drizzle-kit
+
+**Score Verification & Processing:**
+- Server-side verification of submitted scores
+- Multi-factor validation including gameplay pattern analysis
+- Suspicious activity flagging for manual review
+- Automated leaderboard updates through database triggers
+- Secure transaction handling for reward distribution# $NEMO Underwater Runner: Game Design Document
 
 ## 1. Game Concept & Vision
 
@@ -711,16 +810,22 @@ class InputHandler {
 
 #### Authentication & Leaderboard Integration
 
+#### Authentication & Leaderboard Integration
+
 **Clerk Authentication Flow:**
-- End-game login prompt for anonymous users
-- Social login options (Google, Discord, etc.)
-- Session management and persistence
-- Secure wallet connection for reward eligibility
+- Sign-up/login via email, social providers, and Google One Tap
+- JWT token management with Clerk's latest API (2025-04-10)
+- Protected routes using Clerk's latest middleware for Next.js
+- User profile data management with Clerk's unstyled UI primitives (Clerk Elements)
+- Session persistence and management with active device monitoring
+- Enhanced security features including breach detection and unfamiliar device notifications
 
 **Leaderboard Implementation:**
-- Real-time updates using websockets for active competitions
+- Type-safe schema definitions using Drizzle ORM with Neon PostgreSQL
+- Optimized queries using materialized views for different timeframes
+- Real-time updates for active competitions via webhooks
 - Efficient database queries with proper indexing
-- Caching layer for frequently accessed data
+- Caching layer for frequently accessed leaderboard data
 - Player-focused UI showing personal best and ranking
 
 ## 11. Game Performance Targets
@@ -736,11 +841,31 @@ class InputHandler {
 | Low-end Mobile | 30 | Low | Minimal effects, critical features only |
 
 ### Performance Optimizations
-- **Asset Management**: Efficient texture atlasing and model optimization
-- **Rendering Pipeline**: View frustum culling and occlusion culling
-- **Memory Usage**: Object pooling for frequently used elements
-- **Loading Strategy**: Progressive loading based on device capability
-- **Quality Settings**: User-adjustable presets for performance balance
+
+#### Database Performance
+- **Connection Pooling**: Optimized connection management for serverless environments
+- **Materialized Views**: Pre-calculated leaderboards refreshed on schedule
+- **Indexed Queries**: Strategic indexing for high-performance leaderboard queries
+- **Type Safety**: Full TypeScript type inference to prevent runtime errors
+- **Compute Scaling**: Automatic resource scaling with Neon's serverless architecture
+- **Query Optimization**: Prepared statements and efficient join operations
+- **Data Pruning**: Automated cleanup of historical data beyond retention period
+
+#### Three.js Optimizations
+- **Level-of-Detail (LOD)**: Multiple detail levels for objects based on distance
+- **Object Pooling**: Reuse obstacle and collectible objects instead of creating/destroying
+- **Occlusion Culling**: Only render objects visible to the camera
+- **Geometry Instancing**: Use instanced meshes for repeated elements (bubbles, coral pieces)
+- **Texture Atlasing**: Combine multiple textures to reduce draw calls
+- **Shader Simplification**: Adaptive shader complexity based on device
+
+#### Next.js App Router Features
+- **React Server Components**: Data-intensive components rendered on the server
+- **Streaming**: Progressive rendering for improved user experience
+- **Route Handlers**: Efficient API endpoints for game state
+- **Edge Runtime**: Global low-latency execution for critical functions
+- **Image Optimization**: Automatic image processing and delivery
+- **Font Optimization**: Web font loading optimization
 
 ## 12. Post-Launch Content Strategy
 

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Jellyfish Hazard</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #3498DB; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <!-- No extra canvas needed for this one -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.module.min.js",
+          "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js'; // If needed for complex noise
+
+        let scene, camera, renderer, controls;
+        let jellyfishArray = []; // To hold multiple jellyfish
+        const clock = new THREE.Clock();
+        const simplex = new SimplexNoise(); // Use the imported one
+
+        // --- Shader Definitions ---
+
+        // Vertex Shader for Bell and Tentacles (Handles pulsation & sway)
+        const jellyfishVertexShader = `
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            varying float vFresnelFactor; // Pass factor for rim lighting/fresnel
+            varying float vRelativeHeight; // Pass normalized height (0 at base, 1 at top/tip)
+
+            uniform float uTime;
+            uniform float uPulseFrequency;
+            uniform float uPulseAmplitude;
+            uniform float uSwayFrequency;
+            uniform float uSwayAmplitude;
+            uniform float uIsTentacle; // 0.0 for bell, 1.0 for tentacles
+            uniform float uLength; // Bell height or Tentacle length
+
+            // Function to calculate Bell pulsation displacement
+            vec3 getBellPulsation(vec3 pos, float relHeight) {
+                float pulse = sin(uTime * uPulseFrequency) * 0.5 + 0.5; // 0 to 1 pulse value
+                float pulseEffect = pow(relHeight, 0.5) * pulse * uPulseAmplitude; // More effect near rim
+                // Expand radially, contract vertically slightly
+                float radialScale = 1.0 + pulseEffect * 0.3;
+                float verticalScale = 1.0 - pulseEffect * 0.1;
+                return vec3(pos.x * radialScale, pos.y * verticalScale, pos.z * radialScale);
+            }
+
+            // Function to calculate Tentacle sway displacement
+            vec3 getTentacleSway(vec3 pos, float relHeight) {
+                 // Sway based on height and time, use different frequencies for X/Z
+                 float swayFactor = pow(relHeight, 1.5) * uSwayAmplitude; // More sway at the tip
+                 float timeFactor = uTime * uSwayFrequency + pos.y * 0.3; // Add variation along length
+                 float swayX = sin(timeFactor + relHeight * 2.0) * swayFactor;
+                 float swayZ = cos(timeFactor * 0.7 + relHeight * 1.5) * swayFactor * 0.8; // Slightly different Z sway
+                 return vec3(pos.x + swayX, pos.y, pos.z + swayZ);
+            }
+
+
+            void main() {
+                vec3 pos = position;
+                vRelativeHeight = max(0.0, min(1.0, position.y / uLength)); // Normalized height/length
+
+                // Apply pulsation OR sway
+                if (uIsTentacle < 0.5) { // Bell
+                    pos = getBellPulsation(pos, vRelativeHeight);
+                } else { // Tentacle
+                    pos = getTentacleSway(pos, vRelativeHeight);
+                }
+
+                vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+                vWorldPosition = worldPos.xyz;
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                vec3 transformedNormal = normalize(normalMatrix * normal);
+                vNormal = transformedNormal;
+
+                // Calculate Fresnel factor (dot product between view vector and normal)
+                vec3 viewVector = normalize(mvPosition.xyz); // Vector from vertex to camera in view space
+                vFresnelFactor = pow(1.0 + dot(viewVector, transformedNormal), 2.5); // Adjust power for desired falloff
+
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+
+        // Fragment Shader for Jellyfish (Transparency, Fresnel, Emission)
+        const jellyfishFragmentShader = `
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            varying float vFresnelFactor; // Receive calculated fresnel factor
+            varying float vRelativeHeight;
+
+            uniform float uTime;
+            uniform vec3 uBaseColor;
+            uniform float uOpacity;
+            uniform float uGlowIntensity; // Controls emissive glow
+            uniform float uPulseFrequency; // For syncing glow/opacity pulse
+
+            // Basic noise function for subtle variation
+             float hashFS(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+             float noiseFS(vec2 p) { /* ... */ vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.0-2.0*f); float a=hashFS(i+vec2(0.,0.)); float b=hashFS(i+vec2(1.,0.)); float c=hashFS(i+vec2(0.,1.)); float d=hashFS(i+vec2(1.,1.)); return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
+
+            void main() {
+                // --- Base Appearance ---
+                // Pulsating opacity and glow
+                float pulse = sin(uTime * uPulseFrequency) * 0.5 + 0.5; // 0 to 1 pulse
+                float currentOpacity = uOpacity * (0.6 + pulse * 0.4); // Opacity pulses between 60% and 100% of base
+                float currentGlow = uGlowIntensity * (0.5 + pulse * 0.5); // Glow pulses between 50% and 100% of base
+
+                // Add subtle noise variation to color/glow
+                float noiseVal = noiseFS(vWorldPosition.xz * 1.5 + uTime * 0.1) * 0.2 - 0.1; // Subtle noise value
+
+                // --- Fresnel Effect ---
+                // Use the factor from vertex shader, map it to color/alpha boost at edges
+                float fresnel = smoothstep(0.0, 1.0, vFresnelFactor) * (0.5 + currentGlow * 0.5); // Fresnel stronger when glowing
+
+                // --- Color Calculation ---
+                vec3 base = uBaseColor + vec3(noiseVal);
+                // Combine base color with emissive glow, enhanced by fresnel
+                vec3 emissiveColor = base * currentGlow * (1.0 + fresnel * 1.5); 
+
+                // Very subtle directional lighting (optional, often looks better without standard lighting)
+                // vec3 normal = normalize(vNormal);
+                // vec3 lightDir = normalize(vec3(0.2, 0.8, 0.5));
+                // float diff = max(dot(normal, lightDir), 0.0) * 0.2; // Very weak diffuse
+                // vec3 finalColor = base * 0.3 + emissiveColor + diff * base;
+                
+                vec3 finalColor = base * 0.1 + emissiveColor; // Base ambient + emissive glow
+
+                // --- Final Output ---
+                gl_FragColor = vec4(finalColor, currentOpacity * (0.5 + fresnel * 0.5)); // Boost alpha with fresnel too
+                gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2)); // Gamma correction
+            }
+        `;
+
+
+        // --- Jellyfish Geometry Creation ---
+
+        /**
+         * Creates the bell geometry for the jellyfish.
+         * @param {number} radius - Top radius of the bell.
+         * @param {number} height - Height of the bell.
+         * @param {number} radialSegments - Number of segments around.
+         * @param {number} heightSegments - Number of segments vertically.
+         */
+        function createJellyfishBellGeometry(radius = 1.0, height = 1.2, radialSegments = 24, heightSegments = 12) {
+            const geometry = new THREE.SphereGeometry(radius, radialSegments, heightSegments, 0, Math.PI * 2, 0, Math.PI * 0.65); // Create an open hemisphere (adjust angle)
+            geometry.scale(1, height / (radius*1.3), 1); // Scale to desired height ratio
+            geometry.rotateX(Math.PI); // Orient open side down
+            geometry.translate(0, height * 0.5, 0); // Position base at origin
+
+            // Add subtle noise deformation
+            const positions = geometry.attributes.position;
+            const vertex = new THREE.Vector3();
+            const noiseFreq = 2.5; const noiseAmp = 0.05 * radius;
+             for (let i = 0; i < positions.count; i++) {
+                vertex.fromBufferAttribute(positions, i);
+                let noiseVal = simplex.noise3D(vertex.x*noiseFreq, vertex.y*noiseFreq, vertex.z*noiseFreq) * noiseAmp;
+                vertex.addScaledVector(vertex.clone().normalize(), noiseVal); 
+                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+            }
+            geometry.computeVertexNormals();
+            geometry.attributes.position.needsUpdate = true;
+            
+            return geometry;
+        }
+
+        /**
+         * Creates geometry for a single jellyfish tentacle.
+         * @param {number} length - Length of the tentacle.
+         * @param {number} segments - Number of segments along the length.
+         * @param {number} radius - Radius of the tentacle tube.
+         */
+        function createJellyfishTentacleGeometry(length = 3.0, segments = 15, radius = 0.03) {
+            // Create a simple path (straight line down)
+            const points = [];
+            for (let i = 0; i <= segments; i++) {
+                points.push(new THREE.Vector3(0, - (i / segments) * length, 0));
+            }
+            const curve = new THREE.CatmullRomCurve3(points);
+
+            // Create tube geometry along the curve
+            const tubeGeometry = new THREE.TubeGeometry(curve, segments, radius, 6, false); // Segments, Radius, Radial Segments, Closed
+            
+            // Important: Translate geometry so Y=0 is the attachment point (top)
+            tubeGeometry.translate(0, length, 0); // Shift origin to the top
+
+            return tubeGeometry;
+        }
+
+
+        // --- Jellyfish Material Creation ---
+        function createJellyfishMaterial(options = {}) {
+             const {
+                color = new THREE.Color(0xADD8E6), // Default Light Blue
+                opacity = 0.6,
+                glowIntensity = 0.3,
+                pulseFrequency = 1.5,
+                isTentacle = false,
+                bellHeight = 1.2, // Pass geometry dimensions for normalization
+                tentacleLength = 3.0
+            } = options;
+
+            return new THREE.ShaderMaterial({
+                vertexShader: jellyfishVertexShader,
+                fragmentShader: jellyfishFragmentShader,
+                uniforms: {
+                    uTime: { value: 0.0 },
+                    uBaseColor: { value: color },
+                    uOpacity: { value: opacity },
+                    uGlowIntensity: { value: glowIntensity },
+                    uPulseFrequency: { value: pulseFrequency },
+                    uSwayFrequency: { value: 0.8 + Math.random() * 0.4 }, // Randomize sway slightly per material instance
+                    uSwayAmplitude: { value: 0.8 + Math.random() * 0.4 },
+                    uIsTentacle: { value: isTentacle ? 1.0 : 0.0 },
+                    uLength: { value: isTentacle ? tentacleLength : bellHeight } // Pass correct length
+                },
+                transparent: true,
+                // blending: THREE.AdditiveBlending, // Use additive for pure glow
+                depthWrite: false, // Often needed for layered transparency
+                side: THREE.DoubleSide // Render inside of bell too
+            });
+        }
+
+        // --- Jellyfish Assembly ---
+        /**
+         * Creates a complete Jellyfish object group.
+         * @param {object} options - Configuration.
+         * @param {number} [options.scale=1] - Overall size multiplier.
+         * @param {number} [options.numTentacles=8] - Number of tentacles.
+         * @param {THREE.Color} [options.color=random] - Base color.
+         */
+        function createJellyfish(options = {}) {
+             const {
+                scale = 0.8 + Math.random() * 0.4,
+                numTentacles = 6 + Math.floor(Math.random() * 5), // 6 to 10 tentacles
+                color = new THREE.Color().setHSL(0.5 + Math.random() * 0.2, 0.8, 0.7), // Bluish/Purplish hues
+                pulseFrequency = 1.0 + Math.random() * 1.0
+            } = options;
+
+            const group = new THREE.Group();
+            group.scale.set(scale, scale, scale); // Apply overall scale
+
+            // Create Bell
+            const bellHeight = 1.2; // Base height before scaling
+            const bellGeometry = createJellyfishBellGeometry(1.0, bellHeight);
+            const bellMaterial = createJellyfishMaterial({
+                color: color,
+                opacity: 0.5,
+                glowIntensity: 0.4,
+                pulseFrequency: pulseFrequency,
+                isTentacle: false,
+                bellHeight: bellHeight * scale // Pass scaled height
+            });
+            const bellMesh = new THREE.Mesh(bellGeometry, bellMaterial);
+            group.add(bellMesh);
+
+            // Create Tentacles
+            const tentacleLength = 2.5 + Math.random() * 1.5; // Base length before scaling
+            const tentacleGeometry = createJellyfishTentacleGeometry(tentacleLength); // Create one geometry to reuse
+            
+            for (let i = 0; i < numTentacles; i++) {
+                const tentacleMaterial = createJellyfishMaterial({
+                    color: color.clone().offsetHSL(0.0, -0.1, -0.1), // Slightly darker/desaturated tentacles
+                    opacity: 0.7,
+                    glowIntensity: 0.2,
+                    pulseFrequency: pulseFrequency, // Sync pulse
+                    isTentacle: true,
+                    tentacleLength: tentacleLength * scale // Pass scaled length
+                });
+
+                const tentacleMesh = new THREE.Mesh(tentacleGeometry, tentacleMaterial);
+                
+                // Position tentacles around the bell rim
+                const angle = (i / numTentacles) * Math.PI * 2;
+                const radiusOffset = 0.85; // Place slightly inside the bell radius
+                tentacleMesh.position.set(
+                    Math.cos(angle) * radiusOffset,
+                    0, // Origin is top of tentacle, matches bell base
+                    Math.sin(angle) * radiusOffset
+                );
+                 // Add slight random rotation/tilt
+                 tentacleMesh.rotation.x = (Math.random() - 0.5) * 0.2;
+                 tentacleMesh.rotation.z = (Math.random() - 0.5) * 0.2;
+
+                group.add(tentacleMesh);
+            }
+            
+            // Store animation properties if needed for external control
+            group.userData.driftSpeed = new THREE.Vector3(
+                 (Math.random() - 0.5) * 0.5, 
+                 (Math.random() - 0.5) * 0.1, 
+                 (Math.random() - 0.5) * 0.5 
+            );
+            group.userData.timeOffset = Math.random() * 100; // For varying animation phase
+
+
+            return group;
+        }
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x204060); // Darker blue background
+            scene.fog = new THREE.Fog(0x204060, 15, 50); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100); 
+            camera.position.set(0, 2, 10); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.outputEncoding = THREE.sRGBEncoding; 
+            // No shadows needed typically for jellyfish scene focus
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting (Simple setup for jellyfish showcase)
+            const ambientLight = new THREE.AmbientLight(0x90B0FF, 0.6); 
+            scene.add(ambientLight);
+            const hemisphereLight = new THREE.HemisphereLight(0xA0C0FF, 0x103050, 0.5); 
+            scene.add(hemisphereLight);
+            const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 0.5); 
+            directionalLight.position.set(5, 10, 7);
+            scene.add(directionalLight);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 1, 0); // Aim slightly higher
+
+            // Create Jellyfish Instances
+            for (let i = 0; i < 5; i++) {
+                 const jellyfish = createJellyfish({
+                     scale: 0.8 + Math.random()*0.7,
+                     // color: new THREE.Color(Math.random() * 0xffffff) // Random colors for testing
+                 });
+                 jellyfish.position.set(
+                     (Math.random() - 0.5) * 15,
+                     (Math.random() - 0.5) * 5 + 1, // Vary height
+                     (Math.random() - 0.5) * 10 - 5 // Vary depth
+                 );
+                 scene.add(jellyfish);
+                 jellyfishArray.push(jellyfish);
+            }
+
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // --- Resize Handler ---
+        function onWindowResize() { 
+             camera.aspect = window.innerWidth / window.innerHeight;
+             camera.updateProjectionMatrix();
+             renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+            const deltaTime = clock.getDelta();
+
+            // Update Jellyfish animations and drift
+            jellyfishArray.forEach(jelly => {
+                // Update time uniform in all child materials
+                const time = elapsedTime + jelly.userData.timeOffset; // Use offset time
+                 jelly.traverse((child) => {
+                    if (child.isMesh && child.material?.uniforms?.uTime) {
+                         child.material.uniforms.uTime.value = time;
+                    }
+                 });
+
+                 // Simple drifting movement
+                 jelly.position.x += jelly.userData.driftSpeed.x * deltaTime;
+                 jelly.position.y += jelly.userData.driftSpeed.y * deltaTime;
+                 jelly.position.z += jelly.userData.driftSpeed.z * deltaTime;
+
+                 // Boundary wrap (simple example)
+                 if(jelly.position.x > 15) jelly.position.x = -15;
+                 if(jelly.position.x < -15) jelly.position.x = 15;
+                 if(jelly.position.z > 5) jelly.position.z = -15;
+                 if(jelly.position.z < -15) jelly.position.z = 5;
+                  if(jelly.position.y > 6) jelly.position.y = -4;
+                  if(jelly.position.y < -4) jelly.position.y = 6;
+
+            });
+            
+            controls.update(); 
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>

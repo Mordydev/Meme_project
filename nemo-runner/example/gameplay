@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Bubbles Character with Actions</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #3498DB; }
+        canvas { display: block; }
+         #info { position: absolute; top: 10px; width: 100%; text-align: center; color: white; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="info">Use Arrow Keys: Left/Right for Lanes, Up to Jump, Down to Dive</div>
+    <!-- Canvas for potential procedural texture -->
+    <canvas id="dynamicTextureCanvas" style="display:none;"></canvas> 
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.module.min.js",
+          "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+
+        let scene, camera, renderer, controls;
+        let characterController; // Manages the player character
+        const clock = new THREE.Clock();
+        const simplex = new SimplexNoise(); 
+
+        // Constants for Gameplay
+        const LANE_WIDTH = 2.5;
+        const LANES = [-LANE_WIDTH, 0, LANE_WIDTH]; // X positions for lanes
+        const LANE_CHANGE_SPEED = 8.0;
+        const JUMP_HEIGHT = 2.5;
+        const JUMP_DURATION = 0.6; // Total time for jump up and down
+        const DIVE_DEPTH = 1.5;
+        const DIVE_DURATION = 0.5;
+        const GRAVITY = 9.8 * 3; // Simulated gravity for jump arc
+
+        // --- Shaders (Copied from Refined Bubbles v2 - No changes needed here) ---
+        const bubblesVertexShader = `/* ... Same as Refined Bubbles v2 ... */
+            varying vec3 vNormal; varying vec3 vViewPosition; varying vec3 vObjectPosition; varying vec2 vUv; 
+            void main() { vUv = uv; vNormal = normalize(normalMatrix * normal); vObjectPosition = position; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); vViewPosition = -mvPosition.xyz; gl_Position = projectionMatrix * mvPosition; }`;
+        const bubblesFragmentShader = `/* ... Same as Refined Bubbles v2 ... */
+            uniform vec3 uBaseColor; uniform vec3 uStripeColor; uniform vec3 uBorderColor; uniform float uTime; uniform float uNoiseFactor; uniform float uIsFinOrTail;
+            varying vec3 vNormal; varying vec3 vViewPosition; varying vec3 vObjectPosition; varying vec2 vUv;
+            float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);} float noise(vec2 p){vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.-2.*f); float a=hash(i+vec2(0,0)); float b=hash(i+vec2(1,0)); float c=hash(i+vec2(0,1)); float d=hash(i+vec2(1,1)); return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);} float fbm(vec2 p,int o,float pe){float t=0.; float f=1.; float a=1.; float mv=0.; for(int i=0;i<o;i++){t+=noise(p*f)*a; mv+=a; a*=pe; f*=2.;} return t/mv;}
+            vec3 calculateLighting(vec3 n,vec3 v,vec3 l,vec3 lc,vec3 o){ float d=max(dot(n,l),0.); vec3 h=normalize(l+v); float sa=max(dot(n,h),0.); float sp=20.; float s=pow(sa,sp); return(d*.7+s*.6)*o;} float smoothstep(float e0,float e1,float x){float t=clamp((x-e0)/(e1-e0),0.,1.); return t*t*(3.-2.*t);}
+            void main() { vec3 n=normalize(vNormal); vec3 v=normalize(vViewPosition); vec3 fc; float sn=fbm(vObjectPosition.xy*4.+uTime*.05,3,.4); vec3 bn=uBaseColor*(1.+(sn-.5)*uNoiseFactor); if(uIsFinOrTail<.5){ float z=vObjectPosition.z; float l=2.4; float nz=z/l*.5; float s1c=.6,s1w=.14; float s2c=0.,s2w=.14; float s3c=-.6,s3w=.14; float bw=.04; float sf=.035; float s1=smoothstep(s1c-s1w,s1c-s1w+sf,nz)-smoothstep(s1c+s1w-sf,s1c+s1w,nz); float s2=smoothstep(s2c-s2w,s2c-s2w+sf,nz)-smoothstep(s2c+s2w-sf,s2c+s2w,nz); float s3=smoothstep(s3c-s3w,s3c-s3w+sf,nz)-smoothstep(s3c+s3w-sf,s3c+s3w,nz); float b1=smoothstep(s1c-s1w-bw,s1c-s1w-bw+sf,nz)-smoothstep(s1c+s1w+bw-sf,s1c+s1w+bw,nz); float b2=smoothstep(s2c-s2w-bw,s2c-s2w-bw+sf,nz)-smoothstep(s2c+s2w+bw-sf,s2c+s2w+bw,nz); float b3=smoothstep(s3c-s3w-bw,s3c-s3w-bw+sf,nz)-smoothstep(s3c+s3w+bw-sf,s3c+s3w+bw,nz); float br=clamp(max(b1-s1,0.)+max(b2-s2,0.)+max(b3-s3,0.),0.,1.); float sr=clamp(max(s1,max(s2,s3)),0.,1.); fc=mix(bn,uStripeColor,sr); fc=mix(fc,uBorderColor,br); }else{ float tg=smoothstep(.7,.9,vUv.y); fc=mix(bn,uBorderColor,tg); } vec3 ld1=normalize(vec3(1.,1.5,.8)); vec3 lc1=vec3(1.,1.,.95); vec3 lt=calculateLighting(n,v,ld1,lc1,fc); vec3 al=vec3(.45)*fc; float rd=1.-dot(v,n); float ra=smoothstep(.15,.6,rd); vec3 rc=uBaseColor*1.2*ra*.7; gl_FragColor=vec4(al+lt+rc,1.); }`;
+
+        // --- Geometry Creation Functions (Copied from Refined Bubbles v2 - No changes) ---
+        function createBubblesBodyGeometry() { /* ... Same as Refined Bubbles v2 ... */ 
+            const g=new THREE.SphereGeometry(1,32,24); const p=g.attributes.position; const n=g.attributes.normal; const v=new THREE.Vector3(); const nrm=new THREE.Vector3(); const f=1.9,a=.03; for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i); nrm.fromBufferAttribute(n,i); const ns=simplex.noise3D(v.x*f,v.y*f,v.z*f)*a; v.addScaledVector(nrm,ns); p.setXYZ(i,v.x,v.y,v.z);} g.scale(.8,.6,1.2); g.computeVertexNormals(); p.needsUpdate=true; return g;
+        }
+        function createPectoralFinGeometry() { /* ... Same as Refined Bubbles v2 ... */
+            const s=new THREE.Shape(); s.moveTo(0,0); s.quadraticCurveTo(.4,.2,.5,.8); s.quadraticCurveTo(.3,.9,.1,1.); s.quadraticCurveTo(-.1,.8,0,0); const e={depth:.05,bevelEnabled:true,bevelSize:.015,bevelSegments:2}; const g=new THREE.ExtrudeGeometry(s,e); g.center(); g.rotateX(Math.PI/2); g.scale(.8,.8,.8); g.computeVertexNormals(); return g;
+        }
+        function createTailGeometry() { /* ... Same as Refined Bubbles v2 ... */
+            const s=new THREE.Shape(); s.moveTo(0,-.2); s.quadraticCurveTo(.5,0,.7,.8); s.quadraticCurveTo(.4,.7,0,.5); s.quadraticCurveTo(-.4,.7,-.7,.8); s.quadraticCurveTo(-.5,0,0,-.2); const e={depth:.06,bevelEnabled:true,bevelSize:.02,bevelSegments:2}; const g=new THREE.ExtrudeGeometry(s,e); g.center(); g.scale(1.1,1.1,1.1); g.computeVertexNormals(); return g;
+        }
+        function createDorsalFinGeometry() { /* ... Same as Refined Bubbles v2 ... */
+            const s=new THREE.Shape(); s.moveTo(-.2,0); s.lineTo(-.15,.6); s.quadraticCurveTo(.1,.75,.4,.5); s.lineTo(.3,0); s.lineTo(-.2,0); const e={depth:.05,bevelEnabled:true,bevelSize:.015,bevelSegments:2}; const g=new THREE.ExtrudeGeometry(s,e); g.center(); g.computeVertexNormals(); return g;
+        }
+        function createPelvicFinGeometry() { /* ... Same as Refined Bubbles v2 ... */
+            const s=new THREE.Shape(); s.moveTo(0,0); s.lineTo(.1,.4); s.lineTo(0,.5); s.lineTo(-.1,.4); s.lineTo(0,0); const e={depth:.03,bevelEnabled:true,bevelSize:.01,bevelSegments:1}; const g=new THREE.ExtrudeGeometry(s,e); g.center(); g.rotateX(Math.PI/2); g.scale(.6,.6,.6); g.computeVertexNormals(); return g;
+        }
+
+        // --- Material Creation (Copied - No changes) ---
+         function createBubblesMaterial(isFinOrTail=false) { /* ... Same as Refined Bubbles v2 ... */
+             const m=new THREE.ShaderMaterial({vertexShader:bubblesVertexShader,fragmentShader:bubblesFragmentShader,uniforms:THREE.UniformsUtils.merge([{uTime:{value:0.},uBaseColor:{value:new THREE.Color(0xFF7000)},uStripeColor:{value:new THREE.Color(0xFFFFFF)},uBorderColor:{value:new THREE.Color(0x0A0A0A)},uNoiseFactor:{value:.08},uIsFinOrTail:{value:isFinOrTail?1.:0.}}]),lights:false}); return isFinOrTail?m.clone():m; 
+         }
+
+        // --- Character Assembly (Copied - No Changes) ---
+        function createBubblesCharacter() { /* ... Same as Refined Bubbles v2 ... */ 
+            const grp=new THREE.Group(); const bG=createBubblesBodyGeometry(); const bM=createBubblesMaterial(false); const b=new THREE.Mesh(bG,bM); grp.add(b); grp.userData.bodyMaterial=bM; const pFG=createPectoralFinGeometry(); const pFM=createBubblesMaterial(true); const lF=new THREE.Mesh(pFG,pFM); lF.position.set(.6,-.05,.35); lF.rotation.y=Math.PI/6; lF.rotation.z=-Math.PI/8; grp.add(lF); grp.userData.leftFin=lF; const rF=new THREE.Mesh(pFG,pFM.clone()); rF.position.x*=-1; rF.rotation.y*=-1; grp.add(rF); grp.userData.rightFin=rF; const tG=createTailGeometry(); const tM=createBubblesMaterial(true); const t=new THREE.Mesh(tG,tM); t.position.set(0,.1,-1.15); t.rotation.x=Math.PI/2; grp.add(t); grp.userData.tail=t; const dFG=createDorsalFinGeometry(); const dFM=createBubblesMaterial(true); const dF=new THREE.Mesh(dFG,dFM); dF.position.set(0,.55,-.1); dF.rotation.y=Math.PI/2; grp.add(dF); grp.userData.dorsalFin=dF; const pvFG=createPelvicFinGeometry(); const pvFM=createBubblesMaterial(true); const lPF=new THREE.Mesh(pvFG,pvFM); lPF.position.set(.25,-.45,.1); lPF.rotation.y=-Math.PI/12; lPF.rotation.z=Math.PI/10; grp.add(lPF); grp.userData.leftPelvicFin=lPF; const rPF=new THREE.Mesh(pvFG,pvFM.clone()); rPF.position.x*=-1; rPF.rotation.y*=-1; grp.add(rPF); grp.userData.rightPelvicFin=rPF; const eG=new THREE.SphereGeometry(.16,24,18); const eM=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.1,metalness:0}); const lE=new THREE.Mesh(eG,eM); lE.position.set(.4,.18,.85); grp.add(lE); const pG=new THREE.SphereGeometry(.075,18,14); const pM=new THREE.MeshStandardMaterial({color:0x050505}); const lP=new THREE.Mesh(pG,pM); lP.position.z=.14; lE.add(lP); const rE=lE.clone(); rE.position.x*=-1; grp.add(rE); grp.userData.leftPupil=lP; grp.userData.rightPupil=rE.children[0]; return grp;
+        }
+
+        // --- Character Controller Class ---
+        class CharacterController {
+            constructor(characterMesh) {
+                this.mesh = characterMesh; // The THREE.Group containing the character
+                this.state = 'SWIMMING'; // SWIMMING, JUMPING, DIVING, LANE_CHANGING
+                this.currentLane = 1; // 0 = left, 1 = center, 2 = right
+                this.targetLane = 1;
+                this.targetX = LANES[this.currentLane];
+                
+                this.actionTime = 0; // Timer for jump/dive duration
+                this.jumpStartY = 0; 
+                this.jumpVelocity = Math.sqrt(2 * GRAVITY * JUMP_HEIGHT); // Calculate initial jump velocity: v^2 = u^2 + 2as => u = sqrt(2as)
+
+                this.baseSwimParams = { // Store base animation speeds
+                    tailSwayFreq: 2.8, tailSwayAmp: 0.75,
+                    finFlutterFreq: 6.5, finFlutterAmp: 0.55
+                };
+                
+                // Input listeners
+                this.keys = {};
+                document.addEventListener('keydown', (e) => this.keys[e.code] = true);
+                document.addEventListener('keyup', (e) => this.keys[e.code] = false);
+            }
+
+            // Check if character can perform an action
+            canAct() {
+                return this.state === 'SWIMMING';
+            }
+            
+            // Trigger lane change
+            changeLane(direction) { // -1 for left, 1 for right
+                 if (!this.canAct()) return;
+                 const nextLane = THREE.MathUtils.clamp(this.currentLane + direction, 0, 2);
+                 if (nextLane !== this.currentLane) {
+                     this.targetLane = nextLane;
+                     this.targetX = LANES[this.targetLane];
+                     this.state = 'LANE_CHANGING';
+                     // console.log("Changing lane to:", this.targetLane);
+                 }
+            }
+
+            // Trigger jump
+            jump() {
+                 if (!this.canAct()) return;
+                 this.state = 'JUMPING';
+                 this.actionTime = 0;
+                 this.jumpStartY = this.mesh.position.y; // Store starting height
+                 // console.log("Jump started");
+            }
+
+            // Trigger dive
+            dive() {
+                 if (!this.canAct()) return;
+                 this.state = 'DIVING';
+                 this.actionTime = 0;
+                 // console.log("Dive started");
+            }
+            
+            // Main update loop called every frame
+            update(time, deltaTime) {
+                // --- Handle Input ---
+                if (this.keys['ArrowLeft'] || this.keys['KeyA']) this.changeLane(-1);
+                if (this.keys['ArrowRight'] || this.keys['KeyD']) this.changeLane(1);
+                if (this.keys['ArrowUp'] || this.keys['KeyW'] || this.keys['Space']) this.jump();
+                if (this.keys['ArrowDown'] || this.keys['KeyS']) this.dive();
+                // Clear keys after processing to avoid repeated actions per press
+                this.keys = {}; 
+
+                // --- State Machine Logic ---
+                let targetRoll = 0; // Target Z rotation for lane change lean
+                let targetPitch = 0; // Target X rotation for jump/dive pitch
+                
+                switch (this.state) {
+                    case 'LANE_CHANGING':
+                        const diffX = this.targetX - this.mesh.position.x;
+                        const moveX = Math.sign(diffX) * LANE_CHANGE_SPEED * deltaTime;
+                        
+                        // Calculate roll based on direction and progress
+                        const rollDirection = -Math.sign(diffX); // Roll opposite to move direction
+                        const progress = 1.0 - Math.abs(diffX) / LANE_WIDTH; // 0 to 1 progress
+                        targetRoll = rollDirection * Math.sin(progress * Math.PI) * 0.5; // Apply roll using sine curve (max roll mid-way) Max angle 0.5 radians
+
+                        // Move character, but don't overshoot
+                        if (Math.abs(diffX) < Math.abs(moveX)) {
+                             this.mesh.position.x = this.targetX;
+                             this.currentLane = this.targetLane;
+                             this.state = 'SWIMMING';
+                             targetRoll = 0; // Reset roll
+                             // console.log("Lane change complete");
+                        } else {
+                             this.mesh.position.x += moveX;
+                        }
+                        break;
+
+                    case 'JUMPING':
+                        this.actionTime += deltaTime;
+                        // Calculate parabolic trajectory: y = y0 + v0*t - 0.5*g*t^2
+                        const jumpY = this.jumpStartY + this.jumpVelocity * this.actionTime - 0.5 * GRAVITY * Math.pow(this.actionTime, 2);
+                        this.mesh.position.y = jumpY;
+
+                        // Calculate pitch based on vertical velocity: v = v0 - g*t
+                        const verticalVelocity = this.jumpVelocity - GRAVITY * this.actionTime;
+                        targetPitch = Math.atan(verticalVelocity * 0.1) * 0.8; // Pitch up when going up, down when going down (adjust scaling factors)
+
+                        // End jump when returning to start height (or slightly below)
+                        if (this.actionTime > 0.1 && jumpY <= this.jumpStartY) {
+                             this.mesh.position.y = this.jumpStartY; // Snap back to start Y
+                             this.state = 'SWIMMING';
+                             targetPitch = 0;
+                             // console.log("Jump complete");
+                        }
+                        break;
+
+                    case 'DIVING':
+                        this.actionTime += deltaTime;
+                        const divePhase = this.actionTime / DIVE_DURATION; // 0 to 1+
+
+                        // Simple sine wave for dive depth: down then up
+                        const diveYOffset = -Math.sin(Math.min(divePhase, 1.0) * Math.PI) * DIVE_DEPTH;
+                        this.mesh.position.y = this.jumpStartY + diveYOffset; // Relative to starting Y
+
+                        targetPitch = -Math.sin(Math.min(divePhase, 1.0) * Math.PI) * 0.6; // Pitch down max at bottom of dive (adjust angle)
+
+                        if (divePhase >= 1.0) {
+                            this.mesh.position.y = this.jumpStartY; // Snap back
+                            this.state = 'SWIMMING';
+                            targetPitch = 0;
+                             // console.log("Dive complete");
+                        }
+                        break;
+
+                    case 'SWIMMING':
+                        // Ensure character is exactly in the lane center if not moving
+                        this.mesh.position.x = THREE.MathUtils.lerp(this.mesh.position.x, LANES[this.currentLane], 0.1);
+                        targetRoll = 0;
+                        targetPitch = 0;
+                        break;
+                }
+
+                // --- Apply Smooth Rotation Changes ---
+                // Lerp towards target roll and pitch for smooth visual feedback
+                this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, targetRoll, 0.1);
+                this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, targetPitch, 0.1);
+
+
+                // --- Update Ambient Animations ---
+                this.animateAmbient(time, deltaTime);
+            }
+
+            // Handles the continuous ambient swimming animations
+            animateAmbient(time, deltaTime) {
+                const character = this.mesh; // The group
+                // Update time uniform in all materials that use it
+                const materialsToUpdate = [ /* ... same as before ... */
+                    character.userData.bodyMaterial, character.userData.leftFin?.material, character.userData.rightFin?.material, character.userData.tail?.material, character.userData.dorsalFin?.material, character.userData.leftPelvicFin?.material, character.userData.rightPelvicFin?.material
+                ];
+                materialsToUpdate.forEach(mat => { if (mat?.uniforms?.uTime) mat.uniforms.uTime.value = time; });
+
+                // --- Adjust animation based on state (Example) ---
+                let tailAmpMultiplier = 1.0;
+                let finFreqMultiplier = 1.0;
+                if(this.state === 'LANE_CHANGING') tailAmpMultiplier = 1.5; // Faster tail during lane change
+                if(this.state === 'JUMPING' || this.state === 'DIVING') finFreqMultiplier = 1.3; // Faster fins during jump/dive
+
+                // Animation parameters
+                const tailSwayFrequency = this.baseSwimParams.tailSwayFreq; 
+                const tailSwayAmplitude = this.baseSwimParams.tailSwayAmp * tailAmpMultiplier;
+                const finFlutterFrequency = this.baseSwimParams.finFlutterFreq * finFreqMultiplier; 
+                const finFlutterAmplitude = this.baseSwimParams.finFlutterAmp;
+                const dorsalSwayFrequency = 1.2; const dorsalSwayAmplitude = 0.06;
+                const pelvicFlutterFrequency = 7.0; const pelvicFlutterAmplitude = 0.2;
+
+                // Apply animations (Copied from Refined Bubbles v2 animateBubbles, using calculated params)
+                const tail = character.userData.tail; if (tail) { tail.rotation.y = Math.sin(time * tailSwayFrequency) * tailSwayAmplitude; }
+                const leftFin = character.userData.leftFin; const rightFin = character.userData.rightFin; if (leftFin && rightFin) { const finAngle = Math.sin(time * finFlutterFrequency + .2) * finFlutterAmplitude; leftFin.rotation.y = Math.PI/6 + finAngle; rightFin.rotation.y = -Math.PI/6 - finAngle; }
+                const dorsalFin = character.userData.dorsalFin; if (dorsalFin) { dorsalFin.rotation.z = Math.sin(time * dorsalSwayFrequency + .5) * dorsalSwayAmplitude; }
+                const leftPelvicFin = character.userData.leftPelvicFin; const rightPelvicFin = character.userData.rightPelvicFin; if (leftPelvicFin && rightPelvicFin) { const pelvicAngle = Math.sin(time * pelvicFlutterFrequency + .8) * pelvicFlutterAmplitude; leftPelvicFin.rotation.y = -Math.PI/12 + pelvicAngle; rightPelvicFin.rotation.y = Math.PI/12 - pelvicAngle; }
+                
+                // Bobbing is now handled by JUMP/DIVE logic, remove standalone bobbing
+                // character.position.y = Math.sin(time * bodyBobFrequency) * bodyBobAmplitude; 
+            }
+        }
+
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x3498DB); 
+            scene.fog = new THREE.Fog(0x3498DB, 15, 40); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100); 
+            // Position camera behind and slightly above the character's starting point
+            camera.position.set(0, 2.5, 6); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.outputEncoding = THREE.sRGBEncoding; 
+            // renderer.shadowMap.enabled = true; // Enable shadows if needed
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x90B0FF, 0.6); 
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 0.9); 
+            directionalLight.position.set(5, 10, 7);
+            // directionalLight.castShadow = true; 
+            scene.add(directionalLight);
+
+            // Controls (For debugging view) - Character movement is now via controller
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 0.5, 0); // Target the character's general area
+
+            // Create Character and Controller
+            const bubblesMesh = createBubblesCharacter();
+            bubblesMesh.position.set(0, 0, 0); // Start at origin (center lane, base height)
+            scene.add(bubblesMesh);
+            characterController = new CharacterController(bubblesMesh);
+
+            // Focus camera on character initially
+            controls.target.copy(characterController.mesh.position);
+
+
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // --- Resize Handler ---
+        function onWindowResize() { 
+             camera.aspect = window.innerWidth / window.innerHeight;
+             camera.updateProjectionMatrix();
+             renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+            const deltaTime = clock.getDelta();
+
+            if (characterController) {
+                 characterController.update(elapsedTime, deltaTime);
+                 
+                 // Make camera follow the character smoothly (optional)
+                 // const targetCamPos = characterController.mesh.position.clone().add(new THREE.Vector3(0, 2.5, 6));
+                 // camera.position.lerp(targetCamPos, 0.05);
+                 // controls.target.lerp(characterController.mesh.position, 0.05);
+            }
+            
+            controls.update(); // Update OrbitControls if used
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>

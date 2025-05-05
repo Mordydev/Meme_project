@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High Quality Power-Up Pickups</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #3498DB; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.module.min.js",
+          "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        // No simplex noise needed for these simpler shapes usually
+
+        let scene, camera, renderer, controls;
+        let powerupPickups = []; // Array to hold active pickups
+        const clock = new THREE.Clock();
+
+        // --- Power-Up Shader ---
+        const powerupVertexShader = `
+            varying vec3 vNormal;
+            varying vec3 vViewPosition;
+            varying float vFresnelFactor;
+            varying vec2 vUv; // Pass UVs for potential texture use
+
+            uniform float uTime;
+            uniform float uBobFrequency;
+            uniform float uBobAmplitude; // Bob controlled in vertex shader for simplicity here
+
+            void main() {
+                vUv = uv;
+                vec3 pos = position;
+
+                // Simple Bobbing Animation applied directly to vertex
+                pos.y += sin(uTime * uBobFrequency + position.x * 0.5) * uBobAmplitude; // Add variation based on position
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                vViewPosition = -mvPosition.xyz;
+                
+                vec3 transformedNormal = normalize(normalMatrix * normal);
+                vNormal = transformedNormal;
+
+                // Fresnel Calculation
+                vec3 viewVector = normalize(mvPosition.xyz); 
+                vFresnelFactor = pow(1.0 + dot(viewVector, transformedNormal), 2.0); // Adjust power for rim effect
+
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+
+        const powerupFragmentShader = `
+            varying vec3 vNormal;
+            varying vec3 vViewPosition;
+            varying float vFresnelFactor;
+            varying vec2 vUv; // Receive UVs
+
+            uniform float uTime;
+            uniform vec3 uGlowColor;   // Base color / glow color
+            uniform float uPulseFrequency;
+            uniform float uPulseIntensity; // How much the glow pulses
+            uniform float uBaseIntensity; // Minimum brightness/intensity
+            uniform float uFresnelIntensity; // How strong the edge brightening is
+
+            // Simple hash function for pseudo-random noise
+            float hashFS(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+            // Basic noise value
+            float noiseFS(vec2 p) { /* ... */ vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.0-2.0*f); float a=hashFS(i+vec2(0.,0.)); float b=hashFS(i+vec2(1.,0.)); float c=hashFS(i+vec2(0.,1.)); float d=hashFS(i+vec2(1.,1.)); return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
+
+
+            void main() {
+                // --- Pulsating Glow ---
+                float pulse = sin(uTime * uPulseFrequency) * 0.5 + 0.5; // 0 to 1 pulse value
+                float glow = uBaseIntensity + pulse * uPulseIntensity;
+
+                // --- Fresnel Edge Glow ---
+                float fresnel = smoothstep(0.0, 1.0, vFresnelFactor) * uFresnelIntensity;
+
+                // --- Subtle Noise/Texture --- (Optional)
+                // Add subtle moving noise for energy effect
+                float energyNoise = noiseFS(vUv * 3.0 + vec2(0.0, uTime * 0.5));
+                vec3 noiseColor = uGlowColor * (1.0 + energyNoise * 0.1);
+
+                // --- Combine ---
+                // Base glow + Fresnel edge + subtle noise texture
+                vec3 finalColor = noiseColor * glow * (1.0 + fresnel);
+
+                // --- Opacity --- (Mostly opaque, maybe slightly less in center)
+                float finalOpacity = 0.8 + fresnel * 0.2;
+
+                gl_FragColor = vec4(finalColor, finalOpacity);
+                gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2)); // Gamma Correction
+            }
+        `;
+
+        // --- Power-Up Material Creation ---
+        function createPowerupMaterial(options = {}) {
+            const {
+                glowColor = new THREE.Color(0x00FF00), // Default green glow
+                pulseFrequency = 2.5,
+                pulseIntensity = 0.5,
+                baseIntensity = 0.6,
+                fresnelIntensity = 0.5,
+                bobFrequency = 1.5,
+                bobAmplitude = 0.1
+            } = options;
+
+            return new THREE.ShaderMaterial({
+                vertexShader: powerupVertexShader,
+                fragmentShader: powerupFragmentShader,
+                uniforms: {
+                    uTime: { value: 0.0 },
+                    uGlowColor: { value: glowColor },
+                    uPulseFrequency: { value: pulseFrequency },
+                    uPulseIntensity: { value: pulseIntensity },
+                    uBaseIntensity: { value: baseIntensity },
+                    uFresnelIntensity: { value: fresnelIntensity },
+                    uBobFrequency: { value: bobFrequency },
+                    uBobAmplitude: { value: bobAmplitude }
+                },
+                transparent: true,
+                depthWrite: false, 
+                // blending: THREE.AdditiveBlending, // Optional for intense glow
+                side: THREE.DoubleSide // Render both sides just in case
+            });
+        }
+
+        // --- Power-Up Geometry Creation ---
+        function createPowerupPickupGeometry(type = 'shield') {
+            let geometry;
+            const detail = 1; // Detail level for bevels/curves (lower for simpler shapes)
+            const extrudeSettings = { depth: 0.15, bevelEnabled: true, bevelSize: 0.03, bevelSegments: detail };
+
+            switch (type) {
+                case 'speed_boost': {
+                    // Chevron/Arrow Shape
+                    const shape = new THREE.Shape();
+                    shape.moveTo(-0.4, -0.5);
+                    shape.lineTo(0, 0);
+                    shape.lineTo(0.4, -0.5);
+                    shape.lineTo(0.4, -0.3);
+                    shape.lineTo(0, 0.2); // Point
+                    shape.lineTo(-0.4, -0.3);
+                    shape.lineTo(-0.4, -0.5);
+                    geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                    geometry.center();
+                    geometry.rotateZ(Math.PI / 2); // Point forward if needed
+                    break;
+                }
+                case 'magnet': {
+                    // Horseshoe Magnet Shape
+                    const shape = new THREE.Shape();
+                    const outerRadius = 0.5;
+                    const innerRadius = 0.3;
+                    const gapAngle = Math.PI / 4; // Gap at the bottom
+                    shape.absarc(0, 0, outerRadius, Math.PI - gapAngle, gapAngle, false); // Outer arc
+                    shape.absarc(0, 0, innerRadius, gapAngle, Math.PI - gapAngle, true); // Inner arc (clockwise)
+                    geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                    geometry.center();
+                    geometry.rotateX(Math.PI / 2); // Lay flat initially
+                    break;
+                }
+                case 'score_doubler': {
+                     // Simple Diamond/Gem Shape
+                     geometry = new THREE.OctahedronGeometry(0.5, 0); // Radius, detail
+                     // Optional: Add slight noise deformation
+                     break;
+                 }
+                 case 'time_slow': {
+                      // Clock Face - Cylinder + Maybe hands shape? Simplified to just cylinder.
+                      geometry = new THREE.CylinderGeometry(0.4, 0.4, 0.15, 16);
+                      // Could add clock hands texture later if needed
+                      break;
+                  }
+                 case 'path_clearer': {
+                      // Stylized Explosion/Wave - Use a sphere with noise
+                      geometry = new THREE.IcosahedronGeometry(0.5, 1); 
+                      const positions = geometry.attributes.position;
+                      const vertex = new THREE.Vector3();
+                      const noiseFreq = 3.0; const noiseAmp = 0.15;
+                       for (let i = 0; i < positions.count; i++) {
+                           vertex.fromBufferAttribute(positions, i);
+                           let noiseVal = simplex.noise3D(vertex.x*noiseFreq, vertex.y*noiseFreq, vertex.z*noiseFreq) * noiseAmp;
+                           vertex.addScaledVector(vertex.clone().normalize(), noiseVal); 
+                           positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                       }
+                      geometry.computeVertexNormals();
+                      geometry.attributes.position.needsUpdate = true;
+                      break;
+                  }
+                case 'shield': // Default
+                default: {
+                    // Bubble shield - Sphere, maybe with inner core (use Icosahedron for better vertex distribution)
+                    geometry = new THREE.IcosahedronGeometry(0.5, 2); // Radius, detail
+                    break;
+                }
+            }
+            
+            if (!geometry) { // Fallback if type is unknown
+                 geometry = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+            }
+
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        // --- Power-Up Assembly ---
+        function createPowerupPickup(type = 'shield', options = {}) {
+            const geometry = createPowerupPickupGeometry(type);
+            
+            // Assign specific colors/material properties per type
+            let materialOptions = {
+                bobFrequency: 1.8 + Math.random()*0.4,
+                bobAmplitude: 0.08 + Math.random()*0.04
+            };
+            switch(type) {
+                case 'shield':        materialOptions.glowColor = new THREE.Color(0x00BFFF); break; // DeepSkyBlue
+                case 'speed_boost':   materialOptions.glowColor = new THREE.Color(0xFFD700); break; // Gold
+                case 'magnet':        materialOptions.glowColor = new THREE.Color(0xFF4500); break; // OrangeRed
+                case 'score_doubler': materialOptions.glowColor = new THREE.Color(0xDA70D6); break; // Orchid
+                case 'time_slow':     materialOptions.glowColor = new THREE.Color(0xAFEEEE); break; // PaleTurquoise
+                case 'path_clearer':  materialOptions.glowColor = new THREE.Color(0xFF6347); break; // Tomato
+                default:              materialOptions.glowColor = new THREE.Color(0x32CD32); break; // LimeGreen
+            }
+            
+            // Merge type-specific options with general options passed in
+            Object.assign(materialOptions, options); 
+            
+            const material = createPowerupMaterial(materialOptions);
+            
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // UserData for potential animation/game logic
+            mesh.userData.type = type;
+            mesh.userData.bobOffset = Math.random() * Math.PI * 2; // Unique bob start phase
+            mesh.userData.rotationSpeed = (Math.random() - 0.5) * 1.5; // Random rotation speed/direction
+
+            mesh.castShadow = true; // Optional: Powerups casting shadows
+
+            return mesh;
+        }
+
+        // --- Power-Up Update Logic ---
+        function updatePowerupPickups(time, deltaTime) {
+            powerupPickups.forEach(pickup => {
+                if (pickup.material?.uniforms?.uTime) {
+                    pickup.material.uniforms.uTime.value = time; // Update shader time for pulse/noise
+                }
+                // Apply JavaScript rotation
+                pickup.rotation.y += pickup.userData.rotationSpeed * deltaTime;
+                // Bobbing is handled in vertex shader now
+            });
+        }
+
+        // Function to hide/remove a powerup (called by game logic)
+        function collectPowerup(pickup) {
+             if (!pickup) return;
+             // TODO: Add particle effect burst here!
+             console.log("Collected:", pickup.userData.type);
+             
+             // Remove from array and scene
+             const index = powerupPickups.indexOf(pickup);
+             if (index > -1) {
+                 powerupPickups.splice(index, 1);
+             }
+             scene.remove(pickup);
+             // Dispose of geometry/material if no longer needed (important for memory)
+             pickup.geometry.dispose();
+             pickup.material.dispose();
+        }
+
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x3498DB); 
+            scene.fog = new THREE.Fog(0x3498DB, 15, 40); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100); 
+            camera.position.set(0, 1.5, 10); 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.outputEncoding = THREE.sRGBEncoding; 
+            renderer.shadowMap.enabled = true; 
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x90B0FF, 0.6); 
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 0.8); 
+            directionalLight.position.set(5, 10, 7);
+             directionalLight.castShadow = true; 
+            scene.add(directionalLight);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 0.5, 0); 
+
+            // --- Create Example Power-Up Pickups ---
+            const powerupTypes = ['shield', 'speed_boost', 'magnet', 'score_doubler', 'time_slow', 'path_clearer'];
+            const spacing = 2.5;
+            powerupTypes.forEach((type, index) => {
+                const pickup = createPowerupPickup(type);
+                const xPos = (index - (powerupTypes.length - 1) / 2) * spacing;
+                pickup.position.set(xPos, 0.5, 0);
+                scene.add(pickup);
+                powerupPickups.push(pickup);
+            });
+            
+            // Simulate collecting one after a delay
+            // setTimeout(() => {
+            //     if(powerupPickups[1]) collectPowerup(powerupPickups[1]);
+            // }, 5000);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // --- Resize Handler ---
+        function onWindowResize() { 
+             camera.aspect = window.innerWidth / window.innerHeight;
+             camera.updateProjectionMatrix();
+             renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+            const deltaTime = clock.getDelta();
+
+            updatePowerupPickups(elapsedTime, deltaTime);
+            
+            controls.update(); 
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High Quality Collectible Bubbles</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #3498DB; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <!-- No extra canvas needed -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.module.min.js",
+          "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        // No simplex noise needed for basic bubble shader
+
+        let scene, camera, renderer, controls;
+        let bubbleSystem; // Holds the InstancedMesh
+        const clock = new THREE.Clock();
+        const BUBBLE_COUNT = 200; // How many bubbles to instance
+
+        // --- Bubble Shader ---
+        const bubbleVertexShader = `
+            attribute float aVisible;   // Instance attribute: 1.0 visible, 0.0 hidden
+            attribute float aOffset;    // Instance attribute: Random offset for animations
+
+            varying vec3 vNormal;
+            varying vec3 vViewPosition;
+            varying float vFresnelFactor;
+            varying float vVisibility;  // Pass visibility to fragment shader
+
+            uniform float uTime;
+            uniform float uWobbleFrequency;
+            uniform float uWobbleAmplitude;
+
+            void main() {
+                vVisibility = aVisible; // Pass visibility flag
+                if (vVisibility < 0.5) { // If hidden, collapse the vertex
+                     gl_Position = vec4(0.0, 0.0, 0.0, 1.0); 
+                     return; // Early exit for hidden bubbles
+                }
+
+                vec3 pos = position;
+
+                // --- Vertex Wobble Animation ---
+                // Use instance offset and time for unique wobble per bubble
+                float timeOffset = uTime * uWobbleFrequency + aOffset * 10.0;
+                float wobbleX = sin(timeOffset + pos.y * 2.0) * uWobbleAmplitude;
+                float wobbleY = cos(timeOffset * 0.8 + pos.x * 1.5) * uWobbleAmplitude * 0.5; 
+                pos.x += wobbleX;
+                pos.y += wobbleY;
+
+                // Standard calculations
+                vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(pos, 1.0); // Apply instance matrix FIRST
+                vViewPosition = -mvPosition.xyz;
+                
+                vec3 transformedNormal = normalMatrix * normal; // Normal in view space
+                vNormal = normalize(transformedNormal);
+
+                // Fresnel calculation in vertex shader for potentially smoother interpolation
+                vec3 viewVector = normalize(mvPosition.xyz); 
+                vFresnelFactor = pow(1.0 + dot(viewVector, transformedNormal), 3.0); // Higher power for sharper edge
+
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+
+        const bubbleFragmentShader = `
+            varying vec3 vNormal;       // Interpolated normal
+            varying vec3 vViewPosition; // Interpolated view position
+            varying float vFresnelFactor; // Interpolated fresnel factor
+            varying float vVisibility;  // Interpolated visibility
+
+            uniform float uTime;
+            uniform vec3 uBaseColor;    // Tint color
+            uniform float uOpacity;     // Base opacity
+
+            // --- Simple Specular Highlight Calculation ---
+            // Simulates a light reflection without full lighting calc
+            float calculateSpecular(vec3 normal, vec3 viewDir, vec3 lightDir, float shininess) {
+                vec3 halfwayDir = normalize(lightDir + viewDir);
+                float specAngle = max(dot(normal, halfwayDir), 0.0);
+                return pow(specAngle, shininess);
+            }
+
+            void main() {
+                 if (vVisibility < 0.5) discard; // Discard fragment if bubble is hidden
+
+                vec3 normal = normalize(vNormal);
+                vec3 viewDir = normalize(vViewPosition);
+
+                // --- Fresnel Effect for Edges ---
+                // Map the factor to alpha and brightness boost
+                float fresnel = smoothstep(0.0, 1.0, vFresnelFactor) * 0.8 + 0.2; // Ensure minimum brightness
+
+                // --- Simulated Specular Highlight ---
+                vec3 lightDirection = normalize(vec3(0.8, 0.8, 0.5)); // Assume a light direction
+                float specular = calculateSpecular(normal, viewDir, lightDirection, 20.0); // Adjust shininess
+                vec3 specularColor = vec3(1.0) * specular * fresnel * 1.5; // Make specular brighter at edges
+
+                // --- Base Color & Final Combination ---
+                vec3 base = uBaseColor * 0.5; // Base color is subtle
+                vec3 finalColor = base + specularColor * 0.8; // Combine base tint + specular
+
+                // --- Opacity ---
+                // Base opacity modulated by Fresnel (more opaque at edges)
+                float finalOpacity = uOpacity * fresnel; 
+
+                gl_FragColor = vec4(finalColor, finalOpacity);
+                // Gamma correction applied by renderer settings
+            }
+        `;
+
+        // --- Bubble System Creation ---
+        function createBubbleMaterial() {
+            return new THREE.ShaderMaterial({
+                vertexShader: bubbleVertexShader,
+                fragmentShader: bubbleFragmentShader,
+                uniforms: {
+                    uTime: { value: 0.0 },
+                    uBaseColor: { value: new THREE.Color(0xADD8E6) }, // Light blue tint
+                    uOpacity: { value: 0.6 },
+                    uWobbleFrequency: { value: 2.0 },
+                    uWobbleAmplitude: { value: 0.05 } 
+                },
+                transparent: true,
+                depthWrite: false, // Crucial for correct transparency sorting (usually)
+                blending: THREE.NormalBlending // Or AdditiveBlending for a glowier look
+            });
+        }
+
+        function createBubbleSystem(count = BUBBLE_COUNT) {
+            // Use Icosahedron for more even geometry than Sphere
+            const geometry = new THREE.IcosahedronGeometry(0.2, 1); // Radius, detail level
+            const material = createBubbleMaterial();
+
+            const mesh = new THREE.InstancedMesh(geometry, material, count);
+
+            // --- Setup Instance Attributes ---
+            const dummy = new THREE.Object3D(); // Used to set matrices
+            const visibleArray = new Float32Array(count);
+            const offsetArray = new Float32Array(count);
+
+            for (let i = 0; i < count; i++) {
+                // Initial position (random spread for demo)
+                dummy.position.set(
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 10,
+                    (Math.random() - 0.5) * 20
+                );
+                // Random initial scale (optional)
+                const scale = 0.8 + Math.random() * 0.4;
+                dummy.scale.set(scale, scale, scale);
+
+                dummy.updateMatrix();
+                mesh.setMatrixAt(i, dummy.matrix);
+
+                // Set custom attributes
+                visibleArray[i] = 1.0; // Initially all visible
+                offsetArray[i] = Math.random() * 10.0; // Random animation offset
+            }
+            mesh.instanceMatrix.needsUpdate = true;
+
+            // Add custom attributes to the geometry
+            geometry.setAttribute('aVisible', new THREE.InstancedBufferAttribute(visibleArray, 1));
+            geometry.setAttribute('aOffset', new THREE.InstancedBufferAttribute(offsetArray, 1));
+
+            mesh.userData.bobPhase = new Float32Array(count); // Store bobbing phase per instance
+            for(let i=0; i<count; ++i) mesh.userData.bobPhase[i] = Math.random() * Math.PI * 2;
+
+            return mesh;
+        }
+
+        // --- Bubble System Update Logic ---
+        function updateBubbleSystem(system, time, deltaTime) {
+            if (!system) return;
+
+            // Update shader time uniform
+            system.material.uniforms.uTime.value = time;
+
+            const matrix = new THREE.Matrix4();
+            const position = new THREE.Vector3();
+            const quaternion = new THREE.Quaternion();
+            const scale = new THREE.Vector3();
+            const bobSpeed = 0.5;
+            const bobAmplitude = 0.005;
+
+            // Example: Make some bubbles disappear randomly for testing
+            // In game, this would be driven by collision detection
+            // if (Math.random() < 0.01) {
+            //     const indexToHide = Math.floor(Math.random() * BUBBLE_COUNT);
+            //     hideBubble(system, indexToHide);
+            // }
+
+            // --- Update Instance Matrices for Bobbing ---
+            for (let i = 0; i < system.count; i++) {
+                 system.getMatrixAt(i, matrix); // Get current matrix
+                 matrix.decompose(position, quaternion, scale); // Extract components
+
+                 // Apply bobbing motion
+                 system.userData.bobPhase[i] += bobSpeed * deltaTime;
+                 position.y += Math.sin(system.userData.bobPhase[i]) * bobAmplitude; 
+
+                 matrix.compose(position, quaternion, scale); // Recompose matrix
+                 system.setMatrixAt(i, matrix); // Set updated matrix
+            }
+            system.instanceMatrix.needsUpdate = true; // VERY IMPORTANT
+        }
+
+        // --- Function to hide/show a bubble (called by game logic) ---
+        function setBubbleVisibility(system, index, isVisible) {
+             if (!system || index < 0 || index >= system.count) return;
+
+             const visibleAttribute = system.geometry.getAttribute('aVisible');
+             visibleAttribute.setX(index, isVisible ? 1.0 : 0.0);
+             visibleAttribute.needsUpdate = true; // VERY IMPORTANT
+        }
+        // Helper alias functions
+        function hideBubble(system, index) { setBubbleVisibility(system, index, false); }
+        function showBubble(system, index) { setBubbleVisibility(system, index, true); }
+
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x3498DB); 
+            scene.fog = new THREE.Fog(0x3498DB, 15, 40); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100); 
+            camera.position.set(0, 1, 8); // Closer view for bubbles
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.outputEncoding = THREE.sRGBEncoding; 
+            // renderer.shadowMap.enabled = true; // Optional shadows
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting (Simple setup)
+            const ambientLight = new THREE.AmbientLight(0x90B0FF, 0.7); 
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 0.6); 
+            directionalLight.position.set(5, 10, 7);
+            scene.add(directionalLight);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 0, 0); 
+
+            // Create Bubble System
+            bubbleSystem = createBubbleSystem(BUBBLE_COUNT);
+            scene.add(bubbleSystem);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // --- Resize Handler ---
+        function onWindowResize() { 
+             camera.aspect = window.innerWidth / window.innerHeight;
+             camera.updateProjectionMatrix();
+             renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+            const deltaTime = clock.getDelta();
+
+            updateBubbleSystem(bubbleSystem, elapsedTime, deltaTime);
+            
+            controls.update(); 
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>

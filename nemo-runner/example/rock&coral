@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Static Obstacles</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #3498DB; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="dynamicTextureCanvas" style="display:none;"></canvas> 
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.module.min.js",
+          "three/addons/": "https://unpkg.com/three@0.134.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { SimplexNoise } from 'three/addons/math/SimplexNoise.js';
+        // Optional: CSG for more complex rock formations (if needed)
+        // import { CSG } from 'three/addons/libs/CSG-v2.js'; // Or 'three-csg-ts' if using npm
+
+        let scene, camera, renderer, controls;
+        let floorMesh, rockFormationMaterial, coralMaterialBase; // Store base materials
+        let causticTexture, causticCanvas, causticCtx;
+        const clock = new THREE.Clock();
+        const simplex = new SimplexNoise();
+        const environmentObjects = new THREE.Group(); 
+        const raycaster = new THREE.Raycaster(); 
+        const UP_VECTOR = new THREE.Vector3(0, 1, 0);
+
+        // --- Noise Functions (Copied from Environment) ---
+        function hash(p) { /* ... */ 
+            let p_ = new THREE.Vector2(p.dot(new THREE.Vector2(127.1,311.7)), p.dot(new THREE.Vector2(269.5,183.3)));
+            return -1.0 + 2.0 * new THREE.Vector2(Math.fract(Math.sin(p_.x)*43758.5453123), Math.fract(Math.sin(p_.y)*43758.5453123));
+        }
+        function noise(p) { /* ... */ 
+            let i = p.clone().floor(); let f = p.clone().fract(); let u = f.clone().multiply(f).multiplyScalar(3.0).addScaledVector(f.clone().multiply(f).multiplyScalar(-2.0), 1.0);
+            let h00 = hash(i); let h10 = hash(i.clone().add(new THREE.Vector2(1.0, 0.0))); let h01 = hash(i.clone().add(new THREE.Vector2(0.0, 1.0))); let h11 = hash(i.clone().add(new THREE.Vector2(1.0, 1.0)));
+            let r1 = h00.clone().addScaledVector(h10.clone().sub(h00), u.x); let r2 = h01.clone().addScaledVector(h11.clone().sub(h01), u.x); 
+            return r1.clone().addScaledVector(r2.clone().sub(r1), u.y).x; 
+        }
+        function fbm(p, octaves = 4, persistence = 0.5) { /* ... */ 
+            let t = 0.0; let f = 1.0; let a = 1.0; let mv = 0.0; 
+            for(let i=0; i<octaves; i++) { t+=noise(p.clone().multiplyScalar(f))*a; mv+=a; a*=persistence; f*=2.0; } return t/mv; 
+        }
+
+        // --- Shaders (Floor/Rock and Simple Flora - Copied from Environment) ---
+        const floorVertexShader = `/* ... Same as environment ... */
+            varying vec3 vNormal; varying vec3 vWorldPosition; varying float vSlope;
+            void main() { vec3 worldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz); vNormal = normalize(normalMatrix * normal); vec4 worldPos = modelMatrix * vec4(position, 1.0); vWorldPosition = worldPos.xyz; vSlope = max(0.0, dot(worldNormal, vec3(0.0, 1.0, 0.0))); gl_Position = projectionMatrix * viewMatrix * worldPos; }`;
+        const floorFragmentShader = `/* ... Same as environment ... */
+            uniform vec3 uSandColor; uniform vec3 uRockColor; uniform vec3 uWetSandColor; uniform float uTime; uniform sampler2D uCausticMap; 
+            varying vec3 vNormal; varying vec3 vWorldPosition; varying float vSlope;
+            float hashFS(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+            float noiseFS(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f); float a = hashFS(i + vec2(0.0, 0.0)); float b = hashFS(i + vec2(1.0, 0.0)); float c = hashFS(i + vec2(0.0, 1.0)); float d = hashFS(i + vec2(1.0, 1.0)); return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
+            float fbmFS(vec2 p, int octaves, float persistence) { float v=0.0; float a=1.0; float f=1.0; float mv=0.0; for(int i=0; i<octaves; ++i) { v+=noiseFS(p*f)*a; mv+=a; a*=persistence; f*=2.0; } return v/mv;}
+            void main() { vec3 n=normalize(vNormal); float slopeMix = smoothstep(0.6, 0.9, vSlope); vec3 slopeColor = mix(uRockColor, uSandColor, slopeMix); float heightMix = smoothstep(-3.0, -1.0, vWorldPosition.y); vec3 baseColor = mix(slopeColor, uWetSandColor * (0.7 + uRockColor * 0.3), 1.0 - heightMix); float detailNoise = fbmFS(vWorldPosition.xz * 0.8, 3, 0.45); baseColor += detailNoise * 0.08; vec3 viewDir = normalize(-vWorldPosition + cameraPosition); vec3 lightDir = normalize(vec3(0.5, 0.8, 0.4)); float diff = max(dot(n, lightDir), 0.0); vec3 halfwayDir = normalize(lightDir + viewDir); float specAngle = max(dot(n, halfwayDir), 0.0); float spec = pow(specAngle, 16.0) * (0.3 + slopeMix * 0.3); vec3 litColor = baseColor * (diff * 0.8 + 0.25) + vec3(spec * 0.4); vec2 causticUv = vWorldPosition.xz * 0.08 + vec2(uTime * 0.03, uTime * 0.02); vec3 caustics = texture2D(uCausticMap, causticUv).rgb * 0.18; gl_FragColor = vec4(litColor + caustics, 1.0); gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2)); }`;
+        
+        const simpleFloraVertexShader = `/* ... Same as environment ... */
+            varying vec3 vNormal; varying vec2 vUv; varying vec3 vWorldPosition; uniform float uTime; uniform float uSwayFactor; uniform float uInstanceOffset; 
+            void main() { vNormal = normalize(normalMatrix * normal); vUv = uv; vec3 pos = position; if (uSwayFactor > 0.0) { float timeOffset = uTime * 1.5 + uInstanceOffset * 10.0; float heightFactor = pow(max(0.0, position.y), 1.2); float swayAmountX = sin(timeOffset + position.y * 0.5) * heightFactor * 0.08 * uSwayFactor; float swayAmountZ = cos(timeOffset * 0.8 + position.y * 0.4) * heightFactor * 0.06 * uSwayFactor; pos.x += swayAmountX; pos.z += swayAmountZ; } vec4 worldPos = modelMatrix * vec4(pos, 1.0); vWorldPosition = worldPos.xyz; gl_Position = projectionMatrix * viewMatrix * worldPos; }`;
+        const simpleFloraFragmentShader = `/* ... Same as environment ... */
+            varying vec3 vNormal; varying vec2 vUv; varying vec3 vWorldPosition; uniform vec3 uColor; uniform sampler2D uCausticMap; uniform float uTime; 
+            float hashFS(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); } float noiseFS(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f); float a=hashFS(i+vec2(0.0,0.0)); float b=hashFS(i+vec2(1.0,0.0)); float c=hashFS(i+vec2(0.0,1.0)); float d=hashFS(i+vec2(1.0,1.0)); return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }
+            void main() { vec3 n = normalize(vNormal); float colorNoise = noiseFS(vWorldPosition.xy * 2.0) * 0.15; vec3 variedColor = uColor + vec3(colorNoise); vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3)); float diff = max(dot(n, lightDir), 0.0) * 0.7 + 0.3; vec3 litColor = variedColor * diff; vec2 causticUv = vWorldPosition.xz * 0.08 + vec2(uTime * 0.03, uTime * 0.02); vec3 caustics = texture2D(uCausticMap, causticUv).rgb * 0.15; gl_FragColor = vec4(litColor + caustics, 1.0); gl_FragColor.rgb = pow(gl_FragColor.rgb, vec3(1.0/2.2)); }`;
+
+
+        // --- Obstacle Creation Functions ---
+
+        /**
+         * Creates a large, procedural rock formation obstacle.
+         * @param {object} options - Configuration object.
+         * @param {number} [options.baseScale=3] - Overall size multiplier.
+         * @param {number} [options.detailLevel=2] - Base geometry subdivision (1-3).
+         * @param {number} [options.noiseFreq1=0.8] - Frequency of large noise features.
+         * @param {number} [options.noiseAmp1=0.4] - Amplitude of large noise features.
+         * @param {number} [options.noiseFreq2=2.5] - Frequency of smaller noise details.
+         * @param {number} [options.noiseAmp2=0.1] - Amplitude of smaller noise details.
+         */
+        function createRockFormation(options = {}) {
+            const {
+                baseScale = 3 + Math.random() * 2, // Larger default scale
+                detailLevel = 2,
+                noiseFreq1 = 0.6 + Math.random() * 0.4,
+                noiseAmp1 = 0.3 + Math.random() * 0.3,
+                noiseFreq2 = 2.0 + Math.random() * 1.5,
+                noiseAmp2 = 0.08 + Math.random() * 0.07
+            } = options;
+
+            // Base geometry - start with a sphere for rounded forms
+            const geometry = new THREE.IcosahedronGeometry(1, Math.max(1, Math.min(4, detailLevel))); // Detail 1 to 4
+            const positions = geometry.attributes.position;
+            const normals = geometry.attributes.normal;
+            const vertex = new THREE.Vector3();
+            const normal = new THREE.Vector3();
+
+            // Deform vertices with layered noise
+            for (let i = 0; i < positions.count; i++) {
+                vertex.fromBufferAttribute(positions, i);
+                normal.fromBufferAttribute(normals, i);
+                let noise = simplex.noise3D(vertex.x*noiseFreq1, vertex.y*noiseFreq1, vertex.z*noiseFreq1) * noiseAmp1;
+                    noise += simplex.noise3D(vertex.x*noiseFreq2, vertex.y*noiseFreq2, vertex.z*noiseFreq2) * noiseAmp2;
+                // Apply noise more strongly along the normal for cragginess
+                vertex.addScaledVector(normal, noise * (1.0 + Math.random()*0.2)); // Add randomness to displacement 
+                positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+            }
+            geometry.computeVertexNormals();
+            geometry.attributes.position.needsUpdate = true;
+
+            // Use the shared rock/floor material instance (created in init)
+            const mesh = new THREE.Mesh(geometry, rockFormationMaterial);
+            
+            // Apply random non-uniform scaling for variety
+            mesh.scale.set(
+                baseScale * (0.8 + Math.random() * 0.4), 
+                baseScale * (0.6 + Math.random() * 0.8), // Allow more height variation
+                baseScale * (0.8 + Math.random() * 0.4)
+            );
+
+            mesh.castShadow = true; 
+            mesh.receiveShadow = true;
+            return mesh;
+        }
+        
+        /**
+         * Creates a procedural Staghorn coral obstacle using a simple recursive approach.
+         * @param {object} options - Configuration object.
+         * @param {number} [options.depth=3] - Recursion depth (complexity).
+         * @param {number} [options.baseRadius=0.1] - Starting branch radius.
+         * @param {number} [options.baseLength=0.8] - Starting branch length.
+         * @param {number} [options.branches=3] - Max branches per node.
+         * @param {THREE.Color} [options.color=0xFFA07A] - Base color (Light Salmon).
+         * @param {THREE.Material} material - Shared material instance.
+         */
+        function createStaghornCoralRecursive(options = {}, material) {
+            const {
+                depth = 2 + Math.floor(Math.random()*2), // Random depth 2 or 3
+                baseRadius = 0.08 + Math.random()*0.04,
+                baseLength = 0.6 + Math.random()*0.4,
+                branches = 2 + Math.floor(Math.random()*2), // 2 to 3 branches
+                color = new THREE.Color(0xFFA07A), // Default Light Salmon
+                swayFactor = 0.1 + Math.random() * 0.1 // Subtle sway for thin branches
+            } = options;
+
+            const group = new THREE.Group();
+            
+            // Use CapsuleGeometry for rounded ends if available, otherwise Cylinder
+            const segmentGeometry = new THREE.CylinderGeometry(1, 1, 1, 8, 2); // RadiusTop, RadiusBottom, Height, RadialSegments, HeightSegments
+            
+            function addBranch(parentGroup, currentDepth, radius, length, currentPos, currentQuat) {
+                if (currentDepth > depth) return;
+
+                const branchMaterial = material.clone(); // Clone to set unique color/sway if needed
+                branchMaterial.uniforms.uColor.value = color;
+                branchMaterial.uniforms.uSwayFactor.value = swayFactor * (1.0 / (currentDepth + 1)); // Less sway on thicker branches
+                branchMaterial.uniforms.uInstanceOffset.value = Math.random() * 100; 
+
+                const branchMesh = new THREE.Mesh(segmentGeometry, branchMaterial);
+                branchMesh.scale.set(radius, length, radius);
+                branchMesh.position.copy(currentPos);
+                branchMesh.quaternion.copy(currentQuat);
+                // Position base at the end of the parent branch (approx)
+                branchMesh.translateY(length * 0.5); 
+
+                parentGroup.add(branchMesh);
+                
+                // Calculate end point and new direction for child branches
+                const endPos = new THREE.Vector3(0, length, 0).applyQuaternion(currentQuat).add(currentPos);
+                
+                const numBranches = Math.floor(Math.random() * (branches - 1)) + 2; // Min 2 branches
+
+                for (let i = 0; i < numBranches; i++) {
+                    const nextRadius = radius * (0.7 + Math.random() * 0.2); // Reduce radius
+                    const nextLength = length * (0.6 + Math.random() * 0.3); // Reduce length
+                    
+                    // Create a random rotation offset from the current orientation
+                    const randomAxis = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+                    const randomAngle = (Math.random() * 0.8 + 0.4) * (Math.PI / 3); // Angle between 24-64 degrees approx
+                    const rotationOffset = new THREE.Quaternion().setFromAxisAngle(randomAxis, randomAngle);
+                    const nextQuat = currentQuat.clone().multiply(rotationOffset).normalize();
+
+                    addBranch(parentGroup, currentDepth + 1, nextRadius, nextLength, endPos, nextQuat);
+                }
+            }
+
+            addBranch(group, 0, baseRadius, baseLength, new THREE.Vector3(0,0,0), new THREE.Quaternion().setFromAxisAngle(UP_VECTOR, 0));
+            
+            // Add noise displacement to all vertices for organic look (more complex)
+            group.traverse((child) => {
+                 if(child.isMesh) {
+                     const positions = child.geometry.attributes.position;
+                     const vertex = new THREE.Vector3();
+                     const noiseFreq = 3.0; const noiseAmp = 0.1 * child.scale.x; // Noise relative to radius
+                      for (let i = 0; i < positions.count; i++) {
+                         vertex.fromBufferAttribute(positions, i);
+                         let noiseVal = simplex.noise3D(vertex.x*noiseFreq, vertex.y*noiseFreq, vertex.z*noiseFreq) * noiseAmp;
+                         vertex.addScaledVector(vertex.clone().normalize(), noiseVal); // Displace along vertex direction
+                         positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                     }
+                     child.geometry.computeVertexNormals();
+                     child.geometry.attributes.position.needsUpdate = true;
+                     child.castShadow = true;
+                     child.receiveShadow = true;
+                 }
+            });
+
+            return group;
+        }
+
+
+        /**
+         * Creates a procedural coral obstacle of various types.
+         * @param {string} type - 'brain', 'staghorn', 'pillar', 'fan'.
+         * @param {object} options - Configuration object (size, color, complexity).
+         * @param {THREE.Material} material - Shared material instance.
+         */
+        function createCoralObstacle(type = 'brain', options = {}, material) {
+            const {
+                size = 1.0 + Math.random() * 1.5,
+                color = new THREE.Color().setHSL(Math.random(), 0.7, 0.6), // Random vibrant color
+                complexity = 3 // General complexity setting
+            } = options;
+
+            let coralMesh;
+            let swayFactor = 0.0; // Default no sway
+
+            switch (type) {
+                case 'staghorn':
+                    // Use the recursive function
+                    coralMesh = createStaghornCoralRecursive({ 
+                        depth: complexity, 
+                        baseRadius: 0.05 * size, 
+                        baseLength: 0.3 * size,
+                        color: color
+                    }, material); 
+                    // Staghorn itself is the group, no need to reassign
+                    return coralMesh; // Early exit as it returns a group
+
+                case 'pillar': {
+                    const geometry = new THREE.CylinderGeometry(0.5, 0.4 + Math.random()*0.2, 1, 12, 5); // Tapered cylinder
+                    const positions = geometry.attributes.position;
+                    const vertex = new THREE.Vector3();
+                    // Add noise displacement
+                    const noiseFreq1 = 1.5 / size; const noiseAmp1 = 0.1 * size;
+                    const noiseFreq2 = 5.0 / size; const noiseAmp2 = 0.03 * size;
+                     for (let i = 0; i < positions.count; i++) {
+                        vertex.fromBufferAttribute(positions, i);
+                        let noise = simplex.noise3D(vertex.x*noiseFreq1, vertex.y*noiseFreq1, vertex.z*noiseFreq1) * noiseAmp1;
+                            noise += simplex.noise3D(vertex.x*noiseFreq2, vertex.y*noiseFreq2, vertex.z*noiseFreq2) * noiseAmp2;
+                        vertex.addScaledVector(vertex.clone().normalize(), noise); 
+                        positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                    }
+                    geometry.computeVertexNormals();
+                    geometry.attributes.position.needsUpdate = true;
+                    coralMesh = new THREE.Mesh(geometry, material.clone());
+                    coralMesh.scale.set(size * 0.6, size * 1.5, size * 0.6); // Make it tall and pillar-like
+                    break;
+                }
+                 case 'fan': { // Adapt the fan coral function
+                     const width = size * (1.0 + Math.random());
+                     const height = size * (0.8 + Math.random() * 0.7);
+                     const geometry = new THREE.PlaneGeometry(width, height, Math.max(5, Math.floor(width*5)), Math.max(5, Math.floor(height*5)));
+                     const positions = geometry.attributes.position;
+                      for(let i=0; i<positions.count; ++i) {
+                           const x = positions.getX(i); const y = positions.getY(i);
+                           const z = Math.sin(x*1.5 + y*1.0) * 0.08 + simplex.noise(x*2.0, y*2.0)*0.12; // More pronounced waves
+                           positions.setZ(i, z);
+                      }
+                     geometry.computeVertexNormals();
+                     geometry.attributes.position.needsUpdate = true;
+                     coralMesh = new THREE.Mesh(geometry, material.clone());
+                     swayFactor = 0.15 + Math.random() * 0.15; // Add subtle sway
+                     coralMesh.rotation.x = (Math.random() - 0.5) * 0.2; // Slight random tilt
+                     break;
+                 }
+
+                case 'brain': // Default to brain coral
+                default: {
+                     const geometry = new THREE.IcosahedronGeometry(1, Math.min(5, complexity + 1)); // More detail for larger obstacles
+                     const positions = geometry.attributes.position;
+                     const normals = geometry.attributes.normal;
+                     const vertex = new THREE.Vector3();
+                     const normal = new THREE.Vector3();
+                    // Apply more pronounced FBM noise displacement
+                     const noiseScale = (1.8 + Math.random() * 0.5) / size; 
+                     const noiseAmp = (0.2 + Math.random() * 0.1) * size;
+                     for (let i = 0; i < positions.count; i++) {
+                         vertex.fromBufferAttribute(positions, i);
+                         normal.fromBufferAttribute(normals, i);
+                         let pos = vertex.clone().multiplyScalar(noiseScale);
+                         let displacement = fbm(new THREE.Vector2(pos.x, pos.y), 5, 0.5) * noiseAmp; 
+                             displacement += fbm(new THREE.Vector2(pos.y, pos.z), 5, 0.5) * noiseAmp; 
+                             displacement += fbm(new THREE.Vector2(pos.z, pos.x), 5, 0.5) * noiseAmp; 
+                         vertex.addScaledVector(normal, displacement / 3.0); // Average displacement
+                         positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+                     }
+                     geometry.computeVertexNormals();
+                     geometry.attributes.position.needsUpdate = true;
+                     coralMesh = new THREE.Mesh(geometry, material.clone());
+                     coralMesh.scale.set(size, size * (0.8 + Math.random()*0.4), size); // Slightly non-uniform scale
+                     break;
+                 }
+            }
+            
+            // Set material properties for all non-staghorn types
+            if(coralMesh && coralMesh.material){
+                 coralMesh.material.uniforms.uColor.value = color;
+                 coralMesh.material.uniforms.uSwayFactor.value = swayFactor;
+                 coralMesh.material.uniforms.uInstanceOffset.value = Math.random() * 100;
+                 coralMesh.castShadow = true;
+                 coralMesh.receiveShadow = true;
+            }
+
+            return coralMesh;
+        }
+
+
+        // --- Caustic Effect (Copied) ---
+        function createCausticTexture(size = 256) { /* ... */ 
+            causticCanvas = document.getElementById('dynamicTextureCanvas'); if (!causticCanvas) { causticCanvas = document.createElement('canvas'); }
+            causticCanvas.width = size; causticCanvas.height = size; causticCtx = causticCanvas.getContext('2d');
+            const texture = new THREE.CanvasTexture(causticCanvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.minFilter = THREE.LinearFilter; return texture;
+        }
+        function updateCausticTexture(texture, time) { /* ... */
+            const size=texture.image.width; const ctx=causticCtx; ctx.fillStyle='rgb(15,15,25)'; ctx.fillRect(0,0,size,size); const layers=4; 
+            for(let i=0; i<layers; i++){ ctx.strokeStyle=`rgba(${180+Math.random()*50}, ${210+Math.random()*45}, 255, ${0.05+Math.random()*0.05})`; ctx.lineWidth=Math.random()*1.5+1.0; ctx.beginPath(); const freq=(i+1)*0.04+0.03; const amp=size*0.18; const speed=(i+1)*0.25+0.15; const ox=Math.sin(time*speed*0.6+i*2.0)*size*0.25; const oy=Math.cos(time*speed*0.45+i*3.0)*size*0.25; for(let x=0; x<size; x++){ const y=Math.sin((x+ox)*freq+time*speed+Math.cos(x*0.03)*0.5)*amp+size/2+oy+Math.cos(x*0.04+time*0.15+i*1.5)*15; if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); } ctx.stroke(); } texture.needsUpdate=true; 
+        }
+
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x3498DB); 
+            scene.fog = new THREE.Fog(0x3498DB, 20, 60); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 150); 
+            camera.position.set(0, 2, 18); // Adjusted camera
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.outputEncoding = THREE.sRGBEncoding; 
+            renderer.shadowMap.enabled = true; 
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting (Slightly adjusted)
+            const ambientLight = new THREE.AmbientLight(0x70A0D0, 0.5); 
+            scene.add(ambientLight);
+            const hemisphereLight = new THREE.HemisphereLight(0xB0D0FF, 0x205080, 0.4); 
+            scene.add(hemisphereLight);
+            const directionalLight = new THREE.DirectionalLight(0xFFF0D0, 1.1); 
+            directionalLight.position.set(15, 25, 20);
+            directionalLight.castShadow = true; 
+            directionalLight.shadow.camera.near = 1; directionalLight.shadow.camera.far = 80;
+            directionalLight.shadow.camera.left = -40; directionalLight.shadow.camera.right = 40; // Wider shadow area
+            directionalLight.shadow.camera.top = 40; directionalLight.shadow.camera.bottom = -40;
+            directionalLight.shadow.mapSize.width = 1024; directionalLight.shadow.mapSize.height = 1024;
+            directionalLight.shadow.bias = -0.002; 
+            scene.add(directionalLight);
+
+            // Caustic Setup
+            causticTexture = createCausticTexture(256); 
+            
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 0, 0); 
+
+            // --- Create Materials (to be shared) ---
+            // Floor/Rock Material
+             const floorMaterialBase = new THREE.ShaderMaterial({
+                vertexShader: floorVertexShader, fragmentShader: floorFragmentShader,
+                uniforms: { uTime: { value: 0.0 }, uSandColor: { value: new THREE.Color(0xD2B48C) }, uRockColor: { value: new THREE.Color(0x607080) }, uWetSandColor: { value: new THREE.Color(0xA08C6E) }, uCausticMap: { value: causticTexture } }
+            });
+            rockFormationMaterial = floorMaterialBase; // Use the same for rocks
+
+            // Coral Material Base (will be cloned)
+             coralMaterialBase = new THREE.ShaderMaterial({
+                 vertexShader: simpleFloraVertexShader, fragmentShader: simpleFloraFragmentShader,
+                 uniforms: { uTime: { value: 0.0 }, uColor: { value: new THREE.Color(0xffffff) }, uSwayFactor: {value: 0.0}, uInstanceOffset: {value: 0.0}, uCausticMap: { value: causticTexture } },
+                 side: THREE.DoubleSide, transparent: true, alphaTest: 0.05 // Base settings
+             });
+
+
+            // Create Environment Base
+            floorMesh = new THREE.Mesh( new THREE.PlaneGeometry(120, 120, 150, 150), floorMaterialBase); // Create floor geometry here
+             const positions = floorMesh.geometry.attributes.position; const vertex = new THREE.Vector3();
+             for (let i = 0; i < positions.count; i++) { vertex.fromBufferAttribute(positions, i); let pos2D = new THREE.Vector2(vertex.x * 0.03, vertex.z * 0.03); let height = fbm(pos2D, 5, 0.55) * 3.5; positions.setY(i, height); }
+             floorMesh.geometry.computeVertexNormals(); floorMesh.geometry.attributes.position.needsUpdate = true;
+             floorMesh.rotation.x = -Math.PI / 2; floorMesh.position.y = -6; floorMesh.receiveShadow = true;
+            scene.add(floorMesh);
+
+            // --- Place Example Obstacles ---
+            placeObstacle(createRockFormation({baseScale: 4, noiseAmp1: 0.5}), -5, 0);
+            placeObstacle(createCoralObstacle('staghorn', {size: 2.0, color: new THREE.Color(0xFF8C69)}, coralMaterialBase), 5, -2);
+             placeObstacle(createCoralObstacle('brain', {size: 2.5, color: new THREE.Color(0x90EE90)}, coralMaterialBase), 0, -5);
+             placeObstacle(createCoralObstacle('pillar', {size: 1.5, color: new THREE.Color(0xDA70D6)}, coralMaterialBase), -8, -8);
+              placeObstacle(createCoralObstacle('fan', {size: 2.2, color: new THREE.Color(0xFF4500)}, coralMaterialBase), 8, -10);
+
+            scene.add(environmentObjects); // Add the group containing obstacles
+
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // Helper function to place obstacles on the floor
+        function placeObstacle(obstacleMesh, targetX, targetZ) {
+             if (!floorMesh) return; // Floor must exist
+             raycaster.set(new THREE.Vector3(targetX, 30, targetZ), UP_VECTOR.clone().negate());
+             const intersects = raycaster.intersectObject(floorMesh);
+             if (intersects.length > 0) {
+                 const point = intersects[0].point;
+                 const normal = intersects[0].face.normal.clone().normalize();
+                 obstacleMesh.position.copy(point);
+                 // Align Y axis to normal for rock formations, less so for coral maybe
+                  if (obstacleMesh.geometry.type !== "Group" && obstacleMesh.geometry.type !== "PlaneGeometry") { // Don't align flat fans or groups like staghorn
+                      obstacleMesh.quaternion.setFromUnitVectors(UP_VECTOR, normal);
+                  }
+                 obstacleMesh.rotateY(Math.random() * Math.PI * 2); 
+                 environmentObjects.add(obstacleMesh); // Add to the group
+             } else {
+                 console.warn("Could not place obstacle at", targetX, targetZ);
+             }
+        }
+
+        // --- Resize Handler ---
+        function onWindowResize() { /* ... */ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+
+            if (causticTexture) { updateCausticTexture(causticTexture, elapsedTime); }
+
+            // Update time uniforms in materials
+            if (floorMesh?.material?.uniforms?.uTime) floorMesh.material.uniforms.uTime.value = elapsedTime;
+            environmentObjects.traverse((obj) => { // Traverse obstacles
+                if(obj.isMesh && obj.material?.uniforms?.uTime) {
+                    obj.material.uniforms.uTime.value = elapsedTime;
+                } else if (obj.isGroup) { // Handle groups like Staghorn
+                     obj.traverse((child) => {
+                         if(child.isMesh && child.material?.uniforms?.uTime) {
+                            child.material.uniforms.uTime.value = elapsedTime;
+                         }
+                     });
+                }
+            });
+            
+            controls.update(); 
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>
