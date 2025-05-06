@@ -1640,30 +1640,30 @@ export class Character {
     if (!leftFin && this.mesh.children.length > 4) leftFin = this.mesh.children[4];
     if (!rightFin && this.mesh.children.length > 5) rightFin = this.mesh.children[5];
     
-    // Animate tail
+    // Animate tail with slower, more natural movement
     if (tail && tail instanceof THREE.Object3D) {
-      tail.rotation.y = Math.sin(time * 8) * 0.3;
+      tail.rotation.y = Math.sin(time * 3) * 0.25; // Reduced frequency (8 -> 3) and slightly reduced amplitude
     }
     
-    // Animate fins
+    // Animate fins with more gentle movement
     if (leftFin && leftFin instanceof THREE.Object3D) {
-      leftFin.rotation.x = Math.sin(time * 6) * 0.2;
+      leftFin.rotation.x = Math.sin(time * 4) * 0.18; // Reduced frequency and amplitude
     }
     
     if (rightFin && rightFin instanceof THREE.Object3D) {
-      rightFin.rotation.x = Math.sin(time * 6 + Math.PI) * 0.2; // Offset for asymmetric movement
+      rightFin.rotation.x = Math.sin(time * 4 + Math.PI) * 0.18; // Offset for asymmetric movement
     }
     
-    // Animate dorsal fin if present
+    // Animate dorsal fin if present - slower for more natural look
     const dorsalFin = this.findObjectByName(this.mesh, 'dorsal');
     if (dorsalFin) {
-      dorsalFin.rotation.z = Math.sin(time * 5) * 0.1;
+      dorsalFin.rotation.z = Math.sin(time * 2.5) * 0.08; // Reduced frequency and amplitude
     }
     
-    // Animate pectoral fin if present
+    // Animate pectoral fin if present - also slower
     const pectoralFin = this.findObjectByName(this.mesh, 'pectoral');
     if (pectoralFin) {
-      pectoralFin.rotation.x = Math.sin(time * 5) * 0.15;
+      pectoralFin.rotation.x = Math.sin(time * 3) * 0.12; // Reduced frequency and amplitude
     }
   }
   

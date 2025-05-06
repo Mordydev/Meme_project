@@ -274,10 +274,10 @@ export class ProceduralEnvironment {
         useLOD: true,
         maxPolygonsPerDecoration: 2000,
         cullingDistance: 300,
-        maxPebbles: 1200,
-        maxShells: 300,
-        pebbleDensity: 1.0,
-        shellDensity: 0.3
+        maxPebbles: 2400, // Doubled for better floor coverage
+        maxShells: 600,   // Doubled for better floor coverage
+        pebbleDensity: 1.5, // Increased density for more visible pebbles
+        shellDensity: 0.5   // Increased density for more visible shells
       };
     } else if (capabilities.midRange) {
       this.qualitySettings = {
@@ -286,10 +286,10 @@ export class ProceduralEnvironment {
         useLOD: true,
         maxPolygonsPerDecoration: 1000,
         cullingDistance: 200,
-        maxPebbles: 800,
-        maxShells: 200,
-        pebbleDensity: 0.8,
-        shellDensity: 0.2
+        maxPebbles: 1600, // Doubled for better floor coverage
+        maxShells: 400,   // Doubled for better floor coverage
+        pebbleDensity: 1.2, // Increased density for more visible pebbles
+        shellDensity: 0.4   // Increased density for more visible shells
       };
     } else {
       // Low-end device
@@ -299,10 +299,10 @@ export class ProceduralEnvironment {
         useLOD: true,
         maxPolygonsPerDecoration: 500,
         cullingDistance: 150,
-        maxPebbles: 400,
-        maxShells: 100,
-        pebbleDensity: 0.5,
-        shellDensity: 0.1
+        maxPebbles: 800,  // Doubled for better floor coverage
+        maxShells: 200,   // Doubled for better floor coverage
+        pebbleDensity: 0.8, // Increased density for more visible pebbles
+        shellDensity: 0.2   // Increased density for more visible shells
       };
       
       // Reduce visible segments for low-end devices
@@ -555,8 +555,8 @@ export class ProceduralEnvironment {
       uniforms: {
         uTime: { value: 0.0 },
         uSandColor: { value: new THREE.Color(this.currentTheme.floorColor) },
-        uRockColor: { value: new THREE.Color(0x7d7468) }, // Default rock color
-        uWetSandColor: { value: new THREE.Color(this.currentTheme.floorColor).multiplyScalar(0.8) },
+        uRockColor: { value: new THREE.Color(0xa59c90) }, // Lighter rock color for better contrast
+        uWetSandColor: { value: new THREE.Color(this.currentTheme.floorColor).multiplyScalar(0.7) }, // Darker wet sand for contrast
         uCausticMap: { value: causticTexture }
       }
     });
@@ -626,25 +626,26 @@ export class ProceduralEnvironment {
     const geometries: THREE.BufferGeometry[] = [];
     
     // Create 5 different types of pebbles for more variety and natural appearance
+    // Sizes increased by ~40% to make them more visible
     
     // Type 1: Smooth rounded pebble (simple sphere with noise)
-    const pebbleGeo1 = this.createPebbleGeometry(0.08, 0, 'smooth');
+    const pebbleGeo1 = this.createPebbleGeometry(0.12, 0, 'smooth');
     geometries.push(pebbleGeo1);
     
     // Type 2: Medium oval pebble with more detail
-    const pebbleGeo2 = this.createPebbleGeometry(0.12, 1, 'oval');
+    const pebbleGeo2 = this.createPebbleGeometry(0.18, 1, 'oval');
     geometries.push(pebbleGeo2);
     
     // Type 3: Flat skipping stone
-    const pebbleGeo3 = this.createPebbleGeometry(0.1, 0, 'flat');
+    const pebbleGeo3 = this.createPebbleGeometry(0.15, 0, 'flat');
     geometries.push(pebbleGeo3);
     
     // Type 4: Angular rough pebble
-    const pebbleGeo4 = this.createPebbleGeometry(0.09, 1, 'rough');
+    const pebbleGeo4 = this.createPebbleGeometry(0.14, 1, 'rough');
     geometries.push(pebbleGeo4);
     
     // Type 5: Small granule pebble (clusters)
-    const pebbleGeo5 = this.createPebbleGeometry(0.05, 0, 'granule');
+    const pebbleGeo5 = this.createPebbleGeometry(0.08, 0, 'granule');
     geometries.push(pebbleGeo5);
     
     return geometries;
@@ -1513,8 +1514,9 @@ export class ProceduralEnvironment {
           
           // Set position with slight randomization
           dummy.position.copy(point);
-          // Sink slightly into ground for realistic embedding
-          dummy.position.addScaledVector(normal, 0.005 + Math.random() * 0.01);
+          // Raise pebbles slightly above ground for better visibility 
+          // (instead of sinking them, we now raise them up)
+          dummy.position.addScaledVector(normal, 0.04 + Math.random() * 0.02);
           
           // Set rotation to align with normal and add random yaw
           dummy.quaternion.setFromUnitVectors(this.UP_VECTOR, normal);
@@ -1658,7 +1660,7 @@ export class ProceduralEnvironment {
           
           // Set position - shells sit more prominently on surface
           dummy.position.copy(point);
-          dummy.position.addScaledVector(normal, 0.02); // Lift slightly more off surface
+          dummy.position.addScaledVector(normal, 0.06); // Lift higher from surface for better visibility
           
           // Set rotation to align with normal and add random yaw
           dummy.quaternion.setFromUnitVectors(this.UP_VECTOR, normal);
@@ -1787,7 +1789,7 @@ export class ProceduralEnvironment {
           
           // Set position and rotation
           dummy.position.copy(shellPoint);
-          dummy.position.addScaledVector(shellNormal, 0.02);
+          dummy.position.addScaledVector(shellNormal, 0.06); // Lift higher for better visibility
           
           // Align with terrain and add variation
           dummy.quaternion.setFromUnitVectors(this.UP_VECTOR, shellNormal);
