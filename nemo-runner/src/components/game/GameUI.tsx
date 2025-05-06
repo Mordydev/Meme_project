@@ -17,7 +17,7 @@ import HealthDisplay from './HealthDisplay';
 export default function GameUI() {
   const [score, setScore] = useState(0);
   const [distance, setDistance] = useState(0);
-  const [gameState, setGameState] = useState<'MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER'>('MENU');
+  const [gameState, setGameState] = useState<'MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER' | 'READY' | 'LOADING'>('MENU');
   const [environment, setEnvironment] = useState('reef');
   const [activePowerUps, setActivePowerUps] = useState<Array<{ type: string, remainingTime: number, duration: number }>>([]);
   const [countdown, setCountdown] = useState<number | null>(null);

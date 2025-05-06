@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { EnvironmentTheme, EnvironmentType } from './EnvironmentTypes';
 import { DecorationDefinition, getDecorationsForEnvironment } from './DecorationDefinitions';
+import { detectDeviceCapabilities, optimizeModelAsset } from '../../utils/DeviceUtils';
 
 /**
  * Environment segment representing a portion of the underwater environment
@@ -12,6 +13,9 @@ export class EnvironmentSegment {
   isActive: boolean = true;
   segmentLength: number;
   segmentType: EnvironmentType;
+  
+  // Device capabilities for optimizations
+  private deviceCapabilities = detectDeviceCapabilities();
   
   constructor(
     scene: THREE.Scene,
@@ -28,8 +32,12 @@ export class EnvironmentSegment {
     this.mesh = new THREE.Group();
     this.mesh.position.copy(position);
     
-    // Create floor geometry
-    const floorGeometry = new THREE.PlaneGeometry(segmentWidth, segmentLength, 20, 20);
+    // Create floor geometry with resolution based on device capability
+    const widthSegments = this.deviceCapabilities.highEnd ? 20 : 
+                         this.deviceCapabilities.midRange ? 12 : 8;
+    const heightSegments = this.deviceCapabilities.highEnd ? 20 : 
+                          this.deviceCapabilities.midRange ? 12 : 8;
+    const floorGeometry = new THREE.PlaneGeometry(segmentWidth, segmentLength, widthSegments, heightSegments);
     
     // Apply some noise to the floor
     if (floorGeometry.attributes.position instanceof THREE.BufferAttribute) {
@@ -43,13 +51,33 @@ export class EnvironmentSegment {
       floorGeometry.computeVertexNormals();
     }
     
-    // Create floor material
-    const floorMaterial = new THREE.MeshStandardMaterial({
-      color: theme.floorColor,
-      roughness: theme.floorRoughness,
-      metalness: theme.floorMetalness,
-      side: THREE.DoubleSide
-    });
+    // Create floor material based on device capability
+    let floorMaterial;
+    
+    if (this.deviceCapabilities.highEnd) {
+      // High-end devices get MeshStandardMaterial with full features
+      floorMaterial = new THREE.MeshStandardMaterial({
+        color: theme.floorColor,
+        roughness: theme.floorRoughness,
+        metalness: theme.floorMetalness,
+        side: THREE.DoubleSide
+      });
+    } else if (this.deviceCapabilities.midRange) {
+      // Mid-range devices get MeshStandardMaterial with simplified parameters
+      floorMaterial = new THREE.MeshStandardMaterial({
+        color: theme.floorColor,
+        roughness: theme.floorRoughness,
+        metalness: 0, // Simplified - no metalness for better performance
+        flatShading: true, // Use flat shading for better performance
+        side: THREE.FrontSide // Only render front side for better performance
+      });
+    } else {
+      // Low-end devices get MeshLambertMaterial for maximum performance
+      floorMaterial = new THREE.MeshLambertMaterial({
+        color: theme.floorColor,
+        side: THREE.FrontSide
+      });
+    }
     
     // Create floor mesh
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);

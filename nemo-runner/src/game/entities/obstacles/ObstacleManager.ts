@@ -3,6 +3,7 @@ import { AssetManager } from '../../core/AssetManager';
 import { CollisionSystem, Collidable } from '../../core/CollisionSystem';
 import { Character } from '../character/Character';
 import eventBus from '../../core/EventSystem';
+import { detectDeviceCapabilities, optimizeModelAsset, optimizeGeometry } from '../../utils/DeviceUtils';
 
 // Obstacle types
 export type ObstacleType = 'shark' | 'jellyfish' | 'pufferfish' | 'clam' | 'coral';
@@ -71,6 +72,9 @@ export class ObstacleManager {
   // Obstacle counter for unique IDs
   private obstacleCounter: number = 0;
   
+  // Device capability tracking
+  private deviceCapabilities = detectDeviceCapabilities();
+  
   constructor(scene: THREE.Scene, assetManager: AssetManager, collisionSystem: CollisionSystem) {
     this.scene = scene;
     this.assetManager = assetManager;
@@ -81,6 +85,15 @@ export class ObstacleManager {
     
     // Define patterns
     this.definePatterns();
+    
+    // Adjust active obstacles limit based on device capabilities
+    if (this.deviceCapabilities.highEnd) {
+      this.maxActiveObstacles = 80;
+    } else if (this.deviceCapabilities.midRange) {
+      this.maxActiveObstacles = 50;
+    } else {
+      this.maxActiveObstacles = 30;
+    }
   }
   
   /**
@@ -424,6 +437,37 @@ export class ObstacleManager {
     if (modelAsset && modelAsset.scene) {
       // Clone the mesh from loaded asset
       mesh = modelAsset.scene.clone();
+      
+      // Apply device-specific optimizations to model
+      mesh = optimizeModelAsset(mesh, this.deviceCapabilities);
+      
+      // Add type-specific optimization tricks
+      switch(type) {
+        case 'jellyfish':
+          // Jellyfish are translucent - ensure transparent materials
+          mesh.traverse((object: THREE.Object3D) => {
+            if (object instanceof THREE.Mesh && object.material) {
+              if (object.material instanceof THREE.Material) {
+                object.material.transparent = true;
+                object.material.opacity = 0.8;
+              }
+            }
+          });
+          break;
+          
+        case 'shark':
+          // For low-end devices, use even simpler shark geometry 
+          if (this.deviceCapabilities.lowEnd) {
+            mesh.traverse((object: THREE.Object3D) => {
+              if (object instanceof THREE.Mesh && object.geometry.attributes.position.count > 500) {
+                // Extra simplification for sharks on low-end devices
+                // (In addition to the general optimization already done)
+                optimizeGeometry(object.geometry, 0.5);
+              }
+            });
+          }
+          break;
+      }
     } else {
       // Create placeholder mesh based on obstacle type
       mesh = this.createPlaceholderMesh(type);

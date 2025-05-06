@@ -222,3 +222,194 @@ export function applyQualitySettings(renderer: THREE.WebGLRenderer, capabilities
     renderer.toneMapping = THREE.NoToneMapping; // No tone mapping for performance
   }
 }
+
+/**
+ * Optimize model asset based on device capabilities
+ * @param model The 3D model to optimize
+ * @param capabilities Device capability information
+ */
+export function optimizeModelAsset(
+  model: THREE.Object3D, 
+  capabilities: DeviceCapabilities
+): THREE.Object3D {
+  // Skip for null models
+  if (!model) return model;
+  
+  // Apply appropriate level of detail and materials based on device tier
+  model.traverse((object: THREE.Object3D) => {
+    if (object instanceof THREE.Mesh && object.geometry instanceof THREE.BufferGeometry) {
+      if (capabilities.highEnd) {
+        // High-end - full quality, no geometry optimization needed
+      } else if (capabilities.midRange) {
+        // Mid-range - slight geometry simplification
+        object.geometry = optimizeGeometry(object.geometry, 0.8);
+      } else {
+        // Low-end - significant geometry simplification
+        object.geometry = optimizeGeometry(object.geometry, 0.5);
+      }
+    }
+  });
+  
+  // Apply materials based on device tier
+  if (capabilities.highEnd) {
+    // High-end - use full quality
+    applyModelMaterials(model, 'high');
+  } else if (capabilities.midRange) {
+    // Mid-range - simplify materials
+    applyModelMaterials(model, 'medium');
+  } else {
+    // Low-end - simplified materials 
+    applyModelMaterials(model, 'low');
+  }
+  
+  return model;
+}
+
+/**
+ * Apply materials appropriate for the given quality level
+ * @param model The 3D model to apply materials to
+ * @param quality The quality level ('high', 'medium', or 'low')
+ */
+export function applyModelMaterials(
+  model: THREE.Object3D,
+  quality: 'high' | 'medium' | 'low'
+): void {
+  model.traverse((object: THREE.Object3D) => {
+    if (object instanceof THREE.Mesh) {
+      // Keep reference to original maps
+      let originalMaps: {
+        map?: THREE.Texture | undefined,
+        normalMap?: THREE.Texture | undefined,
+        roughnessMap?: THREE.Texture | undefined,
+        metalnessMap?: THREE.Texture | undefined,
+        aoMap?: THREE.Texture | undefined,
+        emissiveMap?: THREE.Texture | undefined
+      } = {};
+      
+      // Store original material's maps
+      if (object.material instanceof THREE.MeshStandardMaterial) {
+        originalMaps.map = object.material.map || undefined;
+        originalMaps.normalMap = object.material.normalMap || undefined;
+        originalMaps.roughnessMap = object.material.roughnessMap || undefined;
+        originalMaps.metalnessMap = object.material.metalnessMap || undefined;
+        originalMaps.aoMap = object.material.aoMap || undefined;
+        originalMaps.emissiveMap = object.material.emissiveMap || undefined;
+      }
+      
+      // Apply new material based on quality
+      switch (quality) {
+        case 'high':
+          // Keep or upgrade to MeshPhysicalMaterial for high-end
+          if (!(object.material instanceof THREE.MeshPhysicalMaterial)) {
+            const oldMaterial = object.material;
+            const color = oldMaterial instanceof THREE.MeshStandardMaterial 
+              ? oldMaterial.color.clone() 
+              : new THREE.Color(0xffffff);
+            
+            object.material = new THREE.MeshPhysicalMaterial({
+              color: color,
+              roughness: oldMaterial instanceof THREE.MeshStandardMaterial ? oldMaterial.roughness : 0.7,
+              metalness: oldMaterial instanceof THREE.MeshStandardMaterial ? oldMaterial.metalness : 0.2,
+              // Copy maps from original material
+              map: originalMaps.map,
+              normalMap: originalMaps.normalMap,
+              roughnessMap: originalMaps.roughnessMap,
+              metalnessMap: originalMaps.metalnessMap,
+              aoMap: originalMaps.aoMap,
+              emissiveMap: originalMaps.emissiveMap
+            });
+          }
+          break;
+          
+        case 'medium':
+          // Convert to MeshStandardMaterial for mid-range
+          if (!(object.material instanceof THREE.MeshStandardMaterial) || 
+              object.material instanceof THREE.MeshPhysicalMaterial) {
+            const oldMaterial = object.material;
+            const color = oldMaterial instanceof THREE.MeshStandardMaterial 
+              ? oldMaterial.color.clone() 
+              : new THREE.Color(0xffffff);
+            
+            object.material = new THREE.MeshStandardMaterial({
+              color: color,
+              roughness: oldMaterial instanceof THREE.MeshStandardMaterial ? oldMaterial.roughness : 0.7,
+              metalness: oldMaterial instanceof THREE.MeshStandardMaterial ? oldMaterial.metalness : 0.2,
+              // Only keep essential maps for medium quality
+              map: originalMaps.map,
+              normalMap: originalMaps.normalMap,
+              // Skip less important maps for performance
+              emissiveMap: originalMaps.emissiveMap
+            });
+          }
+          break;
+          
+        case 'low':
+          // Convert to simpler MeshLambertMaterial for low-end
+          const oldMaterial = object.material;
+          const color = oldMaterial instanceof THREE.MeshStandardMaterial 
+            ? oldMaterial.color.clone() 
+            : new THREE.Color(0xffffff);
+          
+          object.material = new THREE.MeshLambertMaterial({
+            color: color,
+            map: originalMaps.map,
+            // No advanced maps for low quality
+          });
+          break;
+      }
+    }
+  });
+}
+
+/**
+ * Optimize geometry to reduce polygon count based on simplification factor
+ * @param geometry The geometry to optimize
+ * @param simplificationFactor Factor from 0 to 1 indicating how much to preserve (1 = keep all)
+ * @returns The optimized geometry
+ */
+export function optimizeGeometry(geometry: THREE.BufferGeometry, simplificationFactor: number): THREE.BufferGeometry {
+  // Ensure simplification factor is in valid range
+  simplificationFactor = Math.max(0.1, Math.min(1, simplificationFactor));
+  
+  // If simplification factor is 1, don't modify geometry
+  if (simplificationFactor >= 0.99) return geometry;
+  
+  // For simplicity in this implementation, we'll only apply simplification
+  // to geometries that use triangle indices (most common case)
+  if (geometry.index) {
+    const indices = geometry.index.array;
+    const vertexCount = geometry.attributes.position.count;
+    
+    // Skip tiny geometries or those without enough indices
+    if (vertexCount < 10 || indices.length < 30) return geometry;
+    
+    // Very simple decimation - keep every nth triangle
+    // For a production implementation, use a proper decimation algorithm
+    const stride = Math.floor(1 / simplificationFactor);
+    if (stride <= 1) return geometry; // No simplification needed
+    
+    // Create new indices array with fewer triangles
+    const newIndicesCount = Math.floor(indices.length / stride) * 3;
+    const newIndices = new Uint32Array(newIndicesCount);
+    
+    // Keep every nth triangle (each triangle is 3 indices)
+    let writeIndex = 0;
+    for (let i = 0; i < indices.length; i += 3 * stride) {
+      if (i + 2 < indices.length && writeIndex + 2 < newIndicesCount) {
+        newIndices[writeIndex] = indices[i];
+        newIndices[writeIndex + 1] = indices[i + 1];
+        newIndices[writeIndex + 2] = indices[i + 2];
+        writeIndex += 3;
+      }
+    }
+    
+    // Replace geometry indices with simplified version
+    geometry.setIndex(new THREE.BufferAttribute(newIndices, 1));
+    
+    // Force update
+    geometry.attributes.position.needsUpdate = true;
+    geometry.computeVertexNormals();
+  }
+  
+  return geometry;
+}

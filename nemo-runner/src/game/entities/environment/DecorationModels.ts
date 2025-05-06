@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { DecorationDefinition } from './DecorationDefinitions';
+import { detectDeviceCapabilities, optimizeGeometry } from '../../utils/DeviceUtils';
 
 /**
  * Utility class for creating various decoration models
@@ -417,12 +418,13 @@ export class DecorationFactory {
     // Traverse all meshes and reduce polygon count
     lowPoly.traverse((object) => {
       if (object instanceof THREE.Mesh && object.geometry) {
-        // Simplify geometry based on detail level
-        // For a real implementation, we would use a proper mesh simplification algorithm
-        // For this example, we're just creating a new geometry with fewer segments
-        
-        // Check if it's a primitive geometry we can recreate
-        if (object.geometry instanceof THREE.BoxGeometry) {
+        // Use the optimizeGeometry utility for geometry simplification
+        if (object.geometry instanceof THREE.BufferGeometry) {
+          // Apply geometry optimization with detail level as simplification factor
+          optimizeGeometry(object.geometry, detailLevel);
+        }
+        // Fallback to primitive-based simplification if needed
+        else if (object.geometry instanceof THREE.BoxGeometry) {
           const segments = Math.max(1, Math.floor(3 * detailLevel));
           const newGeometry = new THREE.BoxGeometry(1, 1, 1, segments, segments, segments);
           object.geometry.dispose();
@@ -439,10 +441,28 @@ export class DecorationFactory {
           object.geometry = newGeometry;
         }
         
-        // Simplify material
+        // Simplify material based on detail level
         if (object.material instanceof THREE.Material) {
           object.material = object.material.clone();
-          object.material.flatShading = true;
+          
+          // Use flat shading for lower detail levels
+          if (detailLevel < 0.7) {
+            object.material.flatShading = true;
+          }
+          
+          // For very low detail levels, use basic materials
+          if (detailLevel < 0.4 && object.material instanceof THREE.MeshStandardMaterial) {
+            const color = object.material.color.clone();
+            const basicMaterial = new THREE.MeshLambertMaterial({
+              color: color,
+              map: object.material.map,
+              transparent: object.material.transparent,
+              opacity: object.material.opacity
+            });
+            
+            object.material.dispose();
+            object.material = basicMaterial;
+          }
         }
       }
     });

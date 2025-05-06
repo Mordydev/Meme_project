@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { optimizeGeometry } from '../../utils/DeviceUtils';
 
 /**
  * WaterEffects - Manages underwater visual effects
@@ -31,6 +32,12 @@ export class WaterEffects {
     // Create ambient particles
     this.ambientParticles = this.createAmbientParticles();
     this.scene.add(this.ambientParticles);
+    
+    // Apply geometry optimization to particle systems
+    if (this.quality !== 'high') {
+      this.ambientParticles.geometry = optimizeGeometry(this.ambientParticles.geometry, 
+        this.quality === 'medium' ? 0.8 : 0.5);
+    }
     
     // Create light rays if quality allows
     this.lightRays = this.createLightRays();

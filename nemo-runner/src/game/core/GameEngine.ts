@@ -8,10 +8,17 @@ import { CollisionSystem } from './CollisionSystem';
 import { Character } from '../entities/character/Character';
 import { ObstacleManager } from '../entities/obstacles/ObstacleManager';
 import { CollectibleManager } from '../entities/collectibles/CollectibleManager';
+import { PowerUpEffects } from '../entities/collectibles/PowerUpEffects';
 import { ProceduralEnvironment } from '../entities/environment/ProceduralEnvironment';
 import { detectDeviceCapabilities, applyQualitySettings, configureGameSettings } from '../utils/DeviceUtils';
 import gameStateManager, { GameState } from './GameStateManager';
 import { WaterEffects } from '../entities/environment/WaterEffects';
+// Import obstacle types
+import { Obstacle } from '../entities/obstacles/Obstacle';
+import { Shark } from '../entities/obstacles/Shark';
+import { Jellyfish } from '../entities/obstacles/Jellyfish';
+import { Pufferfish } from '../entities/obstacles/Pufferfish';
+import { Clam } from '../entities/obstacles/Clam';
 
 /**
  * Class to manage the overall game engine and systems integration
@@ -33,6 +40,7 @@ export class GameEngine {
   private collisionSystem!: CollisionSystem;
   private obstacleManager!: ObstacleManager;
   private collectibleManager!: CollectibleManager;
+  private powerUpEffects!: PowerUpEffects;
   private environment!: ProceduralEnvironment;
   private waterEffects!: WaterEffects;
   
@@ -110,7 +118,8 @@ export class GameEngine {
                               this.deviceCapabilities.midRange ? 'medium' : 'low';
       this.environment = new ProceduralEnvironment(
         this.scene,
-        this.renderer
+        this.renderer,
+        this.assetManager
       );
       
       // Initialize water effects (now integrated with ProceduralEnvironment)
@@ -136,6 +145,12 @@ export class GameEngine {
         this.assetManager,
         this.deviceCapabilities
       );
+      
+      // Initialize power-up effects
+      this.powerUpEffects = new PowerUpEffects(this.scene);
+      if (this.player.mesh) {
+        this.powerUpEffects.setCharacter(this.player.mesh);
+      }
       
       // Set up game loop with proper update functions
       this.gameLoop.setUpdateFn(this.updateGame.bind(this));
@@ -275,19 +290,21 @@ export class GameEngine {
           this.cameraCenterOffset = 0;
           this.lookAtOffsetY = 0;
           
-          // Position camera
-          this.camera.position.set(
-            this.cameraCenterOffset,
-            this.cameraHeight,
-            this.player.mesh.position.z + this.cameraDistance
-          );
-          
-          // Look ahead
-          this.camera.lookAt(
-            this.cameraCenterOffset,
-            this.lookAtOffsetY,
-            this.player.mesh.position.z - 10
-          );
+          // Position camera if mesh exists
+          if (this.player.mesh) {
+            this.camera.position.set(
+              this.cameraCenterOffset,
+              this.cameraHeight,
+              this.player.mesh.position.z + this.cameraDistance
+            );
+            
+            // Look ahead
+            this.camera.lookAt(
+              this.cameraCenterOffset,
+              this.lookAtOffsetY,
+              this.player.mesh.position.z - 10
+            );
+          }
         }
         break;
         
@@ -328,13 +345,15 @@ export class GameEngine {
     
     // Generate initial obstacles
     this.obstacleManager.clear();
-    this.obstacleManager.update(0, this.player.mesh.position.z, 0);
+    if (this.player.mesh) {
+      this.obstacleManager.update(0, this.player.mesh.position.z, 0);
+    }
     
     // Clear collectibles
     this.collectibleManager.clear();
     
     // Reset camera based on fixed approach
-    if (this.fixedCameraMode) {
+    if (this.fixedCameraMode && this.player.mesh) {
       // Reset camera with consistent parameters
       this.cameraDistance = 8;
       this.cameraHeight = 2.0;
@@ -366,7 +385,9 @@ export class GameEngine {
     if (gameStateManager.state !== 'PLAYING') return;
     
     // Update environment with player position and camera
-    this.environment.update(this.player.mesh.position, this.camera, fixedTimeStep);
+    if (this.player.mesh) {
+      this.environment.update(this.player.mesh.position, this.camera, fixedTimeStep);
+    }
     
     // We no longer need to update water effects separately as it's handled by the environment
     // The reference is kept for backward compatibility
@@ -390,14 +411,20 @@ export class GameEngine {
     // Update player character
     this.player.update(deltaTime, input);
     
-    // Emit player position for obstacle triggers
-    eventBus.emit('player-position', this.player.mesh.position);
+    // Only proceed with position-dependent updates if mesh exists
+    if (this.player.mesh) {
+      // Emit player position for obstacle triggers
+      eventBus.emit('player-position', this.player.mesh.position);
+      
+      // Update obstacles
+      this.obstacleManager.update(deltaTime, this.player.mesh.position.z, this.playerSpeed * deltaTime);
+      
+      // Update collectibles
+      this.collectibleManager.update(deltaTime, this.player.mesh.position, this.playerSpeed);
+    }
     
-    // Update obstacles
-    this.obstacleManager.update(deltaTime, this.player.mesh.position.z, this.playerSpeed * deltaTime);
-    
-    // Update collectibles
-    this.collectibleManager.update(deltaTime, this.player.mesh.position, this.playerSpeed);
+    // Update power-up effects
+    this.powerUpEffects.update(deltaTime);
     
     // Update distance in game state manager
     gameStateManager.updateDistance(this.playerSpeed * deltaTime);
@@ -410,6 +437,7 @@ export class GameEngine {
   private cameraDistance: number = 8; // Fixed distance from player origin
   private cameraHeight: number = 2.0; // Fixed camera height
   private lookAtOffsetY: number = 0; // Look slightly ahead/below
+  private cameraLerpFactor: number = 2.0; // Smooth camera movement factor
   
   // Fixed camera parameters
   private fixedCameraMode: boolean = true; // Use fixed approach
@@ -419,7 +447,7 @@ export class GameEngine {
    * Update camera position to follow player
    */
   private updateCamera(deltaTime: number): void {
-    if (this.fixedCameraMode) {
+    if (this.fixedCameraMode && this.player.mesh) {
       // FIXED CAMERA APPROACH:
       // In this mode, the camera stays directly behind the player's forward path
       // It only follows in Z direction, completely ignoring lane changes
@@ -442,7 +470,7 @@ export class GameEngine {
         this.lookAtOffsetY,      // Slight Y offset for better angle
         this.player.mesh.position.z - 10 // Look AHEAD of player
       );
-    } else {
+    } else if (this.player.mesh) {
       // DYNAMIC CAMERA APPROACH (Original logic - not used)
       // Note: This is preserved but not used since fixed approach is better
       
@@ -490,7 +518,7 @@ export class GameEngine {
         const wobbleAmplitude = 0.03;
         this.cameraHeight = 2.0 + Math.sin(time * 0.5) * wobbleAmplitude;
         
-        if (this.player && this.player.mesh) {
+        if (this.player?.mesh) {
           const targetTilt = this.player.mesh.position.x * -0.005;
           this.camera.rotation.z = THREE.MathUtils.lerp(
             this.camera.rotation.z,
@@ -555,19 +583,21 @@ export class GameEngine {
       this.cameraCenterOffset = 0;
       this.lookAtOffsetY = 0;
       
-      // Apply these settings to the camera
-      this.camera.position.set(
-        this.cameraCenterOffset,
-        this.cameraHeight,
-        this.player.mesh.position.z + this.cameraDistance
-      );
-      
-      // Look straight ahead
-      this.camera.lookAt(
-        this.cameraCenterOffset,
-        this.lookAtOffsetY,
-        this.player.mesh.position.z - 10
-      );
+      // Apply these settings to the camera if mesh exists
+      if (this.player.mesh) {
+        this.camera.position.set(
+          this.cameraCenterOffset,
+          this.cameraHeight,
+          this.player.mesh.position.z + this.cameraDistance
+        );
+        
+        // Look straight ahead
+        this.camera.lookAt(
+          this.cameraCenterOffset,
+          this.lookAtOffsetY,
+          this.player.mesh.position.z - 10
+        );
+      }
     }
   }
   
@@ -628,7 +658,9 @@ export class GameEngine {
       
       // Reset obstacles
       this.obstacleManager.clear();
-      this.obstacleManager.update(0, this.player.mesh.position.z, 0);
+      if (this.player.mesh) {
+        this.obstacleManager.update(0, this.player.mesh.position.z, 0);
+      }
       
       // Reset collectibles
       this.collectibleManager.clear();
@@ -685,7 +717,7 @@ export class GameEngine {
   private applyPowerupEffects(type: string, active: boolean): void {
     switch (type) {
       case 'powerup_shield':
-        // Visual shield effect handled by HealthDisplay component
+        // Visual shield effect handled by PowerUpEffects component
         break;
         
       case 'powerup_magnet':
@@ -707,6 +739,8 @@ export class GameEngine {
         this.obstacleManager.setTimeScale(active ? 0.5 : 1.0);
         break;
     }
+    
+    // Note: Visual effects are now handled by PowerUpEffects class
   }
   
   /**
@@ -777,14 +811,18 @@ export class GameEngine {
     // Remove event listeners
     window.removeEventListener('resize', this.handleResize.bind(this));
     eventBus.off('game-state-change', this.handleGameStateChange.bind(this));
-    eventBus.off('character-lane-change'); // Clean up the lane change listener
-    eventBus.off('lane-change-complete'); // Clean up the completion listener
+    
+    // Safely remove other event listeners by providing empty callback
+    const noop = () => {};
+    eventBus.off('character-lane-change', noop); // Clean up the lane change listener
+    eventBus.off('lane-change-complete', noop); // Clean up the completion listener
     
     // Clean up game entities
     if (this.isInitialized) {
       this.player.dispose();
       this.obstacleManager.dispose();
       this.collectibleManager.dispose();
+      this.powerUpEffects.dispose();
       this.environment.dispose();
       this.waterEffects.dispose();
     }
