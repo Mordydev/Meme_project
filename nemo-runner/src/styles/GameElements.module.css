@@ -221,6 +221,59 @@
   background-color: rgba(42, 142, 130, 0.3);
 }
 
+/* Health Display */
+.healthDisplay {
+  position: absolute;
+  bottom: 50px;
+  left: 20px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+  transition: transform 0.3s ease;
+}
+
+.healthBubble {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background-color: rgba(255, 99, 71, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 0 10px rgba(255, 99, 71, 0.5);
+  transition: all 0.3s ease;
+}
+
+.shieldBubble {
+  background-color: rgba(0, 255, 255, 0.7);
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.7);
+  animation: pulse 1.5s infinite alternate;
+}
+
+.healthLoss {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+.healthGain {
+  animation: bounce 0.5s ease;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+@keyframes pulse {
+  0% { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1.1); }
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .scoreValue {
@@ -229,6 +282,11 @@
   
   .distanceMeter {
     width: 80%;
+  }
+  
+  .healthBubble {
+    width: 20px;
+    height: 20px;
   }
 }
 
@@ -247,5 +305,15 @@
     right: 10px;
     font-size: 0.8rem;
     padding: 6px 12px;
+  }
+  
+  .healthDisplay {
+    bottom: 40px;
+    left: 10px;
+  }
+  
+  .healthBubble {
+    width: 18px;
+    height: 18px;
   }
 }

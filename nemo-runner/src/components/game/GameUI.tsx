@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { subscribeToGameEvents } from '@/game/core/EventSystem';
+import { useState, useEffect, useCallback } from 'react';
+import eventBus, { subscribeToGameEvents } from '@/game/core/EventSystem';
+import gameStateManager from '@/game/core/GameStateManager';
 import styles from '@/styles/GameUI.module.css';
 import { 
   ScoreDisplay, 
@@ -11,6 +12,8 @@ import {
   Countdown,
   GameControls
 } from './GameElements';
+import HealthDisplay from './HealthDisplay';
+import AudioControls from './AudioControls';
 
 export default function GameUI() {
   const [score, setScore] = useState(0);
@@ -35,7 +38,7 @@ export default function GameUI() {
       },
     });
     
-    // Handle environment changes
+    // Handle environment changes through event bus
     const handleEnvironmentChange = (data: any) => {
       // Environment will be fully changed when transition completes
     };
@@ -84,18 +87,18 @@ export default function GameUI() {
       );
     };
     
-    // Subscribe to additional events
-    window.addEventListener('environment-change', handleEnvironmentChange);
-    window.addEventListener('environment-change-complete', handleEnvironmentChangeComplete);
-    window.addEventListener('powerup-activated', handlePowerUpActivation);
-    window.addEventListener('powerup-deactivated', handlePowerUpDeactivation);
+    // Change event listeners from window to eventBus
+    eventBus.on('environment-change', handleEnvironmentChange);
+    eventBus.on('environment-change-complete', handleEnvironmentChangeComplete);
+    eventBus.on('powerup-activated', handlePowerUpActivation);
+    eventBus.on('powerup-deactivated', handlePowerUpDeactivation);
     
     return () => {
       unsubscribe();
-      window.removeEventListener('environment-change', handleEnvironmentChange);
-      window.removeEventListener('environment-change-complete', handleEnvironmentChangeComplete);
-      window.removeEventListener('powerup-activated', handlePowerUpActivation);
-      window.removeEventListener('powerup-deactivated', handlePowerUpDeactivation);
+      eventBus.off('environment-change', handleEnvironmentChange);
+      eventBus.off('environment-change-complete', handleEnvironmentChangeComplete);
+      eventBus.off('powerup-activated', handlePowerUpActivation);
+      eventBus.off('powerup-deactivated', handlePowerUpDeactivation);
     };
   }, [gameState]);
   
@@ -115,52 +118,39 @@ export default function GameUI() {
   };
   
   // Handle pause button click
-  const handlePause = () => {
+  const handlePause = useCallback(() => {
     if (gameState === 'PLAYING') {
-      window.dispatchEvent(new CustomEvent('game-pause'));
+      gameStateManager.pauseGame();
     }
-  };
+  }, [gameState]);
   
-  if (gameState === 'MENU') {
-    return (
-      <div className={styles.menuOverlay}>
-        <div className={styles.menuContent}>
-          <h2>NEMO Runner</h2>
-          <p>Use arrow keys to move, avoid obstacles, collect bubbles!</p>
-          <div className={styles.controls}>
-            <div className={styles.controlItem}>
-              <span className={styles.key}>↑</span>
-              <span>Jump</span>
-            </div>
-            <div className={styles.controlItem}>
-              <span className={styles.key}>↓</span>
-              <span>Dive</span>
-            </div>
-            <div className={styles.controlItem}>
-              <span className={styles.key}>←</span>
-              <span>Move Left</span>
-            </div>
-            <div className={styles.controlItem}>
-              <span className={styles.key}>→</span>
-              <span>Move Right</span>
-            </div>
-            <div className={styles.controlItem}>
-              <span className={styles.key}>P</span>
-              <span>Pause</span>
-            </div>
-          </div>
-          <button 
-            className={styles.playButton}
-            onClick={() => {
-              // Trigger game start
-              window.dispatchEvent(new CustomEvent('game-start'));
-            }}
-          >
-            Start Game
-          </button>
-        </div>
-      </div>
-    );
+  // Handle keyboard events for game control
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+        if (gameState === 'PLAYING') {
+          gameStateManager.pauseGame();
+        } else if (gameState === 'PAUSED') {
+          gameStateManager.resumeGame();
+        }
+      } else if (e.key === ' ' && gameState === 'MENU') {
+        gameStateManager.startGame();
+      } else if (e.key === 'r' && gameState === 'GAME_OVER') {
+        gameStateManager.startGame();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [gameState]);
+  
+  // Let GameStateDisplay component handle the menu, paused, and game over states
+  // This component will only render active gameplay UI elements
+  if (gameState !== 'PLAYING') {
+    return null;
   }
   
   return (
@@ -177,59 +167,17 @@ export default function GameUI() {
       {/* Power-up indicators */}
       <PowerUpIndicators activePowerUps={activePowerUps} />
       
+      {/* Health/Lives display */}
+      <HealthDisplay initialLives={3} />
+      
       {/* Game controls (for mobile) */}
       <GameControls onPause={handlePause} />
       
+      {/* Audio controls */}
+      <AudioControls />
+      
       {/* Countdown (if active) */}
       <Countdown value={countdown || 0} visible={countdown !== null} />
-      
-      {/* Pause overlay */}
-      {gameState === 'PAUSED' && (
-        <div className={styles.pauseOverlay}>
-          <div className={styles.pauseContent}>
-            <h2>Game Paused</h2>
-            <div className={styles.pauseStats}>
-              <p>Score: {score}</p>
-              <p>Distance: {distance}m</p>
-            </div>
-            <button 
-              className={styles.resumeButton}
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('game-resume'));
-              }}
-            >
-              Resume
-            </button>
-          </div>
-        </div>
-      )}
-      
-      {/* Game over overlay */}
-      {gameState === 'GAME_OVER' && (
-        <div className={styles.gameOverOverlay}>
-          <div className={styles.gameOverContent}>
-            <h2>Game Over</h2>
-            <div className={styles.finalStats}>
-              <div className={styles.statItem}>
-                <span className={styles.statLabel}>Score</span>
-                <span className={styles.statValue}>{score}</span>
-              </div>
-              <div className={styles.statItem}>
-                <span className={styles.statLabel}>Distance</span>
-                <span className={styles.statValue}>{distance}m</span>
-              </div>
-            </div>
-            <button 
-              className={styles.restartButton}
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('game-restart'));
-              }}
-            >
-              Play Again
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

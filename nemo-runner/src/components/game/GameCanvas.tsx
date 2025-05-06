@@ -3,6 +3,10 @@
 import { useEffect, useRef } from 'react';
 import styles from '@/styles/Game.module.css';
 import { initGame } from '@/game/core/GameEngine';
+import GameStateDisplay from './GameStateDisplay';
+import GameUI from './GameUI';
+import EnhancedUI from './EnhancedUI';
+import LoadingScreen from './LoadingScreen';
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -19,5 +23,13 @@ export default function GameCanvas() {
     };
   }, []);
   
-  return <canvas ref={canvasRef} className={styles.canvas} />;
+  return (
+    <div className={styles.gameContainer}>
+      <canvas ref={canvasRef} className={styles.canvas} />
+      <EnhancedUI />
+      <GameUI />
+      <GameStateDisplay initialState="MENU" />
+      <LoadingScreen />
+    </div>
+  );
 }

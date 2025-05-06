@@ -3,367 +3,539 @@ import eventBus from './EventSystem';
 import InputHandler from './InputHandler';
 import { GameLoop } from './GameLoop';
 import { AssetManager } from './AssetManager';
+import { AudioManager } from './AudioManager';
 import { CollisionSystem } from './CollisionSystem';
 import { Character } from '../entities/character/Character';
 import { ObstacleManager } from '../entities/obstacles/ObstacleManager';
 import { CollectibleManager } from '../entities/collectibles/CollectibleManager';
 import { ProceduralEnvironment } from '../entities/environment/ProceduralEnvironment';
 import { detectDeviceCapabilities, applyQualitySettings, configureGameSettings } from '../utils/DeviceUtils';
+import gameStateManager, { GameState } from './GameStateManager';
+import { WaterEffects } from '../entities/environment/WaterEffects';
 
-// Game state types
-type GameState = 'MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
-
-// Main game engine
-export function initGame(canvas: HTMLCanvasElement) {
+/**
+ * Class to manage the overall game engine and systems integration
+ */
+export class GameEngine {
+  // Core systems
+  private renderer: THREE.WebGLRenderer;
+  private scene: THREE.Scene;
+  private camera: THREE.PerspectiveCamera;
+  private assetManager: AssetManager;
+  private audioManager: AudioManager;
+  private gameLoop: GameLoop;
+  private inputHandler: InputHandler;
+  private deviceCapabilities: ReturnType<typeof detectDeviceCapabilities>;
+  private gameSettings: ReturnType<typeof configureGameSettings>;
+  
+  // Game entities
+  private player: Character;
+  private collisionSystem: CollisionSystem;
+  private obstacleManager: ObstacleManager;
+  private collectibleManager: CollectibleManager;
+  private environment: ProceduralEnvironment;
+  private waterEffects: WaterEffects;
+  
   // Game state
-  let gameState: GameState = 'MENU';
-  let score = 0;
-  let distance = 0;
-  const playerSpeed = 10;
+  private playerSpeed = 10;
+  private isInitialized = false;
+  private isLoading = false;
   
-  // Detect device capabilities and apply appropriate settings
-  const deviceCapabilities = detectDeviceCapabilities();
-  const gameSettings = configureGameSettings(deviceCapabilities);
-  
-  // Three.js setup
-  const renderer = setupRenderer(canvas, deviceCapabilities);
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x75c2f6); // Sky blue background
-  const camera = setupCamera();
-  
-  // Initialize asset manager
-  const assetManager = new AssetManager();
-  
-  // Initialize procedural environment
-  const environment = new ProceduralEnvironment(scene);
-  
-  // Add ambient light
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-  scene.add(ambientLight);
-  
-  // Add directional light (sun rays through water)
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  directionalLight.position.set(5, 10, 7.5);
-  directionalLight.castShadow = gameSettings.shadowQuality !== 'off';
-  scene.add(directionalLight);
-  
-  // Initialize player character
-  const player = new Character(scene, assetManager);
-  
-  // Initialize collision system
-  const collisionSystem = new CollisionSystem(player);
-  
-  // Initialize obstacle manager
-  const obstacleManager = new ObstacleManager(scene, assetManager, collisionSystem);
-  
-  // Initialize collectible manager
-  const collectibleManager = new CollectibleManager(scene, assetManager);
-  
-  // Initialize input handler
-  const inputHandler = new InputHandler();
-  
-  // Setup game loop
-  const gameLoop = new GameLoop({
-    updateFn: (deltaTime) => updateGame(deltaTime),
-    fixedUpdateFn: (fixedTimeStep) => updatePhysics(fixedTimeStep),
-    renderFn: (interpolation) => render(interpolation),
-    fixedTimeStep: 1/60 // 60 fps physics
-  });
-  
-  // Setup event listeners
-  setupEventListeners();
-  
-  // Start in menu state
-  setGameState('MENU');
-  
-  // Start the render loop (even when in menu)
-  gameLoop.start();
-  
-  // Return cleanup function
-  return function cleanup() {
-    // Stop the game loop
-    gameLoop.stop();
+  /**
+   * Initialize the game engine
+   */
+  constructor(canvas: HTMLCanvasElement) {
+    // Detect device capabilities
+    this.deviceCapabilities = detectDeviceCapabilities();
+    this.gameSettings = configureGameSettings(this.deviceCapabilities);
     
-    // Clean up game entities
-    player.dispose();
-    obstacleManager.dispose();
-    collectibleManager.dispose();
-    environment.dispose();
+    // Set up Three.js
+    this.renderer = this.setupRenderer(canvas);
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x75c2f6); // Sky blue background
+    this.camera = this.setupCamera();
     
-    // Clean up ThreeJS resources
-    scene.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        if (object.geometry) {
-          object.geometry.dispose();
-        }
-        if (object.material instanceof THREE.Material) {
-          object.material.dispose();
-        } else if (Array.isArray(object.material)) {
-          object.material.forEach((material) => material.dispose());
-        }
-      }
+    // Initialize asset manager
+    this.assetManager = new AssetManager();
+    
+    // Initialize audio manager
+    this.audioManager = AudioManager.getInstance();
+    
+    // Initialize input handler
+    this.inputHandler = new InputHandler();
+    
+    // Set up game loop with empty functions initially
+    this.gameLoop = new GameLoop({
+      updateFn: () => {},
+      fixedUpdateFn: () => {},
+      renderFn: () => {},
+      fixedTimeStep: 1/60 // 60 fps physics
     });
     
-    renderer.dispose();
+    // Register game state change listener
+    eventBus.on('game-state-change', this.handleGameStateChange.bind(this));
     
-    // Clean up asset manager
-    assetManager.dispose();
+    // Setup window resize handler
+    window.addEventListener('resize', this.handleResize.bind(this));
     
-    // Remove event listeners
-    window.removeEventListener('game-start', handleGameStart);
-    window.removeEventListener('game-pause', handleGamePause);
-    window.removeEventListener('game-resume', handleGameResume);
-    window.removeEventListener('game-restart', handleGameRestart);
-    window.removeEventListener('resize', handleResize);
-    
-    // Clean up input handler
-    inputHandler.cleanup();
-  };
-  
-  // Set the game state and emit event
-  function setGameState(newState: GameState) {
-    gameState = newState;
-    eventBus.emit('game-state-change', gameState);
+    // Start in MENU state (early init is complete)
+    gameStateManager.setState('MENU');
   }
   
-  // Update physics with fixed timestep
-  function updatePhysics(fixedTimeStep: number) {
-    if (gameState !== 'PLAYING') return;
+  /**
+   * Fully initialize game systems after asset loading
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized || this.isLoading) return;
     
-    // Update environment physics with player position
-    environment.update(fixedTimeStep, player.mesh.position.z);
+    // Set loading state
+    this.isLoading = true;
+    gameStateManager.setState('LOADING');
+    
+    try {
+      // Preload essential assets
+      await this.loadAssets();
+      
+      // Initialize audio
+      await this.audioManager.initialize(this.camera);
+      await this.audioManager.loadSoundEffects();
+      
+      // Add lighting 
+      this.setupLighting();
+      
+      // Initialize environment
+      const environmentQuality = this.deviceCapabilities.highEnd ? 'high' : 
+                              this.deviceCapabilities.midRange ? 'medium' : 'low';
+      this.environment = new ProceduralEnvironment(
+        this.scene, 
+        this.assetManager, 
+        environmentQuality as 'low' | 'medium' | 'high'
+      );
+      
+      // Initialize water effects
+      this.waterEffects = new WaterEffects(
+        this.scene,
+        environmentQuality as 'low' | 'medium' | 'high'
+      );
+      
+      // Initialize player character
+      this.player = new Character(this.scene, this.assetManager);
+      
+      // Initialize collision system
+      this.collisionSystem = new CollisionSystem(this.player);
+      
+      // Initialize obstacle manager
+      this.obstacleManager = new ObstacleManager(
+        this.scene, 
+        this.assetManager, 
+        this.collisionSystem,
+        this.gameSettings
+      );
+      
+      // Initialize collectible manager
+      this.collectibleManager = new CollectibleManager(
+        this.scene, 
+        this.assetManager,
+        this.gameSettings
+      );
+      
+      // Set up game loop with proper update functions
+      this.gameLoop.setUpdateFn(this.updateGame.bind(this));
+      this.gameLoop.setFixedUpdateFn(this.updatePhysics.bind(this));
+      this.gameLoop.setRenderFn(this.render.bind(this));
+      
+      // Set up event listeners
+      this.setupEventListeners();
+      
+      // Mark as initialized
+      this.isInitialized = true;
+      this.isLoading = false;
+      
+      // Start the game loop (even in menu state)
+      this.gameLoop.start();
+      
+      // Move to READY state after initialization is complete
+      // This will be handled by the LoadingScreen component
+      // No need to explicitly call setState here as the LoadingScreen will transition
+    } catch (error) {
+      console.error('Game initialization failed:', error);
+      this.isLoading = false;
+      gameStateManager.setState('MENU');
+    }
+  }
+  
+  /**
+   * Load required game assets
+   */
+  private async loadAssets(): Promise<void> {
+    // Report asset loading progress
+    const reportProgress = (loaded: number, total: number) => {
+      const progress = Math.floor((loaded / total) * 100);
+      eventBus.emit('asset-loading-progress', { progress, loaded, total });
+    };
+    
+    // Setup loading progress tracking
+    let assetsLoaded = 0;
+    const totalAssets = 6; // Adjust based on actual asset count
+    
+    // Add asset loading sequences here
+    // For each asset, increment assetsLoaded and report progress
+    try {
+      // Example asset loading with progress reporting
+      await this.assetManager.loadModel('character', '/models/fish.glb');
+      assetsLoaded++;
+      reportProgress(assetsLoaded, totalAssets);
+      
+      await this.assetManager.loadTexture('bubble', '/textures/bubble.png');
+      assetsLoaded++;
+      reportProgress(assetsLoaded, totalAssets);
+      
+      // Simulate loading other assets for now
+      // In a real implementation, replace with actual asset loading
+      await new Promise(resolve => setTimeout(resolve, 300));
+      assetsLoaded++;
+      reportProgress(assetsLoaded, totalAssets);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      assetsLoaded++;
+      reportProgress(assetsLoaded, totalAssets);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      assetsLoaded++;
+      reportProgress(assetsLoaded, totalAssets);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      assetsLoaded++;
+      reportProgress(assetsLoaded, totalAssets);
+      
+      // Complete asset loading
+      reportProgress(totalAssets, totalAssets);
+    } catch (error) {
+      console.error('Asset loading failed:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Set up scene lighting
+   */
+  private setupLighting(): void {
+    // Add ambient light
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    this.scene.add(ambientLight);
+    
+    // Add directional light (sun rays through water)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 7.5);
+    directionalLight.castShadow = this.gameSettings.shadowQuality !== 'off';
+    this.scene.add(directionalLight);
+  }
+  
+  /**
+   * Handle game state changes
+   */
+  private handleGameStateChange(data: { from: GameState; to: GameState }): void {
+    const { from, to } = data;
+    
+    // Handle transitions between states
+    switch (to) {
+      case 'MENU':
+        // Start menu music
+        this.audioManager.stopBackgroundMusic();
+        this.audioManager.playBackgroundMusic();
+        
+        // Clear game elements if coming from game over
+        if (from === 'GAME_OVER') {
+          this.resetGame();
+        }
+        break;
+        
+      case 'LOADING':
+        // Only initialize once
+        if (!this.isInitialized && !this.isLoading) {
+          this.initialize();
+        }
+        break;
+        
+      case 'READY':
+        // Play countdown sound
+        this.audioManager.playSoundEffect('countdown');
+        
+        // Prepare for gameplay
+        this.prepareGame();
+        break;
+        
+      case 'PLAYING':
+        // Start background music if first time entering PLAYING state
+        if (from === 'READY') {
+          this.audioManager.playSoundEffect('game-start');
+        }
+        
+        // Resume game loop if it was paused
+        if (from === 'PAUSED') {
+          this.gameLoop.resume();
+        }
+        break;
+        
+      case 'PAUSED':
+        // Pause game loop
+        this.gameLoop.pause();
+        break;
+        
+      case 'GAME_OVER':
+        // Play game over sound
+        this.audioManager.playSoundEffect('game-over');
+        break;
+    }
+  }
+  
+  /**
+   * Prepare the game for playing - called when entering READY state
+   */
+  private prepareGame(): void {
+    // Reset player position
+    this.player.resetPosition();
+    
+    // Generate initial obstacles
+    this.obstacleManager.clear();
+    this.obstacleManager.update(0, this.player.mesh.position.z, 0);
+    
+    // Clear collectibles
+    this.collectibleManager.clear();
+    
+    // Reset camera
+    this.camera.position.set(0, 3, 10);
+    this.camera.lookAt(0, 0, 0);
+  }
+  
+  /**
+   * Update physics with fixed timestep
+   */
+  private updatePhysics(fixedTimeStep: number): void {
+    if (gameStateManager.state !== 'PLAYING') return;
+    
+    // Update environment with player position
+    this.environment.update(fixedTimeStep, this.player.mesh.position.z);
+    
+    // Update water effects
+    this.waterEffects.update(fixedTimeStep, this.player.mesh.position);
     
     // Emit game update event for bubble animations and other timed effects
     eventBus.emit('game-update', fixedTimeStep);
     
     // Update collision detection
-    collisionSystem.update();
+    this.collisionSystem.update();
   }
   
-  // Update game state
-  function updateGame(deltaTime: number) {
-    if (gameState !== 'PLAYING') return;
+  /**
+   * Update game state
+   */
+  private updateGame(deltaTime: number): void {
+    if (gameStateManager.state !== 'PLAYING') return;
     
     // Handle input
-    const input = inputHandler.getInput();
+    const input = this.inputHandler.getInput();
     
     // Update player character
-    player.update(deltaTime, input);
+    this.player.update(deltaTime, input);
     
     // Emit player position for obstacle triggers
-    eventBus.emit('player-position', player.mesh.position);
+    eventBus.emit('player-position', this.player.mesh.position);
     
     // Update obstacles
-    obstacleManager.update(deltaTime, player.mesh.position.z, playerSpeed * deltaTime);
+    this.obstacleManager.update(deltaTime, this.player.mesh.position.z, this.playerSpeed * deltaTime);
     
     // Update collectibles
-    collectibleManager.update(deltaTime, player.mesh.position.z);
+    this.collectibleManager.update(deltaTime, this.player.mesh.position.z);
     
-    // Update distance (scaled by player's forward speed)
-    distance += playerSpeed * deltaTime;
-    eventBus.emit('distance-change', Math.floor(distance));
-    
-    // Update score based on distance
-    const newScore = Math.floor(distance * 2);
-    if (newScore !== score) {
-      score = newScore;
-      eventBus.emit('score-change', score);
-    }
+    // Update distance in game state manager
+    gameStateManager.updateDistance(this.playerSpeed * deltaTime);
     
     // Move the camera to follow the player
-    updateCamera(deltaTime);
+    this.updateCamera(deltaTime);
   }
   
-  // Update camera position to follow player
-  function updateCamera(deltaTime: number) {
+  /**
+   * Update camera position to follow player
+   */
+  private updateCamera(deltaTime: number): void {
     // Move camera forward
-    camera.position.z -= playerSpeed * deltaTime;
+    this.camera.position.z -= this.playerSpeed * deltaTime;
     
     // Keep camera behind player
-    const targetCameraZ = player.mesh.position.z + 5;
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCameraZ, deltaTime * 2);
+    const targetCameraZ = this.player.mesh.position.z + 5;
+    this.camera.position.z = THREE.MathUtils.lerp(this.camera.position.z, targetCameraZ, deltaTime * 2);
     
     // Adjust camera look target
-    camera.lookAt(player.mesh.position.x, player.mesh.position.y, player.mesh.position.z);
+    this.camera.lookAt(
+      this.player.mesh.position.x, 
+      this.player.mesh.position.y, 
+      this.player.mesh.position.z
+    );
   }
   
-  // Render the scene
-  function render(interpolation: number) {
-    // Render wobble effect for underwater feel
+  /**
+   * Render the scene
+   */
+  private render(interpolation: number): void {
+    // Different render effects based on game state
     const time = performance.now() * 0.001;
-    camera.position.y = Math.sin(time * 0.5) * 0.05 + 2.0;
-    camera.rotation.z = Math.sin(time * 0.2) * 0.01;
+    
+    if (gameStateManager.state === 'PLAYING' || gameStateManager.state === 'PAUSED') {
+      // Render wobble effect for underwater feel
+      this.camera.position.y = Math.sin(time * 0.5) * 0.05 + 2.0;
+      this.camera.rotation.z = Math.sin(time * 0.2) * 0.01;
+    } else {
+      // Subtle camera movement for menu
+      this.camera.position.y = 2.0 + Math.sin(time * 0.2) * 0.1;
+      this.camera.rotation.z = Math.sin(time * 0.1) * 0.02;
+      
+      // Slowly rotate camera in menu
+      if (gameStateManager.state === 'MENU') {
+        this.camera.position.x = Math.sin(time * 0.1) * 3;
+        this.camera.position.z = Math.cos(time * 0.1) * 3 + 10;
+        this.camera.lookAt(0, 0, 0);
+      }
+    }
     
     // Render scene
-    renderer.render(scene, camera);
+    this.renderer.render(this.scene, this.camera);
   }
   
-  // Event handlers
-  function handleGameStart() {
-    // Reset player position
-    player.resetPosition();
-    
-    // Generate initial obstacles
-    obstacleManager.update(0, 0, 0);
-    
-    // Set game state to playing
-    setGameState('PLAYING');
-  }
-  
-  function handleGamePause() {
-    setGameState('PAUSED');
-  }
-  
-  function handleGameResume() {
-    setGameState('PLAYING');
-  }
-  
-  function handleGameRestart() {
-    // Reset game state
-    score = 0;
-    distance = 0;
-    eventBus.emit('score-change', score);
-    eventBus.emit('distance-change', distance);
-    
-    // Reset camera position
-    camera.position.set(0, 3, 10);
-    camera.lookAt(0, 0, 0);
-    
-    // Reset player
-    player.resetPosition();
-    
-    // Clear obstacles and collectibles
-    obstacleManager.clear();
-    collectibleManager.clear();
-    
-    // Clear collision system
-    collisionSystem.clear();
-    
-    // Start playing
-    setGameState('PLAYING');
-  }
-  
-  // Handle player hitting an obstacle
-  function handlePlayerHit() {
-    // If hit was severe enough, game over
-    // For now, continue playing
-    console.log('Player hit obstacle');
-    
-    // Subtract points for hitting obstacles
-    score = Math.max(0, score - 50);
-    eventBus.emit('score-change', score);
-  }
-  
-  function handleResize() {
+  /**
+   * Handle window resize
+   */
+  private handleResize(): void {
     // Update camera aspect ratio
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
     
     // Update renderer size
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
   
-  // Setup event listeners for game control
-  function setupEventListeners() {
-    window.addEventListener('game-start', handleGameStart);
-    window.addEventListener('game-pause', handleGamePause);
-    window.addEventListener('game-resume', handleGameResume);
-    window.addEventListener('game-restart', handleGameRestart);
-    window.addEventListener('resize', handleResize);
+  /**
+   * Reset game to initial state
+   */
+  private resetGame(): void {
+    // Reset player position
+    this.player.resetPosition();
     
-    // Keyboard event for pausing
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'p' || e.key === 'P') {
-        if (gameState === 'PLAYING') {
-          handleGamePause();
-        } else if (gameState === 'PAUSED') {
-          handleGameResume();
-        }
-      }
+    // Clear obstacles and collectibles
+    this.obstacleManager.clear();
+    this.collectibleManager.clear();
+    
+    // Reset camera position for menu
+    this.camera.position.set(0, 3, 10);
+    this.camera.lookAt(0, 0, 0);
+  }
+  
+  /**
+   * Set up game event listeners
+   */
+  private setupEventListeners(): void {
+    // Handle player hitting obstacles
+    eventBus.on('player-hit', () => {
+      // Let the game state manager handle lives and game over
+      gameStateManager.playerHit();
     });
     
-    // Game events
-    eventBus.on('player-hit', handlePlayerHit);
-    eventBus.on('collect', (data) => {
-      // Increase score based on collectible type
-      if (data.type === 'bubble') {
-        score += 10;
-        eventBus.emit('score-change', score);
+    // Handle collectible collection
+    eventBus.on('collect', (data: { type: string, points?: number }) => {
+      // Calculate points based on collectible type
+      let points = 0;
+      if (data.points) {
+        points = data.points;
+      } else if (data.type === 'bubble') {
+        points = 10;
       } else if (data.type.startsWith('powerup_')) {
-        // Handle power-up collection
-        console.log(`Power-up collected: ${data.type}`);
-        // Score bonus for collecting power-ups
-        score += 25;
-        eventBus.emit('score-change', score);
+        points = 25;
       }
+      
+      // Update score
+      gameStateManager.updateScore(points);
     });
     
-    // Power-up event handlers
-    eventBus.on('powerup-activated', (data) => {
-      console.log(`Power-up activated: ${data.type} for ${data.duration} seconds`);
-      // Handle specific power-up effects
-      switch (data.type) {
-        case 'powerup_shield':
-          // Make player immune
-          console.log('Shield activated - player immune to obstacles');
-          break;
-        case 'powerup_magnet':
-          // Attract collectibles
-          console.log('Magnet activated - attracting collectibles');
-          break;
-        case 'powerup_speed':
-          // Increase speed
-          console.log('Speed boost activated - increased movement speed');
-          break;
-        case 'powerup_score':
-          // Double score
-          console.log('Score multiplier activated - scores doubled');
-          break;
-        case 'powerup_time':
-          // Slow down time (obstacles)
-          console.log('Time slow activated - obstacles moving slower');
-          break;
-      }
+    // Handle power-up collection
+    eventBus.on('powerup-collected', (data: { type: string, duration: number }) => {
+      // Activate power-up in game state manager
+      gameStateManager.activatePowerup(data.type, data.duration);
+      
+      // Apply power-up effects to game entities
+      this.applyPowerupEffects(data.type, true);
     });
     
-    eventBus.on('powerup-deactivated', (data) => {
-      console.log(`Power-up deactivated: ${data.type}`);
-      // Reset power-up effects
+    // Handle power-up deactivation
+    eventBus.on('powerup-deactivated', (data: { type: string }) => {
+      // Remove power-up effects from game entities
+      this.applyPowerupEffects(data.type, false);
     });
     
-    // Environment change events
-    eventBus.on('environment-change', (data) => {
-      console.log(`Environment changing from ${data.from} to ${data.to}`);
-      // Future: Play transition sound effects or visual transitions
-    });
-    
-    eventBus.on('environment-change-complete', (data) => {
-      console.log(`Environment changed to ${data.type}`);
-      // Future: Update background music or ambient effects based on environment
+    // Handle environment changes
+    eventBus.on('environment-change-complete', (data: { type: string }) => {
+      // Update game state
+      gameStateManager.stateData.environment.current = data.type;
     });
   }
   
-  // Renderer setup
-  function setupRenderer(canvas: HTMLCanvasElement, capabilities: ReturnType<typeof detectDeviceCapabilities>) {
+  /**
+   * Apply or remove power-up effects to game entities
+   */
+  private applyPowerupEffects(type: string, active: boolean): void {
+    switch (type) {
+      case 'powerup_shield':
+        // Visual shield effect handled by HealthDisplay component
+        break;
+        
+      case 'powerup_magnet':
+        // Set attraction in collectible manager
+        this.collectibleManager.setAttractionEnabled(active);
+        break;
+        
+      case 'powerup_speed':
+        // Set speed multiplier for player
+        this.player.setSpeedMultiplier(active ? 1.5 : 1.0);
+        break;
+        
+      case 'powerup_score':
+        // Score multiplier handled by game state manager
+        break;
+        
+      case 'powerup_time':
+        // Slow down obstacles
+        this.obstacleManager.setTimeScale(active ? 0.5 : 1.0);
+        break;
+    }
+  }
+  
+  /**
+   * Initialize renderer
+   */
+  private setupRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
     const renderer = new THREE.WebGLRenderer({ 
       canvas, 
-      antialias: capabilities.highEnd || capabilities.midRange, 
+      antialias: this.deviceCapabilities.highEnd || this.deviceCapabilities.midRange, 
       powerPreference: 'high-performance',
       alpha: false
     });
     
     renderer.setSize(window.innerWidth, window.innerHeight);
-    const pixelRatio = Math.min(window.devicePixelRatio, capabilities.highEnd ? 2 : 1.5);
+    const pixelRatio = Math.min(
+      window.devicePixelRatio, 
+      this.deviceCapabilities.highEnd ? 2 : 1.5
+    );
     renderer.setPixelRatio(pixelRatio);
     
     // Apply quality settings based on device capabilities
-    applyQualitySettings(renderer, capabilities);
+    applyQualitySettings(renderer, this.deviceCapabilities);
     
     return renderer;
   }
   
-  // Camera setup
-  function setupCamera() {
+  /**
+   * Initialize camera
+   */
+  private setupCamera(): THREE.PerspectiveCamera {
     const camera = new THREE.PerspectiveCamera(
       75, // FOV
       window.innerWidth / window.innerHeight, // Aspect ratio
@@ -377,4 +549,69 @@ export function initGame(canvas: HTMLCanvasElement) {
     
     return camera;
   }
+  
+  /**
+   * Clean up and dispose resources
+   */
+  dispose(): void {
+    // Stop the game loop
+    this.gameLoop.stop();
+    
+    // Remove event listeners
+    window.removeEventListener('resize', this.handleResize.bind(this));
+    eventBus.off('game-state-change', this.handleGameStateChange.bind(this));
+    
+    // Clean up game entities
+    if (this.isInitialized) {
+      this.player.dispose();
+      this.obstacleManager.dispose();
+      this.collectibleManager.dispose();
+      this.environment.dispose();
+      this.waterEffects.dispose();
+    }
+    
+    // Clean up ThreeJS resources
+    this.scene.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        if (object.geometry) {
+          object.geometry.dispose();
+        }
+        if (object.material instanceof THREE.Material) {
+          object.material.dispose();
+        } else if (Array.isArray(object.material)) {
+          object.material.forEach((material) => material.dispose());
+        }
+      }
+    });
+    
+    this.renderer.dispose();
+    
+    // Clean up audio system
+    this.audioManager.dispose();
+    
+    // Clean up asset manager
+    this.assetManager.dispose();
+    
+    // Clean up input handler
+    this.inputHandler.cleanup();
+  }
+}
+
+// Exported function to initialize the game
+let gameInstance: GameEngine | null = null;
+
+export function initGame(canvas: HTMLCanvasElement) {
+  // Create game instance
+  gameInstance = new GameEngine(canvas);
+  
+  // Start initialization process
+  gameInstance.initialize();
+  
+  // Return cleanup function
+  return function cleanup() {
+    if (gameInstance) {
+      gameInstance.dispose();
+      gameInstance = null;
+    }
+  };
 }

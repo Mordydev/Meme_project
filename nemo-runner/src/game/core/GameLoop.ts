@@ -5,6 +5,7 @@ export class GameLoop {
   private accumulator = 0;
   private fixedTimeStep: number;
   private running = false;
+  private paused = false;
   private animationFrameId: number | null = null;
   
   private updateFn: (deltaTime: number) => void;
@@ -26,9 +27,34 @@ export class GameLoop {
   start() {
     if (this.running) return;
     this.running = true;
+    this.paused = false;
     this.lastTime = performance.now() / 1000; // Convert to seconds
     this.accumulator = 0;
     this.loop(this.lastTime);
+  }
+  
+  pause() {
+    if (!this.running || this.paused) return;
+    this.paused = true;
+  }
+  
+  resume() {
+    if (!this.running || !this.paused) return;
+    this.paused = false;
+    // Reset lastTime to avoid large time delta after pause
+    this.lastTime = performance.now() / 1000;
+  }
+  
+  setUpdateFn(fn: (deltaTime: number) => void) {
+    this.updateFn = fn;
+  }
+  
+  setFixedUpdateFn(fn: (timeStep: number) => void) {
+    this.fixedUpdateFn = fn;
+  }
+  
+  setRenderFn(fn: (interpolation: number) => void) {
+    this.renderFn = fn;
   }
   
   stop() {
@@ -43,6 +69,13 @@ export class GameLoop {
     if (!this.running) return;
     
     this.animationFrameId = requestAnimationFrame((time) => this.loop(time / 1000));
+    
+    // If paused, only continue with rendering but not game updates
+    if (this.paused) {
+      // Still render the scene in paused state
+      this.renderFn(0);
+      return;
+    }
     
     // Calculate delta time in seconds
     const deltaTime = Math.min(currentTime - this.lastTime, 0.1); // Cap to 100ms to prevent huge jumps
