@@ -49,13 +49,13 @@ export default function LoadingScreen() {
     const handleLoadingProgress = (data: { progress: number }) => {
       setProgress(data.progress);
       
-      // If loading is complete (100%), wait a moment then transition to READY state
+      // If loading is complete (100%), wait a moment then transition to MENU state
       if (data.progress >= 100) {
         setTimeout(() => {
           setIsVisible(false);
-          // After fade out, transition to READY state
+          // After fade out, transition to MENU state instead of READY
           setTimeout(() => {
-            gameStateManager.setState('READY');
+            gameStateManager.setState('MENU');
           }, 500);
         }, 1000);
       }

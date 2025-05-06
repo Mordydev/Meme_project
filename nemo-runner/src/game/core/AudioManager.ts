@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EventSystem } from './EventSystem';
+import eventBus from './EventSystem';
 import { AssetManager } from './AssetManager';
 
 // Audio event types
@@ -12,7 +12,8 @@ export type AudioEventType =
   | 'menu'
   | 'countdown'
   | 'shield-activate'
-  | 'speed-activate';
+  | 'speed-activate'
+  | 'lane-change';
 
 // Volume settings interface
 export interface AudioSettings {
@@ -30,12 +31,11 @@ export interface AudioSettings {
 export class AudioManager {
   private static instance: AudioManager;
   
-  private eventSystem: EventSystem;
-  private assetManager: AssetManager;
+  private assetManager!: AssetManager; // Will be initialized later
   
   // Three.js audio components
-  private listener: THREE.AudioListener;
-  private backgroundMusic: THREE.Audio;
+  private listener!: THREE.AudioListener; // Initialized in initialize()
+  private backgroundMusic!: THREE.Audio;
   private soundEffects: Map<string, THREE.Audio>;
   
   // Audio settings
@@ -54,8 +54,7 @@ export class AudioManager {
    * Private constructor for singleton pattern
    */
   private constructor() {
-    this.eventSystem = EventSystem.getInstance();
-    this.assetManager = AssetManager.getInstance();
+    // Initialize with empty map
     this.soundEffects = new Map<string, THREE.Audio>();
   }
   
@@ -162,7 +161,7 @@ export class AudioManager {
     this.saveSettings();
     
     // Emit event for UI updates
-    this.eventSystem.emit('audio-settings-changed', this.settings);
+    eventBus.emit('audio-settings-changed', this.settings);
   }
   
   /**
@@ -173,11 +172,38 @@ export class AudioManager {
   }
   
   /**
+   * Initialize asset manager
+   * @param assetManager AssetManager instance
+   */
+  public setAssetManager(assetManager: AssetManager): void {
+    this.assetManager = assetManager;
+  }
+
+  /**
    * Load and prepare sound effects
    */
   public async loadSoundEffects(): Promise<void> {
     if (!this.listener) {
       console.error('[AudioManager] Cannot load sounds: AudioListener not initialized');
+      return;
+    }
+    
+    if (!this.assetManager) {
+      console.error('[AudioManager] Cannot load sounds: AssetManager not set');
+      
+      // Create dummy sound buffers for development
+      const dummyBuffer = this.createDummyAudioBuffer();
+      
+      // Create audio objects for each sound effect using the dummy buffer
+      this.createSoundEffect('collect', dummyBuffer);
+      this.createSoundEffect('collision', dummyBuffer);
+      this.createSoundEffect('powerup', dummyBuffer);
+      this.createSoundEffect('game-start', dummyBuffer);
+      this.createSoundEffect('game-over', dummyBuffer);
+      this.createSoundEffect('shield-activate', dummyBuffer);
+      this.createSoundEffect('speed-activate', dummyBuffer);
+      
+      console.log('[AudioManager] Created dummy sound effects');
       return;
     }
     
@@ -203,7 +229,49 @@ export class AudioManager {
       console.log('[AudioManager] Sound effects loaded');
     } catch (error) {
       console.error('[AudioManager] Error loading sound effects:', error);
+      
+      // Create a fallback with dummy sounds
+      const dummyBuffer = this.createDummyAudioBuffer();
+      
+      this.createSoundEffect('collect', dummyBuffer);
+      this.createSoundEffect('collision', dummyBuffer);
+      this.createSoundEffect('powerup', dummyBuffer);
+      this.createSoundEffect('game-start', dummyBuffer);
+      this.createSoundEffect('game-over', dummyBuffer);
+      this.createSoundEffect('shield-activate', dummyBuffer);
+      this.createSoundEffect('speed-activate', dummyBuffer);
     }
+  }
+  
+  /**
+   * Create a dummy audio buffer for development/fallback
+   */
+  private createDummyAudioBuffer(): AudioBuffer {
+    // Create an audio context
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    // Create a short buffer with a simple tone
+    const sampleRate = audioContext.sampleRate;
+    const duration = 0.5; // half second
+    const numFrames = sampleRate * duration;
+    const buffer = audioContext.createBuffer(1, numFrames, sampleRate);
+    
+    // Fill the buffer with a simple sine wave
+    const channelData = buffer.getChannelData(0);
+    const frequency = 440; // A4 note (440Hz)
+    
+    for (let i = 0; i < numFrames; i++) {
+      // Simple sine wave
+      channelData[i] = 0.2 * Math.sin(2 * Math.PI * frequency * i / sampleRate);
+      
+      // Apply a simple fade out
+      const fadeOutStart = numFrames * 0.7;
+      if (i > fadeOutStart) {
+        channelData[i] *= 1 - ((i - fadeOutStart) / (numFrames - fadeOutStart));
+      }
+    }
+    
+    return buffer;
   }
   
   /**
@@ -230,8 +298,21 @@ export class AudioManager {
         this.backgroundMusic.stop();
       }
       
-      // Get background music buffer
-      const musicBuffer = await this.assetManager.getAsset('audio_background');
+      let musicBuffer;
+      
+      // Check if AssetManager is available
+      if (!this.assetManager) {
+        console.warn('[AudioManager] AssetManager not available, using dummy music');
+        musicBuffer = this.createDummyAudioBuffer();
+      } else {
+        // Get background music buffer
+        try {
+          musicBuffer = await this.assetManager.getAsset('audio_background');
+        } catch (error) {
+          console.warn('[AudioManager] Could not load music asset, using dummy music');
+          musicBuffer = this.createDummyAudioBuffer();
+        }
+      }
       
       // Set up background music
       this.backgroundMusic.setBuffer(musicBuffer);
@@ -280,7 +361,7 @@ export class AudioManager {
    */
   private setupEventListeners(): void {
     // Game state changes
-    this.eventSystem.on('game-state-change', (data: any) => {
+    eventBus.on('game-state-change', (data: any) => {
       const { to } = data;
       
       if (to === 'MENU') {
@@ -295,17 +376,17 @@ export class AudioManager {
     });
     
     // Collectible collection
-    this.eventSystem.on('collectible-collected', () => {
+    eventBus.on('collectible-collected', () => {
       this.playSoundEffect('collect');
     });
     
     // Player collision
-    this.eventSystem.on('player-collision', () => {
+    eventBus.on('player-collision', () => {
       this.playSoundEffect('collision');
     });
     
     // Power-up activation
-    this.eventSystem.on('powerup-activated', (data: any) => {
+    eventBus.on('powerup-activated', (data: any) => {
       const { type } = data;
       if (type === 'shield') {
         this.playSoundEffect('shield-activate');
@@ -313,6 +394,33 @@ export class AudioManager {
         this.playSoundEffect('speed-activate');
       } else {
         this.playSoundEffect('powerup');
+      }
+    });
+    
+    // Play sound effect for lane change
+    eventBus.on('play-sound', (data: { name: string, volume?: number }) => {
+      if (data.name === 'lane-change') {
+        // If we don't have a specific lane-change sound yet, use collect sound
+        // with adjusted volume
+        const sound = this.soundEffects.get('lane-change') || this.soundEffects.get('collect');
+        if (sound) {
+          // Clone the sound to allow overlapping playback
+          if (sound.isPlaying) {
+            sound.stop();
+          }
+          // Adjust volume if specified
+          const originalVolume = sound.getVolume();
+          if (data.volume !== undefined) {
+            sound.setVolume(data.volume * this.settings.sfxVolume);
+          }
+          sound.play();
+          // Reset to original volume after a short delay
+          if (data.volume !== undefined) {
+            setTimeout(() => {
+              sound.setVolume(originalVolume);
+            }, 500);
+          }
+        }
       }
     });
   }

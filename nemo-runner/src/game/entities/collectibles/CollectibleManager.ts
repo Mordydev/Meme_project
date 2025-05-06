@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { EventSystem } from '../../core/EventSystem';
+import eventBus from '../../core/EventSystem';
 import { AssetManager } from '../../core/AssetManager';
 import { DeviceCapabilities } from '../../utils/DeviceUtils';
 
@@ -47,7 +47,6 @@ interface PowerUpEffect {
 
 export class CollectibleManager {
   private scene: THREE.Scene;
-  private eventSystem: EventSystem;
   private assetManager: AssetManager;
   private deviceCapabilities: DeviceCapabilities;
   
@@ -58,6 +57,10 @@ export class CollectibleManager {
   private collectiblePoolSize = 100;
   private bubbleInstancedMesh: THREE.InstancedMesh | null = null;
   private powerupMeshes: Map<CollectibleType, THREE.Mesh> = new Map();
+  
+  // Attraction system for magnet power-up
+  private isAttractionEnabled = false;
+  private magneticPullTarget: THREE.Vector3 | null = null;
   
   private bubbleMaterial: THREE.ShaderMaterial | null = null;
   private powerupMaterials: Map<CollectibleType, THREE.ShaderMaterial> = new Map();
@@ -77,12 +80,10 @@ export class CollectibleManager {
   
   constructor(
     scene: THREE.Scene,
-    eventSystem: EventSystem,
     assetManager: AssetManager,
     deviceCapabilities: DeviceCapabilities
   ) {
     this.scene = scene;
-    this.eventSystem = eventSystem;
     this.assetManager = assetManager;
     this.deviceCapabilities = deviceCapabilities;
     
@@ -428,7 +429,7 @@ export class CollectibleManager {
   
   private initEventListeners() {
     // Listen for collision events (implemented in CollisionSystem)
-    this.eventSystem.subscribe('collision:collectible', (data: { collectible: Collectible }) => {
+    eventBus.on('collision:collectible', (data: { collectible: Collectible }) => {
       this.collectCollectible(data.collectible);
     });
   }
@@ -525,7 +526,7 @@ export class CollectibleManager {
           expiredEffects.push(effect);
           
           // Emit event for effect expiration
-          this.eventSystem.publish('powerup:expired', { type: effect.type });
+          eventBus.emit('powerup:expired', { type: effect.type });
         }
       }
     });
@@ -607,7 +608,7 @@ export class CollectibleManager {
     // Handle different collectible types
     if (collectible.type === CollectibleType.BUBBLE) {
       // Add score
-      this.eventSystem.publish('player:score', { 
+      eventBus.emit('player:score', { 
         points: collectible.value * (this.isPowerUpActive(CollectibleType.POWERUP_SCORE) ? 2 : 1)
       });
     } else {
@@ -617,14 +618,14 @@ export class CollectibleManager {
       // Add score
       const config = this.powerUpConfigs.get(collectible.type);
       if (config) {
-        this.eventSystem.publish('player:score', { 
+        eventBus.emit('player:score', { 
           points: config.value * (this.isPowerUpActive(CollectibleType.POWERUP_SCORE) ? 2 : 1)
         });
       }
     }
     
     // Emit collection event
-    this.eventSystem.publish('collectible:collected', { type: collectible.type });
+    eventBus.emit('collectible:collected', { type: collectible.type });
   }
   
   /**
@@ -652,7 +653,7 @@ export class CollectibleManager {
     }
     
     // Emit power-up activation event
-    this.eventSystem.publish('powerup:activated', { 
+    eventBus.emit('powerup:activated', { 
       type, 
       duration: config.duration 
     });
@@ -882,5 +883,32 @@ export class CollectibleManager {
     this.activeEffects = [];
     this.powerupMeshes.clear();
     this.powerupMaterials.clear();
+  }
+  
+  /**
+   * Clear all collectibles and power-ups
+   */
+  clear(): void {
+    // Deactivate all collectibles
+    this.collectibles.forEach(collectible => {
+      this.deactivateCollectible(collectible);
+    });
+    
+    // Clear active effects
+    this.activeEffects = [];
+    
+    // Reset attraction state
+    this.isAttractionEnabled = false;
+    this.magneticPullTarget = null;
+  }
+  
+  /**
+   * Enable or disable magnetic attraction for the bubble magnet power-up
+   */
+  setAttractionEnabled(enabled: boolean): void {
+    this.isAttractionEnabled = enabled;
+    if (!enabled) {
+      this.magneticPullTarget = null;
+    }
   }
 }

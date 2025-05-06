@@ -15,6 +15,7 @@ export class WaterEffects {
   private causticsMaterial: THREE.ShaderMaterial;
   private ambientParticles: THREE.Points;
   private lightRays: THREE.Group;
+  private surfaceRipples: THREE.Mesh | null = null;
   private quality: 'low' | 'medium' | 'high';
 
   constructor(scene: THREE.Scene, quality: 'low' | 'medium' | 'high' = 'medium') {
@@ -35,6 +36,10 @@ export class WaterEffects {
     this.lightRays = this.createLightRays();
     if (this.quality !== 'low') {
       this.scene.add(this.lightRays);
+      
+      // Create surface ripples (medium and high quality only)
+      this.surfaceRipples = this.createSurfaceRipples();
+      this.scene.add(this.surfaceRipples);
     }
   }
 
@@ -91,6 +96,28 @@ export class WaterEffects {
         return value;
       }
       
+      // Voronoi cellular noise - creates more realistic caustics patterns
+      float voronoi(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        
+        float minDist = 1.0;
+        
+        for (int y = -1; y <= 1; y++) {
+          for (int x = -1; x <= 1; x++) {
+            vec2 neighbor = vec2(float(x), float(y));
+            // Convert hash output to vec2 by using it twice with offsets
+            float h = hash(i + neighbor);
+            vec2 point = vec2(h, hash(i + neighbor + vec2(42.0, 17.0))) * 0.5 + 0.5;
+            vec2 diff = neighbor + point - f;
+            float dist = length(diff);
+            minDist = min(minDist, dist);
+          }
+        }
+        
+        return minDist;
+      }
+      
       void main() {
         // Scale UVs for better caustics density
         vec2 scaledUv = vUv * 5.0;
@@ -99,17 +126,28 @@ export class WaterEffects {
         float caustics1 = fbm(scaledUv + uTime * 0.05);
         float caustics2 = fbm(scaledUv * 1.2 - uTime * 0.06);
         
+        // Add voronoi cellular noise for more realistic water caustics patterns
+        float cellNoise = voronoi(scaledUv * 1.5 + vec2(uTime * 0.04, uTime * 0.02));
+        cellNoise = pow(1.0 - cellNoise, 2.0); // Invert and sharpen
+        
         // Combine noise layers with different weights
         float caustics = smoothstep(0.4, 0.6, caustics1 * caustics2);
+        caustics = max(caustics, cellNoise * 0.7); // Blend with cellular noise
+        
+        // Create more defined caustic edges with contrast
+        caustics = smoothstep(0.3, 0.7, caustics);
         
         // Apply color
         vec3 baseColor = vec3(0.2, 0.5, 0.9); // Blue underwater color
         vec3 causticColor = vec3(1.0, 1.0, 0.9); // Slight yellow for caustics
         
-        vec3 finalColor = mix(baseColor * 0.5, causticColor, caustics * 0.5);
+        vec3 finalColor = mix(baseColor * 0.5, causticColor, caustics * 0.7);
+        
+        // Add subtle color variation based on position and time
+        finalColor += vec3(0.05, 0.05, 0.1) * sin(scaledUv.x * 10.0 + uTime);
         
         // Apply intensity based on noise pattern
-        gl_FragColor = vec4(finalColor, 0.6);
+        gl_FragColor = vec4(finalColor, 0.7);
       }
     `;
     
@@ -314,6 +352,38 @@ export class WaterEffects {
           child.material.uniforms.uTime.value += deltaTime;
         }
       });
+      
+      // Adjust light ray positions to follow player
+      if (Math.abs(this.lightRays.position.z - playerPosition.z) > 20) {
+        this.lightRays.position.z = playerPosition.z;
+        
+        // Randomize some ray positions for more variety
+        this.lightRays.children.forEach((child, index) => {
+          if (index % 3 === 0) { // Only update every third ray for performance
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 20 + Math.random() * 30;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            child.position.set(x, 5, 0); // Local position relative to group
+            
+            // Angle ray towards player with variation
+            child.lookAt(0, -5 + Math.random() * 10, 0);
+            
+            // Small random rotation for variety
+            child.rotation.z = (Math.random() - 0.5) * 0.5;
+          }
+        });
+      }
+      
+      // Update surface ripples
+      if (this.surfaceRipples && this.surfaceRipples.material instanceof THREE.ShaderMaterial) {
+        // Update time uniform for ripple shader
+        this.surfaceRipples.material.uniforms.uTime.value += deltaTime;
+        
+        // Position surface ripples above player
+        this.surfaceRipples.position.z = playerPosition.z;
+      }
     }
     
     // Move caustics with player
@@ -371,9 +441,44 @@ export class WaterEffects {
       if (this.lightRays.parent) {
         this.scene.remove(this.lightRays);
       }
+      
+      // Remove surface ripples for low quality
+      if (this.surfaceRipples && this.surfaceRipples.parent) {
+        this.scene.remove(this.surfaceRipples);
+      }
     } else {
+      // Add light rays for medium and high quality
       if (!this.lightRays.parent) {
         this.scene.add(this.lightRays);
+      }
+      
+      // Handle surface ripples
+      if (!this.surfaceRipples) {
+        this.surfaceRipples = this.createSurfaceRipples();
+      }
+      
+      if (this.surfaceRipples && !this.surfaceRipples.parent) {
+        this.scene.add(this.surfaceRipples);
+      }
+      
+      // Adjust light ray detail based on quality
+      if (quality === 'high') {
+        // More light rays for high quality
+        while (this.lightRays.children.length < 15) {
+          const newRay = this.createLightRay();
+          this.lightRays.add(newRay);
+        }
+      } else {
+        // Fewer light rays for medium quality
+        while (this.lightRays.children.length > 8) {
+          const lastChild = this.lightRays.children[this.lightRays.children.length - 1];
+          this.lightRays.remove(lastChild);
+          
+          if (lastChild instanceof THREE.Mesh) {
+            if (lastChild.geometry) lastChild.geometry.dispose();
+            if (lastChild.material instanceof THREE.Material) lastChild.material.dispose();
+          }
+        }
       }
     }
     
@@ -387,10 +492,188 @@ export class WaterEffects {
     this.ambientParticles = this.createAmbientParticles();
     this.scene.add(this.ambientParticles);
   }
+  
+  /**
+   * Creates a single light ray (helper for quality adjustment)
+   */
+  private createLightRay(): THREE.Mesh {
+    // Create ray geometry
+    const height = 10 + Math.random() * 10;
+    const width = 0.5 + Math.random() * 1.5;
+    
+    const rayGeometry = new THREE.PlaneGeometry(width, height, 1, 4);
+    
+    // Light ray shader material
+    const rayMaterial = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying vec2 vUv;
+        
+        void main() {
+          // Create gradient from bottom to top
+          float gradient = smoothstep(0.0, 0.8, vUv.y);
+          
+          // Add some variation along the ray
+          float variation = sin(vUv.y * 10.0 + uTime * 0.5) * 0.1 + 0.9;
+          
+          // Calculate final alpha
+          float alpha = (1.0 - gradient) * variation * 0.3;
+          
+          // Light ray color
+          vec3 rayColor = vec3(1.0, 1.0, 0.9);
+          
+          gl_FragColor = vec4(rayColor, alpha);
+        }
+      `,
+      uniforms: {
+        uTime: { value: 0 }
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    });
+    
+    const ray = new THREE.Mesh(rayGeometry, rayMaterial);
+    
+    // Position ray randomly
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 20 + Math.random() * 30;
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    
+    ray.position.set(x, 5, 0);
+    
+    // Angle ray towards center with variation
+    ray.lookAt(0, -5 + Math.random() * 10, 0);
+    
+    // Small random rotation for variety
+    ray.rotation.z = (Math.random() - 0.5) * 0.5;
+    
+    return ray;
+  }
 
   /**
    * Clean up resources
    */
+  /**
+   * Creates water surface ripples effect
+   */
+  private createSurfaceRipples(): THREE.Mesh {
+    const width = 60;
+    const length = 100;
+    
+    // Create a plane for the water surface
+    const geometry = new THREE.PlaneGeometry(width, length, 32, 32);
+    
+    // Ripple shader material
+    const rippleVertexShader = `
+      uniform float uTime;
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vViewPosition;
+
+      // Wave function for ripples
+      float wave(vec2 position, float time, float frequency, float amplitude, float speed, float sharpness) {
+        float phase = time * speed;
+        float theta = dot(position, vec2(cos(phase), sin(phase)));
+        return pow(0.5 + 0.5 * sin(theta * frequency), sharpness) * amplitude;
+      }
+      
+      void main() {
+        vUv = uv;
+        
+        // Base position
+        vec3 pos = position;
+        
+        // Apply multiple wave patterns for realistic ripples
+        float time = uTime * 0.5;
+        
+        // First wave set - larger
+        float wave1 = wave(position.xz * 0.1, time, 4.0, 0.2, 0.3, 1.0);
+        
+        // Second wave set - medium
+        float wave2 = wave(position.xz * 0.15, time + 10.0, 6.0, 0.1, 0.5, 2.0);
+        
+        // Third wave set - smaller, faster
+        float wave3 = wave(position.xz * 0.3, time + 30.0, 10.0, 0.05, 1.0, 3.0);
+        
+        // Combine waves
+        pos.y += wave1 + wave2 + wave3;
+        
+        // Compute normal based on wave gradients
+        // Simple finite difference approximation
+        float delta = 0.01;
+        float dx = wave1 + wave2 + wave3;
+        float dy = wave(position.xz * 0.1 + vec2(delta, 0.0), time, 4.0, 0.2, 0.3, 1.0) +
+                  wave(position.xz * 0.15 + vec2(delta, 0.0), time + 10.0, 6.0, 0.1, 0.5, 2.0) +
+                  wave(position.xz * 0.3 + vec2(delta, 0.0), time + 30.0, 10.0, 0.05, 1.0, 3.0) - dx;
+                  
+        float dz = wave(position.xz * 0.1 + vec2(0.0, delta), time, 4.0, 0.2, 0.3, 1.0) +
+                  wave(position.xz * 0.15 + vec2(0.0, delta), time + 10.0, 6.0, 0.1, 0.5, 2.0) +
+                  wave(position.xz * 0.3 + vec2(0.0, delta), time + 30.0, 10.0, 0.05, 1.0, 3.0) - dx;
+        
+        vNormal = normalize(vec3(-dy/delta, 1.0, -dz/delta));
+        
+        // Final position
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+        vViewPosition = -mvPosition.xyz;
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `;
+    
+    const rippleFragmentShader = `
+      uniform float uTime;
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vViewPosition;
+      
+      void main() {
+        // Water color
+        vec3 baseColor = vec3(0.2, 0.5, 0.9);
+        
+        // Basic lighting
+        vec3 normal = normalize(vNormal);
+        vec3 viewDir = normalize(vViewPosition);
+        
+        // Fresnel effect for water surface
+        float fresnel = pow(1.0 - max(0.0, dot(normal, viewDir)), 5.0);
+        
+        // Combine colors with fresnel
+        vec3 color = mix(baseColor, vec3(1.0), fresnel * 0.7);
+        
+        // Add some time-based variation
+        color += vec3(0.05) * sin(vUv.x * 10.0 + uTime * 0.5);
+        
+        gl_FragColor = vec4(color, 0.8); // Semi-transparent
+      }
+    `;
+    
+    const material = new THREE.ShaderMaterial({
+      vertexShader: rippleVertexShader,
+      fragmentShader: rippleFragmentShader,
+      uniforms: {
+        uTime: { value: 0 }
+      },
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.rotation.x = -Math.PI / 2; // Horizontal plane
+    mesh.position.y = 8; // Above the game area
+    
+    return mesh;
+  }
+  
   dispose() {
     // Clean up caustics
     if (this.causticsMesh.geometry) {
@@ -420,6 +703,16 @@ export class WaterEffects {
       }
     });
     
+    // Clean up surface ripples
+    if (this.surfaceRipples) {
+      if (this.surfaceRipples.geometry) {
+        this.surfaceRipples.geometry.dispose();
+      }
+      if (this.surfaceRipples.material instanceof THREE.Material) {
+        this.surfaceRipples.material.dispose();
+      }
+    }
+    
     // Remove from scene
     if (this.causticsMesh.parent) {
       this.scene.remove(this.causticsMesh);
@@ -429,6 +722,9 @@ export class WaterEffects {
     }
     if (this.lightRays.parent) {
       this.scene.remove(this.lightRays);
+    }
+    if (this.surfaceRipples && this.surfaceRipples.parent) {
+      this.scene.remove(this.surfaceRipples);
     }
   }
 }

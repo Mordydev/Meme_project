@@ -115,6 +115,7 @@ export default class InputHandler {
         this.currentInputState.action = true;
         break;
       case 'KeyP':
+      case 'Escape':
         // Toggle pause (handled through event)
         eventBus.emit('toggle-pause');
         break;
@@ -290,10 +291,11 @@ export default class InputHandler {
     eventBus.emit('input-update', this.getInput());
   }
   
-  // Handle double tap (could be used for special action or pause)
+  // Handle double tap for pausing the game
   private handleDoubleTap(x: number, y: number): void {
     // Emit pause toggle event on double tap
     eventBus.emit('toggle-pause');
+    console.log('Double tap detected - toggling pause state');
   }
   
   // Reset all directional inputs

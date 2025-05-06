@@ -376,43 +376,69 @@ void main() {
 
 ### Procedural Environment Generation
 
-Segment-based procedural generation for the underwater environment:
+Segment-based procedural generation for the underwater environment with advanced optimizations and visual effects:
 
 ```typescript
 export class ProceduralEnvironment {
   private segments: EnvironmentSegment[] = [];
-  private activePool: ObjectPool<EnvironmentSegment>;
-  private segmentLength: number = 50;
+  private segmentLength: number = 100;
   private visibleSegments: number = 3;
+  private maxSegments: number = 10; // Maximum number of segments to keep in memory
+  private frustum: THREE.Frustum = new THREE.Frustum();
+  private cameraViewMatrix: THREE.Matrix4 = new THREE.Matrix4();
+  private currentTheme: EnvironmentTheme;
+  private previousTheme: EnvironmentTheme | null = null;
+  private themeTransitionProgress: number = 1.0; // 1.0 means fully transitioned
+  private waterEffects: WaterEffects | null = null;
   
-  generateSegment(position: THREE.Vector3, type: EnvironmentType): EnvironmentSegment {
-    const segment = this.activePool.get();
+  // Device-specific quality settings
+  private qualitySettings: {
+    useInstancing: boolean;
+    maxInstancesPerType: number;
+    useLOD: boolean;
+    maxPolygonsPerDecoration: number;
+    cullingDistance: number;
+  };
+  
+  // Decoration pooling and instancing system
+  private instancedMeshes: Map<string, THREE.InstancedMesh> = new Map();
+  private instanceMatrices: Map<string, Float32Array> = new Map();
+  private instanceCount: Map<string, number> = new Map();
+  private decorationPool: Map<string, THREE.Object3D[]> = new Map();
+  
+  constructor(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
+    // Initialize quality settings based on device capabilities
+    const deviceCapabilities = detectDeviceCapabilities();
+    this.configureQualitySettings(deviceCapabilities);
     
-    // Configure segment based on type
-    switch (type) {
-      case 'reef':
-        this.configureReefSegment(segment);
-        break;
-      case 'openOcean':
-        this.configureOpenOceanSegment(segment);
-        break;
-      case 'deepSea':
-        this.configureDeepSeaSegment(segment);
-        break;
-    }
+    // Initialize instanced meshes for common decoration types
+    this.initInstancedMeshes();
     
-    segment.position.copy(position);
-    segment.visible = true;
+    // Create initial environment theme
+    this.currentTheme = ENVIRONMENT_THEMES.reef;
     
-    return segment;
+    // Create skybox
+    this.createSkybox();
+    
+    // Create water effects
+    this.waterEffects = new WaterEffects(scene, 
+      deviceCapabilities.highEnd ? 'high' : 
+      deviceCapabilities.midRange ? 'medium' : 'low');
   }
   
-  update(playerPosition: THREE.Vector3): void {
-    // Calculate which segments should be visible
+  update(playerPosition: THREE.Vector3, camera: THREE.Camera, deltaTime: number): void {
+    // Update camera frustum for culling
+    this.cameraViewMatrix.multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse
+    );
+    this.frustum.setFromProjectionMatrix(this.cameraViewMatrix);
+    
+    // Calculate which segment the player is in
     const currentSegmentIndex = Math.floor(playerPosition.z / this.segmentLength);
     
     // Generate new segments ahead
-    while (this.segments.length <= currentSegmentIndex + this.visibleSegments) {
+    while (this.segments.length < currentSegmentIndex + this.visibleSegments) {
       const position = new THREE.Vector3(
         0,
         0,
@@ -422,30 +448,140 @@ export class ProceduralEnvironment {
       // Determine environment type based on distance
       const type = this.determineEnvironmentType(position.z);
       
-      // Generate and add segment
-      const segment = this.generateSegment(position, type);
+      // Create new segment
+      const segment = this.createSegment(position, type);
       this.segments.push(segment);
     }
     
     // Recycle segments behind player
-    while (this.segments.length > 0 && 
-           this.segments[0].position.z < playerPosition.z - this.segmentLength) {
+    while (this.segments.length > this.maxSegments && 
+           this.segments[0].mesh.position.z < playerPosition.z - this.segmentLength * 2) {
       const segment = this.segments.shift();
       if (segment) {
-        this.activePool.release(segment);
+        // Recycle segment resources
+        this.recycleSegment(segment);
+      }
+    }
+    
+    // Update theme transition
+    if (this.themeTransitionProgress < 1.0 && this.previousTheme) {
+      this.themeTransitionProgress += deltaTime / this.currentTheme.transitionDuration;
+      this.themeTransitionProgress = Math.min(this.themeTransitionProgress, 1.0);
+      
+      // Create interpolated theme
+      const lerpedTheme = lerpThemes(this.previousTheme, this.currentTheme, this.themeTransitionProgress);
+      
+      // Apply to scene
+      applyEnvironmentTheme(this.scene, this.renderer, lerpedTheme);
+    }
+    
+    // Update water effects
+    if (this.waterEffects) {
+      this.waterEffects.update(deltaTime, playerPosition);
+    }
+    
+    // Update only visible segments
+    for (const segment of this.segments) {
+      if (this.isSegmentVisible(segment, camera, playerPosition)) {
+        segment.update(deltaTime);
       }
     }
   }
   
-  // Other methods...
+  private isSegmentVisible(segment: EnvironmentSegment, camera: THREE.Camera, playerPosition: THREE.Vector3): boolean {
+    // Distance culling
+    const distance = playerPosition.distanceTo(segment.mesh.position);
+    if (distance > this.qualitySettings.cullingDistance) {
+      return false;
+    }
+    
+    // Frustum culling
+    return segment.isVisibleToCamera(camera);
+  }
+  
+  // Other optimized methods...
+}
+
+/**
+ * WaterEffects manages underwater visual effects
+ * - Caustics (light patterns on ocean floor)
+ * - Surface ripples
+ * - Ambient particles
+ * - Light rays
+ */
+export class WaterEffects {
+  private scene: THREE.Scene;
+  private causticsMesh: THREE.Mesh;
+  private causticsMaterial: THREE.ShaderMaterial;
+  private ambientParticles: THREE.Points;
+  private lightRays: THREE.Group;
+  private surfaceRipples: THREE.Mesh | null = null;
+  private quality: 'low' | 'medium' | 'high';
+  
+  constructor(scene: THREE.Scene, quality: 'low' | 'medium' | 'high' = 'medium') {
+    this.scene = scene;
+    this.quality = quality;
+    
+    // Create underwater caustics with advanced shader
+    const { mesh, material } = this.createCaustics();
+    this.causticsMesh = mesh;
+    this.causticsMaterial = material;
+    
+    // Create ambient particles for underwater atmosphere
+    this.ambientParticles = this.createAmbientParticles();
+    
+    // Create light rays for medium/high quality
+    this.lightRays = this.createLightRays();
+    
+    // Create surface ripples (medium and high quality only)
+    if (this.quality !== 'low') {
+      this.surfaceRipples = this.createSurfaceRipples();
+    }
+  }
+  
+  // Update method with adaptive effects based on quality settings
+  update(deltaTime: number, playerPosition: THREE.Vector3) { /* Implementation */ }
 }
 ```
 
-Key aspects:
-- Segment pooling for memory efficiency
-- Distance-based environment type transitions
-- Procedural decoration placement within segments
-- Dynamic level of detail based on device capabilities
+Key optimizations and enhancements in the complete environment system:
+
+1. **Modular Architecture**: Split into well-defined modules for better maintainability
+   - `EnvironmentTypes.ts`: Environment theme definitions with transition capabilities
+   - `DecorationDefinitions.ts`: 25+ decoration definitions with environment-specific filtering
+   - `DecorationModels.ts`: Factory patterns for creating decoration meshes
+   - `EnvironmentSegment.ts`: Segment class for terrain sections with visibility culling
+   - `ProceduralEnvironment.ts`: Main orchestration and optimization
+   - `WaterEffects.ts`: Advanced water effects with quality-based rendering
+
+2. **Advanced Water Effects**:
+   - **Caustics**: Realistic water light patterns with cellular noise and Fractal Brownian Motion
+   - **Light Rays**: Volumetric-style light beams with dynamic positioning
+   - **Surface Ripples**: Animated water surface with realistic wave patterns
+   - **Ambient Particles**: Floating dust/plankton with natural drift movement
+
+3. **Environment Theme System**:
+   - Distinct environment types (reef, open ocean, deep sea, shipwreck, kelp forest)
+   - Smooth transitions between themes with property interpolation
+   - Theme-specific decoration sets and visual parameters
+   - Event-based notification for UI/audio transitions
+
+4. **Performance Optimizations**:
+   - **Instanced Rendering**: Uses THREE.InstancedMesh for common decorations
+   - **Object Pooling**: Reuses objects instead of creating/destroying
+   - **Level of Detail (LOD)**: Varies mesh complexity based on distance
+   - **Culling Strategies**: Frustum and distance-based culling
+   - **Adaptive Quality**: Device-specific settings with mobile optimizations
+   - **Shader Optimization**: Quality-scaled shader complexity
+
+5. **Quality Adaptation**:
+   - Three quality tiers (high, medium, low) based on device capabilities
+   - Automatic feature reduction for lower-end devices:
+     - Reduced particle counts
+     - Simplified lighting effects
+     - Fewer decorations with lower polygon counts
+     - Shorter view distances for better performance
+   - Manual quality control for user preference
 
 ## Refactoring History
 

@@ -601,7 +601,7 @@ export class ObstacleManager {
         // Spiky sphere for pufferfish
         const pufferGroup = new THREE.Group();
         
-        const body = new THREE.Mesh(
+        const pufferBody = new THREE.Mesh(
           new THREE.SphereGeometry(0.5, 8, 8),
           new THREE.MeshBasicMaterial({ color: 0xFFAA00 })
         );
@@ -623,7 +623,7 @@ export class ObstacleManager {
           pufferGroup.add(spike);
         }
         
-        pufferGroup.add(body);
+        pufferGroup.add(pufferBody);
         mesh = pufferGroup;
         break;
         
@@ -744,6 +744,23 @@ export class ObstacleManager {
     
     // Reset spawn position
     this.lastSpawnZ = 0;
+  }
+  
+  /**
+   * Set the time scale for obstacles (for slow-time power-up)
+   * @param scale Time scale factor (0.5 = half speed, 1.0 = normal speed)
+   */
+  public setTimeScale(scale: number): void {
+    // Modify all active obstacles' speed based on the time scale
+    for (const obstacle of this.obstacles.values()) {
+      // Adjust the obstacle speed based on the scale
+      // For simplicity, we're directly modifying the speed
+      // In a more sophisticated implementation, we might store baseSpeed and currentSpeed
+      obstacle.speed = scale;
+    }
+    
+    // Log for debugging
+    console.log(`[ObstacleManager] Time scale set to ${scale}`);
   }
   
   /**

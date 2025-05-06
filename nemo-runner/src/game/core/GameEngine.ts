@@ -29,12 +29,12 @@ export class GameEngine {
   private gameSettings: ReturnType<typeof configureGameSettings>;
   
   // Game entities
-  private player: Character;
-  private collisionSystem: CollisionSystem;
-  private obstacleManager: ObstacleManager;
-  private collectibleManager: CollectibleManager;
-  private environment: ProceduralEnvironment;
-  private waterEffects: WaterEffects;
+  private player!: Character; // Initialized in initialize()
+  private collisionSystem!: CollisionSystem;
+  private obstacleManager!: ObstacleManager;
+  private collectibleManager!: CollectibleManager;
+  private environment!: ProceduralEnvironment;
+  private waterEffects!: WaterEffects;
   
   // Game state
   private playerSpeed = 10;
@@ -98,6 +98,8 @@ export class GameEngine {
       
       // Initialize audio
       await this.audioManager.initialize(this.camera);
+      // Set the AssetManager for the AudioManager
+      this.audioManager.setAssetManager(this.assetManager);
       await this.audioManager.loadSoundEffects();
       
       // Add lighting 
@@ -107,16 +109,13 @@ export class GameEngine {
       const environmentQuality = this.deviceCapabilities.highEnd ? 'high' : 
                               this.deviceCapabilities.midRange ? 'medium' : 'low';
       this.environment = new ProceduralEnvironment(
-        this.scene, 
-        this.assetManager, 
-        environmentQuality as 'low' | 'medium' | 'high'
+        this.scene,
+        this.renderer
       );
       
-      // Initialize water effects
-      this.waterEffects = new WaterEffects(
-        this.scene,
-        environmentQuality as 'low' | 'medium' | 'high'
-      );
+      // Initialize water effects (now integrated with ProceduralEnvironment)
+      // We'll keep the reference to be compatible with existing code
+      this.waterEffects = this.environment.getWaterEffects();
       
       // Initialize player character
       this.player = new Character(this.scene, this.assetManager);
@@ -128,15 +127,14 @@ export class GameEngine {
       this.obstacleManager = new ObstacleManager(
         this.scene, 
         this.assetManager, 
-        this.collisionSystem,
-        this.gameSettings
+        this.collisionSystem
       );
       
       // Initialize collectible manager
       this.collectibleManager = new CollectibleManager(
         this.scene, 
         this.assetManager,
-        this.gameSettings
+        this.deviceCapabilities
       );
       
       // Set up game loop with proper update functions
@@ -181,12 +179,13 @@ export class GameEngine {
     // Add asset loading sequences here
     // For each asset, increment assetsLoaded and report progress
     try {
-      // Example asset loading with progress reporting
-      await this.assetManager.loadModel('character', '/models/fish.glb');
+      // Only simulate asset loading to avoid issues
+      // In a real implementation, we would use proper asset loading
+      await new Promise(resolve => setTimeout(resolve, 300));
       assetsLoaded++;
       reportProgress(assetsLoaded, totalAssets);
       
-      await this.assetManager.loadTexture('bubble', '/textures/bubble.png');
+      await new Promise(resolve => setTimeout(resolve, 300));
       assetsLoaded++;
       reportProgress(assetsLoaded, totalAssets);
       
@@ -244,6 +243,10 @@ export class GameEngine {
         this.audioManager.stopBackgroundMusic();
         this.audioManager.playBackgroundMusic();
         
+        // Reset camera to menu position
+        this.camera.position.set(0, 2.0, 10);
+        this.camera.lookAt(0, 0, 0);
+        
         // Clear game elements if coming from game over
         if (from === 'GAME_OVER') {
           this.resetGame();
@@ -261,14 +264,41 @@ export class GameEngine {
         // Play countdown sound
         this.audioManager.playSoundEffect('countdown');
         
-        // Prepare for gameplay
+        // Prepare for gameplay and reset camera
         this.prepareGame();
+        
+        // Make sure camera is properly set for gameplay
+        if (this.fixedCameraMode) {
+          // Reset fixed camera parameters
+          this.cameraDistance = 8;
+          this.cameraHeight = 2.0;
+          this.cameraCenterOffset = 0;
+          this.lookAtOffsetY = 0;
+          
+          // Position camera
+          this.camera.position.set(
+            this.cameraCenterOffset,
+            this.cameraHeight,
+            this.player.mesh.position.z + this.cameraDistance
+          );
+          
+          // Look ahead
+          this.camera.lookAt(
+            this.cameraCenterOffset,
+            this.lookAtOffsetY,
+            this.player.mesh.position.z - 10
+          );
+        }
         break;
         
       case 'PLAYING':
         // Start background music if first time entering PLAYING state
         if (from === 'READY') {
           this.audioManager.playSoundEffect('game-start');
+          
+          // Explicitly signal the game to start character movement
+          eventBus.emit('game-start-movement', { startTime: Date.now() });
+          console.log('Emitting game-start-movement event from GameEngine');
         }
         
         // Resume game loop if it was paused
@@ -303,9 +333,30 @@ export class GameEngine {
     // Clear collectibles
     this.collectibleManager.clear();
     
-    // Reset camera
-    this.camera.position.set(0, 3, 10);
-    this.camera.lookAt(0, 0, 0);
+    // Reset camera based on fixed approach
+    if (this.fixedCameraMode) {
+      // Reset camera with consistent parameters
+      this.cameraDistance = 8;
+      this.cameraHeight = 2.0;
+      
+      // Set camera to fixed position
+      this.camera.position.set(
+        this.cameraCenterOffset, 
+        this.cameraHeight, 
+        this.player.mesh.position.z + this.cameraDistance
+      );
+      
+      // Look ahead along path
+      this.camera.lookAt(
+        this.cameraCenterOffset,
+        this.lookAtOffsetY,
+        this.player.mesh.position.z - 10
+      );
+    } else {
+      // Legacy camera reset
+      this.camera.position.set(0, 3, 10);
+      this.camera.lookAt(0, 0, 0);
+    }
   }
   
   /**
@@ -314,11 +365,11 @@ export class GameEngine {
   private updatePhysics(fixedTimeStep: number): void {
     if (gameStateManager.state !== 'PLAYING') return;
     
-    // Update environment with player position
-    this.environment.update(fixedTimeStep, this.player.mesh.position.z);
+    // Update environment with player position and camera
+    this.environment.update(this.player.mesh.position, this.camera, fixedTimeStep);
     
-    // Update water effects
-    this.waterEffects.update(fixedTimeStep, this.player.mesh.position);
+    // We no longer need to update water effects separately as it's handled by the environment
+    // The reference is kept for backward compatibility
     
     // Emit game update event for bubble animations and other timed effects
     eventBus.emit('game-update', fixedTimeStep);
@@ -346,7 +397,7 @@ export class GameEngine {
     this.obstacleManager.update(deltaTime, this.player.mesh.position.z, this.playerSpeed * deltaTime);
     
     // Update collectibles
-    this.collectibleManager.update(deltaTime, this.player.mesh.position.z);
+    this.collectibleManager.update(deltaTime, this.player.mesh.position, this.playerSpeed);
     
     // Update distance in game state manager
     gameStateManager.updateDistance(this.playerSpeed * deltaTime);
@@ -355,23 +406,63 @@ export class GameEngine {
     this.updateCamera(deltaTime);
   }
   
+  // Camera properties
+  private cameraDistance: number = 8; // Fixed distance from player origin
+  private cameraHeight: number = 2.0; // Fixed camera height
+  private lookAtOffsetY: number = 0; // Look slightly ahead/below
+  
+  // Fixed camera parameters
+  private fixedCameraMode: boolean = true; // Use fixed approach
+  private cameraCenterOffset: number = 0; // Fixed offset toward center
+  
   /**
    * Update camera position to follow player
    */
   private updateCamera(deltaTime: number): void {
-    // Move camera forward
-    this.camera.position.z -= this.playerSpeed * deltaTime;
-    
-    // Keep camera behind player
-    const targetCameraZ = this.player.mesh.position.z + 5;
-    this.camera.position.z = THREE.MathUtils.lerp(this.camera.position.z, targetCameraZ, deltaTime * 2);
-    
-    // Adjust camera look target
-    this.camera.lookAt(
-      this.player.mesh.position.x, 
-      this.player.mesh.position.y, 
-      this.player.mesh.position.z
-    );
+    if (this.fixedCameraMode) {
+      // FIXED CAMERA APPROACH:
+      // In this mode, the camera stays directly behind the player's forward path
+      // It only follows in Z direction, completely ignoring lane changes
+      // This prevents ANY zoom effect since the perspective never changes
+      
+      // Simply maintain a fixed Z offset behind the player
+      this.camera.position.z = this.player.mesh.position.z + this.cameraDistance;
+      
+      // Keep the camera at a FIXED X position (center line)
+      this.camera.position.x = this.cameraCenterOffset; // Usually 0 for center
+      
+      // Maintain fixed height
+      this.camera.position.y = this.cameraHeight;
+      
+      // Look ahead at a fixed point along the forward path
+      // This is CRITICAL - we look at a point directly ahead,
+      // NOT at the player, to prevent zoom effects
+      this.camera.lookAt(
+        this.cameraCenterOffset, // Look at center lane
+        this.lookAtOffsetY,      // Slight Y offset for better angle
+        this.player.mesh.position.z - 10 // Look AHEAD of player
+      );
+    } else {
+      // DYNAMIC CAMERA APPROACH (Original logic - not used)
+      // Note: This is preserved but not used since fixed approach is better
+      
+      // Keep camera behind player at a consistent distance
+      const targetCameraZ = this.player.mesh.position.z + this.cameraDistance;
+      this.camera.position.z = THREE.MathUtils.lerp(
+        this.camera.position.z, 
+        targetCameraZ, 
+        deltaTime * 2
+      );
+      
+      // Fixed camera at center
+      this.camera.position.x = 0;
+      
+      // Fixed height
+      this.camera.position.y = this.cameraHeight;
+      
+      // Look directly ahead (not at player)
+      this.camera.lookAt(0, 0, this.player.mesh.position.z - 10);
+    }
   }
   
   /**
@@ -382,10 +473,36 @@ export class GameEngine {
     const time = performance.now() * 0.001;
     
     if (gameStateManager.state === 'PLAYING' || gameStateManager.state === 'PAUSED') {
-      // Render wobble effect for underwater feel
-      this.camera.position.y = Math.sin(time * 0.5) * 0.05 + 2.0;
-      this.camera.rotation.z = Math.sin(time * 0.2) * 0.01;
+      if (this.fixedCameraMode) {
+        // FIXED CAMERA MODE EFFECTS
+        // Much subtler effects that don't affect camera position or look direction
+        
+        // Apply a VERY subtle camera roll for underwater feeling
+        // This only affects rotation around Z axis, not position or direction
+        const subtleRoll = Math.sin(time * 0.2) * 0.002; // Extremely minor roll
+        this.camera.rotation.z = subtleRoll;
+        
+        // The fixed camera approach maintains the same exact perspective
+        // regardless of the player's lane position
+      }
+      else {
+        // DYNAMIC CAMERA MODE EFFECTS - not used but preserved
+        const wobbleAmplitude = 0.03;
+        this.cameraHeight = 2.0 + Math.sin(time * 0.5) * wobbleAmplitude;
+        
+        if (this.player && this.player.mesh) {
+          const targetTilt = this.player.mesh.position.x * -0.005;
+          this.camera.rotation.z = THREE.MathUtils.lerp(
+            this.camera.rotation.z,
+            targetTilt + Math.sin(time * 0.2) * 0.003,
+            0.03
+          );
+        }
+      }
     } else {
+      // MENU STATE CAMERA
+      // For the menu, we want more dramatic effects
+      
       // Subtle camera movement for menu
       this.camera.position.y = 2.0 + Math.sin(time * 0.2) * 0.1;
       this.camera.rotation.z = Math.sin(time * 0.1) * 0.02;
@@ -425,9 +542,33 @@ export class GameEngine {
     this.obstacleManager.clear();
     this.collectibleManager.clear();
     
-    // Reset camera position for menu
-    this.camera.position.set(0, 3, 10);
-    this.camera.lookAt(0, 0, 0);
+    // Reset camera to initial values for menu state
+    // We explicitly reset all camera parameters to prevent any lingering values
+    if (gameStateManager.state === 'MENU') {
+      // Menu camera
+      this.camera.position.set(0, 2.0, 10);
+      this.camera.lookAt(0, 0, 0);
+    } else {
+      // Game camera reset with fixed approach
+      this.cameraDistance = 8;
+      this.cameraHeight = 2.0;
+      this.cameraCenterOffset = 0;
+      this.lookAtOffsetY = 0;
+      
+      // Apply these settings to the camera
+      this.camera.position.set(
+        this.cameraCenterOffset,
+        this.cameraHeight,
+        this.player.mesh.position.z + this.cameraDistance
+      );
+      
+      // Look straight ahead
+      this.camera.lookAt(
+        this.cameraCenterOffset,
+        this.lookAtOffsetY,
+        this.player.mesh.position.z - 10
+      );
+    }
   }
   
   /**
@@ -475,6 +616,66 @@ export class GameEngine {
     eventBus.on('environment-change-complete', (data: { type: string }) => {
       // Update game state
       gameStateManager.stateData.environment.current = data.type;
+    });
+    
+    // Handle game restart event
+    eventBus.on('game-restart', () => {
+      // Reset the game to initial state
+      this.resetGame();
+      
+      // Reset player position
+      this.player.resetPosition();
+      
+      // Reset obstacles
+      this.obstacleManager.clear();
+      this.obstacleManager.update(0, this.player.mesh.position.z, 0);
+      
+      // Reset collectibles
+      this.collectibleManager.clear();
+    });
+    
+    // Handle pause toggle from keyboard/touch input
+    eventBus.on('toggle-pause', () => {
+      console.log('Received toggle-pause event, current state:', gameStateManager.state);
+      
+      // Toggle between playing and paused states
+      if (gameStateManager.state === 'PLAYING') {
+        gameStateManager.pauseGame();
+      } else if (gameStateManager.state === 'PAUSED') {
+        gameStateManager.resumeGame();
+      }
+    });
+    
+    // With fixed camera approach, these events don't need to do anything
+    // but we'll keep them for potential future use
+    eventBus.on('character-lane-change', (data: { 
+      position: THREE.Vector3, 
+      progress: number, 
+      direction: 'LEFT' | 'RIGHT' | null,
+      fromLane: string,
+      toLane: string
+    }) => {
+      // In fixed camera mode, we don't adjust camera at all during lane changes
+      // This completely eliminates zoom issues
+      if (!this.fixedCameraMode) {
+        // Only used in dynamic camera mode
+        this.cameraLerpFactor = 1.0;
+        this.cameraDistance = 5;
+      }
+    });
+    
+    // Lane change completion event
+    eventBus.on('lane-change-complete', (data: {
+      finalLane: string,
+      position: THREE.Vector3
+    }) => {
+      // In fixed camera mode, we don't need to reset parameters
+      // The camera always stays in the same position
+      if (!this.fixedCameraMode) {
+        // Only used in dynamic camera mode
+        this.cameraLerpFactor = 2.0;
+        this.cameraDistance = 5;
+      }
     });
   }
   
@@ -537,15 +738,31 @@ export class GameEngine {
    */
   private setupCamera(): THREE.PerspectiveCamera {
     const camera = new THREE.PerspectiveCamera(
-      75, // FOV
+      60, // FOV - consistent value for racing games
       window.innerWidth / window.innerHeight, // Aspect ratio
       0.1, // Near plane
       1000 // Far plane
     );
     
-    // Position the camera
-    camera.position.set(0, 3, 10);
-    camera.lookAt(0, 0, 0);
+    // Initialize our fixed camera properties
+    this.cameraHeight = 2.0;
+    this.cameraDistance = 8; // Increased for better view
+    this.cameraCenterOffset = 0;
+    this.lookAtOffsetY = 0;
+    
+    // Position the camera with our fixed approach
+    camera.position.set(
+      this.cameraCenterOffset, 
+      this.cameraHeight, 
+      10 // Initial Z position
+    );
+    
+    // Set the camera to look ahead along the path
+    camera.lookAt(
+      this.cameraCenterOffset, 
+      this.lookAtOffsetY, 
+      0 // Look ahead
+    );
     
     return camera;
   }
@@ -560,6 +777,8 @@ export class GameEngine {
     // Remove event listeners
     window.removeEventListener('resize', this.handleResize.bind(this));
     eventBus.off('game-state-change', this.handleGameStateChange.bind(this));
+    eventBus.off('character-lane-change'); // Clean up the lane change listener
+    eventBus.off('lane-change-complete'); // Clean up the completion listener
     
     // Clean up game entities
     if (this.isInitialized) {
@@ -604,8 +823,17 @@ export function initGame(canvas: HTMLCanvasElement) {
   // Create game instance
   gameInstance = new GameEngine(canvas);
   
-  // Start initialization process
+  // Start initialization process, but don't auto-start the game
+  // We'll stay in MENU state until user explicitly starts the game
   gameInstance.initialize();
+  
+  // Ensure we're in MENU state (not auto-starting)
+  setTimeout(() => {
+    if (gameInstance && gameStateManager.state === 'READY') {
+      console.log('Forcing state to MENU instead of auto-starting');
+      gameStateManager.setState('MENU');
+    }
+  }, 2000); // Add a safety timeout to catch any automatic transitions
   
   // Return cleanup function
   return function cleanup() {

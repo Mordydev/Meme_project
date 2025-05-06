@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AudioManager, AudioSettings } from '../../game/core/AudioManager';
-import { EventSystem } from '../../game/core/EventSystem';
+import eventBus, { subscribeToGameEvents } from '../../game/core/EventSystem';
 import styles from '../../styles/GameUI.module.css';
 
 /**
@@ -21,7 +21,6 @@ const AudioControls: React.FC = () => {
   
   // Get references to singletons
   const audioManager = AudioManager.getInstance();
-  const eventSystem = EventSystem.getInstance();
   
   // Initialize settings from AudioManager on component mount
   useEffect(() => {
@@ -33,10 +32,10 @@ const AudioControls: React.FC = () => {
       setSettings(updatedSettings);
     };
     
-    eventSystem.on('audio-settings-changed', handleSettingsChange);
+    eventBus.on('audio-settings-changed', handleSettingsChange);
     
     return () => {
-      eventSystem.off('audio-settings-changed', handleSettingsChange);
+      eventBus.off('audio-settings-changed', handleSettingsChange);
     };
   }, []);
   

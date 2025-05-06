@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import gameStateManager, { GameState } from '@/game/core/GameStateManager';
 import styles from '@/styles/GameUI.module.css';
-import AudioControls from './AudioControls';
 
 interface GameStateDisplayProps {
   initialState?: GameState;
@@ -30,26 +29,30 @@ export default function GameStateDisplay({ initialState = 'MENU' }: GameStateDis
   // Listen for state changes
   useEffect(() => {
     const handleStateChange = (data: { from: GameState; to: GameState; data: any }) => {
-      setPreviousState(data.from);
-      setCurrentState(data.to);
+      // Apply transition effect: First set transition to true to fade out current state
       setIsTransitioning(true);
       
-      // Start countdown if entering READY state
+      // Update data based on to state
       if (data.to === 'READY') {
         setCountdown(3);
       }
       
-      // Update score on GAME_OVER
       if (data.to === 'GAME_OVER') {
         setScore(data.data.score);
         setHighScore(data.data.highScore);
         setIsNewHighScore(data.data.score > data.data.highScore);
       }
       
-      // Transition animation timing
+      // After current state fades out, change to the new state and fade it in
       setTimeout(() => {
-        setIsTransitioning(false);
-      }, 500);
+        setPreviousState(data.from);
+        setCurrentState(data.to);
+        
+        // Allow a little time for the DOM to update before starting fade-in
+        setTimeout(() => {
+          setIsTransitioning(false);
+        }, 50);
+      }, 300);
     };
 
     // Subscribe to state changes
@@ -69,10 +72,22 @@ export default function GameStateDisplay({ initialState = 'MENU' }: GameStateDis
   useEffect(() => {
     let countdownInterval: NodeJS.Timeout | null = null;
     
-    if (currentState === 'READY' && countdown > 0) {
-      countdownInterval = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
+    if (currentState === 'READY') {
+      if (countdown > 0) {
+        countdownInterval = setInterval(() => {
+          setCountdown((prev) => prev - 1);
+        }, 1000);
+      } else if (countdown === 0) {
+        // When countdown reaches 0 (GO!), wait 1 second and force transition to PLAYING
+        const goToPlayingTimeout = setTimeout(() => {
+          console.log('Forcing transition to PLAYING state after GO!');
+          gameStateManager.setState('PLAYING');
+        }, 1000);
+        
+        return () => {
+          clearTimeout(goToPlayingTimeout);
+        };
+      }
     }
     
     return () => {
@@ -86,29 +101,62 @@ export default function GameStateDisplay({ initialState = 'MENU' }: GameStateDis
       case 'MENU':
         return (
           <div className={styles.menuState}>
-            <h1 className={styles.gameTitle}>NEMO Runner</h1>
-            <button 
-              className={styles.startButton}
-              onClick={() => gameStateManager.startGame()}
-            >
-              Start Game
-            </button>
+            <div className={styles.logoContainer}>
+              <h1 className={styles.gameTitle}>NEMO Runner</h1>
+              <div className={styles.tagline}>Swim through the ocean!</div>
+            </div>
+            
+            <div className={styles.menuButtons}>
+              <button 
+                className={styles.startButton}
+                onClick={() => gameStateManager.startGame()}
+              >
+                Start Game
+              </button>
+              
+              <button 
+                className={styles.menuOptionButton}
+                onClick={() => {
+                  // We would normally set a state like 'setShowSettings(true)'
+                  // For simplicity, we'll just alert for now
+                  alert("Settings would open here");
+                }}
+              >
+                Settings
+              </button>
+              
+              <button 
+                className={styles.menuOptionButton}
+                onClick={() => {
+                  // We would normally set a state like 'setShowControls(true)'
+                  alert("Controls guide would show here");
+                }}
+              >
+                How to Play
+              </button>
+            </div>
+            
             {highScore > 0 && (
               <div className={styles.highScoreDisplay}>
-                High Score: {highScore}
+                <div className={styles.highScoreTitle}>Best Score</div>
+                <div className={styles.highScoreValue}>{highScore}</div>
               </div>
             )}
+            
+            <div className={styles.versionInfo}>
+              v0.1.0 - Alpha
+            </div>
           </div>
         );
         
       case 'READY':
         return (
-          <div className={styles.readyState}>
+          <div className={styles.readyState} onClick={() => countdown === 0 && gameStateManager.setState('PLAYING')}>
             <div className={styles.countdown}>
               {countdown > 0 ? countdown : 'GO!'}
             </div>
             <div className={styles.readyInstructions}>
-              Get ready to swim!
+              {countdown > 0 ? 'Get ready to swim!' : 'Tap to start!'}
             </div>
           </div>
         );
@@ -121,19 +169,51 @@ export default function GameStateDisplay({ initialState = 'MENU' }: GameStateDis
         return (
           <div className={styles.pausedState}>
             <h2>Game Paused</h2>
+            
+            <div className={styles.pauseScore}>
+              <div className={styles.pauseScoreLabel}>Current Score</div>
+              <div className={styles.pauseScoreValue}>{score}</div>
+            </div>
+            
             <div className={styles.pauseButtons}>
               <button 
                 className={styles.resumeButton}
                 onClick={() => gameStateManager.resumeGame()}
               >
-                Resume
+                Resume Game
               </button>
+              
+              <button 
+                className={styles.restartButton}
+                onClick={() => {
+                  // Restart the game
+                  eventBus.emit('game-restart');
+                  gameStateManager.startGame();
+                }}
+              >
+                Restart
+              </button>
+              
+              <button 
+                className={styles.settingsButton}
+                onClick={() => {
+                  // We would normally set a state like 'setShowSettings(true)'
+                  alert("Settings would open here");
+                }}
+              >
+                Settings
+              </button>
+              
               <button 
                 className={styles.quitButton}
                 onClick={() => gameStateManager.setState('MENU')}
               >
-                Quit
+                Quit to Menu
               </button>
+            </div>
+            
+            <div className={styles.pauseTip}>
+              <span className={styles.tipLabel}>Tip:</span> Press ESC or P to resume the game
             </div>
           </div>
         );
@@ -154,13 +234,22 @@ export default function GameStateDisplay({ initialState = 'MENU' }: GameStateDis
             <div className={styles.gameOverButtons}>
               <button 
                 className={styles.restartButton}
-                onClick={() => gameStateManager.startGame()}
+                onClick={() => {
+                  // Reset necessary game state before restarting
+                  eventBus.emit('game-restart');
+                  gameStateManager.startGame();
+                }}
+                aria-label="Play Again"
               >
                 Play Again
               </button>
               <button 
                 className={styles.menuButton}
-                onClick={() => gameStateManager.setState('MENU')}
+                onClick={() => {
+                  // Clean transition to menu
+                  gameStateManager.setState('MENU');
+                }}
+                aria-label="Main Menu"
               >
                 Main Menu
               </button>
@@ -185,21 +274,27 @@ export default function GameStateDisplay({ initialState = 'MENU' }: GameStateDis
   const getStateClasses = () => {
     let classes = styles.gameStateDisplay;
     
+    // Add transitioning class when state is changing
     if (isTransitioning) {
       classes += ' ' + styles.transitioning;
     }
     
-    classes += ' ' + styles[`state${currentState}`];
+    // Add state-specific class
+    if (currentState) {
+      classes += ' ' + styles[`state${currentState}`];
+    }
     
     return classes;
   };
 
+  // Don't render anything in PLAYING state to avoid blocking GameUI
+  if (currentState === 'PLAYING') {
+    return null;
+  }
+  
   return (
     <div className={getStateClasses()}>
       {renderStateContent()}
-      
-      {/* Always render audio controls in all game states */}
-      {currentState !== 'PLAYING' && <AudioControls />}
     </div>
   );
 }

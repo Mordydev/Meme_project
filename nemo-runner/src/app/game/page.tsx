@@ -9,7 +9,7 @@ export default function GamePage() {
   return (
     <div className={styles.gameContainer}>
       <GameCanvas />
-      <GameUI />
+      {/* GameUI is already included in GameCanvas */}
     </div>
   );
 }

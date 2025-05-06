@@ -207,18 +207,18 @@ export function applyQualitySettings(renderer: THREE.WebGLRenderer, capabilities
   if (capabilities.highEnd) {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
   } else if (capabilities.midRange) {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap; // Basic PCF for mid-range
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ReinhardToneMapping; // Less expensive tone mapping
   } else {
     // Low-end settings
     renderer.shadowMap.enabled = false;
-    renderer.outputEncoding = THREE.LinearEncoding; // Skip sRGB conversion for performance
+    renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // Skip sRGB conversion for performance
     renderer.toneMapping = THREE.NoToneMapping; // No tone mapping for performance
   }
 }

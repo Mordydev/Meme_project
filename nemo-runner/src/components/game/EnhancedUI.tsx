@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useId } from 'react';
 import styles from '@/styles/GameUI.module.css';
 import gameStateManager from '@/game/core/GameStateManager';
 import eventBus from '@/game/core/EventSystem';
+import { useRouter } from 'next/router';
 
 /**
  * EnhancedUI - Visual enhancements layer for the game UI
@@ -19,8 +20,36 @@ export default function EnhancedUI() {
   const [effectIntensity, setEffectIntensity] = useState(0);
   const [environmentType, setEnvironmentType] = useState('reef');
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [bubbleProps, setBubbleProps] = useState<Array<{
+    left: string;
+    animationDuration: string;
+    animationDelay: string;
+    width: string;
+    height: string;
+    opacity: number;
+  }>>([]);
+  
+  // Initialize bubble properties on client-side only
+  useEffect(() => {
+    setIsMounted(true);
+    
+    // Generate bubble properties only on the client-side
+    const bubbles = Array.from({ length: 15 }).map(() => ({
+      left: `${Math.random() * 100}%`,
+      animationDuration: `${5 + Math.random() * 10}s`,
+      animationDelay: `${Math.random() * 15}s`,
+      width: `${5 + Math.random() * 15}px`,
+      height: `${5 + Math.random() * 15}px`,
+      opacity: 0.1 + Math.random() * 0.3
+    }));
+    
+    setBubbleProps(bubbles);
+  }, []);
   
   useEffect(() => {
+    if (!isMounted) return;
+    
     // Handle environment change events
     const handleEnvironmentChange = (data: any) => {
       setIsTransitioning(true);
@@ -112,7 +141,7 @@ export default function EnhancedUI() {
       eventBus.off('powerup-deactivated', handlePowerupDeactivated);
       eventBus.off('game-state-change', handleGameStateChange);
     };
-  }, [currentEffect]);
+  }, [currentEffect, isMounted]);
   
   // Function to get appropriate class for current effect
   const getEffectClass = () => {
@@ -158,23 +187,25 @@ export default function EnhancedUI() {
       {/* Vignette effect for depth/immersion */}
       <div className={styles.vignette} />
       
-      {/* Ambient bubbles that float up (purely decorative) */}
-      <div className={styles.ambientBubbles}>
-        {Array.from({ length: 15 }).map((_, i) => (
-          <div 
-            key={i} 
-            className={styles.ambientBubble}
-            style={{
-              left: `${Math.random() * 100}%`,
-              animationDuration: `${5 + Math.random() * 10}s`,
-              animationDelay: `${Math.random() * 15}s`,
-              width: `${5 + Math.random() * 15}px`,
-              height: `${5 + Math.random() * 15}px`,
-              opacity: 0.1 + Math.random() * 0.3
-            }}
-          />
-        ))}
-      </div>
+      {/* Ambient bubbles that float up (purely decorative) - Only render on client side */}
+      {isMounted && (
+        <div className={styles.ambientBubbles}>
+          {bubbleProps.map((props, i) => (
+            <div 
+              key={i} 
+              className={styles.ambientBubble}
+              style={{
+                left: props.left,
+                animationDuration: props.animationDuration,
+                animationDelay: props.animationDelay,
+                width: props.width,
+                height: props.height,
+                opacity: props.opacity
+              }}
+            />
+          ))}
+        </div>
+      )}
     </>
   );
 }

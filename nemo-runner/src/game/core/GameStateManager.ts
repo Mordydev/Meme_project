@@ -165,8 +165,11 @@ export class GameStateManager {
 
   /**
    * Start a new game
+   * This should only be called explicitly by user action (e.g., clicking Start Game)
    */
   startGame(): void {
+    console.log('Starting game from state:', this._state);
+    
     // Reset game state data
     this._stateData.score = 0;
     this._stateData.distance = 0;
@@ -175,13 +178,9 @@ export class GameStateManager {
     this._stateData.level = 1;
     this._stateData.difficulty = 1;
     
-    // Transition to ready state
+    // Transition to ready state - we'll let the GameStateDisplay component
+    // handle the countdown and transition to PLAYING state
     this.setState('READY');
-    
-    // After brief countdown, transition to playing
-    setTimeout(() => {
-      this.setState('PLAYING');
-    }, 3000);
   }
 
   /**
@@ -220,6 +219,11 @@ export class GameStateManager {
    */
   updateScore(points: number): void {
     this._stateData.score += points;
+    
+    // Log for debugging
+    console.log('Updating score by', points, 'new score:', this._stateData.score);
+    
+    // Emit score change event
     eventBus.emit('score-change', this._stateData.score);
     
     // Update high score if needed
@@ -229,11 +233,28 @@ export class GameStateManager {
   }
 
   /**
-   * Update distance
+   * Update distance and add distance-based points to score
    */
   updateDistance(delta: number): void {
+    const prevDistance = this._stateData.distance;
     this._stateData.distance += delta;
-    eventBus.emit('distance-change', Math.floor(this._stateData.distance));
+    const distanceFloor = Math.floor(this._stateData.distance);
+    
+    // Log for debugging
+    console.log('Distance updated:', delta, 'New distance:', this._stateData.distance);
+    
+    // Emit distance change event
+    eventBus.emit('distance-change', distanceFloor);
+    
+    // Add points based on distance traveled (1 point per meter)
+    // Only add points when we cross a full meter threshold
+    const prevDistanceFloor = Math.floor(prevDistance);
+    if (distanceFloor > prevDistanceFloor) {
+      // Calculate points for new distance traveled (1 point per meter)
+      const pointsToAdd = distanceFloor - prevDistanceFloor;
+      console.log('Adding points from distance:', pointsToAdd);
+      this.updateScore(pointsToAdd);
+    }
     
     // Update difficulty based on distance
     this.updateDifficulty();

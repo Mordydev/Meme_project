@@ -13,7 +13,6 @@ import {
   GameControls
 } from './GameElements';
 import HealthDisplay from './HealthDisplay';
-import AudioControls from './AudioControls';
 
 export default function GameUI() {
   const [score, setScore] = useState(0);
@@ -24,11 +23,20 @@ export default function GameUI() {
   const [countdown, setCountdown] = useState<number | null>(null);
   
   useEffect(() => {
+    console.log("GameUI mounted - setting up event listeners");
+    
     // Subscribe to game events to update UI
     const unsubscribe = subscribeToGameEvents({
-      onScoreChange: (newScore) => setScore(newScore),
-      onDistanceChange: (newDistance) => setDistance(newDistance),
+      onScoreChange: (newScore) => {
+        console.log("Score changed:", newScore);
+        setScore(newScore);
+      },
+      onDistanceChange: (newDistance) => {
+        console.log("Distance changed:", newDistance);
+        setDistance(newDistance);
+      },
       onGameStateChange: (newState) => {
+        console.log("Game state changed to:", newState);
         setGameState(newState);
         
         // Show countdown when starting game
@@ -148,10 +156,14 @@ export default function GameUI() {
   }, [gameState]);
   
   // Let GameStateDisplay component handle the menu, paused, and game over states
-  // This component will only render active gameplay UI elements
-  if (gameState !== 'PLAYING') {
+  // This component will only render active gameplay UI elements while in PLAYING state
+  // or show minimal UI in READY state
+  if (gameState !== 'PLAYING' && gameState !== 'READY') {
     return null;
   }
+  
+  // Log state for debugging
+  console.log('GameUI rendering with state:', gameState, 'and score:', score);
   
   return (
     <div className={styles.gameUI}>
@@ -172,9 +184,6 @@ export default function GameUI() {
       
       {/* Game controls (for mobile) */}
       <GameControls onPause={handlePause} />
-      
-      {/* Audio controls */}
-      <AudioControls />
       
       {/* Countdown (if active) */}
       <Countdown value={countdown || 0} visible={countdown !== null} />
