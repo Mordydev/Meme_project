@@ -54,6 +54,12 @@ export class Shark extends Obstacle {
   private finRotation: number = 0;
   private tailRotation: number = 0;
   
+  // Shader-based animation properties
+  private shaderMaterial: THREE.ShaderMaterial | null = null;
+  private animationTime: number = 0;
+  private waveFrequency: number = 2.0;
+  private waveAmplitude: number = 0.1;
+  
   // Visual quality tracking
   private deviceCapabilities = detectDeviceCapabilities();
   // quality is declared in parent class as protected
@@ -169,7 +175,10 @@ export class Shark extends Obstacle {
     let bodyMaterial: THREE.Material;
     
     if (this.quality === 'high') {
-      // High-quality material with detailed properties
+      // For high quality, use shader-based material for undulation and countershading
+      bodyMaterial = this.createSharkShaderMaterial();
+    } else if (this.quality === 'medium') {
+      // For medium quality, use standard material with better properties
       bodyMaterial = new THREE.MeshStandardMaterial({
         color: 0x505a64, // Shark grey
         roughness: 0.8,
@@ -178,10 +187,10 @@ export class Shark extends Obstacle {
         flatShading: false
       });
     } else {
-      // Simpler material for medium/low quality
+      // Simpler material for low quality
       bodyMaterial = new THREE.MeshLambertMaterial({
         color: 0x505a64,
-        flatShading: this.quality === 'low'
+        flatShading: true
       });
     }
     
@@ -686,12 +695,127 @@ export class Shark extends Obstacle {
   }
   
   /**
+   * Create a shader-based material for the shark body with undulation and countershading
+   */
+  private createSharkShaderMaterial(): THREE.ShaderMaterial {
+    // Vertex shader for body undulation
+    const vertexShader = `
+      varying vec3 vNormal;
+      varying vec3 vWorldPosition;
+      varying float vCountershadeFactor; // For countershading effect
+      varying float vBodyZ; // Normalized position along body length
+      
+      uniform float uTime;
+      uniform float uWaveFrequency;
+      uniform float uWaveAmplitude;
+      uniform float uBodyLength;
+      
+      void main() {
+        // Get original position
+        vec3 pos = position;
+        
+        // Calculate normalized position along the shark body (z-axis)
+        // Assuming the shark's body is along z-axis before rotation
+        vBodyZ = (position.z + uBodyLength * 0.5) / uBodyLength; // 0 (tail) to 1 (head)
+        
+        // Apply undulation wave along the body - stronger at the tail
+        float undulationFactor = 1.0 - vBodyZ; // More movement at tail (lower z)
+        float wave = sin(uTime * uWaveFrequency + vBodyZ * 5.0) * uWaveAmplitude;
+        
+        // Apply wave to x-position, scaled by undulation factor
+        pos.x += wave * undulationFactor * 1.5;
+        
+        // Transform to world space
+        vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        
+        // Transform normal to world space for lighting
+        vNormal = normalize(normalMatrix * normal);
+        
+        // Calculate countershading factor based on normal's Y component in world space
+        vec3 worldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+        vCountershadeFactor = smoothstep(-0.2, 0.6, worldNormal.y); // Y component ranges from -1 (bottom) to 1 (top)
+        
+        // Final position
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `;
+    
+    // Fragment shader for countershading effect (darker top, lighter bottom)
+    const fragmentShader = `
+      varying vec3 vNormal;
+      varying vec3 vWorldPosition;
+      varying float vCountershadeFactor;
+      varying float vBodyZ;
+      
+      uniform vec3 uTopColor; // Dark color for top (countershading)
+      uniform vec3 uBottomColor; // Light color for bottom (countershading)
+      
+      void main() {
+        // Basic lighting
+        vec3 normal = normalize(vNormal);
+        vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5)); // Light from top-right
+        float diffuse = max(dot(normal, lightDir), 0.0);
+        
+        // Apply countershading - mix between top and bottom colors
+        vec3 baseColor = mix(uBottomColor, uTopColor, vCountershadeFactor);
+        
+        // Add subtle darkening toward the head
+        baseColor *= mix(1.0, 0.9, pow(vBodyZ, 3.0));
+        
+        // Apply lighting with ambient term
+        vec3 finalColor = baseColor * (diffuse * 0.6 + 0.4);
+        
+        // Output final color
+        gl_FragColor = vec4(finalColor, 1.0);
+      }
+    `;
+    
+    // Create shader material
+    this.shaderMaterial = new THREE.ShaderMaterial({
+      vertexShader: vertexShader,
+      fragmentShader: fragmentShader,
+      uniforms: {
+        uTime: { value: 0.0 },
+        uTopColor: { value: new THREE.Color(0x404c55) }, // Darker gray-blue for top
+        uBottomColor: { value: new THREE.Color(0x909ca5) }, // Lighter gray-white for bottom
+        uWaveFrequency: { value: this.waveFrequency },
+        uWaveAmplitude: { value: this.waveAmplitude },
+        uBodyLength: { value: 4.0 } // Length of shark body
+      }
+    });
+    
+    return this.shaderMaterial;
+  }
+
+  /**
    * Update shark state and animation
    */
   public update(deltaTime: number, playerPosition: THREE.Vector3, gameSpeed: number): void {
     super.update(deltaTime, playerPosition, gameSpeed);
     
-    // First update the mixer for animations
+    // Update shader animation time if using shader material
+    if (this.shaderMaterial && this.shaderMaterial.uniforms) {
+      this.animationTime += deltaTime;
+      this.shaderMaterial.uniforms.uTime.value = this.animationTime;
+      
+      // Adjust wave parameters based on state
+      if (this.state === 'triggered' && this.isChasing) {
+        // Faster, more intense undulation during chase
+        this.shaderMaterial.uniforms.uWaveFrequency.value = 
+          THREE.MathUtils.lerp(this.shaderMaterial.uniforms.uWaveFrequency.value, 4.0, deltaTime * 2);
+        this.shaderMaterial.uniforms.uWaveAmplitude.value = 
+          THREE.MathUtils.lerp(this.shaderMaterial.uniforms.uWaveAmplitude.value, 0.15, deltaTime * 2);
+      } else {
+        // Normal undulation during patrol
+        this.shaderMaterial.uniforms.uWaveFrequency.value = 
+          THREE.MathUtils.lerp(this.shaderMaterial.uniforms.uWaveFrequency.value, this.waveFrequency, deltaTime * 2);
+        this.shaderMaterial.uniforms.uWaveAmplitude.value = 
+          THREE.MathUtils.lerp(this.shaderMaterial.uniforms.uWaveAmplitude.value, this.waveAmplitude, deltaTime * 2);
+      }
+    }
+    
+    // Update the mixer for animations
     if (this.mixer) {
       this.mixer.update(deltaTime * this.timeScale);
     }

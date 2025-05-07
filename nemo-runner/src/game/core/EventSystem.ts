@@ -16,17 +16,55 @@ const eventBus = {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
     }
+    
+    // Add some debug logging for critical events
+    const criticalEvents = ['game-start-movement', 'game-state-change'];
+    if (criticalEvents.includes(event)) {
+      console.log(`EventSystem: Registered listener for critical event: ${event}`);
+    }
+    
     this.listeners[event].push(callback);
   },
   
-  off(event: string, callback: Function) {
+  off(event: string, callback?: Function) {
     if (!this.listeners[event]) return;
-    this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    
+    if (callback) {
+      this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    } else {
+      // If no specific callback provided, clear all listeners for this event
+      delete this.listeners[event];
+    }
   },
   
   emit(event: string, data?: any) {
-    if (!this.listeners[event]) return;
-    this.listeners[event].forEach(callback => callback(data));
+    if (!this.listeners[event]) {
+      // Always create an empty array for future listeners
+      this.listeners[event] = [];
+      
+      // Special handling for movement events that have no listeners
+      if (event === 'game-start-movement') {
+        console.warn('⚠️ WARNING: No listeners registered for game-start-movement! Character movement may not start.');
+      }
+      
+      return;
+    }
+    
+    // Add extra debug info for critical events
+    const criticalEvents = ['game-start-movement', 'game-state-change'];
+    if (criticalEvents.includes(event)) {
+      console.log(`EventSystem: Emitting critical event: ${event}, Listeners count: ${this.listeners[event].length}`, data);
+    }
+    
+    // Safe iteration with copy to prevent issues if listeners modify the array during iteration
+    const currentListeners = [...this.listeners[event]];
+    currentListeners.forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error(`Error in event listener for ${event}:`, error);
+      }
+    });
   }
 };
 

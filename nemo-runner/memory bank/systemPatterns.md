@@ -5,6 +5,23 @@
 The NEMO Runner game follows a modern, component-based architecture optimized for web-based 3D gaming experiences:
 
 ### High-Level Architecture
+
+```
+flowchart TD
+    GE[GameEngine] --> GL[GameLoop]
+    GE --> GSM[GameStateManager]
+    GE --> CH[Character]
+    GE --> OM[ObstacleManager]
+    GE --> PE[ProceduralEnvironment]
+    GE --> AM[AssetManager]
+    GE --> CS[CollisionSystem]
+    GE --> IH[InputHandler]
+    PE --> WE[WaterEffects]
+    PE --> DF[DecorationFactory]
+    PE --> GS[GroundSystem]
+    PE --> SM[SkyboxManager]
+    GS --> NG[NoiseGenerator]
+```
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Next.js Application                     │
@@ -549,10 +566,22 @@ Key optimizations and enhancements in the complete environment system:
 1. **Modular Architecture**: Split into well-defined modules for better maintainability
    - `EnvironmentTypes.ts`: Environment theme definitions with transition capabilities
    - `DecorationDefinitions.ts`: 25+ decoration definitions with environment-specific filtering
-   - `DecorationModels.ts`: Factory patterns for creating decoration meshes
+   - `DecorationModels.ts`: Main factory pattern routing to specialized decoration classes
    - `EnvironmentSegment.ts`: Segment class for terrain sections with visibility culling
-   - `ProceduralEnvironment.ts`: Main orchestration and optimization
+   - `ProceduralEnvironment.ts`: Main orchestration and coordination between components
    - `WaterEffects.ts`: Advanced water effects with quality-based rendering
+   - `NoiseGenerator.ts`: Specialized noise generation for procedural content
+   - `SkyboxManager.ts`: Skybox creation and theme-based transitions
+   - `GroundSystem.ts`: Ground decorations and terrain features
+   - `DecorationFactory.ts`: Factory class for efficient decoration creation with instance pooling
+   - `MathUtils.ts`: Common mathematical utilities for animations and transitions
+   - `decorations/`: Specialized decoration type classes for better organization:
+     - `CoralDecorations.ts`: Coral and reef decoration implementations
+     - `RockDecorations.ts`: Stone and rock formation implementations
+     - `VegetationDecorations.ts`: Underwater flora implementations
+     - `DeepSeaDecorations.ts`: Deep sea specialized decorations (thermal vents, crystals)
+     - `ShipwreckDecorations.ts`: Shipwreck and treasure decorations
+     - `FloatingDecorations.ts`: Ambient elements (particles, plankton, small fish)
 
 2. **Advanced Water Effects**:
    - **Caustics**: Realistic water light patterns with cellular noise and Fractal Brownian Motion

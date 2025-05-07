@@ -39,6 +39,13 @@ export class Jellyfish extends Obstacle {
   private tentacleMaterials: THREE.Material[] = [];
   private glowMaterial: THREE.Material | null = null;
   
+  // Shader materials for high-quality version
+  private bellShaderMaterial: THREE.ShaderMaterial | null = null;
+  private tentacleShaderMaterials: THREE.ShaderMaterial[] = [];
+  private animationTime: number = 0;
+  private swayFrequency: number = 1.2;
+  private swayAmplitude: number = 0.15;
+  
   // Shape definition
   private bellRadius: number = 0.8;
   private bellHeight: number = 0.6;
@@ -133,12 +140,15 @@ export class Jellyfish extends Obstacle {
     let bellMaterial: THREE.Material;
     
     if (this.quality === 'high') {
-      // High-quality translucent material with subsurface-like effect
+      // For high quality, use shader-based material for pulsation and glow
+      bellMaterial = this.createJellyfishShaderMaterial(false); // Not a tentacle
+    } else if (this.quality === 'medium') {
+      // Medium quality with simpler material
       bellMaterial = new THREE.MeshPhysicalMaterial({
         color: new THREE.Color().setHSL(this.colorHue, 0.8, 0.7),
         transparent: true,
         opacity: 0.8,
-        transmission: 0.4, // Transmission effect for high-quality
+        transmission: 0.4, // Transmission effect
         thickness: 0.3,    // Thickness for transmission calculation
         roughness: 0.3,
         metalness: 0.0,
@@ -147,7 +157,7 @@ export class Jellyfish extends Obstacle {
         side: THREE.DoubleSide
       });
     } else {
-      // Simpler material for medium/low quality
+      // Simpler material for low quality
       bellMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color().setHSL(this.colorHue, 0.8, 0.7),
         transparent: true,
@@ -212,14 +222,21 @@ export class Jellyfish extends Obstacle {
     this.tentacles.name = 'tentacles';
     
     // Create tentacle material - more translucent than bell
-    const tentacleMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color().setHSL(this.colorHue, 0.7, 0.6),
-      transparent: true,
-      opacity: 0.6,
-      roughness: 0.3,
-      metalness: 0.0,
-      side: THREE.DoubleSide
-    });
+    let tentacleMaterial: THREE.Material;
+    
+    if (this.quality === 'high') {
+      // Use shader-based material for tentacle animation in high quality
+      tentacleMaterial = this.createJellyfishShaderMaterial(true); // Is a tentacle
+    } else {
+      tentacleMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color().setHSL(this.colorHue, 0.7, 0.6),
+        transparent: true,
+        opacity: 0.6,
+        roughness: 0.3,
+        metalness: 0.0,
+        side: THREE.DoubleSide
+      });
+    }
     
     this.tentacleMaterials.push(tentacleMaterial);
     
@@ -258,6 +275,149 @@ export class Jellyfish extends Obstacle {
   }
   
   /**
+   * Create a shader-based material for jellyfish parts
+   */
+  private createJellyfishShaderMaterial(isTentacle: boolean): THREE.ShaderMaterial {
+    // Vertex shader for bell pulsation and tentacle animation
+    const vertexShader = `
+      varying vec3 vNormal;
+      varying vec3 vWorldPosition;
+      varying float vFresnelFactor;
+      varying float vRelativeHeight;
+      
+      uniform float uTime;
+      uniform float uPulseFrequency;
+      uniform float uPulseAmplitude;
+      uniform float uSwayFrequency;
+      uniform float uSwayAmplitude;
+      uniform float uIsTentacle;
+      uniform float uLength;
+      
+      // Bell pulsation function
+      vec3 getBellPulsation(vec3 pos, float relHeight) {
+        float pulse = sin(uTime * uPulseFrequency) * 0.5 + 0.5;
+        float pulseEffect = pow(relHeight, 0.5) * pulse * uPulseAmplitude;
+        float radialScale = 1.0 + pulseEffect * 0.3;
+        float verticalScale = 1.0 - pulseEffect * 0.1;
+        return vec3(pos.x * radialScale, pos.y * verticalScale, pos.z * radialScale);
+      }
+      
+      // Tentacle sway function
+      vec3 getTentacleSway(vec3 pos, float relHeight) {
+        float swayFactor = pow(1.0 - relHeight, 1.5) * uSwayAmplitude;
+        float timeFactor = uTime * uSwayFrequency + pos.y * 0.3;
+        float swayX = sin(timeFactor + relHeight * 2.0) * swayFactor;
+        float swayZ = cos(timeFactor * 0.7 + relHeight * 1.5) * swayFactor * 0.8;
+        return vec3(pos.x + swayX, pos.y, pos.z + swayZ);
+      }
+      
+      void main() {
+        vec3 pos = position;
+        vRelativeHeight = position.y / uLength;
+        
+        // Apply pulsation OR sway based on part type
+        if (uIsTentacle < 0.5) {
+          // Bell pulsation
+          pos = getBellPulsation(pos, vRelativeHeight);
+        } else {
+          // Tentacle sway animation
+          pos = getTentacleSway(pos, vRelativeHeight);
+        }
+        
+        // Transform to world space
+        vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        
+        // Transform normal to world space for lighting
+        vNormal = normalize(normalMatrix * normal);
+        
+        // Calculate Fresnel factor for edge glow effect
+        vec3 viewDir = normalize(cameraPosition - worldPosition.xyz);
+        vec3 worldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+        vFresnelFactor = pow(1.0 - abs(dot(viewDir, worldNormal)), 3.0);
+        
+        // Final position
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `;
+    
+    // Fragment shader for translucency and glow effects
+    const fragmentShader = `
+      varying vec3 vNormal;
+      varying vec3 vWorldPosition;
+      varying float vFresnelFactor;
+      varying float vRelativeHeight;
+      
+      uniform vec3 uBaseColor;
+      uniform float uTime;
+      uniform float uOpacity;
+      uniform float uGlowIntensity;
+      uniform float uPulseFrequency;
+      
+      void main() {
+        // Pulsating opacity and glow
+        float pulse = sin(uTime * uPulseFrequency) * 0.5 + 0.5;
+        float currentOpacity = uOpacity * (0.6 + pulse * 0.4);
+        float currentGlow = uGlowIntensity * (0.5 + pulse * 0.5);
+        
+        // Add subtle noise variation
+        float noiseVal = fract(sin(dot(vWorldPosition.xz * 1.5 + uTime * 0.1, vec2(12.9898, 78.233))) * 43758.5453) * 0.2 - 0.1;
+        
+        // Fresnel effect for edge glow
+        float fresnel = vFresnelFactor * (0.5 + currentGlow * 0.5);
+        
+        // Color calculation with glow
+        vec3 base = uBaseColor + vec3(noiseVal);
+        
+        // Apply lighting
+        vec3 normal = normalize(vNormal);
+        vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5)); // Light from top-right
+        float diffuse = max(dot(normal, lightDir), 0.0);
+        
+        // Combine base color with emissive glow, enhanced by fresnel
+        vec3 emissiveColor = base * currentGlow * (1.0 + fresnel * 1.5);
+        vec3 litColor = base * (diffuse * 0.4 + 0.6); // Softer lighting
+        vec3 finalColor = litColor * 0.5 + emissiveColor;
+        
+        // Final output with transparency
+        gl_FragColor = vec4(finalColor, currentOpacity * (0.5 + fresnel * 0.5));
+      }
+    `;
+    
+    // Create color based on the hue
+    const color = new THREE.Color().setHSL(this.colorHue, 0.7, 0.7);
+    
+    // Create shader material with appropriate parameters
+    const material = new THREE.ShaderMaterial({
+      vertexShader: vertexShader,
+      fragmentShader: fragmentShader,
+      uniforms: {
+        uTime: { value: Math.random() * 10 }, // Random start time for variety
+        uBaseColor: { value: color },
+        uOpacity: { value: isTentacle ? 0.6 : 0.8 }, // Tentacles more transparent
+        uGlowIntensity: { value: this.glowIntensity },
+        uPulseFrequency: { value: this.pulsateSpeed },
+        uPulseAmplitude: { value: 0.3 },
+        uSwayFrequency: { value: this.swayFrequency },
+        uSwayAmplitude: { value: this.swayAmplitude },
+        uIsTentacle: { value: isTentacle ? 1.0 : 0.0 },
+        uLength: { value: isTentacle ? this.tentacleLength : this.bellHeight }
+      },
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+    
+    // Store reference to the material for updates
+    if (isTentacle) {
+      this.tentacleShaderMaterials.push(material);
+    } else {
+      this.bellShaderMaterial = material;
+    }
+    
+    return material;
+  }
+
+  /**
    * Create a tentacle mesh with segments
    */
   private createTentacle(length: number, material: THREE.Material, index: number): THREE.Group {
@@ -268,24 +428,59 @@ export class Jellyfish extends Obstacle {
     const segmentCount = this.quality === 'high' ? 8 : 
                         this.quality === 'medium' ? 6 : 4;
     
-    // Create segments with diminishing size
-    for (let i = 0; i < segmentCount; i++) {
-      const segmentHeight = length / segmentCount;
-      const topRadius = this.bellRadius * 0.15 * (1 - i / segmentCount);
-      const bottomRadius = this.bellRadius * 0.1 * (1 - (i + 1) / segmentCount);
+    // For high quality, create a more detailed tentacle geometry
+    if (this.quality === 'high') {
+      // Create a curved path for the tentacle
+      const points = [];
+      for (let i = 0; i <= segmentCount; i++) {
+        // Slightly curved path
+        const t = i / segmentCount;
+        const y = -length * t;
+        const xCurve = Math.sin(t * Math.PI) * 0.1 * (index % 2 ? 1 : -1); // Alternate curve direction
+        const zCurve = Math.cos(t * Math.PI * 0.7) * 0.1 * (index % 3 ? 1 : -1);
+        points.push(new THREE.Vector3(xCurve, y, zCurve));
+      }
       
-      // Create tapered cylinder for main tentacle
-      const segmentGeometry = new THREE.CylinderGeometry(
-        topRadius, bottomRadius, segmentHeight, 6, 1
+      const curve = new THREE.CatmullRomCurve3(points);
+      
+      // Create tube geometry with more radial segments for high quality
+      const tubeGeometry = new THREE.TubeGeometry(
+        curve,
+        segmentCount * 2, // More segments for smoother curve
+        this.bellRadius * 0.1, // Starting radius
+        8, // Radial segments
+        false // Not closed
       );
       
-      const segment = new THREE.Mesh(segmentGeometry, material);
-      segment.position.set(0, -segmentHeight * i - segmentHeight / 2, 0);
-      tentacleGroup.add(segment);
+      // Create mesh with shader material
+      const tentacleMesh = new THREE.Mesh(tubeGeometry, material);
+      tentacleMesh.name = `tentacle_${index}_mesh`;
+      tentacleGroup.add(tentacleMesh);
       
       // Add small frills for high quality
-      if (this.quality === 'high' && i < segmentCount - 1) {
-        this.addTentacleFrills(segment, topRadius, index + i);
+      if (this.quality === 'high') {
+        this.addAdvancedTentacleFrills(tentacleGroup, length, index);
+      }
+    } else {
+      // Medium/low quality uses simpler geometry
+      for (let i = 0; i < segmentCount; i++) {
+        const segmentHeight = length / segmentCount;
+        const topRadius = this.bellRadius * 0.15 * (1 - i / segmentCount);
+        const bottomRadius = this.bellRadius * 0.1 * (1 - (i + 1) / segmentCount);
+        
+        // Create tapered cylinder for main tentacle
+        const segmentGeometry = new THREE.CylinderGeometry(
+          topRadius, bottomRadius, segmentHeight, 6, 1
+        );
+        
+        const segment = new THREE.Mesh(segmentGeometry, material);
+        segment.position.set(0, -segmentHeight * i - segmentHeight / 2, 0);
+        tentacleGroup.add(segment);
+        
+        // Add small frills for medium quality
+        if (this.quality === 'medium' && i < segmentCount - 1) {
+          this.addTentacleFrills(segment, topRadius, index + i);
+        }
       }
     }
     
@@ -332,6 +527,89 @@ export class Jellyfish extends Obstacle {
       
       frill.rotation.y = angle;
       parentSegment.add(frill);
+    }
+  }
+  
+  /**
+   * Add advanced decorative frills to high-quality tentacles
+   */
+  private addAdvancedTentacleFrills(parentGroup: THREE.Group, length: number, seed: number): void {
+    // Number of frill sets along the tentacle
+    const frillSets = 4;
+    
+    // Create a more translucent material for frills
+    let frillMaterial: THREE.Material;
+    
+    // Use shader material for high quality
+    if (this.quality === 'high') {
+      frillMaterial = this.createJellyfishShaderMaterial(true); // Use tentacle shader
+      (frillMaterial as THREE.ShaderMaterial).uniforms.uSwayAmplitude.value = this.swayAmplitude * 1.5; // More sway on frills
+    } else {
+      frillMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color().setHSL(this.colorHue, 0.6, 0.7),
+        transparent: true,
+        opacity: 0.5,
+        roughness: 0.3,
+        side: THREE.DoubleSide
+      });
+    }
+    
+    this.tentacleMaterials.push(frillMaterial);
+    
+    // Create several frills along the tentacle
+    for (let setIndex = 0; setIndex < frillSets; setIndex++) {
+      // Position along tentacle (skip the very top)
+      const yPos = -length * (0.2 + 0.7 * setIndex / frillSets);
+      
+      // Create 2-4 small frills per set
+      const frillCount = 2 + Math.floor(Math.random() * 3);
+      
+      // Generate random offset based on seed and position
+      const randomOffset = seed * 1.5 + setIndex;
+      
+      for (let i = 0; i < frillCount; i++) {
+        const angle = ((i / frillCount) * Math.PI * 2) + randomOffset;
+        
+        // Create a curved plane for the frill
+        const frillWidth = this.bellRadius * 0.3 * (1 - setIndex / frillSets);
+        const frillLength = this.bellRadius * 0.6 * (1 - setIndex / frillSets);
+        
+        // Create custom geometry for more organic shape
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.bezierCurveTo(
+          frillWidth * 0.3, frillLength * 0.3,
+          frillWidth * 0.7, frillLength * 0.7,
+          frillWidth, frillLength
+        );
+        shape.bezierCurveTo(
+          frillWidth * 0.7, frillLength * 0.8,
+          frillWidth * 0.1, frillLength * 0.4,
+          0, 0
+        );
+        
+        const frillGeometry = new THREE.ShapeGeometry(shape, 10);
+        const frill = new THREE.Mesh(frillGeometry, frillMaterial);
+        
+        // Create a sub-group for this frill for positioning
+        const frillGroup = new THREE.Group();
+        frillGroup.add(frill);
+        
+        // Position the frill
+        const radius = this.bellRadius * 0.1 * (1 - setIndex / frillSets); // Radius decreases along tentacle
+        frillGroup.position.set(
+          Math.sin(angle) * radius,
+          yPos,
+          Math.cos(angle) * radius
+        );
+        
+        // Rotate to face outward
+        frillGroup.rotation.y = angle;
+        frillGroup.rotation.x = Math.PI / 4; // Tilt slightly upward
+        
+        // Add to parent group
+        parentGroup.add(frillGroup);
+      }
     }
   }
   
@@ -433,16 +711,37 @@ export class Jellyfish extends Obstacle {
     // Update color hue (0-1 range)
     this.colorHue = Math.max(0, Math.min(1, hue));
     
+    // Color object to reuse
+    const baseColor = new THREE.Color().setHSL(this.colorHue, 0.8, 0.7);
+    const tentacleColor = new THREE.Color().setHSL(this.colorHue, 0.7, 0.6);
+    const glowColor = new THREE.Color().setHSL(this.colorHue, 0.6, 0.8);
+    
+    // Update shader materials for high-quality
+    if (this.quality === 'high') {
+      // Update bell shader material
+      if (this.bellShaderMaterial && this.bellShaderMaterial.uniforms.uBaseColor) {
+        this.bellShaderMaterial.uniforms.uBaseColor.value = baseColor;
+      }
+      
+      // Update tentacle shader materials
+      this.tentacleShaderMaterials.forEach(material => {
+        if (material.uniforms && material.uniforms.uBaseColor) {
+          material.uniforms.uBaseColor.value = tentacleColor;
+        }
+      });
+    }
+    
+    // Update standard materials (for medium/low quality or fallback)
     // Update bell material
-    if (this.bellMaterial) {
+    if (this.bellMaterial && !this.bellShaderMaterial) {
       if ('color' in this.bellMaterial) {
         (this.bellMaterial as any).color.setHSL(this.colorHue, 0.8, 0.7);
       }
     }
     
-    // Update tentacle materials
+    // Update tentacle materials (excluding shader materials which were updated above)
     this.tentacleMaterials.forEach(material => {
-      if ('color' in material) {
+      if ('color' in material && !(material instanceof THREE.ShaderMaterial)) {
         (material as any).color.setHSL(this.colorHue, 0.7, 0.6);
       }
     });
@@ -477,6 +776,22 @@ export class Jellyfish extends Obstacle {
     // Clamp intensity between 0 and 1
     this.glowIntensity = Math.max(0, Math.min(1, intensity));
     
+    // Update shader-based materials (high quality)
+    if (this.quality === 'high') {
+      // Update bell shader material
+      if (this.bellShaderMaterial && this.bellShaderMaterial.uniforms.uGlowIntensity) {
+        this.bellShaderMaterial.uniforms.uGlowIntensity.value = this.glowIntensity;
+      }
+      
+      // Update tentacle shader materials
+      this.tentacleShaderMaterials.forEach(material => {
+        if (material.uniforms && material.uniforms.uGlowIntensity) {
+          material.uniforms.uGlowIntensity.value = this.glowIntensity * 0.8; // Slightly less glow on tentacles
+        }
+      });
+    }
+    
+    // Update standard materials (medium/low quality or fallback)
     // Update glow material opacity
     if (this.glowMaterial) {
       this.glowMaterial.opacity = 0.3 * this.glowIntensity;
@@ -630,24 +945,73 @@ export class Jellyfish extends Obstacle {
     // Update pulsation phase
     this.pulsationPhase += deltaTime * this.pulsateSpeed * this.timeScale;
     
-    // Calculate pulsation value (0 to 1)
-    const pulsation = 0.15 * Math.sin(this.pulsationPhase) + 0.85;
-    
-    // Apply scaling to bell for pulsation effect
-    if (this.bell) {
-      this.bell.scale.set(pulsation, pulsation, pulsation);
-    }
-    
-    // Scale inner glow slightly larger for effect
-    if (this.innerGlow) {
-      const glowPulsation = 0.2 * Math.sin(this.pulsationPhase + 0.5) + 0.9;
-      this.innerGlow.scale.set(glowPulsation, glowPulsation, glowPulsation);
-    }
-    
-    // Move tentacles based on pulsation for swimming effect
-    const yOffset = Math.sin(this.pulsationPhase) * 0.05;
-    if (this.tentacles && this.bell) {
-      this.tentacles.position.y = this.bell.position.y - 0.05 + yOffset;
+    // Update shader time if using shaders (high quality)
+    if (this.quality === 'high') {
+      // Update animation time for all shader materials
+      this.animationTime += deltaTime * this.timeScale;
+      
+      // Update bell shader if it exists
+      if (this.bellShaderMaterial && this.bellShaderMaterial.uniforms) {
+        this.bellShaderMaterial.uniforms.uTime.value = this.animationTime;
+        
+        // Adjust pulse parameters based on state
+        if (this.state === 'triggered') {
+          // More intense pulsing when triggered
+          this.bellShaderMaterial.uniforms.uPulseFrequency.value = 
+            THREE.MathUtils.lerp(this.bellShaderMaterial.uniforms.uPulseFrequency.value, this.pulsateSpeed * 2, deltaTime * 2);
+          this.bellShaderMaterial.uniforms.uPulseAmplitude.value = 
+            THREE.MathUtils.lerp(this.bellShaderMaterial.uniforms.uPulseAmplitude.value, 0.5, deltaTime * 2);
+        } else {
+          // Normal pulsing during other states
+          this.bellShaderMaterial.uniforms.uPulseFrequency.value = 
+            THREE.MathUtils.lerp(this.bellShaderMaterial.uniforms.uPulseFrequency.value, this.pulsateSpeed, deltaTime * 2);
+          this.bellShaderMaterial.uniforms.uPulseAmplitude.value = 
+            THREE.MathUtils.lerp(this.bellShaderMaterial.uniforms.uPulseAmplitude.value, 0.3, deltaTime * 2);
+        }
+      }
+      
+      // Update all tentacle shader materials
+      for (const material of this.tentacleShaderMaterials) {
+        if (material.uniforms) {
+          material.uniforms.uTime.value = this.animationTime;
+          
+          // Adjust sway parameters based on state
+          if (this.state === 'triggered') {
+            // More intense swaying when triggered
+            material.uniforms.uSwayFrequency.value = 
+              THREE.MathUtils.lerp(material.uniforms.uSwayFrequency.value, this.swayFrequency * 1.5, deltaTime * 2);
+            material.uniforms.uSwayAmplitude.value = 
+              THREE.MathUtils.lerp(material.uniforms.uSwayAmplitude.value, this.swayAmplitude * 1.5, deltaTime * 2);
+          } else {
+            // Normal swaying during other states
+            material.uniforms.uSwayFrequency.value = 
+              THREE.MathUtils.lerp(material.uniforms.uSwayFrequency.value, this.swayFrequency, deltaTime * 2);
+            material.uniforms.uSwayAmplitude.value = 
+              THREE.MathUtils.lerp(material.uniforms.uSwayAmplitude.value, this.swayAmplitude, deltaTime * 2);
+          }
+        }
+      }
+    } else {
+      // Non-shader based animation for medium/low quality
+      // Calculate pulsation value (0 to 1)
+      const pulsation = 0.15 * Math.sin(this.pulsationPhase) + 0.85;
+      
+      // Apply scaling to bell for pulsation effect
+      if (this.bell) {
+        this.bell.scale.set(pulsation, pulsation, pulsation);
+      }
+      
+      // Scale inner glow slightly larger for effect
+      if (this.innerGlow) {
+        const glowPulsation = 0.2 * Math.sin(this.pulsationPhase + 0.5) + 0.9;
+        this.innerGlow.scale.set(glowPulsation, glowPulsation, glowPulsation);
+      }
+      
+      // Move tentacles based on pulsation for swimming effect
+      const yOffset = Math.sin(this.pulsationPhase) * 0.05;
+      if (this.tentacles && this.bell) {
+        this.tentacles.position.y = this.bell.position.y - 0.05 + yOffset;
+      }
     }
   }
   
@@ -658,8 +1022,10 @@ export class Jellyfish extends Obstacle {
     // Update tentacle phase
     this.tentaclePhase += deltaTime * 0.8 * this.timeScale;
     
-    // Apply wave-like movement to tentacles
-    if (this.tentacles) {
+    // Only apply direct movement for medium/low quality
+    // High quality uses shader-based animation
+    if (this.quality !== 'high' && this.tentacles) {
+      // Apply wave-like movement to tentacles
       this.tentacles.children.forEach((tentacle, index) => {
         // Each tentacle has a slightly different phase
         const tentacleOffset = index * 0.5;

@@ -43,6 +43,13 @@ export class GameLoop {
     this.paused = false;
     // Reset lastTime to avoid large time delta after pause
     this.lastTime = performance.now() / 1000;
+    console.log('Game loop resumed');
+    
+    // Force an initial update cycle to kick-start things again
+    const initialDelta = 1/60; // Use a small fixed delta for the first update
+    this.updateFn(initialDelta);
+    this.fixedUpdateFn(initialDelta);
+    this.renderFn(0);
   }
   
   setUpdateFn(fn: (deltaTime: number) => void) {

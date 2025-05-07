@@ -414,7 +414,14 @@ export class GameStateManager {
     
     // Listen for explicit game control events
     eventBus.on('game-start', () => {
-      this.startGame();
+      // Only start the game if we're not already in READY or PLAYING state
+      // This prevents the infinite loop of READY->PLAYING->READY
+      if (this._state !== 'READY' && this._state !== 'PLAYING') {
+        console.log('Starting game from game-start event, current state:', this._state);
+        this.startGame();
+      } else {
+        console.log('Ignoring game-start event while in state:', this._state);
+      }
     });
     
     eventBus.on('game-pause', () => {

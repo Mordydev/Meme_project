@@ -336,9 +336,44 @@ export const DECORATION_DEFINITIONS: DecorationDefinition[] = [
  * @returns Array of decoration definitions filtered for the environment type
  */
 export function getDecorationsForEnvironment(environmentType: EnvironmentType): DecorationDefinition[] {
-  return DECORATION_DEFINITIONS.filter(def => 
+  // First get all decorations for this environment type
+  const allDecorations = DECORATION_DEFINITIONS.filter(def => 
     def.environmentTypes.includes(environmentType)
   );
+  
+  // For safety and to reduce errors, let's ensure we always include some rock
+  // decorations that use simple geometry and don't require complex assets
+  const hasRocks = allDecorations.some(def => def.type === 'rock1' || def.type === 'rock2');
+  
+  if (!hasRocks) {
+    // Add some basic rock decorations
+    const basicRocks = DECORATION_DEFINITIONS.filter(def => 
+      (def.type === 'rock1' || def.type === 'rock2')
+    );
+    
+    return [...allDecorations, ...basicRocks];
+  }
+  
+  // Adjust probability for potentially complex/missing assets to reduce their frequency
+  // or completely exclude them if they're problematic
+  const safeDecorations = allDecorations.filter(def => {
+    // All decorations have now been properly implemented
+    // No exclusions needed anymore
+    const excludedAssets: string[] = [];
+    return !excludedAssets.includes(def.type);
+  });
+  
+  // Further reduce probability of other complex assets
+  return safeDecorations.map(def => {
+    // If it's a potentially complex asset type, reduce its probability
+    if (['glowingPlant', 'schoolOfFish', 'jellyfish', 'giantKelp'].includes(def.type)) {
+      return {
+        ...def,
+        probability: def.probability * 0.3 // Reduce likelihood by 70%
+      };
+    }
+    return def;
+  });
 }
 
 /**

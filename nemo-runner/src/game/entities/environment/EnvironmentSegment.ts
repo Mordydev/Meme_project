@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { EnvironmentTheme, EnvironmentType } from './EnvironmentTypes';
 import { DecorationDefinition, getDecorationsForEnvironment } from './DecorationDefinitions';
-import { detectDeviceCapabilities, optimizeModelAsset } from '../../utils/DeviceUtils';
+import { detectDeviceCapabilities, optimizeModelAsset, DeviceCapabilities } from '../../utils/DeviceUtils';
 
 /**
  * Environment segment representing a portion of the underwater environment
@@ -14,8 +14,8 @@ export class EnvironmentSegment {
   segmentLength: number;
   segmentType: EnvironmentType;
   
-  // Device capabilities for optimizations
-  private deviceCapabilities = detectDeviceCapabilities();
+  // Device capabilities for optimizations - use passed parameter instead of detecting in each instance
+  private deviceCapabilities: DeviceCapabilities;
   
   constructor(
     scene: THREE.Scene,
@@ -23,10 +23,14 @@ export class EnvironmentSegment {
     position: THREE.Vector3,
     segmentLength: number,
     segmentWidth: number,
-    createDecorations: boolean = true
+    createDecorations: boolean = true,
+    deviceCapabilities?: DeviceCapabilities
   ) {
     this.segmentType = theme.type;
     this.segmentLength = segmentLength;
+    
+    // Use provided device capabilities or get them once if not provided
+    this.deviceCapabilities = deviceCapabilities || detectDeviceCapabilities();
     
     // Create segment mesh
     this.mesh = new THREE.Group();

@@ -2,7 +2,7 @@
 
 ## Current Status
 
-The NEMO Runner project is in the **active implementation phase** with several key components completed and others in development. We have established the core architecture and are now focused on environment generation and system integration.
+The NEMO Runner project is in the **active implementation phase** with several key components completed and others in development. We have successfully implemented a robust underwater environment with a detailed pebbled ground floor and proper obstacle integration. The game flow has been improved by making it start automatically after countdown.
 
 ### Status Summary
 
@@ -39,10 +39,12 @@ The NEMO Runner project is in the **active implementation phase** with several k
 
 3. **Obstacle System**:
    - Multiple obstacle types (shark, jellyfish, pufferfish, clam, coral)
+   - Object-oriented implementation with specialized concrete classes
    - Pattern-based obstacle generation
    - Difficulty progression based on distance
    - Object pooling for performance
    - Custom behavior for each obstacle type
+   - Integrated concrete classes (Shark, Jellyfish, Pufferfish, Clam) with manager
 
 4. **Collision System**:
    - Efficient collision detection for different shape combinations
@@ -191,6 +193,10 @@ As we continue development, there are several known issues and challenges:
    - ✓ Added advanced water effects (caustics, light rays, particles)
    - ✓ Implemented performance optimizations for all device types
    - ✓ Created visual feedback system
+   - ✓ Refactored into modular components for better maintainability
+   - ✓ Extracted specialized functionality into dedicated classes
+   - ✓ Completed decoration system refactoring with specialized classes in dedicated `decorations/` folder
+   - ✓ Implemented factory pattern for efficient decoration creation with proper fallbacks
 
 2. ✓ **System Integration** (Completed)
    - ✓ Integrated all existing components through GameEngine

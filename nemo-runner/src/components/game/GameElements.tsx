@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import styles from '@/styles/GameElements.module.css';
+import { safeFormat, safeGet } from '@/game/utils/SafeDefaults';
 
 // Score display component
 export function ScoreDisplay({ score }: { score: number }) {
@@ -133,30 +134,100 @@ export function DistanceMeter({ distance, maxDistance = 2000 }: { distance: numb
 
 // Environment indicator component
 export function EnvironmentIndicator({ type }: { type: string }) {
-  // Format the environment name for display
+  // Safety check - if type is null or undefined, use a default value
+  const safeType = type || 'reef';
+  
+  // Format the environment name for display with safety checks
   const formatEnvironmentName = (name: string) => {
-    return name.replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim();
+    // Ensure name is a string before using string methods
+    if (typeof name !== 'string') {
+      console.warn('Environment name is not a string:', name);
+      return 'Unknown';
+    }
+    
+    try {
+      // Use safer approach that doesn't call trim() directly
+      let formatted = '';
+      
+      // Replace camelCase with spaces - without using chained methods
+      try {
+        formatted = name.replace(/([A-Z])/g, ' $1');
+      } catch (e) {
+        console.warn('Error replacing camelCase:', e);
+        formatted = name;
+      }
+      
+      // Capitalize first letter
+      try {
+        if (formatted.length > 0) {
+          formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        }
+      } catch (e) {
+        console.warn('Error capitalizing:', e);
+      }
+      
+      // Trim without chaining
+      try {
+        formatted = formatted.trim();
+      } catch (e) {
+        console.warn('Error trimming:', e);
+      }
+      
+      return formatted || 'Unknown';
+    } catch (error) {
+      console.error('Error formatting environment name:', error);
+      return 'Unknown';
+    }
+  };
+  
+  // Use an even safer formatting approach
+  const getSafeFormattedName = () => {
+    try {
+      // If using our utility
+      return safeFormat(safeType);
+    } catch (e) {
+      // Ultimate fallback
+      return 'Reef';
+    }
   };
   
   // Determine the appropriate class based on environment type
   const getEnvironmentClass = () => {
-    switch (type) {
-      case 'reef': return styles.reef;
-      case 'openOcean': return styles.openOcean;
-      case 'deepSea': return styles.deepSea;
-      case 'shipwreck': return styles.shipwreck;
-      case 'kelpForest': return styles.kelpForest;
-      default: return '';
+    try {
+      // Use safe getter to avoid any possibility of errors
+      const environmentType = safeGet(() => safeType, 'reef');
+      
+      switch (environmentType) {
+        case 'reef': return styles.reef;
+        case 'openOcean': return styles.openOcean;
+        case 'deepSea': return styles.deepSea;
+        case 'shipwreck': return styles.shipwreck;
+        case 'kelpForest': return styles.kelpForest;
+        default: return styles.reef; // Default to reef style
+      }
+    } catch (error) {
+      console.error('Error getting environment class:', error);
+      return styles.reef || ''; // Extra safety
     }
   };
   
-  return (
-    <div className={`${styles.currentEnvironment} ${getEnvironmentClass()}`}>
-      {formatEnvironmentName(type)}
-    </div>
-  );
+  // Final rendering with error boundary
+  try {
+    const className = `${styles.currentEnvironment || ''} ${getEnvironmentClass() || ''}`.trim();
+    
+    // Use memoized formatting to avoid repeated calls
+    const displayName = getSafeFormattedName();
+    
+    return (
+      <div className={className || styles.currentEnvironment || ''}>
+        {displayName || 'Reef'}
+      </div>
+    );
+  } catch (error) {
+    console.error('Error rendering EnvironmentIndicator:', error);
+    // Ultimate fallback with minimal dependencies
+    return <div className={styles.currentEnvironment || ''}>Reef</div>;
+  }
 }
 
 // Power-up indicators component

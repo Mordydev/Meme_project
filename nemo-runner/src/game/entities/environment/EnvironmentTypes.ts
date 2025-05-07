@@ -17,6 +17,22 @@ export interface EnvironmentTheme {
   particleDensity: number;
   transitionDuration: number;
   minDistance: number; // Minimum distance to travel before possible transition
+  
+  // Additional properties for skybox
+  skyColorTop?: number;
+  skyColorBottom?: number;
+  
+  // Additional properties for water
+  waterColor?: number;
+  waterOpacity?: number;
+  
+  // Additional properties for ground
+  groundColor?: number;
+  
+  // Additional properties for decorations
+  decorationColor?: number;
+  decorationRoughness?: number;
+  decorationMetalness?: number;
 }
 
 // Environment themes
@@ -130,11 +146,11 @@ export function lerpThemes(themeA: EnvironmentTheme, themeB: EnvironmentTheme, p
 }
 
 // Helper functions for interpolation
-function lerp(a: number, b: number, t: number): number {
+export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-function lerpColor(colorA: number, colorB: number, t: number): number {
+export function lerpColor(colorA: number, colorB: number, t: number): number {
   const a = new THREE.Color(colorA);
   const b = new THREE.Color(colorB);
   

@@ -18,7 +18,7 @@ export default function GameUI() {
   const [score, setScore] = useState(0);
   const [distance, setDistance] = useState(0);
   const [gameState, setGameState] = useState<'MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER' | 'READY' | 'LOADING'>('MENU');
-  const [environment, setEnvironment] = useState('reef');
+  const [environment, setEnvironment] = useState<string>('reef'); // Explicitly type this as string
   const [activePowerUps, setActivePowerUps] = useState<Array<{ type: string, remainingTime: number, duration: number }>>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
   
@@ -52,7 +52,14 @@ export default function GameUI() {
     };
     
     const handleEnvironmentChangeComplete = (data: any) => {
-      setEnvironment(data.type);
+      // Add safety check to ensure data.type is a valid string
+      if (data && typeof data.type === 'string') {
+        setEnvironment(data.type);
+      } else {
+        console.warn('Invalid environment data received:', data);
+        // Fall back to default environment
+        setEnvironment('reef');
+      }
     };
     
     // Handle power-up activation
@@ -173,8 +180,8 @@ export default function GameUI() {
       {/* Distance meter */}
       <DistanceMeter distance={distance} maxDistance={2000} />
       
-      {/* Environment indicator */}
-      <EnvironmentIndicator type={environment} />
+      {/* Environment indicator with safety check */}
+      <EnvironmentIndicator type={environment || 'reef'} />
       
       {/* Power-up indicators */}
       <PowerUpIndicators activePowerUps={activePowerUps} />

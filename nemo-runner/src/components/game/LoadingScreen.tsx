@@ -32,14 +32,32 @@ export default function LoadingScreen() {
   ];
   
   useEffect(() => {
+    // Failsafe timeout reference
+    let failsafeTimeout: NodeJS.Timeout | null = null;
+    
     // Show loading screen when game enters LOADING state
     const handleGameStateChange = (data: { from: GameState; to: GameState }) => {
+      // Clear any existing failsafe timeout
+      if (failsafeTimeout) {
+        clearTimeout(failsafeTimeout);
+        failsafeTimeout = null;
+      }
+      
       if (data.to === 'LOADING') {
         // Choose a random tip
         const randomTip = gameTips[Math.floor(Math.random() * gameTips.length)];
         setCurrentTip(randomTip);
         setProgress(0);
         setIsVisible(true);
+        
+        // Add a failsafe timeout to ensure we don't get stuck on loading
+        failsafeTimeout = setTimeout(() => {
+          console.log('LoadingScreen: Failsafe timeout triggered');
+          if (gameStateManager.state === 'LOADING') {
+            console.log('LoadingScreen: Still in LOADING state after timeout, forcing transition to READY');
+            gameStateManager.setState('READY');
+          }
+        }, 10000); // 10 second timeout
       } else {
         setIsVisible(false);
       }
@@ -49,13 +67,16 @@ export default function LoadingScreen() {
     const handleLoadingProgress = (data: { progress: number }) => {
       setProgress(data.progress);
       
-      // If loading is complete (100%), wait a moment then transition to MENU state
+      // If loading is complete (100%), wait a moment then transition to READY state
       if (data.progress >= 100) {
         setTimeout(() => {
           setIsVisible(false);
-          // After fade out, transition to MENU state instead of READY
+          // After fade out, transition to READY state to start the game
           setTimeout(() => {
-            gameStateManager.setState('MENU');
+            if (gameStateManager.state === 'LOADING') {
+              console.log('LoadingScreen: Transitioning to READY state');
+              gameStateManager.setState('READY');
+            }
           }, 500);
         }, 1000);
       }
@@ -78,6 +99,12 @@ export default function LoadingScreen() {
     return () => {
       eventBus.off('game-state-change', handleGameStateChange);
       eventBus.off('asset-loading-progress', handleLoadingProgress);
+      
+      // Clean up failsafe timeout if it exists
+      if (failsafeTimeout) {
+        clearTimeout(failsafeTimeout);
+        failsafeTimeout = null;
+      }
     };
   }, []);
   

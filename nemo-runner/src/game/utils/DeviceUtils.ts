@@ -22,11 +22,32 @@ export interface QualitySettings {
   antialiasing: boolean;
 }
 
+// Global cache for device capabilities
+let cachedDeviceCapabilities: DeviceCapabilities | null = null;
+
+/**
+ * Get device capabilities - use this as the main function to access capabilities
+ * @returns Device capability information
+ */
+export function getDeviceCapabilities(): DeviceCapabilities {
+  // Use cached capabilities or detect them if not available
+  return cachedDeviceCapabilities || detectDeviceCapabilities();
+}
+
 /**
  * Detect device capabilities to adjust game settings accordingly
+ * Uses a singleton pattern to prevent creating multiple WebGL contexts
  * @returns Device capability information
  */
 export function detectDeviceCapabilities(): DeviceCapabilities {
+  // Return cached result if available
+  if (cachedDeviceCapabilities) {
+    console.log('Using cached device capabilities');
+    return cachedDeviceCapabilities;
+  }
+  
+  console.log('Detecting device capabilities (first run)');
+  
   // Default capabilities (assume low-end until proven otherwise)
   const capabilities: DeviceCapabilities = {
     highEnd: false,
@@ -103,6 +124,12 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
           capabilities.lowEnd = false;
         }
       }
+      
+      // Clean up WebGL context
+      const loseContext = gl2.getExtension('WEBGL_lose_context');
+      if (loseContext) {
+        loseContext.loseContext();
+      }
     } else {
       // Try WebGL 1 fallback
       const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext;
@@ -118,6 +145,12 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
         if (capabilities.maxTextureSize >= 4096) {
           capabilities.midRange = true;
           capabilities.lowEnd = false;
+        }
+        
+        // Clean up WebGL context
+        const loseContext = gl.getExtension('WEBGL_lose_context');
+        if (loseContext) {
+          loseContext.loseContext();
         }
       }
     }
@@ -140,6 +173,9 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
       capabilities.lowEnd = true;
     }
   }
+  
+  // Store in cache
+  cachedDeviceCapabilities = capabilities;
   
   // Log detected capabilities
   console.log('Device capabilities:', capabilities);

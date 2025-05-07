@@ -122,18 +122,30 @@ export class Clam extends Obstacle {
     let shellMaterial: THREE.Material;
     
     if (this.quality === 'high') {
-      // High-quality material with detailed properties
-      shellMaterial = new THREE.MeshStandardMaterial({
+      // High-quality material with detailed properties and iridescence
+      shellMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xeeeeee,
         roughness: 0.3,
         metalness: 0.2,
+        iridescence: 0.3, // Add iridescent sheen to shell
+        iridescenceIOR: 1.5,
+        clearcoat: 0.2, // Add slight clearcoat for wet look
+        clearcoatRoughness: 0.8,
+        flatShading: false
+      });
+    } else if (this.quality === 'medium') {
+      // Medium quality with less complex material
+      shellMaterial = new THREE.MeshStandardMaterial({
+        color: 0xeeeeee,
+        roughness: 0.4,
+        metalness: 0.1,
         flatShading: false
       });
     } else {
-      // Simpler material for medium/low quality
+      // Simple material for low quality
       shellMaterial = new THREE.MeshLambertMaterial({
         color: 0xeeeeee,
-        flatShading: this.quality === 'low'
+        flatShading: true
       });
     }
     
@@ -143,17 +155,32 @@ export class Clam extends Obstacle {
     let innerMaterial: THREE.Material;
     
     if (this.quality === 'high') {
-      innerMaterial = new THREE.MeshStandardMaterial({
+      // Enhanced inner shell with iridescent mother-of-pearl effect
+      innerMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xf8f8f8,
         roughness: 0.1,
+        metalness: 0.2,
+        iridescence: 0.5, // Stronger iridescence for inner shell
+        iridescenceIOR: 1.8,
+        clearcoat: 0.4,
+        clearcoatRoughness: 0.2,
+        flatShading: false,
+        side: THREE.DoubleSide
+      });
+    } else if (this.quality === 'medium') {
+      // Medium quality with slightly improved material
+      innerMaterial = new THREE.MeshStandardMaterial({
+        color: 0xf8f8f8,
+        roughness: 0.2,
         metalness: 0.1,
         flatShading: false,
         side: THREE.DoubleSide
       });
     } else {
+      // Simple material for low quality
       innerMaterial = new THREE.MeshLambertMaterial({
         color: 0xf8f8f8,
-        flatShading: this.quality === 'low',
+        flatShading: true,
         side: THREE.DoubleSide
       });
     }
@@ -218,20 +245,32 @@ export class Clam extends Obstacle {
       let pearlMaterial: THREE.Material;
       
       if (this.quality === 'high') {
+        // Enhanced pearl material with more realistic appearance
         pearlMaterial = new THREE.MeshPhysicalMaterial({
           color: 0xffffff,
-          roughness: 0.1,
-          metalness: 0.2,
+          roughness: 0.05, // Smoother surface
+          metalness: 0.3,
           clearcoat: 1.0,
-          clearcoatRoughness: 0.2,
-          iridescence: 0.3,
-          iridescenceIOR: 1.5,
-          ior: 2.0
+          clearcoatRoughness: 0.1, // Sharper reflections
+          iridescence: 0.5, // Stronger iridescence
+          iridescenceIOR: 1.8,
+          ior: 2.5, // Higher index of refraction
+          transmission: 0.1, // Slight transparency
+          thickness: 0.5 // Subsurface scattering effect
         });
-      } else {
+      } else if (this.quality === 'medium') {
+        // Medium quality with improved appearance
         pearlMaterial = new THREE.MeshStandardMaterial({
           color: 0xffffff,
           roughness: 0.1,
+          metalness: 0.4,
+          envMapIntensity: 1.2 // Stronger environment reflections
+        });
+      } else {
+        // Simple material for low quality
+        pearlMaterial = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.2,
           metalness: 0.3
         });
       }
@@ -248,13 +287,38 @@ export class Clam extends Obstacle {
       const pearl = new THREE.Mesh(pearlGeometry, pearlMaterial);
       pearlGroup.add(pearl);
       
-      // Add subtle glow effect for high quality
+      // Add enhanced pearl glow effects for high quality
       if (this.quality === 'high') {
-        const glowGeometry = new THREE.SphereGeometry(0.35, 16, 16);
+        // Inner glow layer (smaller)
+        const innerGlowGeometry = new THREE.SphereGeometry(0.32, 16, 16);
+        const innerGlowMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.4,
+          blending: THREE.AdditiveBlending
+        });
+        const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+        pearlGroup.add(innerGlow);
+        
+        // Outer glow layer (larger)
+        const outerGlowGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+        const outerGlowMaterial = new THREE.MeshBasicMaterial({
+          color: 0xf0f0ff, // Slightly blue tint
+          transparent: true,
+          opacity: 0.2,
+          side: THREE.BackSide,
+          blending: THREE.AdditiveBlending
+        });
+        const outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
+        pearlGroup.add(outerGlow);
+      } 
+      // Add simpler glow for medium quality
+      else if (this.quality === 'medium') {
+        const glowGeometry = new THREE.SphereGeometry(0.35, 12, 12);
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: 0xffffff,
           transparent: true,
-          opacity: 0.2,
+          opacity: 0.25,
           side: THREE.BackSide
         });
         
@@ -704,10 +768,43 @@ export class Clam extends Obstacle {
     
     // Update pearl glow if present
     if (this.pearl && this.quality === 'high') {
-      // Make pearl glow stronger when open
-      const glowOpacity = this.isOpen ? 0.4 : 0.2;
+      // Enhanced glow when open with animation
+      const baseOpacity = this.isOpen ? 0.5 : 0.2;
+      const pulseAmount = Math.sin(this.currentPhase * 2) * 0.1 + 0.1; // Subtle pulsing
       
-      // Apply to glow material if it exists
+      // We have multiple glow layers now
+      if (this.pearl.children.length > 2) {
+        // Inner glow (stronger, pulsing)
+        const innerGlowMesh = this.pearl.children[1];
+        if (innerGlowMesh instanceof THREE.Mesh && 
+            innerGlowMesh.material instanceof THREE.MeshBasicMaterial) {
+          innerGlowMesh.material.opacity = baseOpacity + pulseAmount;
+        }
+        
+        // Outer glow (subtler)
+        const outerGlowMesh = this.pearl.children[2];
+        if (outerGlowMesh instanceof THREE.Mesh && 
+            outerGlowMesh.material instanceof THREE.MeshBasicMaterial) {
+          outerGlowMesh.material.opacity = (baseOpacity + pulseAmount) * 0.5;
+          
+          // Animate scale slightly for shimmer effect
+          const scale = 1.0 + pulseAmount * 0.2;
+          outerGlowMesh.scale.set(scale, scale, scale);
+        }
+      }
+      // Fallback for single glow layer
+      else if (this.pearl.children.length > 1) {
+        const glowMesh = this.pearl.children[1];
+        if (glowMesh instanceof THREE.Mesh && 
+            glowMesh.material instanceof THREE.MeshBasicMaterial) {
+          glowMesh.material.opacity = baseOpacity + pulseAmount;
+        }
+      }
+    }
+    // Medium quality has simple glow
+    else if (this.pearl && this.quality === 'medium') {
+      const glowOpacity = this.isOpen ? 0.3 : 0.15;
+      
       if (this.pearl.children.length > 1) {
         const glowMesh = this.pearl.children[1];
         if (glowMesh instanceof THREE.Mesh && 
@@ -916,13 +1013,38 @@ export class Clam extends Obstacle {
       const pearl = new THREE.Mesh(pearlGeometry, pearlMaterial);
       pearlGroup.add(pearl);
       
-      // Add subtle glow effect for high quality
+      // Add enhanced pearl glow effects for high quality
       if (this.quality === 'high') {
-        const glowGeometry = new THREE.SphereGeometry(0.35, 16, 16);
+        // Inner glow layer (smaller)
+        const innerGlowGeometry = new THREE.SphereGeometry(0.32, 16, 16);
+        const innerGlowMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.4,
+          blending: THREE.AdditiveBlending
+        });
+        const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+        pearlGroup.add(innerGlow);
+        
+        // Outer glow layer (larger)
+        const outerGlowGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+        const outerGlowMaterial = new THREE.MeshBasicMaterial({
+          color: 0xf0f0ff, // Slightly blue tint
+          transparent: true,
+          opacity: 0.2,
+          side: THREE.BackSide,
+          blending: THREE.AdditiveBlending
+        });
+        const outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
+        pearlGroup.add(outerGlow);
+      } 
+      // Add simpler glow for medium quality
+      else if (this.quality === 'medium') {
+        const glowGeometry = new THREE.SphereGeometry(0.35, 12, 12);
         const glowMaterial = new THREE.MeshBasicMaterial({
           color: 0xffffff,
           transparent: true,
-          opacity: 0.2,
+          opacity: 0.25,
           side: THREE.BackSide
         });
         

@@ -1,26 +1,7 @@
 import * as THREE from 'three';
-// Stub for GLTFLoader and DRACOLoader 
-// These would normally be imported from 'three/examples/jsm/loaders/GLTFLoader' and 'three/examples/jsm/loaders/DRACOLoader'
-// but we're using stub classes for now to fix typing issues
-class GLTFLoader {
-  load(url: string, onLoad: (gltf: any) => void, onProgress?: (event: ProgressEvent) => void, onError?: (event: ErrorEvent) => void) {
-    // Stub implementation
-    console.warn('GLTFLoader is stubbed and not functional');
-    if (onError) onError(new ErrorEvent('error', { message: 'GLTFLoader is stubbed' }));
-  }
-  
-  setDRACOLoader(loader: DRACOLoader) {
-    // Stub implementation
-    return this;
-  }
-}
-
-class DRACOLoader {
-  setDecoderPath(path: string) {
-    // Stub implementation
-    return this;
-  }
-}
+// Import proper loaders instead of stubs
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
 type GLTF = {
   scene: THREE.Group;
@@ -217,15 +198,60 @@ export class AssetManager {
    * @param id Asset identifier
    * @returns The loaded asset or null if not found/loaded
    */
+  /**
+   * Get a loaded asset by ID with improved error handling
+   * @param id Asset identifier
+   * @returns The loaded asset or null if not found/loaded
+   */
   public getAsset<T = any>(id: string): T | null {
     const assetInfo = this.assets.get(id);
     
+    // Define a list of known decoration types that are expected to be missing
+    // and therefore don't need logging - this reduces console spam
+    const knownMissingDecorations = [
+      'decoration_shipPart', 'decoration_treasure', 'decoration_anchor', 
+      'decoration_shipHull', 'decoration_barrel', 'decoration_floatingDebris',
+      'decoration_bioluminescentCoral', 'decoration_deepsea_vent', 
+      'decoration_crystalFormation', 'decoration_glowingPlant'
+    ];
+    
     if (!assetInfo || !assetInfo.loaded) {
-      console.warn(`Asset ${id} not found or not loaded.`);
+      const isKnownMissingDecoration = knownMissingDecorations.includes(id);
+      
+      // Categorize the asset to determine logging behavior
+      const isDecoration = id.startsWith('decoration_');
+      const isRegistered = this.assets.has(id);
+      
+      // Only log warnings for important assets, not for decorations or known missing items
+      if (!isRegistered && !isDecoration && !isKnownMissingDecoration) {
+        // For critical non-decoration assets, show a warning
+        console.warn(`Asset ${id} not found or not registered.`);
+      } else if (!isRegistered && !isKnownMissingDecoration) {
+        // For unknown decorations that aren't in our known-missing list, just log (not warn)
+        console.log(`Using placeholder for ${id}`);
+      }
+      // For known missing decorations, don't log at all
+      
       return null;
     }
     
-    return assetInfo.asset as T;
+    // For loaded assets, perform a quick validation before returning
+    // This helps catch corrupted or partially loaded assets
+    try {
+      if (typeof assetInfo.asset === 'object' && assetInfo.asset !== null) {
+        // Basic existence check passed, do extra validation for models
+        if (assetInfo.type === 'model' && 
+            (!assetInfo.asset.scene || typeof assetInfo.asset.scene !== 'object')) {
+          console.warn(`Asset ${id} is loaded but has invalid scene structure`);
+          return null;
+        }
+      }
+      
+      return assetInfo.asset as T;
+    } catch (error) {
+      console.warn(`Error validating asset ${id}:`, error);
+      return null;
+    }
   }
   
   /**
@@ -236,6 +262,23 @@ export class AssetManager {
   public isAssetLoaded(id: string): boolean {
     const assetInfo = this.assets.get(id);
     return assetInfo ? assetInfo.loaded : false;
+  }
+  
+  /**
+   * Set assets to be ignored by the loading system
+   * Used for assets that will be procedurally generated instead of loaded
+   * @param assetIds Array of asset IDs to ignore
+   */
+  public setIgnoreAssets(assetIds: string[]): void {
+    for (const id of assetIds) {
+      const assetInfo = this.assets.get(id);
+      if (assetInfo) {
+        // Mark as already loaded
+        assetInfo.loaded = true;
+        assetInfo.asset = null; // Will be generated procedurally
+        console.log(`Asset ${id} marked as procedurally generated`);
+      }
+    }
   }
   
   /**
@@ -259,27 +302,63 @@ export class AssetManager {
    */
   private loadTexture(path: string): Promise<THREE.Texture> {
     return new Promise((resolve, reject) => {
-      this.textureLoader.load(
-        path,
-        texture => {
-          // Configure texture based on type and device capabilities
-          texture.wrapS = THREE.RepeatWrapping;
-          texture.wrapT = THREE.RepeatWrapping;
-          
-          // Apply anisotropic filtering on higher-end devices
-          if (this.deviceCapabilities.highEnd || this.deviceCapabilities.midRange) {
-            const renderer = new THREE.WebGLRenderer(); // Just to access capabilities
-            const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
-            renderer.dispose();
+      try {
+        this.textureLoader.load(
+          path,
+          texture => {
+            // Configure texture based on type and device capabilities
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
             
-            texture.anisotropy = maxAnisotropy;
+            // Apply anisotropic filtering on higher-end devices
+            if (this.deviceCapabilities.highEnd || this.deviceCapabilities.midRange) {
+              const renderer = new THREE.WebGLRenderer(); // Just to access capabilities
+              const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+              renderer.dispose();
+              
+              texture.anisotropy = maxAnisotropy;
+            }
+            
+            resolve(texture);
+          },
+          undefined, // onProgress is not used
+          error => {
+            console.warn(`Failed to load texture ${path}, using placeholder:`, error);
+            // Create a fallback texture
+            const canvas = document.createElement('canvas');
+            canvas.width = 4;
+            canvas.height = 4;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.fillStyle = 'magenta';
+              ctx.fillRect(0, 0, 2, 2);
+              ctx.fillRect(2, 2, 2, 2);
+              ctx.fillStyle = 'black';
+              ctx.fillRect(2, 0, 2, 2);
+              ctx.fillRect(0, 2, 2, 2);
+            }
+            const placeholderTexture = new THREE.CanvasTexture(canvas);
+            placeholderTexture.wrapS = THREE.RepeatWrapping;
+            placeholderTexture.wrapT = THREE.RepeatWrapping;
+            resolve(placeholderTexture);
           }
-          
-          resolve(texture);
-        },
-        undefined, // onProgress is not used
-        error => reject(error)
-      );
+        );
+      } catch (error) {
+        console.warn(`Error in texture loader setup for ${path}:`, error);
+        // Create a fallback texture
+        const canvas = document.createElement('canvas');
+        canvas.width = 4;
+        canvas.height = 4;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = 'magenta';
+          ctx.fillRect(0, 0, 4, 4);
+        }
+        const placeholderTexture = new THREE.CanvasTexture(canvas);
+        placeholderTexture.wrapS = THREE.RepeatWrapping;
+        placeholderTexture.wrapT = THREE.RepeatWrapping;
+        resolve(placeholderTexture);
+      }
     });
   }
   
@@ -290,12 +369,54 @@ export class AssetManager {
    */
   private loadModel(path: string): Promise<GLTF> {
     return new Promise((resolve, reject) => {
-      this.gltfLoader.load(
-        path,
-        gltf => resolve(gltf),
-        undefined, // onProgress is not used
-        error => reject(error)
-      );
+      try {
+        this.gltfLoader.load(
+          path,
+          gltf => resolve(gltf),
+          undefined, // onProgress is not used
+          error => {
+            console.warn(`Failed to load model ${path}, using placeholder:`, error);
+            
+            // Create a placeholder model
+            const placeholderGroup = new THREE.Group();
+            const placeholderGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const placeholderMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
+            const placeholderMesh = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
+            placeholderGroup.add(placeholderMesh);
+            
+            // Match the GLTF interface structure
+            const placeholderGLTF: GLTF = {
+              scene: placeholderGroup,
+              scenes: [placeholderGroup],
+              animations: [],
+              cameras: [],
+              asset: {}
+            };
+            
+            resolve(placeholderGLTF);
+          }
+        );
+      } catch (error) {
+        console.warn(`Error in model loader setup for ${path}:`, error);
+        
+        // Create a placeholder model
+        const placeholderGroup = new THREE.Group();
+        const placeholderGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const placeholderMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
+        const placeholderMesh = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
+        placeholderGroup.add(placeholderMesh);
+        
+        // Match the GLTF interface structure
+        const placeholderGLTF: GLTF = {
+          scene: placeholderGroup,
+          scenes: [placeholderGroup],
+          animations: [],
+          cameras: [],
+          asset: {}
+        };
+        
+        resolve(placeholderGLTF);
+      }
     });
   }
   
@@ -306,12 +427,38 @@ export class AssetManager {
    */
   private loadAudio(path: string): Promise<AudioBuffer> {
     return new Promise((resolve, reject) => {
-      this.audioLoader.load(
-        path,
-        buffer => resolve(buffer),
-        undefined, // onProgress is not used
-        error => reject(error)
-      );
+      try {
+        this.audioLoader.load(
+          path,
+          buffer => resolve(buffer),
+          undefined, // onProgress is not used
+          error => {
+            console.warn(`Failed to load audio ${path}, creating silent buffer:`, error);
+            
+            // Create a silent audio buffer (0.1 second of silence)
+            try {
+              const sampleRate = 44100;
+              const emptyBuffer = new AudioContext().createBuffer(2, Math.floor(sampleRate * 0.1), sampleRate);
+              resolve(emptyBuffer);
+            } catch (bufferError) {
+              console.error('Failed to create empty audio buffer:', bufferError);
+              reject(error);
+            }
+          }
+        );
+      } catch (error) {
+        console.warn(`Error in audio loader setup for ${path}:`, error);
+        
+        try {
+          // Create a silent audio buffer (0.1 second of silence)
+          const sampleRate = 44100;
+          const emptyBuffer = new AudioContext().createBuffer(2, Math.floor(sampleRate * 0.1), sampleRate);
+          resolve(emptyBuffer);
+        } catch (bufferError) {
+          console.error('Failed to create empty audio buffer:', bufferError);
+          reject(error);
+        }
+      }
     });
   }
   
@@ -327,6 +474,16 @@ export class AssetManager {
           throw new Error(`Failed to load shader: ${response.statusText}`);
         }
         return response.text();
+      })
+      .catch(error => {
+        console.warn(`Failed to load shader ${path}, using placeholder:`, error);
+        
+        // Return basic placeholder shader that renders magenta color
+        return `
+          void main() {
+            gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0); // Magenta for error
+          }
+        `;
       });
   }
   
@@ -336,26 +493,32 @@ export class AssetManager {
   public dispose(): void {
     // Clear asset cache
     this.assets.forEach(assetInfo => {
-      if (assetInfo.loaded) {
-        if (assetInfo.type === 'texture' && assetInfo.asset instanceof THREE.Texture) {
-          assetInfo.asset.dispose();
-        } else if (assetInfo.type === 'model' && assetInfo.asset.scene) {
-          // Clean up scene from GLTF
-          assetInfo.asset.scene.traverse((object: any) => {
-            if (object instanceof THREE.Mesh) {
-              if (object.geometry) {
-                object.geometry.dispose();
-              }
-              
-              if (object.material) {
-                if (Array.isArray(object.material)) {
-                  object.material.forEach((material: THREE.Material) => material.dispose());
-                } else {
-                  object.material.dispose();
+      if (assetInfo.loaded && assetInfo.asset) {
+        try {
+          if (assetInfo.type === 'texture' && assetInfo.asset instanceof THREE.Texture) {
+            assetInfo.asset.dispose();
+          } else if (assetInfo.type === 'model' && assetInfo.asset && assetInfo.asset.scene) {
+            // Clean up scene from GLTF
+            assetInfo.asset.scene.traverse((object: any) => {
+              if (object instanceof THREE.Mesh) {
+                if (object.geometry) {
+                  object.geometry.dispose();
+                }
+                
+                if (object.material) {
+                  if (Array.isArray(object.material)) {
+                    object.material.forEach((material: THREE.Material) => {
+                      if (material) material.dispose();
+                    });
+                  } else {
+                    object.material.dispose();
+                  }
                 }
               }
-            }
-          });
+            });
+          }
+        } catch (error) {
+          console.warn(`Error disposing asset ${assetInfo.id}:`, error);
         }
       }
     });
