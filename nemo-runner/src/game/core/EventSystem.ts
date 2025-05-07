@@ -26,6 +26,17 @@ const eventBus = {
     this.listeners[event].push(callback);
   },
   
+  // Add once method to listen for an event only once
+  once(event: string, callback: Function) {
+    const onceWrapper = (data?: any) => {
+      // Remove this listener first, then call the callback
+      this.off(event, onceWrapper);
+      callback(data);
+    };
+    
+    this.on(event, onceWrapper);
+  },
+  
   off(event: string, callback?: Function) {
     if (!this.listeners[event]) return;
     

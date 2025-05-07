@@ -36,11 +36,16 @@ We have successfully implemented several key components of the NEMO Runner game 
    - Added event-based collection handling and power-up duration management
    - Integrated magnet effect for attracting nearby collectibles
 
-6. **Environment System (In Progress)**:
+6. **Environment System**:
    - Designed segment-based procedural environment architecture
-   - Started implementation of environment theme handling (coral reef, open ocean, deep sea)
-   - Planned ambient element generation for underwater atmosphere
-   - Added framework for environment transitions based on player progress
+   - Implemented environment theme handling (coral reef, open ocean, deep sea)
+   - Added ambient element generation for underwater atmosphere
+   - Created framework for environment transitions based on player progress
+
+7. **Redundancy Optimization**:
+   - Implemented ShaderLibrary system to reduce shader code duplication and improve maintainability
+   - Created GameStartController to centralize and simplify game start logic
+   - Standardized noise functions to eliminate duplicated procedural generation code
 
 ## Technical Decisions
 
@@ -94,6 +99,16 @@ We have successfully implemented several key components of the NEMO Runner game 
 - **Rationale**: Allows for infinite level generation with controlled memory usage
 - **Benefit**: Creates seamless environment with minimal performance impact
 
+### 11. Shader Library Implementation
+- **Decision**: Created a centralized shader function library
+- **Rationale**: Reduces duplication in shader code and ensures consistency across visual effects
+- **Benefit**: Improves maintainability and allows for easier shader optimization
+
+### 12. Centralized Game Start Controller
+- **Decision**: Implemented a dedicated controller for game start sequence
+- **Rationale**: Eliminates redundant and complex game start logic scattered across components
+- **Benefit**: Creates a more reliable and maintainable game start sequence
+
 ## Status Tracking
 
 ### Completed Items
@@ -106,11 +121,14 @@ We have successfully implemented several key components of the NEMO Runner game 
 - ✓ Obstacle management with object pooling
 - ✓ Asset management system
 - ✓ Collectible management for bubbles and power-ups
+- ✓ ShaderLibrary for consistent visual effects
+- ✓ GameStartController for simplified game start
 
 ### In Progress Items
 - ⏳ Procedural environment generation (85%)
 - ⏳ Game state management (15%)
 - ⏳ UI Component design (15%)
+- ⏳ AudioManager integration with AssetManager (50%)
 
 ### Remaining Work
 - Game UI components and HUD
@@ -154,6 +172,11 @@ We have successfully implemented several key components of the NEMO Runner game 
    - May need more sophisticated transitions between themes
    - Impact: High - critical for game experience and performance
 
+7. **Audio Integration**
+   - AudioManager needs better integration with AssetManager
+   - Proper audio asset loading mechanism needs to be completed
+   - Impact: Medium - functional with fallbacks but needs improvement for production
+
 ## Next Steps
 
 ### Immediate Priorities (1-2 weeks)
@@ -174,6 +197,12 @@ We have successfully implemented several key components of the NEMO Runner game 
    - Create menu screens (start, pause, game over)
    - Implement visual feedback for game events
    - Ensure responsive design for different screen sizes
+
+4. **Complete AudioManager Integration**
+   - Fix asset loading mechanism for audio files
+   - Properly initialize audioLoader variable
+   - Ensure direct connection with AssetManager
+   - Implement proper fallback for missing audio files
 
 ### Secondary Priorities (3-4 weeks)
 1. **System Integration**
@@ -263,24 +292,36 @@ Based on the review of the example/ directory and the current implementation sta
 
 ## Redundancy Analysis
 
-The following areas could be optimized to reduce redundancy:
+The following areas have been optimized to reduce redundancy:
 
-1. **Pattern Generation**
-   - There is some duplication between obstacle and collectible pattern generation
+1. ✅ **Shader Code**
+   - Created ShaderLibrary in `src/game/utils/ShaderLibrary.ts` to centralize shader functions
+   - Implemented shared chunks for fresnel effects, noise, lighting, animations, water effects, and more
+   - Added a processing system for shader inclusion directives (#include <chunk_name>)
+   - Impact: Improved maintainability and consistency across visual effects
+
+2. ✅ **Game Start Logic**
+   - Implemented GameStartController to centralize and simplify game start logic
+   - Created a clean, sequential countdown process with proper state transitions
+   - Eliminated redundant triggers and failsafes previously scattered across components
+   - Impact: More reliable game start sequence with clearer code organization
+
+3. ⚠️ **Audio System Integration**
+   - Identified issues with AudioManager's integration with AssetManager
+   - Created plan to fix audioLoader initialization and asset handling
+   - Impact: Will improve audio asset management when completed
+
+4. **Pattern Generation**
+   - There is still some duplication between obstacle and collectible pattern generation
    - Recommendation: Create a shared pattern generation utility that both systems can use
    - Impact: Medium - Would simplify code and improve maintainability
 
-2. **Shader Code**
-   - Similar shader effects between bubbles and power-ups have some duplication
-   - Recommendation: Create a shader library with shared core effects
-   - Impact: Low - Minor code cleanup, potential performance benefit
-
-3. **Testing Infrastructure**
+5. **Testing Infrastructure**
    - Currently no formal testing framework in place
    - Recommendation: Implement automated testing for core systems
    - Impact: High - Would improve reliability and development speed
 
-4. **Debug Visualization**
+6. **Debug Visualization**
    - Debug visualization is scattered across different components
    - Recommendation: Create a centralized debug visualization system
    - Impact: Low - Developer quality-of-life improvement
@@ -343,6 +384,18 @@ For optimized 3D asset implementation, we've identified these approaches:
    - Theme transitions are handled with crossfading between environment settings
    - Environment complexity dynamically adjusts based on device capabilities
 
+6. **ShaderLibrary Usage**
+   - Use the `createShaderWithLibrary` helper to process shader includes
+   - Add new shader functions via `ShaderLibrary.registerChunk(name, code)`
+   - Use `#include <chunk_name>` syntax in shader code to include library functions
+   - Reuse common functions across different visual effects for consistency
+
+7. **GameStartController Integration**
+   - Listen for the 'game-start-movement' event to trigger character movement
+   - The controller handles countdown sequence and state transitions
+   - Skip remaining countdown with `gameStartController.skipCountdown()`
+   - For testing, use `gameStartController.immediateStart()` to bypass countdown
+
 ### Implementation Checkpoints
 
 #### Checkpoint 1: Core Engine (Completed)
@@ -364,7 +417,7 @@ For optimized 3D asset implementation, we've identified these approaches:
 - Power-up mechanics
 
 #### Checkpoint 4: Environment and Game Flow (In Progress)
-- Environment generation system (25% complete)
+- Environment generation system (85% complete)
 - Game state management (15% complete)
 - UI component design (15% complete)
 - System integration

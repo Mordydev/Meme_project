@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { Obstacle, ObstacleConfig } from './Obstacle';
-import { detectDeviceCapabilities } from '../../utils/DeviceUtils';
+import { getDeviceCapabilities } from '../../utils/DeviceUtils';
 import eventBus from '../../core/EventSystem';
+import { ShaderLibrary, createShaderWithLibrary } from '../../utils/ShaderLibrary';
+import { ObstacleUtils } from './ObstacleUtils';
 
 /**
  * Configuration for shark obstacles
@@ -60,9 +62,8 @@ export class Shark extends Obstacle {
   private waveFrequency: number = 2.0;
   private waveAmplitude: number = 0.1;
   
-  // Visual quality tracking
-  private deviceCapabilities = detectDeviceCapabilities();
-  // quality is declared in parent class as protected
+  // Quality level for device capability
+  private qualityLevel: number = 1; // Default to medium quality
   
   // Body parts references for animation
   private bodyMesh: THREE.Object3D | null = null;
@@ -81,31 +82,52 @@ export class Shark extends Obstacle {
     this.quality = qualityLevel;
     this.obstacleType = 'shark';
     
-    // Create the shark mesh
-    this.mesh = this.createSharkMesh();
-    
-    // Set up animation mixer
-    this.mixer = new THREE.AnimationMixer(this.mesh);
-    
-    // Identify body parts for animation
-    this.identifyBodyParts();
-    
-    // Set up animations
-    this.setupAnimations();
+    try {
+      // Create the shark mesh
+      this.mesh = this.createSharkMesh();
+      
+      // Set up animation mixer
+      this.mixer = new THREE.AnimationMixer(this.mesh);
+      
+      // Identify body parts for animation
+      this.identifyBodyParts();
+      
+      // Set up animations
+      this.setupAnimations();
+      
+      // Add shadow casting
+      this.mesh.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.castShadow = true;
+          object.receiveShadow = false;
+        }
+      });
+    } catch (error) {
+      // Handle mesh creation failure with a visible placeholder
+      console.error('Error creating shark mesh:', error);
+      
+      try {
+        // Try to use the PlaceholderGenerator if available
+        const { PlaceholderGenerator } = require('../../utils/PlaceholderGenerator');
+        this.mesh = PlaceholderGenerator.createEntityPlaceholder('shark');
+        
+        // Create a minimal mixer for the placeholder
+        this.mixer = new THREE.AnimationMixer(this.mesh);
+      } catch (placeholderError) {
+        // Use ObstacleUtils error placeholder
+        console.error('Error creating shark placeholder:', placeholderError);
+        this.mesh = ObstacleUtils.createErrorPlaceholder('shark');
+        
+        // Create a minimal mixer for the fallback
+        this.mixer = new THREE.AnimationMixer(this.mesh);
+      }
+    }
     
     // Create collider - elongated box for the shark's body
     this.collider = new THREE.Box3(
       new THREE.Vector3(-0.8, -0.6, -3.5),
       new THREE.Vector3(0.8, 0.6, 3.5)
     );
-    
-    // Add shadow casting
-    this.mesh.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        object.castShadow = true;
-        object.receiveShadow = false;
-      }
-    });
   }
   
   /**
@@ -155,9 +177,12 @@ export class Shark extends Obstacle {
     const sharkGroup = new THREE.Group();
     sharkGroup.name = 'shark';
     
-    // Determine detail level based on quality
-    const segmentDetail = this.quality === 'high' ? 16 : 
-                          this.quality === 'medium' ? 12 : 8;
+    // Get LOD level based on device capability
+    const lodLevel = ObstacleUtils.getLODLevel(this.qualityLevel);
+    
+    // Determine detail level based on LOD
+    const segmentDetail = lodLevel === 0 ? 16 : 
+                          lodLevel === 1 ? 12 : 8;
     
     // Create body
     const bodyGroup = new THREE.Group();
@@ -171,31 +196,46 @@ export class Shark extends Obstacle {
       segmentDetail  // height segments
     );
     
-    // Materials - more detailed for higher quality
+    // Use ObstacleUtils to optimize geometry based on quality level
+    const optimizedBodyGeometry = ObstacleUtils.optimizeGeometry(bodyGeometry, this.qualityLevel);
+    
+    // Materials - use materials caching from ObstacleUtils
     let bodyMaterial: THREE.Material;
     
-    if (this.quality === 'high') {
+    if (lodLevel === 0) {
       // For high quality, use shader-based material for undulation and countershading
       bodyMaterial = this.createSharkShaderMaterial();
-    } else if (this.quality === 'medium') {
-      // For medium quality, use standard material with better properties
-      bodyMaterial = new THREE.MeshStandardMaterial({
-        color: 0x505a64, // Shark grey
-        roughness: 0.8,
-        metalness: 0.1,
-        envMapIntensity: 0.4,
-        flatShading: false
-      });
     } else {
-      // Simpler material for low quality
-      bodyMaterial = new THREE.MeshLambertMaterial({
-        color: 0x505a64,
-        flatShading: true
+      // For medium and low quality, use cached materials
+      const materialKey = `shark_body_${lodLevel}`;
+      
+      bodyMaterial = ObstacleUtils.getMaterial(materialKey, () => {
+        if (lodLevel === 1) {
+          // Medium quality
+          return ObstacleUtils.createStandardMaterial(
+            '#505a64', // Shark grey
+            {
+              roughness: 0.8,
+              metalness: 0.1
+            },
+            this.qualityLevel
+          );
+        } else {
+          // Low quality
+          return ObstacleUtils.createStandardMaterial(
+            '#505a64',
+            {
+              roughness: 0.9,
+              metalness: 0.0
+            },
+            this.qualityLevel
+          );
+        }
       });
     }
     
     // Create the body mesh
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    const body = new THREE.Mesh(optimizedBodyGeometry, bodyMaterial);
     body.rotation.z = Math.PI / 2; // Align horizontally
     body.name = 'body_mesh';
     bodyGroup.add(body);
@@ -204,16 +244,15 @@ export class Shark extends Obstacle {
     const headGroup = new THREE.Group();
     headGroup.name = 'head';
     
-    // Add eyes
-    const eyeGeometry = new THREE.SphereGeometry(0.12, 8, 8);
-    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    // Add eyes - use shared geometries and materials
+    const eyeGeometryKey = `eye_geometry_${lodLevel}`;
+    const eyeGeometry = ObstacleUtils.getGeometry(eyeGeometryKey, () => {
+      return new THREE.SphereGeometry(0.12, 8, 8);
+    });
     
-    // Create eye highlights if high quality
-    const highlightGeometry = new THREE.SphereGeometry(0.04, 6, 6);
-    const highlightMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.7
+    const eyeMaterialKey = 'eye_material';
+    const eyeMaterial = ObstacleUtils.getMaterial(eyeMaterialKey, () => {
+      return new THREE.MeshBasicMaterial({ color: 0x000000 });
     });
     
     // Left eye
@@ -224,8 +263,22 @@ export class Shark extends Obstacle {
     const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
     rightEye.position.set(-0.5, 0.4, -1.6);
     
-    // Add eye highlights for better visual quality
-    if (this.quality !== 'low') {
+    // Add eye highlights for better visual quality in medium/high
+    if (lodLevel < 2) {
+      const highlightGeometryKey = `highlight_geometry_${lodLevel}`;
+      const highlightGeometry = ObstacleUtils.getGeometry(highlightGeometryKey, () => {
+        return new THREE.SphereGeometry(0.04, 6, 6);
+      });
+      
+      const highlightMaterialKey = 'highlight_material';
+      const highlightMaterial = ObstacleUtils.getMaterial(highlightMaterialKey, () => {
+        return new THREE.MeshBasicMaterial({ 
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.7
+        });
+      });
+      
       const leftHighlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
       leftHighlight.position.set(0.53, 0.43, -1.65);
       
@@ -243,21 +296,39 @@ export class Shark extends Obstacle {
     const jawGroup = new THREE.Group();
     jawGroup.name = 'jaw';
     
-    const jawGeometry = new THREE.BoxGeometry(0.9, 0.3, 1.0);
-    const jawMaterial = new THREE.MeshStandardMaterial({
-      color: 0x505a64,
-      roughness: 0.8,
-      metalness: 0.1
+    const jawGeometryKey = `jaw_geometry_${lodLevel}`;
+    const jawGeometry = ObstacleUtils.getGeometry(jawGeometryKey, () => {
+      return new THREE.BoxGeometry(0.9, 0.3, 1.0);
+    });
+    
+    const jawMaterialKey = 'jaw_material';
+    const jawMaterial = ObstacleUtils.getMaterial(jawMaterialKey, () => {
+      return ObstacleUtils.createStandardMaterial(
+        '#505a64',
+        {
+          roughness: 0.8,
+          metalness: 0.1
+        },
+        this.qualityLevel
+      );
     });
     
     const jaw = new THREE.Mesh(jawGeometry, jawMaterial);
     jaw.position.set(0, -0.3, -1.8);
     
     // Add teeth for high and medium quality
-    if (this.quality !== 'low') {
-      const teethCount = this.quality === 'high' ? 8 : 6;
-      const teethGeometry = new THREE.ConeGeometry(0.05, 0.1, 3);
-      const teethMaterial = new THREE.MeshBasicMaterial({ color: 0xf0f0f0 });
+    if (lodLevel < 2) {
+      const teethCount = lodLevel === 0 ? 8 : 6;
+      
+      const teethGeometryKey = `teeth_geometry_${lodLevel}`;
+      const teethGeometry = ObstacleUtils.getGeometry(teethGeometryKey, () => {
+        return new THREE.ConeGeometry(0.05, 0.1, 3);
+      });
+      
+      const teethMaterialKey = 'teeth_material';
+      const teethMaterial = ObstacleUtils.getMaterial(teethMaterialKey, () => {
+        return new THREE.MeshBasicMaterial({ color: 0xf0f0f0 });
+      });
       
       for (let i = 0; i < teethCount; i++) {
         const tooth = new THREE.Mesh(teethGeometry, teethMaterial);
@@ -282,27 +353,34 @@ export class Shark extends Obstacle {
     const tailGroup = new THREE.Group();
     tailGroup.name = 'tail';
     
-    const tailGeometry = new THREE.BoxGeometry(0.1, 1.2, 1.5);
-    tailGeometry.translate(0, 0, 1.0); // Offset for better pivot point
+    const tailGeometryKey = `tail_geometry_${lodLevel}`;
+    const tailGeometry = ObstacleUtils.getGeometry(tailGeometryKey, () => {
+      const geom = new THREE.BoxGeometry(0.1, 1.2, 1.5);
+      geom.translate(0, 0, 1.0); // Offset for better pivot point
+      return geom;
+    });
     
     const tail = new THREE.Mesh(tailGeometry, bodyMaterial);
     tail.position.set(0, 0, 2.0); // Position at back of shark
     
-    // Create tail fins
-    const tailFinGeometry = new THREE.BufferGeometry();
-    
-    // Create a triangular shape for the tail fin
-    const vertices = new Float32Array([
-      0.0, 0.0, 0.0,    // center point
-      0.0, 1.0, -0.5,   // top tip
-      0.0, -1.0, -0.5   // bottom tip
-    ]);
-    
-    const indices = [0, 1, 2];
-    
-    tailFinGeometry.setIndex(indices);
-    tailFinGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    tailFinGeometry.computeVertexNormals();
+    // Create tail fins - simplified for lower quality levels
+    const tailFinGeometryKey = `tail_fin_geometry_${lodLevel}`;
+    const tailFinGeometry = ObstacleUtils.getGeometry(tailFinGeometryKey, () => {
+      // Create a triangular shape for the tail fin
+      const geom = new THREE.BufferGeometry();
+      const vertices = new Float32Array([
+        0.0, 0.0, 0.0,    // center point
+        0.0, 1.0, -0.5,   // top tip
+        0.0, -1.0, -0.5   // bottom tip
+      ]);
+      
+      const indices = [0, 1, 2];
+      
+      geom.setIndex(indices);
+      geom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geom.computeVertexNormals();
+      return geom;
+    }) as THREE.BufferGeometry;
     
     const tailFin = new THREE.Mesh(tailFinGeometry, bodyMaterial);
     tailFin.position.set(0, 0, 2.5);
@@ -325,11 +403,12 @@ export class Shark extends Obstacle {
     dorsalFinGroup.add(dorsalFin);
     bodyGroup.add(dorsalFinGroup);
     
-    // Side fins
+    // Side fins - reuse geometry for both fins
+    const sideFinGeometry = this.createFinGeometry(0.8, 0.4);
+    
+    // Left fin
     const leftFinGroup = new THREE.Group();
     leftFinGroup.name = 'left_fin';
-    
-    const sideFinGeometry = this.createFinGeometry(0.8, 0.4);
     
     const leftFin = new THREE.Mesh(sideFinGeometry, bodyMaterial);
     leftFin.rotation.order = 'YXZ';
@@ -340,6 +419,7 @@ export class Shark extends Obstacle {
     leftFinGroup.add(leftFin);
     bodyGroup.add(leftFinGroup);
     
+    // Right fin - reuse the same geometry
     const rightFinGroup = new THREE.Group();
     rightFinGroup.name = 'right_fin';
     
@@ -700,8 +780,12 @@ export class Shark extends Obstacle {
   private createSharkShaderMaterial(): THREE.ShaderMaterial {
     // Vertex shader for body undulation
     const vertexShader = `
+      #include <animation>
+      #include <transition>
+      
       varying vec3 vNormal;
       varying vec3 vWorldPosition;
+      varying vec3 vViewPosition;
       varying float vCountershadeFactor; // For countershading effect
       varying float vBodyZ; // Normalized position along body length
       
@@ -720,7 +804,9 @@ export class Shark extends Obstacle {
         
         // Apply undulation wave along the body - stronger at the tail
         float undulationFactor = 1.0 - vBodyZ; // More movement at tail (lower z)
-        float wave = sin(uTime * uWaveFrequency + vBodyZ * 5.0) * uWaveAmplitude;
+        
+        // Use the oscillate function from the animation library
+        float wave = oscillate(uTime, uWaveFrequency, uWaveAmplitude, vBodyZ * 5.0);
         
         // Apply wave to x-position, scaled by undulation factor
         pos.x += wave * undulationFactor * 1.5;
@@ -729,22 +815,30 @@ export class Shark extends Obstacle {
         vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
         vWorldPosition = worldPosition.xyz;
         
+        // Calculate view position for lighting
+        vec4 mvPosition = viewMatrix * worldPosition;
+        vViewPosition = -mvPosition.xyz;
+        
         // Transform normal to world space for lighting
         vNormal = normalize(normalMatrix * normal);
         
         // Calculate countershading factor based on normal's Y component in world space
         vec3 worldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
-        vCountershadeFactor = smoothstep(-0.2, 0.6, worldNormal.y); // Y component ranges from -1 (bottom) to 1 (top)
+        vCountershadeFactor = transitionMask(worldNormal.y, -0.2, 0.6, 0.8); // Using transition library function
         
         // Final position
-        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        gl_Position = projectionMatrix * mvPosition;
       }
     `;
     
     // Fragment shader for countershading effect (darker top, lighter bottom)
     const fragmentShader = `
+      #include <lighting>
+      #include <color>
+      
       varying vec3 vNormal;
       varying vec3 vWorldPosition;
+      varying vec3 vViewPosition;
       varying float vCountershadeFactor;
       varying float vBodyZ;
       
@@ -752,10 +846,10 @@ export class Shark extends Obstacle {
       uniform vec3 uBottomColor; // Light color for bottom (countershading)
       
       void main() {
-        // Basic lighting
+        // Get normalized vectors for lighting
         vec3 normal = normalize(vNormal);
+        vec3 viewDir = normalize(vViewPosition);
         vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5)); // Light from top-right
-        float diffuse = max(dot(normal, lightDir), 0.0);
         
         // Apply countershading - mix between top and bottom colors
         vec3 baseColor = mix(uBottomColor, uTopColor, vCountershadeFactor);
@@ -763,18 +857,36 @@ export class Shark extends Obstacle {
         // Add subtle darkening toward the head
         baseColor *= mix(1.0, 0.9, pow(vBodyZ, 3.0));
         
-        // Apply lighting with ambient term
-        vec3 finalColor = baseColor * (diffuse * 0.6 + 0.4);
+        // Calculate lighting using the shader library function
+        vec3 lightColor = vec3(1.0, 1.0, 0.95);
+        float specularPower = 64.0;
+        float specularIntensity = 0.15;
+        
+        vec3 litColor = calculateLighting(
+          normal,
+          viewDir,
+          lightDir,
+          lightColor,
+          baseColor,
+          specularPower,
+          specularIntensity
+        );
+        
+        // Add ambient light
+        litColor = litColor * 0.65 + baseColor * 0.35;
         
         // Output final color
-        gl_FragColor = vec4(finalColor, 1.0);
+        gl_FragColor = vec4(litColor, 1.0);
       }
     `;
     
+    // Process the shaders with the library
+    const processedShaders = createShaderWithLibrary(vertexShader, fragmentShader);
+    
     // Create shader material
     this.shaderMaterial = new THREE.ShaderMaterial({
-      vertexShader: vertexShader,
-      fragmentShader: fragmentShader,
+      vertexShader: processedShaders.vertexShader,
+      fragmentShader: processedShaders.fragmentShader,
       uniforms: {
         uTime: { value: 0.0 },
         uTopColor: { value: new THREE.Color(0x404c55) }, // Darker gray-blue for top
@@ -794,7 +906,10 @@ export class Shark extends Obstacle {
   public update(deltaTime: number, playerPosition: THREE.Vector3, gameSpeed: number): void {
     super.update(deltaTime, playerPosition, gameSpeed);
     
-    // Update shader animation time if using shader material
+    // Calculate distance to player for LOD and animation optimization
+    const distanceToPlayer = this.position.distanceTo(playerPosition);
+    
+    // Update shader animation time if using shader material - only for high quality and when visible
     if (this.shaderMaterial && this.shaderMaterial.uniforms) {
       this.animationTime += deltaTime;
       this.shaderMaterial.uniforms.uTime.value = this.animationTime;
@@ -815,9 +930,12 @@ export class Shark extends Obstacle {
       }
     }
     
-    // Update the mixer for animations
+    // Use optimized animation updates based on distance and quality
     if (this.mixer) {
-      this.mixer.update(deltaTime * this.timeScale);
+      // Only update animation when necessary based on distance and quality
+      if (ObstacleUtils.shouldUpdateAnimation(this.mixer, distanceToPlayer, this.qualityLevel)) {
+        this.mixer.update(deltaTime * this.timeScale);
+      }
     }
     
     // Check if we're in cooldown
@@ -829,24 +947,30 @@ export class Shark extends Obstacle {
       }
     }
     
-    // Update based on current state
-    switch (this.state) {
-      case 'idle':
-        this.updateIdle(deltaTime, playerPosition, gameSpeed);
-        break;
-      case 'active':
-        this.updateActive(deltaTime, playerPosition, gameSpeed);
-        break;
-      case 'triggered':
-        this.updateTriggered(deltaTime, playerPosition, gameSpeed);
-        break;
-      case 'cooldown':
-        this.updateCooldown(deltaTime, playerPosition, gameSpeed);
-        break;
+    // Update based on current state - only if within active range
+    // This prevents unnecessary computation for far-away obstacles
+    if (distanceToPlayer < 100 || this.state === 'triggered' || this.isChasing) {
+      switch (this.state) {
+        case 'idle':
+          this.updateIdle(deltaTime, playerPosition, gameSpeed);
+          break;
+        case 'active':
+          this.updateActive(deltaTime, playerPosition, gameSpeed);
+          break;
+        case 'triggered':
+          this.updateTriggered(deltaTime, playerPosition, gameSpeed);
+          break;
+        case 'cooldown':
+          this.updateCooldown(deltaTime, playerPosition, gameSpeed);
+          break;
+      }
+      
+      // Manual animation fallbacks for low quality or if animation system fails
+      // Only update fallback animations for nearby sharks or when in triggered state
+      if (distanceToPlayer < 50 || this.state === 'triggered' || this.isChasing) {
+        this.updateFallbackAnimation(deltaTime);
+      }
     }
-    
-    // Manual animation fallbacks for low quality or if animation system fails
-    this.updateFallbackAnimation(deltaTime);
     
     // Update mesh position and rotation to match obstacle
     this.mesh.position.copy(this.position);
@@ -855,30 +979,23 @@ export class Shark extends Obstacle {
     this.updateCollider();
   }
   
+  // Static halfSize vector for reuse across all shark instances
+  private static halfSize = new THREE.Vector3(0.8, 0.6, 3.5);
+  
   /**
-   * Update collider position
+   * Update collider position with optimized implementation
+   * Uses the centralized ObstacleUtils for maximum efficiency
    */
   protected updateCollider(): void {
     if (this.collider instanceof THREE.Box3) {
-      // Get the size of the box
-      const size = new THREE.Vector3(
-        this.collider.max.x - this.collider.min.x,
-        this.collider.max.y - this.collider.min.y,
-        this.collider.max.z - this.collider.min.z
+      // Use ObstacleUtils to update the box collider
+      // This eliminates redundant vector allocations and calculations
+      ObstacleUtils.updateBoxCollider(
+        this.collider,
+        this.position,
+        Shark.halfSize,
+        this.rotation.y
       );
-      
-      // Compute new min and max from current position
-      const halfSize = size.clone().multiplyScalar(0.5);
-      
-      // Account for shark's current rotation
-      const worldHalfSize = new THREE.Vector3(
-        halfSize.x * Math.abs(Math.cos(this.rotation.y)) + halfSize.z * Math.abs(Math.sin(this.rotation.y)),
-        halfSize.y,
-        halfSize.z * Math.abs(Math.cos(this.rotation.y)) + halfSize.x * Math.abs(Math.sin(this.rotation.y))
-      );
-      
-      this.collider.min.copy(this.position).sub(worldHalfSize);
-      this.collider.max.copy(this.position).add(worldHalfSize);
     }
   }
   

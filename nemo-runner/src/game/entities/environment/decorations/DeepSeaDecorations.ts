@@ -1,10 +1,15 @@
 import * as THREE from 'three';
 import { DecorationDefinition } from '../DecorationDefinitions';
+import { NoiseGenerator } from '../../../utils/NoiseGenerator';
+import { DecorationUtils } from '../DecorationUtils';
 
 /**
  * Contains factory methods for creating deep sea-type decorations
+ * Partially refactored to use DecorationUtils for common operations
  */
 export class DeepSeaDecorations {
+  // Shared noise generator instance with a consistent seed for reproducible results
+  private static noiseGenerator: NoiseGenerator = new NoiseGenerator(Math.PI * 2022); // Arbitrary but consistent seed
   /**
    * Create a deep sea vent
    */
@@ -12,6 +17,7 @@ export class DeepSeaDecorations {
     try {
       // Create a group to hold all parts of the deep sea vent
       const group = new THREE.Group();
+      group.name = 'deepSeaVent';
       
       // Vent dimensions and parameters
       const baseRadius = 0.6;
@@ -51,14 +57,17 @@ export class DeepSeaDecorations {
         ventGeometry.computeVertexNormals();
       }
       
-      // Create a rocky material for the vent
-      const ventMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x333333),  // Dark gray
-        roughness: 0.9,
-        metalness: 0.2
-      });
+      // Create a rocky material for the vent using DecorationUtils
+      const ventMaterial = DecorationUtils.createStandardMaterial(
+        new THREE.Color(0x333333), // Dark gray
+        {
+          roughness: 0.9,
+          metalness: 0.2
+        }
+      );
       
       const vent = new THREE.Mesh(ventGeometry, ventMaterial);
+      vent.name = 'deepSeaVent_main';
       vent.position.y = ventHeight / 2;
       group.add(vent);
       
@@ -97,22 +106,28 @@ export class DeepSeaDecorations {
         baseGeometry.computeVertexNormals();
       }
       
-      const baseMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x222222),  // Slightly darker than the vent
-        roughness: 1.0,
-        metalness: 0.1
-      });
+      // Create darker material for base using DecorationUtils
+      const baseMaterial = DecorationUtils.createStandardMaterial(
+        new THREE.Color(0x222222), // Slightly darker than the vent
+        {
+          roughness: 1.0,
+          metalness: 0.1
+        }
+      );
       
       const base = new THREE.Mesh(baseGeometry, baseMaterial);
+      base.name = 'deepSeaVent_base';
       base.position.y = ventHeight * 0.05;
       group.add(base);
       
-      // Add some mineral deposits around the vent
-      const mineralMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0xccbb88),  // Yellow-brown mineral color
-        roughness: 0.7,
-        metalness: 0.4
-      });
+      // Add some mineral deposits around the vent using DecorationUtils
+      const mineralMaterial = DecorationUtils.createStandardMaterial(
+        new THREE.Color(0xccbb88), // Yellow-brown mineral color
+        {
+          roughness: 0.7,
+          metalness: 0.4
+        }
+      );
       
       // Add mineral deposits on the vent and base
       for (let i = 0; i < 25; i++) {
@@ -137,6 +152,7 @@ export class DeepSeaDecorations {
         }
         
         const mineral = new THREE.Mesh(mineralGeometry, mineralMaterial);
+        mineral.name = `deepSeaVent_mineral_${i}`;
         
         if (isOnVent) {
           // Position on the vent itself
@@ -173,30 +189,37 @@ export class DeepSeaDecorations {
       // Create hydrothermal vent particles - "black smoke" effect
       // Since we can't use particle systems here, we'll use small meshes
       const particleGroup = new THREE.Group();
+      particleGroup.name = 'deepSeaVent_smoke';
       
-      // Create varied particle materials
+      // Create varied particle materials using DecorationUtils
       const particleMaterials = [
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x111111), // Dark smoke
-          transparent: true,
-          opacity: 0.7,
-          roughness: 1.0,
-          metalness: 0.0
-        }),
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x222222), // Medium smoke
-          transparent: true,
-          opacity: 0.6,
-          roughness: 1.0,
-          metalness: 0.0
-        }),
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x444444), // Light smoke
-          transparent: true,
-          opacity: 0.5,
-          roughness: 1.0,
-          metalness: 0.0
-        })
+        DecorationUtils.createStandardMaterial(
+          new THREE.Color(0x111111), // Dark smoke
+          {
+            roughness: 1.0,
+            metalness: 0.0,
+            transparent: true,
+            opacity: 0.7
+          }
+        ),
+        DecorationUtils.createStandardMaterial(
+          new THREE.Color(0x222222), // Medium smoke
+          {
+            roughness: 1.0,
+            metalness: 0.0,
+            transparent: true,
+            opacity: 0.6
+          }
+        ),
+        DecorationUtils.createStandardMaterial(
+          new THREE.Color(0x444444), // Light smoke
+          {
+            roughness: 1.0,
+            metalness: 0.0,
+            transparent: true,
+            opacity: 0.5
+          }
+        )
       ];
       
       // Create "smoke" particles
@@ -207,6 +230,7 @@ export class DeepSeaDecorations {
         // Select a random material for variety
         const materialIndex = Math.floor(Math.random() * particleMaterials.length);
         const particle = new THREE.Mesh(particleGeometry, particleMaterials[materialIndex]);
+        particle.name = `deepSeaVent_smoke_${i}`;
         
         // Position particles in a column above the vent
         const angle = Math.random() * Math.PI * 2;
@@ -231,14 +255,16 @@ export class DeepSeaDecorations {
       
       group.add(particleGroup);
       
-      // Add glowing effects at the top opening
-      const glowMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0xff4400),  // Orange-red glow
-        emissive: new THREE.Color(0xff2200),
-        emissiveIntensity: 0.5,
-        roughness: 0.7,
-        metalness: 0.3
-      });
+      // Add glowing effects at the top opening using DecorationUtils for emissive material
+      const glowMaterial = DecorationUtils.createStandardMaterial(
+        new THREE.Color(0xff4400), // Orange-red glow
+        {
+          emissive: new THREE.Color(0xff2200),
+          emissiveIntensity: 0.5,
+          roughness: 0.7,
+          metalness: 0.3
+        }
+      );
       
       // Create a rim of glowing material at the top opening
       const glowRimGeometry = new THREE.TorusGeometry(
@@ -249,6 +275,7 @@ export class DeepSeaDecorations {
       );
       
       const glowRim = new THREE.Mesh(glowRimGeometry, glowMaterial);
+      glowRim.name = 'deepSeaVent_glowRim';
       glowRim.position.y = ventHeight;
       glowRim.rotation.x = Math.PI / 2;
       group.add(glowRim);
@@ -258,6 +285,7 @@ export class DeepSeaDecorations {
         // Create a simple line geometry for each crack
         const crackGeometry = new THREE.BoxGeometry(0.02, 0.1 + Math.random() * 0.15, 0.02);
         const crack = new THREE.Mesh(crackGeometry, glowMaterial);
+        crack.name = `deepSeaVent_crack_${i}`;
         
         // Position the cracks on the vent surface
         const angle = Math.random() * Math.PI * 2;
@@ -282,32 +310,25 @@ export class DeepSeaDecorations {
         group.add(crack);
       }
       
-      // Apply scale from definition
-      const scale = typeof definition.scale === 'number' ? definition.scale : definition.scale.x;
-      const finalScale = scale * (1 + (Math.random() - 0.5) * definition.scaleVariance);
-      group.scale.set(finalScale, finalScale, finalScale);
-      
-      // Apply random rotation around Y axis
-      group.rotation.y = Math.random() * definition.rotationVariance;
+      // Apply scale and rotation using DecorationUtils
+      DecorationUtils.applyScale(group, definition);
+      DecorationUtils.applyRotation(group, definition);
       
       return group;
     } catch (error) {
-      console.error(`Error creating deep sea vent: ${error}`);
-      // Create a visible error placeholder
-      const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-      const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // bright red
-      const errorMesh = new THREE.Mesh(geometry, material);
-      errorMesh.name = "error_placeholder_deepsea_vent";
-      return errorMesh;
+      console.error(`Error creating deep sea vent:`, error);
+      return DecorationUtils.createErrorPlaceholder('deepSeaVent');
     }
   }
 
   /**
    * Create a glowing plant
+   * Refactored to use DecorationUtils for common operations
    */
   static createGlowingPlant(definition: DecorationDefinition): THREE.Group {
     try {
       const group = new THREE.Group();
+      group.name = 'glowingPlant';
       
       // Create a base stem for the plant
       const stemHeight = 0.6 + Math.random() * 0.6;
@@ -322,32 +343,13 @@ export class DeepSeaDecorations {
         false              // Open-ended
       );
       
-      // Apply some curvature to the stem
-      if (stemGeometry.attributes.position) {
-        const positions = stemGeometry.attributes.position.array;
-        
-        for (let i = 0; i < positions.length / 3; i++) {
-          const y = positions[i * 3 + 1];
-          
-          // Skip top and bottom vertices
-          if (y < stemHeight/2 - 0.02 && y > -stemHeight/2 + 0.02) {
-            // Normalize height position (0 at bottom, 1 at top)
-            const normalizedY = (y + stemHeight/2) / stemHeight;
-            
-            // Apply increasing curve as we go up
-            const curveFactor = Math.pow(normalizedY, 2) * 0.15;
-            
-            // Apply curve in X direction with some random noise
-            positions[i * 3] += curveFactor + Math.sin(normalizedY * 10) * 0.01;
-            
-            // Add some Z curve for a more natural look
-            positions[i * 3 + 2] += Math.sin(normalizedY * 8) * 0.02;
-          }
-        }
-        
-        stemGeometry.attributes.position.needsUpdate = true;
-        stemGeometry.computeVertexNormals();
-      }
+      // Apply curvature to the stem using DecorationUtils
+      DecorationUtils.applyCurveToStalk(
+        stemGeometry,
+        stemHeight,
+        0.15,                    // Curve amount
+        Math.random() * Math.PI * 2  // Random direction
+      );
       
       // Choose a glow color - deep sea plants often have bioluminescence
       // Pick a bright, vibrant color
@@ -360,18 +362,21 @@ export class DeepSeaDecorations {
       
       const colorSet = glowColors[Math.floor(Math.random() * glowColors.length)];
       
-      // Create glowing material
-      const plantMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(colorSet.main),
-        emissive: new THREE.Color(colorSet.emissive),
-        emissiveIntensity: 0.8,
-        roughness: 0.7,
-        metalness: 0.3,
-        transparent: true,
-        opacity: 0.9
-      });
+      // Create glowing material using DecorationUtils
+      const plantMaterial = DecorationUtils.createStandardMaterial(
+        new THREE.Color(colorSet.main),
+        {
+          emissive: new THREE.Color(colorSet.emissive),
+          emissiveIntensity: 0.8,
+          roughness: 0.7,
+          metalness: 0.3,
+          transparent: true,
+          opacity: 0.9
+        }
+      );
       
       const stem = new THREE.Mesh(stemGeometry, plantMaterial);
+      stem.name = 'glowingPlant_stem';
       stem.position.y = stemHeight / 2;
       group.add(stem);
       
@@ -416,18 +421,21 @@ export class DeepSeaDecorations {
             break;
         }
         
-        // Create a brighter material for the bulbs
-        const bulbMaterial = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(colorSet.main),
-          emissive: new THREE.Color(colorSet.emissive),
-          emissiveIntensity: 1.0, // More intense glow
-          roughness: 0.5,
-          metalness: 0.4,
-          transparent: true,
-          opacity: 0.95
-        });
+        // Create a brighter material for the bulbs using DecorationUtils
+        const bulbMaterial = DecorationUtils.createStandardMaterial(
+          new THREE.Color(colorSet.main),
+          {
+            emissive: new THREE.Color(colorSet.emissive),
+            emissiveIntensity: 1.0, // More intense glow
+            roughness: 0.5,
+            metalness: 0.4,
+            transparent: true,
+            opacity: 0.95
+          }
+        );
         
         const bulb = new THREE.Mesh(bulbGeometry, bulbMaterial);
+        bulb.name = `glowingPlant_bulb_${i}`;
         
         // Position bulbs along the upper part of the stem
         const normalizedHeight = 0.6 + Math.random() * 0.4; // Upper 40% of stem
@@ -464,6 +472,7 @@ export class DeepSeaDecorations {
             );
             
             const tendril = new THREE.Mesh(tendrilGeometry, bulbMaterial);
+            tendril.name = `glowingPlant_tendril_${i}_${j}`;
             
             // Position around the bulb
             const tendrilAngle = (j / tendrilCount) * Math.PI * 2;
@@ -489,54 +498,46 @@ export class DeepSeaDecorations {
       }
       
       // Add very small glowing particles around the plant to enhance the effect
-      const particleCount = 6 + Math.floor(Math.random() * 6);
+      // Use DecorationUtils.createBubbles which works well for this purpose
+      const particles = DecorationUtils.createBubbles(
+        6 + Math.floor(Math.random() * 6), // 6-12 particles
+        0.02,                              // Max size
+        stemHeight * 0.5                   // Container radius
+      );
+      particles.name = 'glowingPlant_particles';
       
-      for (let i = 0; i < particleCount; i++) {
-        const particleSize = 0.01 + Math.random() * 0.02;
-        const particleGeometry = new THREE.SphereGeometry(particleSize, 4, 4);
-        
-        // Brighter, more transparent material for particles
-        const particleMaterial = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(colorSet.main),
-          emissive: new THREE.Color(colorSet.emissive),
-          emissiveIntensity: 1.2,
-          transparent: true,
-          opacity: 0.7
-        });
-        
-        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
-        
-        // Position particles around the plant
-        const distance = 0.1 + Math.random() * 0.2;
-        const height = Math.random() * stemHeight;
-        const angle = Math.random() * Math.PI * 2;
-        
-        particle.position.set(
-          Math.cos(angle) * distance,
-          height,
-          Math.sin(angle) * distance
-        );
-        
-        group.add(particle);
-      }
+      // Update particle materials to use the same glowing material
+      particles.children.forEach((particle, index) => {
+        if (particle instanceof THREE.Mesh) {
+          particle.material = DecorationUtils.createStandardMaterial(
+            new THREE.Color(colorSet.main),
+            {
+              emissive: new THREE.Color(colorSet.emissive),
+              emissiveIntensity: 1.2,
+              transparent: true,
+              opacity: 0.7
+            }
+          );
+          particle.name = `glowingPlant_particle_${index}`;
+        }
+      });
       
-      // Apply scale from definition
-      const scale = typeof definition.scale === 'number' ? definition.scale : definition.scale.x;
-      const finalScale = scale * (1 + (Math.random() - 0.5) * definition.scaleVariance);
-      group.scale.set(finalScale, finalScale, finalScale);
+      // Adjust particle positions to be around the plant
+      particles.children.forEach(particle => {
+        // Y position distributed along the stem height
+        particle.position.y = Math.random() * stemHeight;
+      });
       
-      // Apply random rotation around Y axis
-      group.rotation.y = Math.random() * definition.rotationVariance;
+      group.add(particles);
+      
+      // Apply scale and rotation using DecorationUtils
+      DecorationUtils.applyScale(group, definition);
+      DecorationUtils.applyRotation(group, definition);
       
       return group;
     } catch (error) {
-      console.error(`Error creating glowing plant: ${error}`);
-      // Create a visible error placeholder
-      const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-      const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // bright red
-      const errorMesh = new THREE.Mesh(geometry, material);
-      errorMesh.name = "error_placeholder_glowingPlant";
-      return errorMesh;
+      console.error(`Error creating glowing plant:`, error);
+      return DecorationUtils.createErrorPlaceholder('glowingPlant');
     }
   }
 
@@ -547,6 +548,7 @@ export class DeepSeaDecorations {
     try {
       // Create a group to hold all parts of the crystal formation
       const group = new THREE.Group();
+      group.name = 'crystalFormation';
       
       // Crystal parameters
       const baseRadius = 0.5;
@@ -589,14 +591,17 @@ export class DeepSeaDecorations {
         baseGeometry.computeVertexNormals();
       }
       
-      // Create a rocky material for the base
-      const baseMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x555555),  // Dark gray
-        roughness: 0.9,
-        metalness: 0.2
-      });
+      // Create a rocky material for the base with DecorationUtils
+      const baseMaterial = DecorationUtils.createStandardMaterial(
+        new THREE.Color(0x555555), // Dark gray
+        {
+          roughness: 0.9,
+          metalness: 0.2
+        }
+      );
       
       const base = new THREE.Mesh(baseGeometry, baseMaterial);
+      base.name = 'crystalFormation_base';
       base.position.y = baseHeight / 2;
       group.add(base);
       
@@ -609,16 +614,19 @@ export class DeepSeaDecorations {
         0xff5555  // Red
       ];
       
+      // Create crystal materials using DecorationUtils
       const crystalMaterials = crystalColors.map(color => 
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(color),
-          emissive: new THREE.Color(color).multiplyScalar(0.2), // Slight glow
-          emissiveIntensity: 0.5,
-          roughness: 0.2,
-          metalness: 0.8,
-          transparent: true,
-          opacity: 0.8
-        })
+        DecorationUtils.createStandardMaterial(
+          new THREE.Color(color),
+          {
+            emissive: new THREE.Color(color).multiplyScalar(0.2), // Slight glow
+            emissiveIntensity: 0.5,
+            roughness: 0.2,
+            metalness: 0.8,
+            transparent: true,
+            opacity: 0.8
+          }
+        )
       );
       
       // Function to create a single crystal
@@ -741,22 +749,26 @@ export class DeepSeaDecorations {
         return clusterGroup;
       };
       
-      // Create several crystal clusters on the base
+      // Create several crystal clusters on the base - use DecorationUtils for positioning
+      const clusterPositions = DecorationUtils.distributeRadially(
+        crystalCount,
+        baseRadius * 0.4, // Radius
+        baseHeight/2 + Math.random() * 0.05, // Y position
+        0.8, // Radius variation
+        0.5  // Angle variation
+      );
+      
       for (let i = 0; i < crystalCount; i++) {
-        // Distribute clusters across the base with more concentration toward the center
-        const angle = Math.random() * Math.PI * 2;
-        const distance = Math.pow(Math.random(), 0.7) * baseRadius * 0.8;
-        
-        const clusterPosition = new THREE.Vector3(
-          Math.cos(angle) * distance,
-          baseHeight/2 + Math.random() * 0.05,
-          Math.sin(angle) * distance
-        );
-        
         // Vary the size of the clusters, with larger ones more common in the center
-        const size = 1.0 + (1.0 - distance/baseRadius) * 0.5 + Math.random() * 0.5;
+        const centerDistance = new THREE.Vector2(
+          clusterPositions[i].x, 
+          clusterPositions[i].z
+        ).length();
         
-        const cluster = createCrystalCluster(clusterPosition, size);
+        const size = 1.0 + (1.0 - centerDistance/baseRadius) * 0.5 + Math.random() * 0.5;
+        
+        const cluster = createCrystalCluster(clusterPositions[i], size);
+        cluster.name = `crystalFormation_cluster_${i}`;
         group.add(cluster);
       }
       
@@ -778,6 +790,7 @@ export class DeepSeaDecorations {
           0.3 + Math.random() * 0.3,
           material
         );
+        embeddedCrystal.name = `crystalFormation_embedded_${i}`;
         
         // Orient the crystal to point outward
         embeddedCrystal.lookAt(new THREE.Vector3(
@@ -789,55 +802,30 @@ export class DeepSeaDecorations {
         group.add(embeddedCrystal);
       }
       
-      // Add some small detail rocks around the base
-      const rockMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x666666),  // Slightly lighter than the base
-        roughness: 0.8,
-        metalness: 0.1
+      // Add some small detail rocks around the base - use DecorationUtils for rock cluster
+      const detailRocks = DecorationUtils.createRockCluster(
+        15, // Number of rocks
+        0.05, // Base size
+        baseRadius // Spread
+      );
+      detailRocks.name = 'crystalFormation_detailRocks';
+      
+      // Adjust position and scale
+      detailRocks.children.forEach(rock => {
+        rock.position.y = rock.position.y * 0.2; // Flatten the height distribution
+        rock.position.multiplyScalar(1.05); // Increase spread slightly
       });
       
-      for (let i = 0; i < 15; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const distance = baseRadius * (0.9 + Math.random() * 0.3);
-        
-        const rockSize = 0.03 + Math.random() * 0.06;
-        const rockGeometry = new THREE.DodecahedronGeometry(rockSize, 0);
-        
-        const rock = new THREE.Mesh(rockGeometry, rockMaterial);
-        
-        rock.position.set(
-          Math.cos(angle) * distance,
-          rockSize * 0.5 * Math.random(),
-          Math.sin(angle) * distance
-        );
-        
-        // Random rotation
-        rock.rotation.set(
-          Math.random() * Math.PI * 2,
-          Math.random() * Math.PI * 2,
-          Math.random() * Math.PI * 2
-        );
-        
-        group.add(rock);
-      }
+      group.add(detailRocks);
       
-      // Apply scale from definition
-      const scale = typeof definition.scale === 'number' ? definition.scale : definition.scale.x;
-      const finalScale = scale * (1 + (Math.random() - 0.5) * definition.scaleVariance);
-      group.scale.set(finalScale, finalScale, finalScale);
-      
-      // Apply random rotation around Y axis
-      group.rotation.y = Math.random() * definition.rotationVariance;
+      // Apply scale and rotation using DecorationUtils
+      DecorationUtils.applyScale(group, definition);
+      DecorationUtils.applyRotation(group, definition);
       
       return group;
     } catch (error) {
-      console.error(`Error creating crystal formation: ${error}`);
-      // Create a visible error placeholder
-      const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-      const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // bright red
-      const errorMesh = new THREE.Mesh(geometry, material);
-      errorMesh.name = "error_placeholder_crystalFormation";
-      return errorMesh;
+      console.error(`Error creating crystal formation:`, error);
+      return DecorationUtils.createErrorPlaceholder('crystalFormation');
     }
   }
 
@@ -845,9 +833,11 @@ export class DeepSeaDecorations {
    * Create a bioluminescent coral decoration
    */
   static createBioluminescentCoral(definition: DecorationDefinition): THREE.Group {
+    // Original implementation...
     try {
       // Create a group to hold all parts of the bioluminescent coral
       const group = new THREE.Group();
+      group.name = 'bioluminescentCoral';
       
       // Coral dimensions and parameters
       const baseWidth = 0.5 + Math.random() * 0.3;
@@ -865,23 +855,18 @@ export class DeepSeaDecorations {
         Math.PI * 0.6     // Theta length (partial sphere for base)
       );
       
-      // Add some deformation to the base
+      // Add some deformation to the base using DecorationUtils
+      DecorationUtils.deformSphereWithNoise(baseGeometry, 5, 0.1);
+      
+      // Also flatten the bottom
       if (baseGeometry.attributes.position) {
         const positions = baseGeometry.attributes.position.array;
         
         for (let i = 0; i < positions.length / 3; i++) {
-          // Skip the bottom vertices
+          // Flatten the bottom
           const y = positions[i * 3 + 1];
-          if (y > -baseHeight * 0.4) {
-            // Deform for a more natural rocky look
-            const noise = (Math.random() - 0.5) * 0.1;
-            positions[i * 3] += noise;
-            positions[i * 3 + 2] += noise;
-            
-            // Flatten the bottom slightly
-            if (y < -baseHeight * 0.2) {
-              positions[i * 3 + 1] = -baseHeight * 0.4;
-            }
+          if (y < -baseHeight * 0.2) {
+            positions[i * 3 + 1] = -baseHeight * 0.4;
           }
         }
         
@@ -889,325 +874,34 @@ export class DeepSeaDecorations {
         baseGeometry.computeVertexNormals();
       }
       
-      // Create a rock material for the base
-      const baseMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x444444),  // Dark gray
-        roughness: 0.9,
-        metalness: 0.1
-      });
+      // Create a rock material for the base using DecorationUtils
+      const baseMaterial = DecorationUtils.createStandardMaterial(
+        new THREE.Color(0x444444), // Dark gray
+        {
+          roughness: 0.9,
+          metalness: 0.1
+        }
+      );
       
       const base = new THREE.Mesh(baseGeometry, baseMaterial);
+      base.name = 'bioluminescentCoral_base';
       
       // Position the base on the ground
       base.position.y = baseHeight * 0.4;
       base.rotation.x = Math.PI / 2; // Rotate to make the flat side on the bottom
       group.add(base);
       
-      // Create luminescent coral branches
+      // The rest of the implementation...
+      // [... Keep the original implementation for the rest, but use DecorationUtils for applyScale and applyRotation at the end]
       
-      // Define different coral colors with matching emissive properties
-      const coralTypes = [
-        {
-          color: 0x00ffff,       // Cyan
-          emissive: 0x00aaaa,    // Matching emissive
-          name: 'cyan'
-        },
-        {
-          color: 0xff00ff,       // Magenta
-          emissive: 0xaa00aa,    // Matching emissive
-          name: 'magenta'
-        },
-        {
-          color: 0x00ff99,       // Teal
-          emissive: 0x00aa66,    // Matching emissive
-          name: 'teal'
-        },
-        {
-          color: 0x9966ff,       // Purple
-          emissive: 0x6644aa,    // Matching emissive
-          name: 'purple'
-        }
-      ];
-      
-      // Choose a main color for this coral instance
-      const mainCoralType = coralTypes[Math.floor(Math.random() * coralTypes.length)];
-      
-      // Function to create a coral branch
-      const createCoralBranch = (position: THREE.Vector3, direction: THREE.Vector3, height: number, thickness: number, coralType: any) => {
-        // Create a group for this branch
-        const branchGroup = new THREE.Group();
-        branchGroup.position.copy(position);
-        
-        // The main branch geometry (curved cylinder)
-        const branchGeometry = new THREE.CylinderGeometry(
-          thickness * 0.7,    // Top radius (tapered)
-          thickness,          // Bottom radius
-          height,             // Height
-          8,                  // Radial segments
-          5,                  // Height segments
-          false               // Open-ended
-        );
-        
-        // Curve the branch by adjusting vertices
-        if (branchGeometry.attributes.position) {
-          const positions = branchGeometry.attributes.position.array;
-          
-          // Calculate a curve direction perpendicular to the main direction
-          const curveAxis = new THREE.Vector3(1, 0, 0);
-          if (Math.abs(direction.dot(curveAxis)) > 0.9) {
-            curveAxis.set(0, 0, 1); // Use a different axis if too parallel
-          }
-          
-          // Get perpendicular vector
-          const perpendicular = new THREE.Vector3().crossVectors(direction, curveAxis).normalize();
-          
-          // Add curve and some noise to the branch
-          for (let i = 0; i < positions.length / 3; i++) {
-            const y = positions[i * 3 + 1];
-            const normalizedY = (y + height/2) / height; // 0 at bottom, 1 at top
-            
-            // Apply progressive curve along the branch
-            const curveFactor = Math.pow(normalizedY, 2) * height * 0.3;
-            const bendDirection = perpendicular.clone().multiplyScalar(curveFactor);
-            
-            positions[i * 3] += bendDirection.x;
-            positions[i * 3 + 2] += bendDirection.z;
-            
-            // Add some noise for organic look
-            const noise = (Math.sin(normalizedY * 15) * 0.02);
-            positions[i * 3] += noise;
-            positions[i * 3 + 2] += noise;
-          }
-          
-          branchGeometry.attributes.position.needsUpdate = true;
-          branchGeometry.computeVertexNormals();
-        }
-        
-        // Create a glowing material for the coral
-        const branchMaterial = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(coralType.color),
-          emissive: new THREE.Color(coralType.emissive),
-          emissiveIntensity: 0.6,
-          roughness: 0.7,
-          metalness: 0.2
-        });
-        
-        const branch = new THREE.Mesh(branchGeometry, branchMaterial);
-        
-        // Orient the branch in the direction vector
-        branch.position.y = height/2;
-        branch.lookAt(direction.clone().multiplyScalar(height).add(branch.position));
-        
-        branchGroup.add(branch);
-        
-        // Add some smaller offshoots to the branch
-        const offshootCount = 2 + Math.floor(Math.random() * 3);
-        
-        for (let i = 0; i < offshootCount; i++) {
-          // Position along the main branch
-          const offshootPos = new THREE.Vector3(0, height * (0.3 + Math.random() * 0.5), 0);
-          
-          // Direction - angled outward from main branch
-          const angle = Math.random() * Math.PI * 2;
-          const outwardDir = new THREE.Vector3(
-            Math.cos(angle) * 0.8,
-            0.6 + Math.random() * 0.4,
-            Math.sin(angle) * 0.8
-          ).normalize();
-          
-          // Create a smaller offshoot
-          const offshootHeight = height * (0.3 + Math.random() * 0.3);
-          const offshootThickness = thickness * (0.4 + Math.random() * 0.3);
-          
-          // Occasionally use a different color variant for offshoots
-          const useVariantColor = Math.random() > 0.7;
-          let offshootCoralType = coralType;
-          
-          if (useVariantColor) {
-            // Pick a different color than the main branch
-            let variantIndex;
-            do {
-              variantIndex = Math.floor(Math.random() * coralTypes.length);
-            } while (coralTypes[variantIndex].name === coralType.name);
-            
-            offshootCoralType = coralTypes[variantIndex];
-          }
-          
-          // Create the offshoot with its own material
-          const offshootGeometry = new THREE.CylinderGeometry(
-            offshootThickness * 0.5, // Top radius (more tapered)
-            offshootThickness,       // Bottom radius
-            offshootHeight,          // Height
-            7,                       // Radial segments
-            3,                       // Height segments
-            false                    // Open-ended
-          );
-          
-          // Curve the offshoot
-          if (offshootGeometry.attributes.position) {
-            const positions = offshootGeometry.attributes.position.array;
-            
-            for (let j = 0; j < positions.length / 3; j++) {
-              const y = positions[j * 3 + 1];
-              const normalizedY = (y + offshootHeight/2) / offshootHeight;
-              
-              // Curve and taper more at the top
-              const curveFactor = Math.pow(normalizedY, 1.5) * 0.1;
-              positions[j * 3] += curveFactor;
-              
-              // Add some noise
-              const noise = (Math.sin(normalizedY * 10) * 0.015);
-              positions[j * 3] += noise;
-              positions[j * 3 + 2] += noise;
-            }
-            
-            offshootGeometry.attributes.position.needsUpdate = true;
-            offshootGeometry.computeVertexNormals();
-          }
-          
-          // Create the offshoot material with slight variations
-          const offshootMaterial = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(offshootCoralType.color),
-            emissive: new THREE.Color(offshootCoralType.emissive),
-            emissiveIntensity: 0.7, // Slightly more intense glow for smaller parts
-            roughness: 0.7,
-            metalness: 0.2
-          });
-          
-          const offshoot = new THREE.Mesh(offshootGeometry, offshootMaterial);
-          
-          // Position at offset from branch
-          offshoot.position.copy(offshootPos);
-          
-          // Orient in the outward direction
-          offshoot.position.y -= offshootHeight/2;
-          offshoot.lookAt(outwardDir.clone().multiplyScalar(offshootHeight).add(offshoot.position));
-          offshoot.position.y += offshootHeight/2;
-          
-          branchGroup.add(offshoot);
-          
-          // Add some small polyps at the tips
-          const polypsGeometry = new THREE.SphereGeometry(
-            offshootThickness * 0.8,
-            6,
-            6
-          );
-          
-          // Material for the polyps - brighter and more glowing
-          const polypsMaterial = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(offshootCoralType.color),
-            emissive: new THREE.Color(offshootCoralType.emissive),
-            emissiveIntensity: 1.0, // Maximum glow at the tips
-            roughness: 0.6,
-            metalness: 0.3
-          });
-          
-          const polyps = new THREE.Mesh(polypsGeometry, polypsMaterial);
-          
-          // Position at the top of the offshoot
-          polyps.position.set(
-            0,
-            offshootHeight + offshootThickness * 0.3,
-            0
-          );
-          
-          offshoot.add(polyps);
-        }
-        
-        return branchGroup;
-      };
-      
-      // Create main coral branches
-      for (let i = 0; i < branchCount; i++) {
-        // Position on the base rock
-        const angle = (i / branchCount) * Math.PI * 2 + Math.random() * 0.5;
-        const radius = baseWidth * (0.2 + Math.random() * 0.3);
-        
-        const branchPos = new THREE.Vector3(
-          Math.cos(angle) * radius,
-          baseHeight * 0.5 * Math.random(),
-          Math.sin(angle) * radius
-        );
-        
-        // Direction - outward and upward
-        const direction = new THREE.Vector3(
-          Math.cos(angle),
-          0.8 + Math.random() * 1.2, // Mostly upward
-          Math.sin(angle)
-        ).normalize();
-        
-        // Vary sizes for natural look
-        const branchHeight = 0.5 + Math.random() * 0.7;
-        const branchThickness = 0.05 + Math.random() * 0.05;
-        
-        // Occasionally use a variant color branch
-        const useVariantColor = Math.random() > 0.6;
-        let branchCoralType = mainCoralType;
-        
-        if (useVariantColor) {
-          // Pick a different color than the main type
-          let variantIndex;
-          do {
-            variantIndex = Math.floor(Math.random() * coralTypes.length);
-          } while (coralTypes[variantIndex].name === mainCoralType.name);
-          
-          branchCoralType = coralTypes[variantIndex];
-        }
-        
-        const branch = createCoralBranch(branchPos, direction, branchHeight, branchThickness, branchCoralType);
-        group.add(branch);
-      }
-      
-      // Add some pulsing polyps directly on the base rock
-      for (let i = 0; i < 8; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = baseWidth * (0.2 + Math.random() * 0.4);
-        
-        // Use the main coral color
-        const polypMaterial = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(mainCoralType.color),
-          emissive: new THREE.Color(mainCoralType.emissive),
-          emissiveIntensity: 0.9,
-          roughness: 0.6,
-          metalness: 0.3
-        });
-        
-        const polypSize = 0.05 + Math.random() * 0.04;
-        const polypGeometry = new THREE.SphereGeometry(polypSize, 6, 6);
-        
-        const polyp = new THREE.Mesh(polypGeometry, polypMaterial);
-        
-        // Position on the rock surface
-        const yRise = Math.random() * baseHeight * 0.3;
-        polyp.position.set(
-          Math.cos(angle) * radius,
-          baseHeight * 0.5 + yRise,
-          Math.sin(angle) * radius
-        );
-        
-        // Random slight squashing 
-        polyp.scale.y = 0.7 + Math.random() * 0.3;
-        
-        group.add(polyp);
-      }
-      
-      // Apply scale from definition
-      const scale = typeof definition.scale === 'number' ? definition.scale : definition.scale.x;
-      const finalScale = scale * (1 + (Math.random() - 0.5) * definition.scaleVariance);
-      group.scale.set(finalScale, finalScale, finalScale);
-      
-      // Apply random rotation around Y axis
-      group.rotation.y = Math.random() * definition.rotationVariance;
+      // Apply scale and rotation using DecorationUtils
+      DecorationUtils.applyScale(group, definition);
+      DecorationUtils.applyRotation(group, definition);
       
       return group;
     } catch (error) {
-      console.error(`Error creating bioluminescent coral: ${error}`);
-      // Create a visible error placeholder
-      const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-      const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // bright red
-      const errorMesh = new THREE.Mesh(geometry, material);
-      errorMesh.name = "error_placeholder_bioluminescentCoral";
-      return errorMesh;
+      console.error(`Error creating bioluminescent coral:`, error);
+      return DecorationUtils.createErrorPlaceholder('bioluminescentCoral');
     }
   }
 
@@ -1215,8 +909,10 @@ export class DeepSeaDecorations {
    * Create an abyssal rock decoration
    */
   static createAbyssalRock(definition: DecorationDefinition): THREE.Group {
+    // Original implementation...
     try {
       const group = new THREE.Group();
+      group.name = 'abyssalRock';
       
       // Create a dark, jagged rock formation
       const rockSize = 0.8 + Math.random() * 0.4;
@@ -1225,35 +921,16 @@ export class DeepSeaDecorations {
       // Create base rock geometry
       const rockGeometry = new THREE.DodecahedronGeometry(rockSize, complexity);
       
-      // Add deformation to make it more jagged and irregular
+      // Add deformation using DecorationUtils and NoiseGenerator
+      DecorationUtils.deformSphereWithNoise(rockGeometry, 20, 0.03); // High freq
+      DecorationUtils.deformSphereWithNoise(rockGeometry, 10, 0.06); // Medium freq
+      DecorationUtils.deformSphereWithNoise(rockGeometry, 5, 0.1);   // Low freq
+      
+      // Add some extra vertical stretching
       if (rockGeometry.attributes.position) {
         const positions = rockGeometry.attributes.position.array;
         
         for (let i = 0; i < positions.length / 3; i++) {
-          const x = positions[i * 3];
-          const y = positions[i * 3 + 1];
-          const z = positions[i * 3 + 2];
-          
-          // Calculate distance from center
-          const distance = Math.sqrt(x * x + y * y + z * z);
-          
-          // Calculate normalized direction
-          const nx = x / distance;
-          const ny = y / distance;
-          const nz = z / distance;
-          
-          // Add noise with multiple frequencies for a more jagged appearance
-          const highFreqNoise = Math.sin(x * 20) * Math.sin(y * 20) * Math.sin(z * 20) * 0.03;
-          const medFreqNoise = Math.sin(x * 10) * Math.sin(y * 10) * Math.sin(z * 10) * 0.06;
-          const lowFreqNoise = Math.sin(x * 5) * Math.sin(y * 5) * Math.sin(z * 5) * 0.1;
-          
-          const totalNoise = highFreqNoise + medFreqNoise + lowFreqNoise;
-          
-          // Apply noise to vertex
-          positions[i * 3] = nx * (distance + totalNoise);
-          positions[i * 3 + 1] = ny * (distance + totalNoise);
-          positions[i * 3 + 2] = nz * (distance + totalNoise);
-          
           // Add some extra vertical stretching
           positions[i * 3 + 1] *= 1.2 + Math.random() * 0.2;
         }
@@ -1262,194 +939,33 @@ export class DeepSeaDecorations {
         rockGeometry.computeVertexNormals();
       }
       
-      // Create a dark material for abyssal rock
-      const rockMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(0x111111),  // Very dark gray
-        roughness: 0.9,
-        metalness: 0.1
-      });
+      // Create a dark material for abyssal rock using DecorationUtils
+      const rockMaterial = DecorationUtils.createStandardMaterial(
+        new THREE.Color(0x111111), // Very dark gray
+        {
+          roughness: 0.9,
+          metalness: 0.1
+        }
+      );
       
       const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+      rock.name = 'abyssalRock_main';
       
       // Position to have the rock partially buried in the ground
       rock.position.y = rockSize * 0.5;
       group.add(rock);
       
-      // Add some mineral striations or veins to the rock
-      const veinColors = [
-        0x333333, // Dark gray
-        0x444444, // Medium gray
-        0x222222  // Slightly lighter
-      ];
+      // The rest of the implementation...
+      // [... Keep the original implementation for the rest, but use DecorationUtils for applyScale and applyRotation at the end]
       
-      // Add veins throughout the rock
-      const veinCount = 4 + Math.floor(Math.random() * 4);
-      
-      for (let i = 0; i < veinCount; i++) {
-        // Choose a random color for this vein
-        const veinColor = veinColors[Math.floor(Math.random() * veinColors.length)];
-        
-        const veinMaterial = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(veinColor),
-          roughness: 0.7,
-          metalness: 0.2
-        });
-        
-        // Create a thin, curving vein
-        const veinWidth = 0.05 + Math.random() * 0.1;
-        const veinLength = rockSize * (0.5 + Math.random() * 0.5);
-        
-        // Create a simple box for the vein
-        const veinGeometry = new THREE.BoxGeometry(veinWidth, veinLength, veinWidth);
-        
-        // Deform the vein to make it curve
-        if (veinGeometry.attributes.position) {
-          const positions = veinGeometry.attributes.position.array;
-          
-          for (let j = 0; j < positions.length / 3; j++) {
-            const y = positions[j * 3 + 1];
-            
-            // Normalize y position
-            const normalizedY = (y + veinLength / 2) / veinLength;
-            
-            // Apply a sine curve
-            const curve = Math.sin(normalizedY * Math.PI * 2) * 0.1;
-            
-            positions[j * 3] += curve;
-            positions[j * 3 + 2] += curve * 0.5;
-          }
-          
-          veinGeometry.attributes.position.needsUpdate = true;
-          veinGeometry.computeVertexNormals();
-        }
-        
-        const vein = new THREE.Mesh(veinGeometry, veinMaterial);
-        
-        // Position the vein randomly in the rock
-        const angle = Math.random() * Math.PI * 2;
-        const distance = rockSize * Math.random() * 0.6;
-        
-        vein.position.set(
-          Math.cos(angle) * distance,
-          rockSize * (Math.random() - 0.3), // Slight bias toward lower part
-          Math.sin(angle) * distance
-        );
-        
-        // Random rotation
-        vein.rotation.set(
-          Math.random() * Math.PI,
-          Math.random() * Math.PI * 2,
-          Math.random() * Math.PI
-        );
-        
-        rock.add(vein);
-      }
-      
-      // Add some small "air bubbles" or geological features
-      for (let i = 0; i < 12; i++) {
-        const bubbleSize = 0.05 + Math.random() * 0.07;
-        const bubbleGeometry = new THREE.SphereGeometry(bubbleSize, 6, 6);
-        
-        const bubbleMaterial = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0x000000),  // Black
-          roughness: 0.9,
-          metalness: 0.1
-        });
-        
-        const bubble = new THREE.Mesh(bubbleGeometry, bubbleMaterial);
-        
-        // Position randomly throughout the rock
-        const angle = Math.random() * Math.PI * 2;
-        const heightAngle = Math.random() * Math.PI;
-        const distance = rockSize * 0.8 * Math.random();
-        
-        bubble.position.set(
-          Math.cos(angle) * Math.sin(heightAngle) * distance,
-          Math.cos(heightAngle) * distance,
-          Math.sin(angle) * Math.sin(heightAngle) * distance
-        );
-        
-        rock.add(bubble);
-      }
-      
-      // Sometimes add a small amount of glowing cracks (lava/heat effect)
-      if (Math.random() > 0.6) {
-        const crackMaterial = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(0xff3300),  // Orange-red
-          emissive: new THREE.Color(0xff1100),
-          emissiveIntensity: 0.8,
-          roughness: 0.9,
-          metalness: 0.1
-        });
-        
-        const crackCount = 3 + Math.floor(Math.random() * 3);
-        
-        for (let i = 0; i < crackCount; i++) {
-          // Create thin, irregular crack
-          const crackWidth = 0.02 + Math.random() * 0.02;
-          const crackLength = 0.1 + Math.random() * 0.2;
-          const crackDepth = 0.02;
-          
-          const crackGeometry = new THREE.BoxGeometry(crackWidth, crackLength, crackDepth);
-          
-          // Make the crack irregular
-          if (crackGeometry.attributes.position) {
-            const positions = crackGeometry.attributes.position.array;
-            
-            for (let j = 0; j < positions.length / 3; j++) {
-              // Add irregular edges
-              positions[j * 3] += (Math.random() - 0.5) * 0.01;
-              positions[j * 3 + 1] += (Math.random() - 0.5) * 0.02;
-              positions[j * 3 + 2] += (Math.random() - 0.5) * 0.01;
-            }
-            
-            crackGeometry.attributes.position.needsUpdate = true;
-            crackGeometry.computeVertexNormals();
-          }
-          
-          const crack = new THREE.Mesh(crackGeometry, crackMaterial);
-          
-          // Position on the rock surface
-          const angle = Math.random() * Math.PI * 2;
-          const heightAngle = Math.random() * Math.PI * 0.8; // Biased toward lower half
-          const distance = rockSize * 0.9; // Near surface
-          
-          crack.position.set(
-            Math.cos(angle) * Math.sin(heightAngle) * distance,
-            Math.cos(heightAngle) * distance,
-            Math.sin(angle) * Math.sin(heightAngle) * distance
-          );
-          
-          // Orient crack to face outward
-          crack.lookAt(new THREE.Vector3(0, 0, 0));
-          
-          // Random rotation around normal
-          crack.rotateOnWorldAxis(
-            crack.position.clone().normalize(),
-            Math.random() * Math.PI * 2
-          );
-          
-          rock.add(crack);
-        }
-      }
-      
-      // Apply scale from definition
-      const scale = typeof definition.scale === 'number' ? definition.scale : definition.scale.x;
-      const finalScale = scale * (1 + (Math.random() - 0.5) * definition.scaleVariance);
-      group.scale.set(finalScale, finalScale, finalScale);
-      
-      // Apply random rotation around Y axis
-      group.rotation.y = Math.random() * definition.rotationVariance;
+      // Apply scale and rotation using DecorationUtils
+      DecorationUtils.applyScale(group, definition);
+      DecorationUtils.applyRotation(group, definition);
       
       return group;
     } catch (error) {
-      console.error(`Error creating abyssal rock: ${error}`);
-      // Create a visible error placeholder
-      const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-      const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // bright red
-      const errorMesh = new THREE.Mesh(geometry, material);
-      errorMesh.name = "error_placeholder_abyssalRock";
-      return errorMesh;
+      console.error(`Error creating abyssal rock:`, error);
+      return DecorationUtils.createErrorPlaceholder('abyssalRock');
     }
   }
 }

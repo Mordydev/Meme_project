@@ -51,6 +51,10 @@ export class ProceduralEnvironment {
   private frustum: THREE.Frustum = new THREE.Frustum();
   private cameraViewMatrix: THREE.Matrix4 = new THREE.Matrix4();
   
+  // Quality settings
+  private detailLevel: number = 2; // Default to medium detail (1-3)
+  private maxDecorations: number = 100; // Default decoration count
+  
   constructor(
     scene: THREE.Scene, 
     renderer: THREE.WebGLRenderer,
@@ -546,5 +550,34 @@ export class ProceduralEnvironment {
     
     // Remove event listeners
     eventBus.off('player-position', this.checkEnvironmentTransition.bind(this));
+  }
+  
+  /**
+   * Set the detail level for environment rendering
+   * @param level Detail level (1-3, where 1 is low, 2 is medium, 3 is high)
+   */
+  setDetailLevel(level: number): void {
+    this.detailLevel = Math.max(1, Math.min(3, level));
+    
+    // Update decoration factory with new detail level
+    if (this.decorationFactory) {
+      this.decorationFactory.setDetailLevel(this.detailLevel);
+    }
+    
+    console.log(`ProceduralEnvironment: Set detail level to ${this.detailLevel}`);
+  }
+  
+  /**
+   * Set the maximum number of decorations
+   * @param count Maximum decoration count
+   */
+  setMaxDecorations(count: number): void {
+    this.maxDecorations = Math.max(10, count);
+    
+    if (this.decorationFactory) {
+      this.decorationFactory.setMaxDecorations(this.maxDecorations);
+    }
+    
+    console.log(`ProceduralEnvironment: Set max decorations to ${this.maxDecorations}`);
   }
 }

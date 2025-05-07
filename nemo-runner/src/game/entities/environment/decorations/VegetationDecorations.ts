@@ -8,7 +8,7 @@ export class VegetationDecorations {
   /**
    * Create a seaweed plant (type 1)
    */
-  static createSeaweed1(definition: DecorationDefinition): THREE.Group {
+  static createSeaweed1(definition: DecorationDefinition): THREE.Object3D {
     try {
       const group = new THREE.Group();
       
@@ -91,7 +91,7 @@ export class VegetationDecorations {
   /**
    * Create a kelp stalk with multiple leaves
    */
-  static createKelpStalk(definition: DecorationDefinition): THREE.Group {
+  static createKelpStalk(definition: DecorationDefinition): THREE.Object3D {
     try {
       const group = new THREE.Group();
       
@@ -299,7 +299,7 @@ export class VegetationDecorations {
   /**
    * Create short sea grass
    */
-  static createSeaGrass(definition: DecorationDefinition): THREE.Group {
+  static createSeaGrass(definition: DecorationDefinition): THREE.Object3D {
     try {
       const group = new THREE.Group();
       
@@ -410,7 +410,7 @@ export class VegetationDecorations {
   /**
    * Create a sea anemone with tentacles
    */
-  static createSeaAnemone(definition: DecorationDefinition): THREE.Group {
+  static createSeaAnemone(definition: DecorationDefinition): THREE.Object3D {
     try {
       const group = new THREE.Group();
       
@@ -575,7 +575,7 @@ export class VegetationDecorations {
   /**
    * Create a giant kelp plant with stalk and leaves
    */
-  static createGiantKelp(definition: DecorationDefinition): THREE.Group {
+  static createGiantKelp(definition: DecorationDefinition): THREE.Object3D {
     try {
       // Create a group to hold all parts of the kelp
       const group = new THREE.Group();

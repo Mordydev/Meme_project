@@ -13,6 +13,9 @@ import { ProceduralEnvironment } from '../entities/environment/ProceduralEnviron
 import { detectDeviceCapabilities, applyQualitySettings, configureGameSettings } from '../utils/DeviceUtils';
 import gameStateManager, { GameState } from './GameStateManager';
 import { WaterEffects } from '../entities/environment/WaterEffects';
+import { getRenderingInitializer } from './RenderingInitializer';
+import { getPerformanceMonitor, reportLongTask } from '../utils/PerformanceMonitor';
+import { getQualityAdjuster, applyQualitySettings as applyQualityToEntity } from '../utils/QualityAdjuster';
 // Import obstacle types
 import { Obstacle } from '../entities/obstacles/Obstacle';
 import { Shark } from '../entities/obstacles/Shark';
@@ -49,27 +52,50 @@ export class GameEngine {
   private isInitialized = false;
   private isLoading = false;
   
+  // Camera properties
+  private cameraDistance: number = 8; // Fixed distance from player origin
+  private cameraHeight: number = 2.0; // Fixed camera height
+  private lookAtOffsetY: number = 0; // Look slightly ahead/below
+  private cameraLerpFactor: number = 2.0; // Smooth camera movement factor
+  
+  // Fixed camera parameters
+  private fixedCameraMode: boolean = true; // Use fixed approach
+  private cameraCenterOffset: number = 0; // Fixed offset toward center
+  
+  // Rendering debug flags
+  private renderErrorLogged = false;
+  private renderErrorCount = 0;
+  private lastRenderErrorTime = 0;
+  private renderCount = 0;
+  
   /**
-   * Initialize the game engine
+   * Initialize the game engine with pre-initialized components
+   * @param options - Initialized components and system options
    */
-  constructor(canvas: HTMLCanvasElement) {
-    // Detect device capabilities
-    this.deviceCapabilities = detectDeviceCapabilities();
-    this.gameSettings = configureGameSettings(this.deviceCapabilities);
+  constructor(options: {
+    // Core rendering system (provided by RenderingInitializer)
+    renderer: THREE.WebGLRenderer;
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
     
-    // Set up Three.js
-    this.renderer = this.setupRenderer(canvas);
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x75c2f6); // Sky blue background
-    this.camera = this.setupCamera();
+    // Core services
+    assetManager: AssetManager;
+    audioManager: AudioManager;
     
-    // Initialize asset manager
-    this.assetManager = new AssetManager();
-    
-    // Initialize audio manager
-    this.audioManager = AudioManager.getInstance();
-    
-    // Initialize input handler
+    // Device capabilities (from RenderingInitializer)
+    deviceCapabilities: ReturnType<typeof detectDeviceCapabilities>;
+    gameSettings: ReturnType<typeof configureGameSettings>;
+  }) {
+    // Store provided core components
+    this.renderer = options.renderer;
+    this.scene = options.scene;
+    this.camera = options.camera;
+    this.assetManager = options.assetManager;
+    this.audioManager = options.audioManager;
+    this.deviceCapabilities = options.deviceCapabilities;
+    this.gameSettings = options.gameSettings;
+
+    // Initialize input handler (internal to GameEngine)
     this.inputHandler = new InputHandler();
     
     // Set up game loop with empty functions initially
@@ -80,14 +106,35 @@ export class GameEngine {
       fixedTimeStep: 1/60 // 60 fps physics
     });
     
-    // Register game state change listener
+    // Register event listeners
     eventBus.on('game-state-change', this.handleGameStateChange.bind(this));
+    eventBus.on('performance-quality-change', this.handleQualityChange.bind(this));
+    eventBus.on('performance-update', this.handlePerformanceUpdate.bind(this));
     
     // Setup window resize handler
     window.addEventListener('resize', this.handleResize.bind(this));
     
-    // Start in MENU state (early init is complete)
-    gameStateManager.setState('MENU');
+    // Apply quality settings to game loop
+    this.applyQualitySettingsToGameLoop();
+    
+    // Log initialization success
+    console.log('GameEngine: Successfully initialized with pre-initialized components');
+  }
+  
+  /**
+   * Apply quality settings to game loop based on current quality level
+   */
+  private applyQualitySettingsToGameLoop(): void {
+    const qualityAdjuster = getQualityAdjuster();
+    const qualityPreset = qualityAdjuster.getQualityPreset();
+    
+    // Adjust fixed time step based on quality level
+    // Lower quality = slightly fewer physics updates to improve performance
+    if (qualityPreset.animationFrameSkip > 0) {
+      const newTimeStep = (1/60) * (qualityPreset.animationFrameSkip + 1);
+      this.gameLoop.setFixedTimeStep(newTimeStep);
+      console.log(`GameEngine: Adjusted physics time step to ${newTimeStep.toFixed(4)}s based on quality settings`);
+    }
   }
   
   /**
@@ -104,23 +151,37 @@ export class GameEngine {
       // Preload essential assets
       await this.loadAssets();
       
-      // Initialize audio
-      await this.audioManager.initialize(this.camera);
-      // Set the AssetManager for the AudioManager
-      this.audioManager.setAssetManager(this.assetManager);
-      await this.audioManager.loadSoundEffects();
+      // Initialize audio with safety check
+      if (this.audioManager && this.camera) {
+        await this.audioManager.initialize(this.camera);
+        await this.audioManager.loadSoundEffects();
+      }
       
       // Add lighting 
       this.setupLighting();
       
-      // Initialize environment
-      const environmentQuality = this.deviceCapabilities.highEnd ? 'high' : 
-                              this.deviceCapabilities.midRange ? 'medium' : 'low';
+      // Get quality settings from QualityAdjuster
+      const qualityAdjuster = getQualityAdjuster();
+      const qualityPreset = qualityAdjuster.getQualityPreset();
+      const qualityLevel = qualityAdjuster.getQuality();
+      
+      console.log(`GameEngine: Initializing with quality level: ${qualityLevel}`);
+      
+      // Initialize environment with quality awareness
       this.environment = new ProceduralEnvironment(
         this.scene,
         this.renderer,
         this.assetManager
       );
+      
+      // Apply quality settings to environment
+      applyQualityToEntity(this.environment, (preset) => {
+        // Adjust environment details based on quality preset
+        this.environment.setDetailLevel(preset.entityDetailLevel);
+        this.environment.setMaxDecorations(preset.maxDecorations);
+        
+        console.log(`GameEngine: Applied environment quality settings - Detail: ${preset.entityDetailLevel}, Max Decorations: ${preset.maxDecorations}`);
+      });
       
       // Initialize water effects (now integrated with ProceduralEnvironment)
       // We'll keep the reference to be compatible with existing code
@@ -140,12 +201,33 @@ export class GameEngine {
         this.deviceCapabilities // Pass in device capabilities to avoid creating new WebGL contexts
       );
       
+      // Apply quality settings to obstacle manager
+      applyQualityToEntity(this.obstacleManager, (preset) => {
+        // Apply quality settings to obstacle manager
+        this.obstacleManager.setMaxObstacles(preset.maxObstacles);
+        this.obstacleManager.setSpawnRate(preset.obstacleSpawnRate);
+        this.obstacleManager.setUseSimplifiedColliders(preset.useSimplifiedColliders);
+        this.obstacleManager.setDetailLevel(preset.entityDetailLevel);
+        
+        console.log(`GameEngine: Applied obstacle quality settings - Max: ${preset.maxObstacles}, Detail: ${preset.entityDetailLevel}`);
+      });
+      
       // Initialize collectible manager
       this.collectibleManager = new CollectibleManager(
         this.scene, 
         this.assetManager,
         this.deviceCapabilities
       );
+      
+      // Apply quality settings to collectible manager
+      applyQualityToEntity(this.collectibleManager, (preset) => {
+        // Apply quality settings to collectible manager
+        this.collectibleManager.setMaxCollectibles(preset.maxCollectibles);
+        this.collectibleManager.setDetailLevel(preset.entityDetailLevel);
+        this.collectibleManager.setMaxParticles(preset.maxParticles / 5); // Use a portion of the total particle budget
+        
+        console.log(`GameEngine: Applied collectible quality settings - Max: ${preset.maxCollectibles}, Particles: ${preset.maxParticles / 5}`);
+      });
       
       // Initialize power-up effects
       this.powerUpEffects = new PowerUpEffects(this.scene);
@@ -157,6 +239,7 @@ export class GameEngine {
       // Set up game loop with proper update functions
       this.gameLoop.setUpdateFn(this.updateGame.bind(this));
       this.gameLoop.setFixedUpdateFn(this.updatePhysics.bind(this));
+      // Render function delegates to RenderingInitializer
       this.gameLoop.setRenderFn(this.render.bind(this));
       
       // Set up event listeners
@@ -192,51 +275,46 @@ export class GameEngine {
    * Load required game assets
    */
   private async loadAssets(): Promise<void> {
-    // Report asset loading progress
-    const progressHandler = (progress: { completed: number, total: number, progress: number }) => {
+    // Check if asset manager is properly initialized
+    if (!this.assetManager) {
+      console.warn('GameEngine: Cannot load assets - asset manager not initialized');
+      
+      // Emit a 100% progress event to ensure the loading screen doesn't get stuck
       eventBus.emit('asset-loading-progress', { 
-        progress: Math.floor(progress.progress * 100), 
-        loaded: progress.completed, 
-        total: progress.total 
+        progress: 100, 
+        loaded: 100, 
+        total: 100 
       });
+      
+      return;
+    }
+    
+    // Report asset loading progress
+    const progressHandler = (progress: number) => {
+      if (this.assetManager) {
+        const progressInfo = this.assetManager.getLoadingProgress();
+        eventBus.emit('asset-loading-progress', { 
+          progress: Math.floor(progress * 100), 
+          loaded: progressInfo.completed, 
+          total: progressInfo.total 
+        });
+      } else {
+        // Fallback if asset manager becomes unavailable
+        eventBus.emit('asset-loading-progress', { 
+          progress: Math.floor(progress * 100), 
+          loaded: 1, 
+          total: 1 
+        });
+      }
     };
     
     try {
-      // Register necessary assets first
-      console.log('Registering game assets...');
+      // No need to register core assets again since we already did in the constructor
+      // This avoids duplicating registrations
+      console.log('Loading essential assets with procedurally generated placeholders...');
       
-      // Register audio assets
-      this.assetManager.registerAsset('audio_background', 'audio', '/assets/audio/music_background.mp3');
-      this.assetManager.registerAsset('audio_collect', 'audio', '/assets/audio/collect.mp3');
-      this.assetManager.registerAsset('audio_collision', 'audio', '/assets/audio/collision.mp3');
-      this.assetManager.registerAsset('audio_powerup', 'audio', '/assets/audio/powerup.mp3');
-      
-      // Register character assets
-      this.assetManager.registerAsset('character_nemo', 'model', '/assets/models/nemo.glb');
-      
-      // Register environment decoration assets
-      this.assetManager.registerAsset('decoration_coralRock', 'model', '/assets/models/coral_rock.glb');
-      this.assetManager.registerAsset('decoration_floatingPlankton', 'model', '/assets/models/plankton.glb');
-      this.assetManager.registerAsset('decoration_seaAnemone', 'model', '/assets/models/sea_anemone.glb');
-      this.assetManager.registerAsset('decoration_bubbleStream', 'model', '/assets/models/bubble_stream.glb');
-      this.assetManager.registerAsset('decoration_coralCluster', 'model', '/assets/models/coral_cluster.glb');
-      this.assetManager.registerAsset('decoration_schoolOfFish', 'model', '/assets/models/fish_school.glb');
-      
-      // Let the asset manager know we're going to ignore these assets for now
-      // They'll be procedurally generated in code instead
-      this.assetManager.setIgnoreAssets([
-        'character_nemo',
-        'decoration_coralRock', 
-        'decoration_floatingPlankton',
-        'decoration_seaAnemone',
-        'decoration_bubbleStream',
-        'decoration_coralCluster',
-        'decoration_schoolOfFish'
-      ]);
-      
-      // Since we're using procedural generation, we'll skip loading these assets directly
-      // and just load audio assets
-      console.log('Loading essential assets...');
+      // Since assets are already marked as procedurally generated, 
+      // loadAll will just mark them as loaded without attempting to fetch files
       await this.assetManager.loadAll(progressHandler);
 
       console.log('Asset loading complete!');
@@ -286,13 +364,17 @@ export class GameEngine {
     // Handle transitions between states
     switch (to) {
       case 'MENU':
-        // Start menu music
-        this.audioManager.stopBackgroundMusic();
-        this.audioManager.playBackgroundMusic();
+        // Start menu music with safety check
+        if (this.audioManager) {
+          this.audioManager.stopBackgroundMusic();
+          this.audioManager.playBackgroundMusic();
+        }
         
-        // Reset camera to menu position
-        this.camera.position.set(0, 2.0, 10);
-        this.camera.lookAt(0, 0, 0);
+        // Reset camera to menu position with safety check
+        if (this.camera) {
+          this.camera.position.set(0, 2.0, 10);
+          this.camera.lookAt(0, 0, 0);
+        }
         
         // Clear game elements if coming from game over
         if (from === 'GAME_OVER') {
@@ -308,8 +390,10 @@ export class GameEngine {
         break;
         
       case 'READY':
-        // Play countdown sound
-        this.audioManager.playSoundEffect('countdown');
+        // Play countdown sound with safety check
+        if (this.audioManager) {
+          this.audioManager.playSoundEffect('countdown');
+        }
         
         // Prepare for gameplay and reset camera
         this.prepareGame();
@@ -322,8 +406,8 @@ export class GameEngine {
           this.cameraCenterOffset = 0;
           this.lookAtOffsetY = 0;
           
-          // Position camera if mesh exists
-          if (this.player.mesh) {
+          // Position camera if player and mesh exist
+          if (this.player && this.player.mesh) {
             this.camera.position.set(
               this.cameraCenterOffset,
               this.cameraHeight,
@@ -336,6 +420,20 @@ export class GameEngine {
               this.lookAtOffsetY,
               this.player.mesh.position.z - 10
             );
+          } else {
+            // Fallback camera position if player mesh is not available
+            this.camera.position.set(
+              this.cameraCenterOffset,
+              this.cameraHeight,
+              this.cameraDistance
+            );
+            
+            // Look ahead
+            this.camera.lookAt(
+              this.cameraCenterOffset,
+              this.lookAtOffsetY,
+              -10
+            );
           }
         }
         break;
@@ -343,7 +441,9 @@ export class GameEngine {
       case 'PLAYING':
         // Start background music if coming from another state
         if (from === 'READY' || from === 'MENU' || from === 'LOADING') {
-          this.audioManager.playSoundEffect('game-start');
+          if (this.audioManager) {
+            this.audioManager.playSoundEffect('game-start');
+          }
           
           // Explicitly signal the game to start character movement
           // Send multiple events for redundancy to ensure character movement starts
@@ -378,8 +478,10 @@ export class GameEngine {
         break;
         
       case 'GAME_OVER':
-        // Play game over sound
-        this.audioManager.playSoundEffect('game-over');
+        // Play game over sound with safety check
+        if (this.audioManager) {
+          this.audioManager.playSoundEffect('game-over');
+        }
         break;
     }
   }
@@ -388,41 +490,78 @@ export class GameEngine {
    * Prepare the game for playing - called when entering READY state
    */
   private prepareGame(): void {
+    // Safety check for player initialization
+    if (!this.player) {
+      console.warn('GameEngine: Cannot prepare game - player not initialized');
+      return;
+    }
+    
     // Reset player position
     this.player.resetPosition();
     
+    // Safety check for obstacle manager
+    if (!this.obstacleManager) {
+      console.warn('GameEngine: Cannot prepare game - obstacle manager not initialized');
+      return;
+    }
+    
     // Generate initial obstacles
     this.obstacleManager.clear();
-    const playerPosition = this.player.getPosition();
-    if (playerPosition) {
-      this.obstacleManager.update(0, playerPosition.z, 0);
+    
+    // Safely get player position
+    try {
+      const playerPosition = this.player.getPosition();
+      if (playerPosition) {
+        // Update with full position vector, even in setup
+        this.obstacleManager.update(0, playerPosition, 0);
+      } else {
+        console.warn('GameEngine: Cannot initialize obstacles - player position is undefined');
+      }
+    } catch (error) {
+      console.error('GameEngine: Error getting player position for obstacle initialization:', error);
+    }
+    
+    // Safety check for collectible manager
+    if (!this.collectibleManager) {
+      console.warn('GameEngine: Cannot prepare game - collectible manager not initialized');
+      return;
     }
     
     // Clear collectibles
     this.collectibleManager.clear();
     
     // Reset camera based on fixed approach
-    // Reuse the same playerPosition variable
-    if (this.fixedCameraMode && playerPosition) {
-      // Reset camera with consistent parameters
-      this.cameraDistance = 8;
-      this.cameraHeight = 2.0;
+    try {
+      // Get fresh player position
+      const playerPos = this.player ? this.player.getPosition() : null;
       
-      // Set camera to fixed position
-      this.camera.position.set(
-        this.cameraCenterOffset, 
-        this.cameraHeight, 
-        playerPosition.z + this.cameraDistance
-      );
+      if (this.fixedCameraMode && playerPos) {
+        // Reset camera with consistent parameters
+        this.cameraDistance = 8;
+        this.cameraHeight = 2.0;
+        
+        // Set camera to fixed position
+        this.camera.position.set(
+          this.cameraCenterOffset, 
+          this.cameraHeight, 
+          playerPos.z + this.cameraDistance
+        );
+        
+        // Look ahead along path
+        this.camera.lookAt(
+          this.cameraCenterOffset,
+          this.lookAtOffsetY,
+          playerPos.z - 10
+        );
+      } else {
+        // Legacy camera reset or fallback if player position is undefined
+        this.camera.position.set(0, 3, 10);
+        this.camera.lookAt(0, 0, 0);
+      }
+    } catch (error) {
+      console.error('GameEngine: Error resetting camera position:', error);
       
-      // Look ahead along path
-      this.camera.lookAt(
-        this.cameraCenterOffset,
-        this.lookAtOffsetY,
-        playerPosition.z - 10
-      );
-    } else {
-      // Legacy camera reset
+      // Ensure camera is reset to a safe position in case of errors
       this.camera.position.set(0, 3, 10);
       this.camera.lookAt(0, 0, 0);
     }
@@ -456,6 +595,12 @@ export class GameEngine {
   private updateGame(deltaTime: number): void {
     if (gameStateManager.state !== 'PLAYING') return;
     
+    // Safety check for player existence
+    if (!this.player) {
+      console.warn('GameEngine: Cannot update game - player is undefined');
+      return;
+    }
+    
     // Handle input
     const input = this.inputHandler.getInput();
     
@@ -469,14 +614,20 @@ export class GameEngine {
       eventBus.emit('player-position', playerPos);
       
       // Update obstacles
-      this.obstacleManager.update(deltaTime, playerPos.z, this.playerSpeed * deltaTime);
+      if (this.obstacleManager) {
+        this.obstacleManager.update(deltaTime, playerPos, this.playerSpeed * deltaTime);
+      }
       
       // Update collectibles
-      this.collectibleManager.update(deltaTime, playerPos, this.playerSpeed);
+      if (this.collectibleManager) {
+        this.collectibleManager.update(deltaTime, playerPos, this.playerSpeed);
+      }
     }
     
     // Update power-up effects
-    this.powerUpEffects.update(deltaTime);
+    if (this.powerUpEffects) {
+      this.powerUpEffects.update(deltaTime);
+    }
     
     // Update distance in game state manager
     gameStateManager.updateDistance(this.playerSpeed * deltaTime);
@@ -485,324 +636,262 @@ export class GameEngine {
     this.updateCamera(deltaTime);
   }
   
-  // Camera properties
-  private cameraDistance: number = 8; // Fixed distance from player origin
-  private cameraHeight: number = 2.0; // Fixed camera height
-  private lookAtOffsetY: number = 0; // Look slightly ahead/below
-  private cameraLerpFactor: number = 2.0; // Smooth camera movement factor
-  
-  // Fixed camera parameters
-  private fixedCameraMode: boolean = true; // Use fixed approach
-  private cameraCenterOffset: number = 0; // Fixed offset toward center
-  
   /**
    * Update camera position to follow player
    */
   private updateCamera(deltaTime: number): void {
-    // Get current player position
-    const playerPos = this.player.getPosition();
-    if (this.fixedCameraMode && playerPos) {
-      // FIXED CAMERA APPROACH:
-      // In this mode, the camera stays directly behind the player's forward path
-      // It only follows in Z direction, completely ignoring lane changes
-      // This prevents ANY zoom effect since the perspective never changes
+    // Ensure player exists
+    if (!this.player) {
+      console.warn('GameEngine: Cannot update camera - player is undefined');
+      return;
+    }
+    
+    try {
+      // Get current player position
+      const playerPos = this.player.getPosition();
+      if (this.fixedCameraMode && playerPos) {
+        // FIXED CAMERA APPROACH:
+        // In this mode, the camera stays directly behind the player's forward path
+        // It only follows in Z direction, completely ignoring lane changes
+        // This prevents ANY zoom effect since the perspective never changes
+        
+        // Simply maintain a fixed Z offset behind the player
+        this.camera.position.z = playerPos.z + this.cameraDistance;
+        
+        // Keep the camera at a FIXED X position (center line)
+        this.camera.position.x = this.cameraCenterOffset; // Usually 0 for center
+        
+        // Maintain fixed height
+        this.camera.position.y = this.cameraHeight;
+        
+        // Look ahead at a fixed point along the forward path
+        // This is CRITICAL - we look at a point directly ahead,
+        // NOT at the player, to prevent zoom effects
+        this.camera.lookAt(
+          this.cameraCenterOffset, // Look at center lane
+          this.lookAtOffsetY,      // Slight Y offset for better angle
+          playerPos.z - 10 // Look AHEAD of player
+        );
+      } else if (playerPos) {
+        // DYNAMIC CAMERA APPROACH (Original logic - not used)
+        // Note: This is preserved but not used since fixed approach is better
+        
+        // Keep camera behind player at a consistent distance
+        const targetCameraZ = playerPos.z + this.cameraDistance;
+        this.camera.position.z = THREE.MathUtils.lerp(
+          this.camera.position.z, 
+          targetCameraZ, 
+          deltaTime * 2
+        );
+        
+        // Fixed camera at center
+        this.camera.position.x = 0;
+        
+        // Fixed height
+        this.camera.position.y = this.cameraHeight;
+        
+        // Look directly ahead (not at player)
+        this.camera.lookAt(0, 0, playerPos.z - 10);
+      } else {
+        // If for some reason we don't have a valid player position, use fallback
+        console.warn('GameEngine: Player position is undefined, using fallback camera position');
+        
+        // Set reasonable defaults for camera
+        this.camera.position.set(
+          this.cameraCenterOffset,
+          this.cameraHeight,
+          this.cameraDistance
+        );
+        
+        // Look ahead
+        this.camera.lookAt(
+          this.cameraCenterOffset,
+          this.lookAtOffsetY,
+          -10
+        );
+      }
+    } catch (error) {
+      console.error('GameEngine: Error updating camera:', error);
       
-      // Simply maintain a fixed Z offset behind the player
-      this.camera.position.z = playerPos.z + this.cameraDistance;
-      
-      // Keep the camera at a FIXED X position (center line)
-      this.camera.position.x = this.cameraCenterOffset; // Usually 0 for center
-      
-      // Maintain fixed height
-      this.camera.position.y = this.cameraHeight;
-      
-      // Look ahead at a fixed point along the forward path
-      // This is CRITICAL - we look at a point directly ahead,
-      // NOT at the player, to prevent zoom effects
-      this.camera.lookAt(
-        this.cameraCenterOffset, // Look at center lane
-        this.lookAtOffsetY,      // Slight Y offset for better angle
-        playerPos.z - 10 // Look AHEAD of player
-      );
-    } else if (playerPos) {
-      // DYNAMIC CAMERA APPROACH (Original logic - not used)
-      // Note: This is preserved but not used since fixed approach is better
-      
-      // Keep camera behind player at a consistent distance
-      const targetCameraZ = playerPos.z + this.cameraDistance;
-      this.camera.position.z = THREE.MathUtils.lerp(
-        this.camera.position.z, 
-        targetCameraZ, 
-        deltaTime * 2
-      );
-      
-      // Fixed camera at center
-      this.camera.position.x = 0;
-      
-      // Fixed height
-      this.camera.position.y = this.cameraHeight;
-      
-      // Look directly ahead (not at player)
-      this.camera.lookAt(0, 0, playerPos.z - 10);
+      // Set safe fallback camera position
+      this.camera.position.set(0, 2.0, 10);
+      this.camera.lookAt(0, 0, 0);
     }
   }
   
-  // Flag to prevent recursive render error logging
-  private renderErrorLogged = false;
-  private renderErrorCount = 0;
-  private lastRenderErrorTime = 0;
-  
   /**
-   * Render the scene with comprehensive error handling
+   * Delegate rendering to RenderingInitializer
    */
   private render(interpolation: number): void {
-    // Complete safety check at the very beginning
-    try {
-      // Check if we have the essential components
-      if (!this.renderer || !this.scene || !this.camera) {
-        // Only log this error once to prevent console spam
-        if (!this.renderErrorLogged) {
-          console.warn('Cannot render: renderer, scene, or camera is null');
-          this.renderErrorLogged = true;
-          
-          // After 5 seconds, allow logging again in case the issue persists
-          setTimeout(() => {
-            this.renderErrorLogged = false;
-          }, 5000);
-        }
-        return;
+    // Get the rendering initializer instance
+    const renderingInitializer = getRenderingInitializer();
+    
+    // Delegate rendering to RenderingInitializer
+    if (this.renderer && this.scene && this.camera) {
+      // Add debug count to track rendering (remove in production)
+      if (!this.renderCount) {
+        this.renderCount = 0;
+        console.log('GameEngine: First render call with delegated rendering');
       }
       
-      // Track render errors to prevent infinite loops
-      const now = Date.now();
-      if (now - this.lastRenderErrorTime > 5000) {
-        // Reset error count after 5 seconds of no errors
-        this.renderErrorCount = 0;
+      // Log every 100 frames for testing
+      this.renderCount++;
+      if (this.renderCount % 100 === 0) {
+        console.log(`GameEngine: Rendering frame ${this.renderCount} with delegated rendering`);
       }
       
-      // If we've had too many render errors in a short time, disable rendering temporarily
-      if (this.renderErrorCount > 10) {
-        if (now - this.lastRenderErrorTime < 5000) {
-          // Too many errors in a short period, skip rendering
-          return;
-        } else {
-          // It's been a while, reset error count and try again
-          this.renderErrorCount = 0;
-        }
-      }
-      
-      // Pre-check for invalid state
-      if (!gameStateManager) {
-        console.warn('GameStateManager is not initialized, skipping render');
-        return;
-      }
-      
-      // Safety wrapper for rendering
-      try {
-        // Get time for effects
-        const time = performance.now() * 0.001;
+      renderingInitializer.render(
+        this.renderer,
+        this.scene,
+        this.camera,
+        gameStateManager.state
+      );
+    } else {
+      // Only log this error once to prevent console spam
+      if (!this.renderErrorLogged) {
+        console.warn('Cannot render: renderer, scene, or camera is null');
+        this.renderErrorLogged = true;
         
-        // Apply camera effects based on game state
-        // Different effects for different states
-        if (gameStateManager.state === 'PLAYING' || gameStateManager.state === 'PAUSED') {
-          if (this.fixedCameraMode) {
-            // FIXED CAMERA MODE EFFECTS
-            // Much subtler effects that don't affect camera position or look direction
-            
-            try {
-              // Apply a VERY subtle camera roll for underwater feeling
-              // This only affects rotation around Z axis, not position or direction
-              const subtleRoll = Math.sin(time * 0.2) * 0.002; // Extremely minor roll
-              if (this.camera && this.camera.rotation) {
-                this.camera.rotation.z = subtleRoll;
-              }
-            } catch (effectError) {
-              console.warn('Error applying camera effects:', effectError);
-            }
-          }
-          else {
-            // DYNAMIC CAMERA MODE EFFECTS - not used but preserved
-            try {
-              const wobbleAmplitude = 0.03;
-              this.cameraHeight = 2.0 + Math.sin(time * 0.5) * wobbleAmplitude;
-              
-              const playerPos = this.player?.getPosition();
-              if (this.player && playerPos && this.camera && this.camera.rotation) {
-                const targetTilt = playerPos.x * -0.005;
-                this.camera.rotation.z = THREE.MathUtils.lerp(
-                  this.camera.rotation.z,
-                  targetTilt + Math.sin(time * 0.2) * 0.003,
-                  0.03
-                );
-              }
-            } catch (dynamicEffectError) {
-              console.warn('Error applying dynamic camera effects:', dynamicEffectError);
-            }
-          }
-        } else {
-          // MENU STATE CAMERA
-          // For the menu, we want more dramatic effects
-          try {
-            if (this.camera && this.camera.position && this.camera.rotation) {
-              // Subtle camera movement for menu
-              this.camera.position.y = 2.0 + Math.sin(time * 0.2) * 0.1;
-              this.camera.rotation.z = Math.sin(time * 0.1) * 0.02;
-              
-              // Slowly rotate camera in menu
-              if (gameStateManager.state === 'MENU') {
-                this.camera.position.x = Math.sin(time * 0.1) * 3;
-                this.camera.position.z = Math.cos(time * 0.1) * 3 + 10;
-                
-                // Make sure vector is valid before lookAt
-                if (this.camera.lookAt && typeof this.camera.lookAt === 'function') {
-                  this.camera.lookAt(0, 0, 0);
-                }
-              }
-            }
-          } catch (menuEffectError) {
-            console.warn('Error applying menu camera effects:', menuEffectError);
-          }
-        }
-        
-        // Final verification before rendering
-        if (this.renderer && this.scene && this.camera &&
-            this.renderer.render && typeof this.renderer.render === 'function') {
-          try {
-            // Perform the actual rendering
-            this.renderer.render(this.scene, this.camera);
-            
-            // Successful render, reset error tracking
-            this.renderErrorLogged = false;
-          } catch (renderError) {
-            // Track this error
-            this.lastRenderErrorTime = now;
-            this.renderErrorCount++;
-            
-            // Check specifically for "trim" related errors which indicate a UI component issue
-            const errorString = renderError.toString();
-            if (errorString.includes('trim') || errorString.includes('Cannot read properties of null')) {
-              // This is likely coming from a UI component rather than an actual rendering issue
-              // Force a state transition to eliminate the error by clearing any problematic UI
-              if (this.renderErrorCount === 1) {
-                console.error('Detected UI component error. Attempting to recover:', renderError);
-                
-                try {
-                  // Emit state change event to force UI components to re-render with safe defaults
-                  if (gameStateManager && gameStateManager.state) {
-                    const currentState = gameStateManager.state;
-                    setTimeout(() => {
-                      // Emit same state with additional data to refresh UI
-                      eventBus.emit('game-state-change', {
-                        from: currentState,
-                        to: currentState,
-                        data: {
-                          ...gameStateManager.stateData,
-                          // Ensure environment has a safe value
-                          environment: {
-                            current: 'reef'
-                          }
-                        },
-                        refresh: true
-                      });
-                    }, 100);
-                  }
-                } catch (recoveryError) {
-                  console.warn('Failed UI recovery attempt:', recoveryError);
-                }
-              }
-            }
-            
-            // Only log periodically to avoid console spam 
-            if (this.renderErrorCount === 1 || this.renderErrorCount % 10 === 0) {
-              console.error(`Render error (${this.renderErrorCount}):`, renderError);
-            }
-            
-            // If we've hit a critical number of errors, try to recover
-            if (this.renderErrorCount === 20) {
-              console.warn('Critical render error count reached, attempting recovery...');
-              this.attemptRendererRecovery();
-            }
-          }
-        } else {
-          console.warn('Render method unavailable on renderer');
-        }
-      } catch (outerError) {
-        console.error('Unexpected error in render method:', outerError);
+        // After 5 seconds, allow logging again in case the issue persists
+        setTimeout(() => {
+          this.renderErrorLogged = false;
+        }, 5000);
       }
-    } catch (fatalError) {
-      // Last resort catch - this should never happen but will prevent the game from crashing
-      console.error('Fatal error in render method:', fatalError);
     }
   }
   
   /**
-   * Attempt to recover from renderer issues by recreating it
+   * Handle renderer recovery
    */
-  private attemptRendererRecovery(): void {
-    console.log('Attempting renderer recovery...');
-    try {
-      // Cache the current canvas
-      const canvas = this.renderer.domElement;
-      
-      // Dispose current renderer
+  private handleRendererRecovery(): void {
+    if (this.renderer) {
       try {
-        // Get WebGL context and force loss to free up GPU resources
-        const gl = this.renderer.getContext();
-        if (gl && 'getExtension' in gl) {
-          const ext = gl.getExtension('WEBGL_lose_context');
-          if (ext) {
-            console.log('Forcing WebGL context loss for recovery...');
-            ext.loseContext();
-          }
+        // Since we can't access the private recovery method, 
+        // we'll handle recovery inline
+        console.log('GameEngine: Attempting manual renderer recovery');
+        
+        // Force a new render call
+        if (this.scene && this.camera) {
+          this.renderer.render(this.scene, this.camera);
         }
         
-        this.renderer.dispose();
-      } catch (disposeError) {
-        console.warn('Error disposing old renderer:', disposeError);
+        // Reset error tracking
+        this.renderErrorCount = 0;
+        this.renderErrorLogged = false;
+      } catch (recoveryError) {
+        console.error('Failed to recover renderer:', recoveryError);
+      }
+    }
+  }
+  
+  // Flag to track if emergency optimizations have been applied
+  private emergencyOptimizationsApplied = false;
+  
+  /**
+   * Handle quality change events from PerformanceMonitor
+   */
+  private handleQualityChange(data: { quality: string, reason: string }): void {
+    console.log(`GameEngine: Quality changed to ${data.quality} due to ${data.reason}`);
+    
+    // Apply new quality settings to game loop
+    this.applyQualitySettingsToGameLoop();
+    
+    // Quality settings for entities are applied automatically through registered handlers
+    // from applyQualityToEntity() calls during initialization
+  }
+  
+  /**
+   * Handle performance update events
+   */
+  private handlePerformanceUpdate(data: { metrics: any }): void {
+    const { metrics } = data;
+    
+    // Check for severe performance issues
+    if (metrics.fps < 20 || metrics.longFrames > 10) {
+      // Take emergency measures for very poor performance
+      this.applyEmergencyPerformanceOptimizations();
+    }
+    
+    // We could log performance metrics to server/analytics here
+  }
+  
+  /**
+   * Apply emergency optimizations when performance is critically low
+   */
+  private applyEmergencyPerformanceOptimizations(): void {
+    // Only apply emergency optimizations once to avoid thrashing
+    if (this.emergencyOptimizationsApplied) return;
+    this.emergencyOptimizationsApplied = true;
+    
+    console.warn('GameEngine: Applying emergency performance optimizations');
+    
+    try {
+      // Force quality to low
+      const qualityAdjuster = getQualityAdjuster();
+      qualityAdjuster.setQuality('low');
+      
+      // Reduce physics updates to minimum
+      this.gameLoop.setFixedTimeStep(1/30); // 30 fps physics
+      
+      // Drastically reduce obstacles and decorations
+      if (this.obstacleManager) {
+        this.obstacleManager.setMaxObstacles(3);
+        this.obstacleManager.setUseSimplifiedColliders(true);
       }
       
-      // Create a new renderer with minimal options
-      console.log('Creating new renderer...');
-      this.renderer = new THREE.WebGLRenderer({ 
-        canvas,
-        antialias: false,
-        alpha: false,
-        precision: 'lowp',
-        powerPreference: 'default'
-      });
+      if (this.collectibleManager) {
+        this.collectibleManager.setMaxCollectibles(10);
+        this.collectibleManager.setMaxParticles(10);
+      }
       
-      // Set basic properties
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-      this.renderer.setPixelRatio(1.0); // Use safest value
+      if (this.environment) {
+        this.environment.setMaxDecorations(20);
+        this.environment.setDetailLevel(1);
+      }
       
-      // Reset error tracking
-      this.renderErrorCount = 0;
-      this.renderErrorLogged = false;
+      // Disable non-essential visual effects
+      if (this.waterEffects) {
+        this.waterEffects.disableNonEssentialEffects();
+      }
       
-      console.log('Renderer recovery complete');
-    } catch (recoveryError) {
-      console.error('Failed to recover renderer:', recoveryError);
+      // Emit event for other systems to respond
+      eventBus.emit('emergency-performance-mode', { enabled: true });
+      
+      console.warn('GameEngine: Emergency optimizations applied');
+    } catch (error) {
+      console.error('GameEngine: Error applying emergency optimizations:', error);
     }
   }
   
   /**
-   * Handle window resize
+   * Handle window resize by delegating to RenderingInitializer
    */
   private handleResize(): void {
-    // Update camera aspect ratio
-    this.camera.aspect = window.innerWidth / window.innerHeight;
-    this.camera.updateProjectionMatrix();
-    
-    // Update renderer size
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    // Delegate resize handling to RenderingInitializer
+    if (this.renderer && this.camera) {
+      const renderingInitializer = getRenderingInitializer();
+      renderingInitializer.handleResize(this.renderer, this.camera);
+    }
   }
   
   /**
    * Reset game to initial state
    */
   private resetGame(): void {
+    // Safety check for player initialization
+    if (!this.player) {
+      console.warn('GameEngine: Cannot reset game - player not initialized');
+      return;
+    }
+    
     // Reset player position
     this.player.resetPosition();
+    
+    // Safety check for managers
+    if (!this.obstacleManager || !this.collectibleManager) {
+      console.warn('GameEngine: Cannot reset game - managers not fully initialized');
+      return;
+    }
     
     // Clear obstacles and collectibles
     this.obstacleManager.clear();
@@ -821,8 +910,8 @@ export class GameEngine {
       this.cameraCenterOffset = 0;
       this.lookAtOffsetY = 0;
       
-      // Apply these settings to the camera if mesh exists
-      if (this.player.mesh) {
+      // Apply these settings to the camera if player and mesh exists
+      if (this.player && this.player.mesh) {
         this.camera.position.set(
           this.cameraCenterOffset,
           this.cameraHeight,
@@ -834,6 +923,20 @@ export class GameEngine {
           this.cameraCenterOffset,
           this.lookAtOffsetY,
           this.player.mesh.position.z - 10
+        );
+      } else {
+        // Fallback camera position if player mesh is not available
+        this.camera.position.set(
+          this.cameraCenterOffset,
+          this.cameraHeight,
+          this.cameraDistance
+        );
+        
+        // Look ahead
+        this.camera.lookAt(
+          this.cameraCenterOffset,
+          this.lookAtOffsetY,
+          -10
         );
       }
     }
@@ -891,13 +994,15 @@ export class GameEngine {
       // Reset the game to initial state
       this.resetGame();
       
-      // Reset player position
-      this.player.resetPosition();
+      // Reset player position if player exists
+      if (this.player) {
+        this.player.resetPosition();
+      }
       
       // Reset obstacles
       this.obstacleManager.clear();
-      if (this.player.mesh) {
-        this.obstacleManager.update(0, this.player.mesh.position.z, 0);
+      if (this.player && this.player.mesh) {
+        this.obstacleManager.update(0, this.player.mesh.position, 0);
       }
       
       // Reset collectibles
@@ -981,355 +1086,7 @@ export class GameEngine {
     // Note: Visual effects are now handled by PowerUpEffects class
   }
   
-  /**
-   * Initialize renderer with extensive error handling and canvas dimension awareness
-   */
-  private setupRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
-    try {
-      // Check if the canvas is valid
-      if (!canvas) {
-        throw new Error('Canvas is null or undefined');
-      }
-      
-      // Check that the canvas is attached to the DOM
-      if (!canvas.parentElement) {
-        console.warn('Canvas is not attached to DOM, rendering may fail');
-      }
-      
-      // Use clientWidth and clientHeight for accurate canvas dimensions
-      const clientWidth = canvas.clientWidth;
-      const clientHeight = canvas.clientHeight;
-      
-      console.log(`Setting up renderer with canvas client dimensions: ${clientWidth}x${clientHeight}`);
-      
-      // If the canvas already has our tracking flag, let's try to clear any existing context
-      if ((canvas as any).__webGLContextCreated) {
-        console.warn('Canvas already has a tracking flag, trying to prep it for reuse');
-        
-        // Try to help release the previous context
-        try {
-          // We're in a tricky situation - we can't properly check for a context without creating one
-          // Let's use a timeout to give the browser time to release any previous context
-          const startWait = Date.now();
-          while (Date.now() - startWait < 100) {
-            // Short wait - just burn some CPU cycles to give the browser time
-          }
-        } catch (e) {
-          console.warn('Error during context release delay:', e);
-        }
-      }
-      
-      // Create renderer with minimal settings - better to try once with good settings than retry with lower ones
-      let renderer: THREE.WebGLRenderer;
-      
-      try {
-        console.log('Creating renderer with optimized settings for this device type');
-        
-        // Create a single set of options based on device capabilities
-        const options: THREE.WebGLRendererParameters = {
-          canvas: canvas,
-          // Use basics that should work on all devices
-          antialias: this.deviceCapabilities.highEnd || this.deviceCapabilities.midRange,
-          alpha: false, // No transparency needed for better performance
-          precision: this.deviceCapabilities.highEnd ? 'highp' : this.deviceCapabilities.midRange ? 'mediump' : 'lowp',
-          powerPreference: this.deviceCapabilities.highEnd ? 'high-performance' : 'default',
-          premultipliedAlpha: false,
-          preserveDrawingBuffer: false,
-          failIfMajorPerformanceCaveat: false, // Don't fail on low-end devices
-          depth: true,
-          stencil: false,
-          logarithmicDepthBuffer: false
-        };
-        
-        // Make a safe copy of options without the canvas for logging
-        const logOptions = { ...options };
-        delete logOptions.canvas; // Remove canvas to avoid circular reference
-        console.log('Creating WebGL renderer with options:', JSON.stringify(logOptions, null, 2));
-        
-        // Update the tracking flag before creating the context
-        (canvas as any).__webGLContextCreated = true;
-        
-        // Create the renderer
-        renderer = new THREE.WebGLRenderer(options);
-        console.log('WebGL renderer created successfully');
-      } catch (rendererCreationError) {
-        console.error('Critical error creating renderer:', rendererCreationError);
-        
-        // Add small delay before trying minimal settings
-        const startWait = Date.now();
-        while (Date.now() - startWait < 100) {
-          // Short wait
-        }
-        
-        // Try again with absolute minimal settings
-        try {
-          console.log('Retrying with absolute minimal settings');
-          
-          const minimalOptions: THREE.WebGLRendererParameters = {
-            canvas: canvas,
-            antialias: false,
-            alpha: false,
-            precision: 'lowp',
-            powerPreference: 'default',
-            premultipliedAlpha: false,
-            preserveDrawingBuffer: false,
-            failIfMajorPerformanceCaveat: false
-          };
-          
-          renderer = new THREE.WebGLRenderer(minimalOptions);
-          console.log('Minimal renderer created successfully on second attempt');
-        } catch (secondError) {
-          console.error('Critical error creating even minimal renderer:', secondError);
-          throw new Error('Failed to create WebGL renderer: ' + rendererCreationError + ' - Second attempt: ' + secondError);
-        }
-      }
-      
-      try {
-        // IMPORTANT: Get accurate dimensions from clientWidth/clientHeight
-        // This fixes the "300x150" default size problem
-        console.log('Setting renderer size based on client dimensions');
-        
-        // Use clientWidth/Height directly, with fallbacks
-        const width = clientWidth || 800;
-        const height = clientHeight || 600;
-        
-        // Set size with updateStyle=false to avoid resize loops
-        console.log(`Setting renderer size to ${width}x${height}`);
-        renderer.setSize(width, height, false);
-        
-        // Verify the size was set correctly
-        const actualWidth = renderer.domElement.width;
-        const actualHeight = renderer.domElement.height;
-        console.log(`Renderer size after setSize: ${actualWidth}x${actualHeight}`);
-        
-        // If there's a significant discrepancy, try one more time with a delay
-        if (Math.abs(actualWidth - width) > 50 || Math.abs(actualHeight - height) > 50) {
-          console.warn(`Size discrepancy detected! Will retry setting size in 100ms. Expected: ${width}x${height}, Got: ${actualWidth}x${actualHeight}`);
-          
-          // Queue a resize after a short delay
-          setTimeout(() => {
-            try {
-              const updatedWidth = canvas.clientWidth || 800;
-              const updatedHeight = canvas.clientHeight || 600;
-              console.log(`Retrying size with ${updatedWidth}x${updatedHeight}`);
-              renderer.setSize(updatedWidth, updatedHeight, false);
-            } catch (e) {
-              console.warn('Delayed size setting failed:', e);
-            }
-          }, 100);
-        }
-      } catch (sizeError) {
-        console.warn('Error setting renderer size:', sizeError);
-        // Fallback size
-        try {
-          renderer.setSize(800, 600, false);
-        } catch (fallbackSizeError) {
-          console.error('Error setting fallback size:', fallbackSizeError);
-        }
-      }
-      
-      try {
-        // Set a safe pixel ratio of 1 first
-        renderer.setPixelRatio(1);
-        
-        // Now try to set a better pixel ratio based on device capabilities
-        if (window.devicePixelRatio) {
-          // Use a more conservative approach for pixel ratio based on device capabilities
-          let targetPixelRatio = 1.0;
-          
-          if (this.deviceCapabilities) {
-            if (this.deviceCapabilities.highEnd) {
-              targetPixelRatio = Math.min(window.devicePixelRatio, 2.0);
-            } else if (this.deviceCapabilities.midRange) {
-              targetPixelRatio = Math.min(window.devicePixelRatio, 1.5);
-            } else {
-              targetPixelRatio = 1.0; // Low-end devices stick to 1.0
-            }
-          } else {
-            // If we don't have device capabilities detection, use a conservative approach
-            targetPixelRatio = Math.min(window.devicePixelRatio, 1.5);
-          }
-          
-          console.log(`Setting pixel ratio to: ${targetPixelRatio} (device ratio: ${window.devicePixelRatio})`);
-          renderer.setPixelRatio(targetPixelRatio);
-        }
-      } catch (pixelRatioError) {
-        console.warn('Error setting pixel ratio:', pixelRatioError);
-      }
-      
-      // Only apply additional settings if the basic renderer is working
-      try {
-        console.log('Applying additional renderer settings');
-        
-        // Basic safe settings
-        renderer.shadowMap.enabled = false;
-        renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-        renderer.toneMapping = THREE.NoToneMapping;
-        
-        // Apply device-specific settings if available, with individual try/catch
-        if (this.deviceCapabilities) {
-          console.log('Applying device-specific settings');
-          
-          // Each setting in its own try/catch to ensure one failure doesn't break everything
-          if (this.deviceCapabilities.highEnd) {
-            try {
-              // Enable high-quality settings for high-end devices
-              renderer.shadowMap.enabled = true;
-              renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-              
-              // Enable antialias for high-end devices
-              renderer.getContext().antialias = true;
-            } catch (highEndError) {
-              console.warn('Error setting high-end renderer settings:', highEndError);
-            }
-            
-            try {
-              renderer.outputColorSpace = THREE.SRGBColorSpace;
-            } catch (colorSpaceError) {
-              console.warn('Error setting color space:', colorSpaceError);
-            }
-            
-            try {
-              renderer.toneMapping = THREE.ACESFilmicToneMapping;
-              renderer.toneMappingExposure = 1.0;
-            } catch (toneMappingError) {
-              console.warn('Error setting tone mapping:', toneMappingError);
-            }
-          } 
-          else if (this.deviceCapabilities.midRange) {
-            try {
-              // Mid-range devices get some enhanced features
-              renderer.shadowMap.enabled = true;
-              renderer.shadowMap.type = THREE.PCFShadowMap;
-            } catch (shadowError) {
-              console.warn('Error setting shadow settings:', shadowError);
-            }
-            
-            try {
-              renderer.outputColorSpace = THREE.SRGBColorSpace;
-            } catch (colorSpaceError) {
-              console.warn('Error setting color space:', colorSpaceError);
-            }
-            
-            try {
-              renderer.toneMapping = THREE.ReinhardToneMapping;
-            } catch (toneMappingError) {
-              console.warn('Error setting tone mapping:', toneMappingError);
-            }
-          }
-          // Low-end devices keep the minimal settings
-        }
-      } catch (settingsError) {
-        console.warn('Error applying additional settings:', settingsError);
-      }
-      
-      console.log('Renderer setup complete successfully');
-      return renderer;
-    } catch (criticalError) {
-      console.error('CRITICAL ERROR in setupRenderer:', criticalError);
-      
-      // This is truly our last resort - try with a CSS-based fallback approach
-      try {
-        console.error('WebGL initialization failed completely, attempting CSS-based fallback');
-        
-        // Check one more time if canvas is valid
-        if (!canvas || typeof canvas !== 'object') {
-          throw new Error('Canvas is invalid for emergency fallback');
-        }
-        
-        // Try a trick - create a second canvas element as a backup
-        const backupCanvas = document.createElement('canvas');
-        backupCanvas.width = canvas.width || 800;
-        backupCanvas.height = canvas.height || 600;
-        
-        // Try to copy the canvas properties to preserve sizing
-        backupCanvas.style.cssText = canvas.style.cssText;
-        backupCanvas.className = canvas.className;
-        
-        // Replace the provided canvas with our new one in the DOM if possible
-        if (canvas.parentNode) {
-          console.log('Replacing canvas with backup canvas in the DOM');
-          canvas.parentNode.insertBefore(backupCanvas, canvas);
-          canvas.parentNode.removeChild(canvas);
-        }
-        
-        // Clear any WebGL flags on both canvases
-        delete (canvas as any).__webGLContextCreated;
-        delete (canvas as any).__gameInitAttempted;
-        delete (backupCanvas as any).__webGLContextCreated;
-        delete (backupCanvas as any).__gameInitAttempted;
-        
-        // Create a minimal renderer on the backup canvas with one last attempt
-        console.warn('Creating emergency fallback renderer on backup canvas');
-        
-        // Try with the absolute minimum settings
-        const fallbackRenderer = new THREE.WebGLRenderer({ 
-          canvas: backupCanvas, 
-          antialias: false,
-          alpha: false,
-          precision: 'lowp',
-          powerPreference: 'default',
-          premultipliedAlpha: false,
-          preserveDrawingBuffer: false,
-          failIfMajorPerformanceCaveat: false,
-          depth: false,
-          stencil: false,
-          logarithmicDepthBuffer: false
-        });
-        
-        // Use width/height from the element itself
-        const fallbackWidth = backupCanvas.clientWidth || 800;
-        const fallbackHeight = backupCanvas.clientHeight || 600;
-        console.log(`Setting fallback renderer size to ${fallbackWidth}x${fallbackHeight}`);
-        fallbackRenderer.setSize(fallbackWidth, fallbackHeight, false);
-        
-        // Mark our backup canvas as used
-        (backupCanvas as any).__webGLContextCreated = true;
-        
-        return fallbackRenderer;
-      } catch (emergencyError) {
-        // If we get here, there's nothing more we can do
-        console.error('Emergency fallback renderer completely failed:', emergencyError);
-        
-        // Throw a very descriptive error so UI can show a proper fallback message
-        throw new Error('WebGL rendering is not available on this system. Please check your browser settings or try a different browser.');
-      }
-    }
-  }
-  
-  /**
-   * Initialize camera
-   */
-  private setupCamera(): THREE.PerspectiveCamera {
-    const camera = new THREE.PerspectiveCamera(
-      60, // FOV - consistent value for racing games
-      window.innerWidth / window.innerHeight, // Aspect ratio
-      0.1, // Near plane
-      1000 // Far plane
-    );
-    
-    // Initialize our fixed camera properties
-    this.cameraHeight = 2.0;
-    this.cameraDistance = 8; // Increased for better view
-    this.cameraCenterOffset = 0;
-    this.lookAtOffsetY = 0;
-    
-    // Position the camera with our fixed approach
-    camera.position.set(
-      this.cameraCenterOffset, 
-      this.cameraHeight, 
-      10 // Initial Z position
-    );
-    
-    // Set the camera to look ahead along the path
-    camera.lookAt(
-      this.cameraCenterOffset, 
-      this.lookAtOffsetY, 
-      0 // Look ahead
-    );
-    
-    return camera;
-  }
+  // These methods are now handled by RenderingInitializer
   
   /**
    * Clean up and dispose resources with enhanced WebGL context management
@@ -1355,7 +1112,12 @@ export class GameEngine {
         
         // Unsubscribe from all event bus events
         const boundHandleGameStateChange = this.handleGameStateChange.bind(this);
+        const boundHandleQualityChange = this.handleQualityChange.bind(this);
+        const boundHandlePerformanceUpdate = this.handlePerformanceUpdate.bind(this);
+        
         eventBus.off('game-state-change', boundHandleGameStateChange);
+        eventBus.off('performance-quality-change', boundHandleQualityChange);
+        eventBus.off('performance-update', boundHandlePerformanceUpdate);
         
         // Create a comprehensive list of events to clean up
         const eventsToCleanup = [
@@ -1370,7 +1132,8 @@ export class GameEngine {
           'toggle-pause',
           'game-start-movement',
           'player-position',
-          'game-update'
+          'game-update',
+          'emergency-performance-mode'
         ];
         
         // Clean up all events - use function.prototype to target all handlers
@@ -1467,13 +1230,17 @@ export class GameEngine {
           try {
             // Get WebGL context and force loss to free up GPU resources
             const gl = renderer.getContext();
-            if (gl && typeof gl.getExtension === 'function') {
-              const ext = gl.getExtension('WEBGL_lose_context');
-              if (ext) {
-                console.log('GameEngine: Successfully forcing WebGL context loss...');
-                ext.loseContext();
-              } else {
-                console.log('GameEngine: WEBGL_lose_context extension not available');
+            if (gl) {
+              // Type check to ensure gl has getExtension method
+              const context = gl as WebGLRenderingContext;
+              if (typeof context.getExtension === 'function') {
+                const ext = context.getExtension('WEBGL_lose_context');
+                if (ext) {
+                  console.log('GameEngine: Successfully forcing WebGL context loss...');
+                  ext.loseContext();
+                } else {
+                  console.log('GameEngine: WEBGL_lose_context extension not available');
+                }
               }
             }
           } catch (contextLossError) {
@@ -1565,17 +1332,29 @@ export class GameEngine {
         material instanceof THREE.MeshLambertMaterial ||
         material instanceof THREE.MeshPhongMaterial) {
         
-      // Dispose standard texture maps
+      // Dispose common texture maps
       if (material.map) material.map.dispose();
-      if (material.normalMap) material.normalMap.dispose();
       if (material.bumpMap) material.bumpMap.dispose();
-      if (material.roughnessMap) material.roughnessMap.dispose();
-      if (material.metalnessMap) material.metalnessMap.dispose();
-      if (material.aoMap) material.aoMap.dispose();
-      if (material.emissiveMap) material.emissiveMap.dispose();
-      if (material.displacementMap) material.displacementMap.dispose();
       if (material.alphaMap) material.alphaMap.dispose();
       if (material.lightMap) material.lightMap.dispose();
+      
+      // Handle specific material types that have special maps
+      if (material instanceof THREE.MeshStandardMaterial || 
+          material instanceof THREE.MeshPhysicalMaterial) {
+        if (material.normalMap) material.normalMap.dispose();
+        if (material.roughnessMap) material.roughnessMap.dispose();
+        if (material.metalnessMap) material.metalnessMap.dispose();
+        if (material.aoMap) material.aoMap.dispose();
+        if (material.emissiveMap) material.emissiveMap.dispose();
+        if (material.displacementMap) material.displacementMap.dispose();
+      }
+      
+      // MeshPhongMaterial has some of the same maps as MeshStandardMaterial
+      if (material instanceof THREE.MeshPhongMaterial) {
+        if (material.normalMap) material.normalMap.dispose();
+        if (material.emissiveMap) material.emissiveMap.dispose();
+        if (material.displacementMap) material.displacementMap.dispose();
+      }
       
       // Additional maps for specific material types
       if (material instanceof THREE.MeshPhysicalMaterial) {
@@ -1607,7 +1386,10 @@ export class GameEngine {
     }
     
     // Clean up environment maps which apply to most material types
-    if ('envMap' in material && material.envMap) {
+    // Use type guards to ensure the envMap property exists and has a dispose method
+    if ('envMap' in material && 
+        material.envMap && 
+        material.envMap instanceof THREE.Texture) {
       material.envMap.dispose();
     }
   }
@@ -1615,12 +1397,13 @@ export class GameEngine {
 
 // Exported function to initialize the game
 // Use a singleton pattern to prevent multiple instances
+
 let gameInstance: GameEngine | null = null;
 let currentCanvasRef: HTMLCanvasElement | null = null;
 let isInitializing = false;
 let instanceId = 0;
 
-export function initGame(canvas: HTMLCanvasElement) {
+export async function initGame(canvas: HTMLCanvasElement) {
   const currentInstanceId = ++instanceId;
   console.log(`[Game Instance ${currentInstanceId}] Init called with canvas:`, canvas);
 
@@ -1692,24 +1475,63 @@ export function initGame(canvas: HTMLCanvasElement) {
     // we check for a special flag on the canvas to see if it's been used before
     try {
       // Use a safer approach that doesn't create a WebGL context
+      // Instead of error, just log a warning - we'll let the GameStartController handle this
       if ((canvas as any).__webGLContextCreated) {
-        console.error(`[Game Instance ${currentInstanceId}] Canvas seems to have a previous WebGL context based on our tracking`);
-      } else {
-        console.log(`[Game Instance ${currentInstanceId}] Canvas doesn't appear to have a previous WebGL context`);
-        // Mark the canvas for future reference
-        (canvas as any).__webGLContextCreated = true;
+        console.warn(`[Game Instance ${currentInstanceId}] Canvas may have a previous WebGL context based on tracking`);
+        // Continue with initialization despite the warning
       }
+      
+      // Mark the canvas for future reference
+      (canvas as any).__webGLContextCreated = true;
     } catch (contextTestError) {
       console.warn(`[Game Instance ${currentInstanceId}] Error checking for previous WebGL context:`, contextTestError);
     }
     
-    // Create new game instance
-    gameInstance = new GameEngine(canvas);
+    // Get the RenderingInitializer to set up core systems
+    console.log(`[Game Instance ${currentInstanceId}] Getting RenderingInitializer instance`);
+    const renderingInitializer = getRenderingInitializer();
+    
+    // Initialize rendering system (renderer, scene, camera)
+    console.log(`[Game Instance ${currentInstanceId}] Initializing rendering system`);
+    const renderingSystem = renderingInitializer.initializeRenderingSystem(canvas);
+    console.log(`[Game Instance ${currentInstanceId}] Rendering system initialized successfully`);
+    
+    // Get the asset manager
+    console.log(`[Game Instance ${currentInstanceId}] Getting AssetManager from RenderingInitializer`);
+    const assetManager = renderingInitializer.getAssetManager();
+    
+    // Get the audio manager
+    console.log(`[Game Instance ${currentInstanceId}] Getting AudioManager from RenderingInitializer`);
+    const audioManager = renderingInitializer.getAudioManager();
+    
+    // Set up lighting
+    console.log(`[Game Instance ${currentInstanceId}] Setting up lighting with RenderingInitializer`);
+    renderingInitializer.setupLighting(renderingSystem.scene);
+    
+    // Create new game instance with pre-initialized components
+    console.log(`[Game Instance ${currentInstanceId}] Creating GameEngine instance with pre-initialized components`);
+    gameInstance = new GameEngine({
+      renderer: renderingSystem.renderer,
+      scene: renderingSystem.scene,
+      camera: renderingSystem.camera,
+      assetManager: assetManager,
+      audioManager: audioManager,
+      deviceCapabilities: renderingInitializer.getDeviceCapabilities(),
+      gameSettings: renderingInitializer.getGameSettings()
+    });
+    console.log(`[Game Instance ${currentInstanceId}] GameEngine instance created successfully`);
     currentCanvasRef = canvas;
     
-    // Start initialization process, but don't auto-start the game
-    // We'll stay in MENU state until user explicitly starts the game
-    gameInstance.initialize();
+    // Load assets
+    await renderingInitializer.loadAssets((progress) => {
+      console.log(`[Game Instance ${currentInstanceId}] Asset loading progress: ${progress}%`);
+    });
+    
+    // Initialize audio
+    await renderingInitializer.initializeAudio();
+    
+    // Start initialization process
+    await gameInstance.initialize();
     
     // Ensure we're in MENU state (not auto-starting)
     setTimeout(() => {

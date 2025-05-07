@@ -60,6 +60,13 @@ export class ObstacleManager {
   
   // Obstacle limits
   private maxActiveObstacles: number = 50;
+  private maxObstacles: number = 50;
+  
+  // Performance settings
+  private spawnRateMultiplier: number = 1.0;
+  private useSimplifiedColliders: boolean = false;
+  private detailLevel: number = 2; // 1=low, 2=medium, 3=high
+  private qualityLevel: 'low' | 'medium' | 'high' = 'medium';
   
   // Device capabilities for optimization
   private deviceCapabilities: DeviceCapabilities;
@@ -422,7 +429,7 @@ export class ObstacleManager {
       position,
       rotation,
       scale,
-      speedModifier
+      speed: speedModifier
     };
     
     // Initialize the obstacle with proper configuration
@@ -458,30 +465,26 @@ export class ObstacleManager {
     switch (type) {
       case 'shark':
         return new Shark(
-          new THREE.Vector3(),
-          this.deviceCapabilities,
-          { scene: this.scene }
+          this.scene,
+          qualityLevel as 'high' | 'medium' | 'low'
         );
       
       case 'jellyfish':
         return new Jellyfish(
-          new THREE.Vector3(),
-          this.deviceCapabilities,
-          { scene: this.scene }
+          this.scene,
+          qualityLevel as 'high' | 'medium' | 'low'
         );
       
       case 'pufferfish':
         return new Pufferfish(
-          new THREE.Vector3(),
-          this.deviceCapabilities,
-          { scene: this.scene }
+          this.scene,
+          qualityLevel as 'high' | 'medium' | 'low'
         );
       
       case 'clam':
         return new Clam(
-          new THREE.Vector3(),
-          this.deviceCapabilities,
-          { scene: this.scene }
+          this.scene,
+          qualityLevel as 'high' | 'medium' | 'low'
         );
       
       case 'coral':
@@ -527,7 +530,7 @@ export class ObstacleManager {
     this.obstacles.delete(id);
     
     // Unregister from collision system
-    this.collisionSystem.unregisterCollidable(id);
+    this.collisionSystem.unregisterCollidable(id, 'obstacle');
     
     // Remove from scene
     if (obstacle.mesh.parent) {
@@ -538,7 +541,7 @@ export class ObstacleManager {
     obstacle.reset();
     
     // Return to pool
-    const pool = this.obstaclePools.get(obstacle.type);
+    const pool = this.obstaclePools.get(obstacle.obstacleType);
     if (pool) pool.push(obstacle);
   }
   
@@ -605,5 +608,46 @@ export class ObstacleManager {
     
     // Clear pools
     this.obstaclePools.clear();
+  }
+  
+  /**
+   * Set the maximum number of obstacles that can be active at once
+   * @param maxObstacles Maximum number of obstacles
+   */
+  setMaxObstacles(maxObstacles: number): void {
+    this.maxObstacles = Math.max(5, maxObstacles);
+    console.log(`ObstacleManager: Set max obstacles to ${this.maxObstacles}`);
+  }
+  
+  /**
+   * Set the obstacle spawn rate multiplier
+   * @param rate Spawn rate multiplier (higher = more obstacles)
+   */
+  setSpawnRate(rate: number): void {
+    this.spawnRateMultiplier = Math.max(0.1, Math.min(2.0, rate));
+    console.log(`ObstacleManager: Set spawn rate to ${this.spawnRateMultiplier}`);
+  }
+  
+  /**
+   * Set whether to use simplified colliders for performance
+   * @param useSimplified Whether to use simplified colliders
+   */
+  setUseSimplifiedColliders(useSimplified: boolean): void {
+    this.useSimplifiedColliders = useSimplified;
+    console.log(`ObstacleManager: Set use simplified colliders to ${useSimplified}`);
+  }
+  
+  /**
+   * Set the detail level for obstacles
+   * @param level Detail level (1-3, where 1 is low, 2 is medium, 3 is high)
+   */
+  setDetailLevel(level: number): void {
+    this.detailLevel = Math.max(1, Math.min(3, level));
+    
+    // Convert numeric level to quality string for obstacles
+    this.qualityLevel = this.detailLevel === 1 ? 'low' : 
+                       this.detailLevel === 2 ? 'medium' : 'high';
+                       
+    console.log(`ObstacleManager: Set detail level to ${this.detailLevel} (${this.qualityLevel})`);
   }
 }

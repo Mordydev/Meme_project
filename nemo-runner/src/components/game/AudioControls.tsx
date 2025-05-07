@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AudioManager, AudioSettings } from '../../game/core/AudioManager';
+import { AudioQualityLevel } from '../../game/utils/AudioUtils';
 import eventBus, { subscribeToGameEvents } from '../../game/core/EventSystem';
 import styles from '../../styles/GameUI.module.css';
 
@@ -13,7 +14,9 @@ const AudioControls: React.FC = () => {
     musicVolume: 0.5,
     sfxVolume: 0.8,
     musicEnabled: true,
-    sfxEnabled: true
+    sfxEnabled: true,
+    audioQuality: AudioQualityLevel.MEDIUM,
+    spatialAudioEnabled: true
   });
   
   // State for UI display
@@ -40,7 +43,9 @@ const AudioControls: React.FC = () => {
   }, []);
   
   // Handle toggle changes
-  const handleToggleChange = (settingKey: 'musicEnabled' | 'sfxEnabled') => {
+  const handleToggleChange = (
+    settingKey: 'musicEnabled' | 'sfxEnabled' | 'spatialAudioEnabled'
+  ) => {
     const newSettings = {
       ...settings,
       [settingKey]: !settings[settingKey]
@@ -58,6 +63,18 @@ const AudioControls: React.FC = () => {
     const newSettings = {
       ...settings,
       [settingKey]: parseFloat(value)
+    };
+    
+    setSettings(newSettings);
+    audioManager.updateSettings(newSettings);
+  };
+  
+  // Handle audio quality change
+  const handleQualityChange = (value: string) => {
+    const qualityLevel = parseInt(value) as AudioQualityLevel;
+    const newSettings = {
+      ...settings,
+      audioQuality: qualityLevel
     };
     
     setSettings(newSettings);
@@ -163,6 +180,41 @@ const AudioControls: React.FC = () => {
                 disabled={!settings.sfxEnabled}
               />
               <span>{Math.round(settings.sfxVolume * 100)}%</span>
+            </div>
+          </div>
+          
+          {/* Spatial Audio Toggle */}
+          <div className={styles.audioControl}>
+            <div className={styles.controlHeader}>
+              <h4>Spatial Audio</h4>
+              <button
+                className={`${styles.toggleButton} ${settings.spatialAudioEnabled ? styles.enabled : styles.disabled}`}
+                onClick={() => handleToggleChange('spatialAudioEnabled')}
+                aria-label={settings.spatialAudioEnabled ? 'Disable spatial audio' : 'Enable spatial audio'}
+              >
+                {settings.spatialAudioEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            <div className={styles.featureDescription}>
+              <span>Enables 3D positional sound effects</span>
+            </div>
+          </div>
+          
+          {/* Audio Quality Selector */}
+          <div className={styles.audioControl}>
+            <div className={styles.controlHeader}>
+              <h4>Audio Quality</h4>
+            </div>
+            <div className={styles.qualitySelector}>
+              <select 
+                value={settings.audioQuality} 
+                onChange={(e) => handleQualityChange(e.target.value)}
+                className={styles.qualityDropdown}
+              >
+                <option value={AudioQualityLevel.LOW}>Low (Best Performance)</option>
+                <option value={AudioQualityLevel.MEDIUM}>Medium (Balanced)</option>
+                <option value={AudioQualityLevel.HIGH}>High (Best Quality)</option>
+              </select>
             </div>
           </div>
           

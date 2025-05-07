@@ -34,23 +34,49 @@ export class CharacterModel {
    * @returns The character model
    */
   public createModel(): THREE.Group {
-    // Check if we have a pre-loaded model
-    const modelAsset = this.assetManager.getAsset('character_nemo');
-    
-    if (modelAsset) {
-      console.log('Using loaded character model');
-      // Use the pre-loaded model
-      this.model = this.setupLoadedModel(modelAsset);
-    } else {
-      console.log('Creating placeholder character model');
-      // Create an improved placeholder
-      this.model = this.createPlaceholderModel();
+    try {
+      // First check if we have a pre-loaded model
+      const modelAsset = this.assetManager.getAsset('character_nemo');
+      
+      if (modelAsset) {
+        console.log('Using loaded character model');
+        // Use the pre-loaded model
+        this.model = this.setupLoadedModel(modelAsset);
+      } else {
+        console.log('Creating procedural character model');
+        // Directly call procedural generation
+        this.model = this.createPlaceholderModel();
+      }
+      
+      // Store references to important parts for easy access
+      this.cacheModelParts();
+      
+      return this.model;
+    } catch (error) {
+      // If any error occurs during model creation, create a fallback placeholder
+      console.error('Error creating character model:', error);
+      
+      // Import PlaceholderGenerator if available
+      try {
+        // Try to use the PlaceholderGenerator if available
+        const { PlaceholderGenerator } = require('../../utils/PlaceholderGenerator');
+        return PlaceholderGenerator.createEntityPlaceholder('character');
+      } catch (placeholderError) {
+        // Last resort fallback if PlaceholderGenerator isn't available
+        console.error('Error creating character placeholder:', placeholderError);
+        
+        // Create a very simple fallback
+        const group = new THREE.Group();
+        group.name = 'emergency_character_fallback';
+        
+        const geometry = new THREE.BoxGeometry(0.5, 0.5, 1);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+        const mesh = new THREE.Mesh(geometry, material);
+        
+        group.add(mesh);
+        return group;
+      }
     }
-    
-    // Store references to important parts for easy access
-    this.cacheModelParts();
-    
-    return this.model;
   }
   
   /**

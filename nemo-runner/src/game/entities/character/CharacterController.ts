@@ -95,202 +95,32 @@ export class CharacterController {
    * Set up event listeners for character control
    */
   private setupEventListeners(): void {
-    // Enhanced event listeners with multiple redundant checks for movement initialization
-    
-    // 1. Listen for game-start-movement event - this is the primary trigger
+    // Single reliable event listener for movement start
     eventBus.on('game-start-movement', (data: any) => {
-      console.log('Character movement started from game-start-movement event!', data);
+      console.log('[CharacterController] Received game-start-movement event:', data);
       
-      // Set flag and force movement
-      this.isMoving = true;
-      this.moveForward(0.1); // More significant initial movement
-      
-      // Set up staggered movement verification
-      this.setupMovementVerification();
-    });
-    
-    // 2. Listen for direct game-start events as a backup
-    eventBus.on('game-start', (data: any) => {
-      console.log('Character movement started from game-start event!', data);
-      
-      // Set flag and force movement
+      // Set movement flag and initialize forward movement
       this.isMoving = true;
       this.moveForward(0.1);
       
-      // Set up staggered movement verification
-      this.setupMovementVerification();
-      
-      // Emit game-start-movement as well for redundancy
-      eventBus.emit('game-start-movement', { 
-        startTime: Date.now(),
-        source: 'game-start-event-relay'
-      });
+      console.log('[CharacterController] Movement initialized successfully');
     });
     
-    // 3. Listen for game state changes - most reliable approach
+    // Handle game state changes - only for stopping movement
     eventBus.on('game-state-change', (data: { from: string; to: string; }) => {
-      console.log('Character received game state change:', data.from, '->', data.to);
+      console.log('[CharacterController] State change:', data.from, '->', data.to);
       
-      if (data.to === 'PLAYING') {
-        console.log('Character movement started from state change to PLAYING!');
-        
-        // Set flag and force movement
-        this.isMoving = true;
-        this.moveForward(0.1); // More significant initial movement
-        
-        // Set up staggered movement verification
-        this.setupMovementVerification();
-        
-        // Also emit the movement event for other systems
-        eventBus.emit('game-start-movement', { 
-          startTime: Date.now(),
-          source: 'state-change-to-playing'
-        });
-      } 
-      // Handle other state transitions
-      else if (data.to === 'READY') {
-        // Prepare for movement but don't start yet
-        console.log('Character preparing for movement in READY state');
+      // Only listen for state changes that should stop movement
+      if (data.to === 'MENU' || data.to === 'GAME_OVER' || data.to === 'PAUSED' || data.to === 'READY') {
         this.isMoving = false;
-      }
-      else if (data.to === 'MENU' || data.to === 'GAME_OVER' || data.to === 'PAUSED') {
-        // Stop movement for these states
-        this.isMoving = false;
-        console.log('Character movement stopped due to state change to', data.to);
+        console.log('[CharacterController] Movement stopped due to state change to', data.to);
       }
     });
-    
-    // Additional emergency failsafe - check for movement every second for the first few seconds
-    // This helps catch cases where all events somehow fail
-    for (let delay of [1000, 2000, 3000, 5000]) {
-      setTimeout(() => {
-        // Only run if in PLAYING state but not moving
-        if (gameStateManager.state === 'PLAYING' && !this.isMoving) {
-          console.log(`EMERGENCY FAILSAFE (${delay}ms): Force-enabling character movement!`);
-          this.isMoving = true;
-          this.moveForward(0.5); // Significant movement to "kick-start"
-        }
-      }, delay);
-    }
   }
   
-  /**
-   * Set up comprehensive staggered verifications of movement with escalating responses
-   */
-  private setupMovementVerification(): void {
-    // Enhanced set of verification delays with more frequent early checks and longer-term tracking
-    const verificationDelays = [20, 50, 100, 200, 300, 500, 750, 1000, 2000, 3000];
-    
-    // Also listen for DOM events as a last-resort backup channel
-    try {
-      document.addEventListener('nemo-game-start-movement', (event: any) => {
-        // Force movement from the DOM event as well
-        console.log('Character received DOM event for movement start!', event.detail);
-        this.isMoving = true;
-        
-        // Get force value if available
-        const force = event.detail?.force || 5;
-        this.moveForward(0.1 * force);
-      });
-    } catch (e) {
-      // Ignore errors in DOM event handling
-    }
-    
-    // Listen for direct verification events
-    eventBus.on('verify-character-movement', (data: any) => {
-      console.log('Character received explicit movement verification request!', data);
-      
-      // Force movement with the provided force value or a default
-      const force = data.force || 5;
-      
-      if (!this.isMoving) {
-        console.error('CRITICAL: Character found not moving during verification!');
-        this.isMoving = true;
-      }
-      
-      // Apply a significant movement to ensure progress
-      this.moveForward(0.1 * force);
-      
-      // Store this position for verification on next frame
-      const lastVerifiedPosition = this.mesh ? this.mesh.position.z : 0;
-      
-      // Schedule a follow-up check to verify the movement took effect
-      setTimeout(() => {
-        if (this.mesh && lastVerifiedPosition === this.mesh.position.z) {
-          console.error('CRITICAL: Character failed movement verification check!');
-          this.moveForward(0.5); // Very significant movement as last resort
-        }
-      }, 50);
-    });
-    
-    // Staggered verification with escalating responses
-    for (let i = 0; i < verificationDelays.length; i++) {
-      const delay = verificationDelays[i];
-      const isLateVerification = i >= 5; // Consider later checks as more critical
-      
-      setTimeout(() => {
-        // Skip verification if component is disposed
-        if (!this.mesh) return;
-        
-        // Get current game state with safety check
-        const currentGameState = gameStateManager ? gameStateManager.state : 'UNKNOWN';
-        
-        // First verification: check if movement flag is false but should be true
-        if (!this.isMoving && currentGameState === 'PLAYING') {
-          console.warn(`VERIFICATION FAILSAFE (${delay}ms): Movement flag is FALSE in PLAYING state!`);
-          
-          // Calculate force based on delay and criticality
-          const baseForce = 0.05 * (delay / 100);
-          const criticalityMultiplier = isLateVerification ? 5 : 1;
-          const forceAmount = baseForce * criticalityMultiplier;
-          
-          // Enable movement flag and apply force
-          this.isMoving = true;
-          this.moveForward(forceAmount);
-          
-          // For very late verifications, log critical error
-          if (isLateVerification) {
-            console.error(`CRITICAL: Character still not moving after ${delay}ms in PLAYING state!`);
-          }
-        }
-        
-        // Second verification: check if character is stuck in place
-        if (this.isMoving && this.mesh && this.lastPosition === this.mesh.position.z) {
-          console.warn(`STUCK FAILSAFE (${delay}ms): Character position unchanged despite isMoving=true!`);
-          
-          // Calculate larger force for stuck situation
-          const baseForce = 0.1 * (delay / 100);
-          const criticalityMultiplier = isLateVerification ? 10 : 2;
-          const forceAmount = Math.min(baseForce * criticalityMultiplier, 2.0); // Cap at reasonable maximum
-          
-          // Apply the force
-          this.moveForward(forceAmount);
-          
-          // For late verifications, take more dramatic action
-          if (isLateVerification) {
-            console.error(`CRITICAL: Character stuck detection after ${delay}ms! Taking emergency action...`);
-            
-            // Reset character position slightly ahead as last resort
-            if (this.mesh) {
-              // Teleport character forward as a last resort for very late checks
-              this.mesh.position.z -= 2.0;
-              this.lastPosition = this.mesh.position.z;
-              
-              // Make sure collider is updated
-              this.updateCollider();
-              
-              console.log(`Emergency teleport: new position z=${this.mesh.position.z}`);
-            }
-          }
-        }
-        
-        // For early checks, log verification attempt for debugging
-        if (!isLateVerification) {
-          console.log(`Movement verification at ${delay}ms: isMoving=${this.isMoving}, position=${this.mesh?.position.z.toFixed(2)}, gameState=${currentGameState}`);
-        }
-      }, delay);
-    }
-  }
+  // This method has been removed as it's no longer needed
+  // Movement is now handled by a single, reliable event chain
+  // through GameStartController
   
   /**
    * Helper method to move character forward by specified amount
@@ -339,30 +169,16 @@ export class CharacterController {
     // Update character position
     this.updatePosition(deltaTime);
     
-    // Get current game state with extra safety check
-    const gameState = gameStateManager ? gameStateManager.state : 'UNKNOWN';
+    // Get current game state
+    const gameState = gameStateManager.state;
     
-    // CRUCIAL FIX: Force movement in PLAYING state, even if isMoving flag is false
-    if (gameState === 'PLAYING' && !this.isMoving) {
-      console.warn(`Character movement flag was FALSE despite PLAYING state! Force-enabling movement.`);
-      this.isMoving = true;
-      // Make a significant initial movement to ensure we're actually moving
-      this.moveForward(0.2); 
-    }
-    
-    // Only stop movement if we're in a non-playing state
-    if (gameState !== 'PLAYING' && gameState !== 'UNKNOWN' && this.isMoving) {
+    // Stop movement if we're in a non-playing state
+    if (gameState !== 'PLAYING' && this.isMoving) {
       console.log(`Character stopping movement due to game state ${gameState}`);
       this.isMoving = false;
     }
     
-    // Comprehensive debug logging to diagnose issues
-    const shouldLogDetailed = Math.random() < 0.02; // Reduce frequency to avoid log spam
-    if (shouldLogDetailed) {
-      console.log(`Character update: isMoving=${this.isMoving}, state=${this.state}, gameState=${gameState}, position=${this.mesh.position.z.toFixed(2)}`);
-    }
-    
-    // ENHANCED STUCK DETECTION with multi-frame detection
+    // Basic stuck detection
     const isExactlySamePosition = this.lastPosition === this.mesh.position.z;
     
     if (this.isMoving && isExactlySamePosition) {
@@ -371,27 +187,11 @@ export class CharacterController {
       
       // Only consider truly stuck after 2 consecutive stuck frames
       if (this.stuckFrameCount >= 2) {
-        console.warn(`Character appears DEFINITELY stuck for ${this.stuckFrameCount} frames! Forcing significant movement. Last Z:`, this.lastPosition);
+        console.warn(`Character appears stuck for ${this.stuckFrameCount} frames. Applying movement correction.`);
         
-        // Scale force based on how long we've been stuck
-        const forceAmount = Math.min(0.2 * this.stuckFrameCount, 1.0);
-        
-        // Force a larger movement proportional to stuck time to kick-start
+        // Apply a small force to unstick
+        const forceAmount = Math.min(0.2 * this.stuckFrameCount, 0.5);
         this.moveForward(forceAmount);
-        
-        // Emit a debug event for stuck detection
-        eventBus.emit('character-stuck-detection', {
-          position: this.mesh.position.clone(),
-          state: this.state,
-          gameState: gameState,
-          stuckFrames: this.stuckFrameCount
-        });
-        
-        // Reset the stuck frame counter after we've taken action
-        // but only if we've actually moved after the force
-        if (this.mesh.position.z !== this.lastPosition) {
-          this.stuckFrameCount = 0;
-        }
       }
     } else {
       // We've moved, reset stuck counter
@@ -405,34 +205,20 @@ export class CharacterController {
         // Skip movement during hit recovery
       }
       else {
-        // Calculate base forward speed
+        // Calculate forward speed
         const baseSpeed = CHARACTER_PARAMS.FORWARD_SPEED;
         const speedMultiplier = this.speedMultiplier;
         const adjustedSpeed = baseSpeed * speedMultiplier;
         
-        // Add a small constant minimum movement to prevent getting completely stuck
-        const minimumMovement = 0.01; // Guarantee at least some movement every frame
-        const calculatedMovement = (adjustedSpeed * deltaTime) + minimumMovement;
+        // Calculate movement amount
+        const calculatedMovement = adjustedSpeed * deltaTime;
         
-        // Apply the movement with comprehensive logging
+        // Apply the movement
         this.moveForward(calculatedMovement);
-        
-        // Detailed movement logging for debugging
-        if (shouldLogDetailed) {
-          console.log(`Character moving: pos=${this.mesh.position.z.toFixed(3)}, speed=${adjustedSpeed.toFixed(2)}, delta=${deltaTime.toFixed(4)}, move=${calculatedMovement.toFixed(4)}`);
-        }
       }
-    } else if (gameState === 'PLAYING') {
-      // FAILSAFE: We're not moving but should be - force movement
-      console.warn(`NOT MOVING despite PLAYING state! Emergency override... (state=${this.state})`);
-      this.isMoving = true;
-      this.moveForward(0.2); // Significant immediate movement to kick-start
-      
-      // Log a critical error since this shouldn't happen
-      console.error('CRITICAL: Character movement flag was false in PLAYING state after all checks');
     }
     
-    // Always store current position for next frame's stuck detection
+    // Store current position for next frame's stuck detection
     this.lastPosition = this.mesh.position.z;
     
     // Update collider position
@@ -880,9 +666,8 @@ export class CharacterController {
    */
   public dispose(): void {
     // Clean up event listeners
-    eventBus.off('game-update', () => {});
-    eventBus.off('game-start-movement', () => {});
-    eventBus.off('game-state-change', () => {});
+    eventBus.off('game-start-movement');
+    eventBus.off('game-state-change');
     
     // Log cleanup
     console.log('Character controller resources disposed');

@@ -18,9 +18,9 @@ export class DecorationModels {
   /**
    * Create a decoration based on its definition
    * @param definition The decoration definition
-   * @returns A THREE.Group or Mesh representing the decoration
+   * @returns A THREE.Object3D representing the decoration
    */
-  static createDecoration(definition: DecorationDefinition): THREE.Group | THREE.Mesh {
+  static createDecoration(definition: DecorationDefinition): THREE.Object3D {
     // Decoration type will determine what kind of mesh to create
     switch (definition.type) {
       // Coral and reef formations

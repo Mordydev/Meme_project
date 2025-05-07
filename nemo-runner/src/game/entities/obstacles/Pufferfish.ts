@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { Obstacle, ObstacleConfig } from './Obstacle';
-import { detectDeviceCapabilities } from '../../utils/DeviceUtils';
+import { getDeviceCapabilities } from '../../utils/DeviceUtils';
+import { ObstacleUtils } from './ObstacleUtils';
 import eventBus from '../../core/EventSystem';
+import { ShaderLibrary, createShaderWithLibrary } from '../../utils/ShaderLibrary';
 
 /**
  * Configuration for pufferfish obstacles
@@ -65,7 +67,7 @@ export class Pufferfish extends Obstacle {
   private fullyInflated: boolean = false;
   
   // Visual quality tracking
-  private deviceCapabilities = detectDeviceCapabilities();
+  private qualityLevel = 3; // Default to medium quality
   // quality is declared in parent class as protected
   
   /**
@@ -77,23 +79,44 @@ export class Pufferfish extends Obstacle {
     this.quality = qualityLevel;
     this.obstacleType = 'pufferfish';
     
-    // Create pufferfish mesh
-    this.mesh = this.createPufferfishMesh();
+    try {
+      // Create pufferfish mesh using procedural generation
+      this.mesh = this.createPufferfishMesh();
+      
+      // Set random animation phase offsets
+      this.bobPhase = Math.random() * Math.PI * 2;
+      this.spinPhase = Math.random() * Math.PI * 2;
+      
+      // Add shadow casting
+      this.mesh.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.castShadow = true;
+          object.receiveShadow = false;
+        }
+      });
+    } catch (error) {
+      // Handle mesh creation failure with a visible placeholder
+      console.error('Error creating pufferfish mesh:', error);
+      
+      try {
+        // Try to use the PlaceholderGenerator if available
+        const { PlaceholderGenerator } = require('../../utils/PlaceholderGenerator');
+        this.mesh = PlaceholderGenerator.createEntityPlaceholder('pufferfish');
+      } catch (placeholderError) {
+        // Last resort fallback if PlaceholderGenerator isn't available
+        console.error('Error creating pufferfish placeholder:', placeholderError);
+        
+        // Create a very simple fallback
+        const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+        const group = new THREE.Group();
+        group.add(new THREE.Mesh(geometry, material));
+        this.mesh = group;
+      }
+    }
     
     // Create spherical collider
     this.collider = new THREE.Sphere(new THREE.Vector3(), 0.5);
-    
-    // Set random animation phase offsets
-    this.bobPhase = Math.random() * Math.PI * 2;
-    this.spinPhase = Math.random() * Math.PI * 2;
-    
-    // Add shadow casting
-    this.mesh.traverse((object) => {
-      if (object instanceof THREE.Mesh) {
-        object.castShadow = true;
-        object.receiveShadow = false;
-      }
-    });
   }
   
   /**
@@ -328,6 +351,8 @@ export class Pufferfish extends Obstacle {
     
     // Vertex shader for inflation effect
     const vertexShader = `
+      #include <animation>
+
       varying vec3 vNormal;
       varying vec3 vWorldPosition;
       varying vec2 vUv;
@@ -350,7 +375,7 @@ export class Pufferfish extends Obstacle {
         // Add subtle wobble/pulsation even when inflated/deflated
         float wobbleFreq = 3.0;
         float wobbleAmp = 0.02 * (1.0 + uInflationFactor); // Slightly more wobble when inflated
-        float wobble = sin(uTime * wobbleFreq + position.y * 2.0) * wobbleAmp;
+        float wobble = oscillate(uTime, wobbleFreq, wobbleAmp, position.y * 2.0);
         pos += normal * wobble;
         
         // --- Final Position & Normal ---
@@ -366,6 +391,10 @@ export class Pufferfish extends Obstacle {
     
     // Fragment shader for spot pattern and lighting
     const fragmentShader = `
+      #include <noise>
+      #include <lighting>
+      #include <transition>
+
       varying vec3 vNormal;
       varying vec3 vWorldPosition;
       varying vec2 vUv;
@@ -375,51 +404,12 @@ export class Pufferfish extends Obstacle {
       uniform vec3 uColorBody;
       uniform vec3 uColorSpots;
       
-      // Simple hash function for noise
-      float hash(vec2 p) {
-        return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
-      }
-      
-      // Simple noise function
-      float noise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        
-        // Smooth interpolation
-        f = f * f * (3.0 - 2.0 * f);
-        
-        // Sample 4 corners
-        float a = hash(i + vec2(0.0, 0.0));
-        float b = hash(i + vec2(1.0, 0.0));
-        float c = hash(i + vec2(0.0, 1.0));
-        float d = hash(i + vec2(1.0, 1.0));
-        
-        // Bilinear interpolation
-        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-      }
-      
-      // Fractal Brownian Motion (multiple noise layers)
-      float fbm(vec2 p) {
-        float value = 0.0;
-        float amplitude = 0.5;
-        float frequency = 1.0;
-        
-        // Add 4 octaves of noise
-        for (int i = 0; i < 4; i++) {
-          value += amplitude * noise(p * frequency);
-          amplitude *= 0.5;
-          frequency *= 2.0;
-        }
-        
-        return value;
-      }
-      
       void main() {
         vec3 normal = normalize(vNormal);
         
         // Spot pattern - use scaled position that stretches as fish inflates
         vec2 pos = vWorldPosition.xz * (1.5 + uInflationFactor * 0.5);
-        float spots = fbm(pos); // Get noise pattern
+        float spots = fbm(pos, 4, 0.5); // Get noise pattern
         
         // Create sharper spots using smoothstep
         spots = smoothstep(0.4, 0.45, spots) - smoothstep(0.6, 0.65, spots); 
@@ -430,22 +420,37 @@ export class Pufferfish extends Obstacle {
         // Add subtle color variation based on inflation
         baseColor = mix(baseColor, baseColor * 1.1 + vec3(0.05), uInflationFactor * 0.3);
         
-        // Simple lighting
+        // Calculate lighting using the shader library function
+        vec3 viewDir = normalize(-vWorldPosition);
         vec3 lightDir = normalize(vec3(0.5, 0.8, 0.6));
-        float diff = max(dot(normal, lightDir), 0.0);
+        vec3 lightColor = vec3(1.0, 1.0, 0.9);
+        float specularPower = 32.0;
+        float specularIntensity = 0.2;
         
-        // Add some ambient lighting
-        vec3 litColor = baseColor * (diff * 0.7 + 0.3);
+        vec3 litColor = calculateLighting(
+          normal,
+          viewDir,
+          lightDir,
+          lightColor,
+          baseColor,
+          specularPower,
+          specularIntensity
+        );
+        
+        // Add ambient light
+        litColor = litColor * 0.7 + baseColor * 0.3;
         
         // Output final color
         gl_FragColor = vec4(litColor, 1.0);
       }
     `;
     
-    // Create shader material
+    // Create shader material with library functions
+    const processedShaders = createShaderWithLibrary(vertexShader, fragmentShader);
+    
     return new THREE.ShaderMaterial({
-      vertexShader: vertexShader,
-      fragmentShader: fragmentShader,
+      vertexShader: processedShaders.vertexShader,
+      fragmentShader: processedShaders.fragmentShader,
       uniforms: {
         uTime: { value: 0.0 },
         uInflationFactor: { value: 0.0 },
@@ -465,7 +470,10 @@ export class Pufferfish extends Obstacle {
     
     // Vertex shader for spike scaling
     const vertexShader = `
+      #include <transition>
+      
       varying vec3 vNormal;
+      varying vec3 vViewPosition;
       
       uniform float uInflationFactor; // 0.0 = deflated, 1.0 = inflated
       
@@ -475,8 +483,8 @@ export class Pufferfish extends Obstacle {
         vNormal = normalize(normalMatrix * normal);
         
         // Scale spike based on inflation factor - spikes appear as fish inflates
-        // Use ease-in function for more natural appearance
-        float scale = smoothstep(0.2, 0.8, uInflationFactor);
+        // Use custom transition function from library for more natural appearance
+        float scale = transitionMask(uInflationFactor, 0.2, 0.8, 0.7);
         
         // Apply scale to position
         vec3 scaledPos = pos * scale;
@@ -485,36 +493,57 @@ export class Pufferfish extends Obstacle {
         if (scale < 0.01) {
           gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
         } else {
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(scaledPos, 1.0);
+          vec4 mvPosition = modelViewMatrix * vec4(scaledPos, 1.0);
+          vViewPosition = -mvPosition.xyz;
+          gl_Position = projectionMatrix * mvPosition;
         }
       }
     `;
     
     // Fragment shader for spike color
     const fragmentShader = `
+      #include <lighting>
+      
       varying vec3 vNormal;
+      varying vec3 vViewPosition;
       
       uniform vec3 uColor;
       uniform float uInflationFactor;
       
       void main() {
-        // Simple lighting
+        // Calculate lighting using the shader library function
         vec3 normal = normalize(vNormal);
+        vec3 viewDir = normalize(vViewPosition);
         vec3 lightDir = normalize(vec3(0.5, 0.8, 0.6));
-        float diff = max(dot(normal, lightDir), 0.0);
+        vec3 lightColor = vec3(1.0, 1.0, 0.9);
+        float specularPower = 32.0;
+        float specularIntensity = 0.1;
         
-        // Calculate final color with lighting
-        vec3 finalColor = uColor * (diff * 0.7 + 0.3);
+        vec3 litColor = calculateLighting(
+          normal,
+          viewDir,
+          lightDir,
+          lightColor,
+          uColor,
+          specularPower,
+          specularIntensity
+        );
+        
+        // Add ambient light
+        litColor = litColor * 0.7 + uColor * 0.3;
         
         // Output final color
-        gl_FragColor = vec4(finalColor, 1.0);
+        gl_FragColor = vec4(litColor, 1.0);
       }
     `;
     
+    // Create shader material with library functions
+    const processedShaders = createShaderWithLibrary(vertexShader, fragmentShader);
+    
     // Create shader material and store reference for updating
     const material = new THREE.ShaderMaterial({
-      vertexShader: vertexShader,
-      fragmentShader: fragmentShader,
+      vertexShader: processedShaders.vertexShader,
+      fragmentShader: processedShaders.fragmentShader,
       uniforms: {
         uInflationFactor: { value: 0.0 },
         uColor: { value: spikeColor }
@@ -666,15 +695,20 @@ export class Pufferfish extends Obstacle {
   }
   
   /**
-   * Update collider to match current inflation
+   * Update collider to match current inflation with optimized implementation
    */
   protected updateCollider(): void {
     if (this.collider instanceof THREE.Sphere) {
-      // Update radius based on current inflation
+      // Update radius based on current inflation - only update when meaningfully changed
       const baseRadius = 0.5;
       const inflatedRadius = baseRadius * (1 + this.currentInflation);
       
-      this.collider.radius = inflatedRadius;
+      // Only update if the radius has changed significantly to avoid unnecessary operations
+      if (Math.abs(this.collider.radius - inflatedRadius) > 0.01) {
+        this.collider.radius = inflatedRadius;
+      }
+      
+      // Always update position to match mesh
       this.collider.center.copy(this.mesh.position);
     }
   }
@@ -755,12 +789,18 @@ export class Pufferfish extends Obstacle {
     eventBus.emit('play-sound', { name: 'pufferfish-deflate', volume: 0.4 });
   }
   
+  // Cached vectors for optimization
+  private static tmpDirection = new THREE.Vector3();
+  
   /**
-   * Update inflation/deflation animation
+   * Update inflation/deflation animation with performance optimizations
    */
   private updateInflation(deltaTime: number): void {
     // Update animation time
     this.animationTime += deltaTime;
+    
+    // Check if we need to update inflation state
+    const prevInflation = this.currentInflation;
     
     // Handle inflation
     if (this.isInflating) {
@@ -790,80 +830,103 @@ export class Pufferfish extends Obstacle {
       }
     }
     
-    // High-quality shader-based animation
-    if (this.quality === 'high') {
-      // Update body shader uniforms
-      if (this.bodyShaderMaterial && this.bodyShaderMaterial.uniforms) {
-        // Update time and inflation factor
-        this.bodyShaderMaterial.uniforms.uTime.value = this.animationTime;
-        this.bodyShaderMaterial.uniforms.uInflationFactor.value = this.currentInflation / this.maxInflation;
-      }
+    // Only update visuals if inflation changed significantly
+    if (Math.abs(prevInflation - this.currentInflation) > 0.01 || this.isInflating || this.isDeflating) {
+      // Get LOD level based on device capability and update visuals accordingly
+      const lodLevel = ObstacleUtils.getLODLevel(this.qualityLevel);
       
-      // Update spike shader uniforms
-      this.spikeShaderMaterials.forEach(material => {
-        if (material.uniforms) {
+      // High-quality shader-based animation
+      if (lodLevel === 0) {
+        // Update body shader uniforms
+        if (this.bodyShaderMaterial && this.bodyShaderMaterial.uniforms) {
+          // Update time and inflation factor
+          this.bodyShaderMaterial.uniforms.uTime.value = this.animationTime;
+          this.bodyShaderMaterial.uniforms.uInflationFactor.value = this.currentInflation / this.maxInflation;
+        }
+        
+        // Update spike shader uniforms - only update one material per frame if there are multiple
+        // This spreads the cost across frames for large numbers of spikes
+        const materialIndex = Math.floor(performance.now() / 16) % this.spikeShaderMaterials.length;
+        const material = this.spikeShaderMaterials[materialIndex];
+        
+        if (material && material.uniforms) {
           material.uniforms.uInflationFactor.value = this.currentInflation / this.maxInflation;
         }
-      });
-      
-      // Still need to update eyes position for high quality
-      if (this.eyes) {
-        const eyeScale = 1 + this.currentInflation * 0.5; // Eyes grow less than body
-        this.eyes.scale.set(eyeScale, eyeScale, eyeScale);
         
-        // Move eyes to stay on the surface
-        this.eyes.children.forEach(eye => {
-          const direction = new THREE.Vector3()
-            .copy(eye.position)
-            .normalize();
-          
-          const distance = 0.5 * (1 + this.currentInflation * 0.8);
-          eye.position.copy(direction.multiplyScalar(distance));
-        });
-      }
-    } else {
-      // Medium/low quality uses simpler scaling animation
-      
-      // Apply inflation scale to mesh
-      if (this.body) {
-        const scale = 1 + this.currentInflation;
-        this.body.scale.set(scale, scale, scale);
-      }
-      
-      // Apply inflation effect to spikes - they extend outward
-      if (this.spikes) {
-        this.spikes.children.forEach((spike, i) => {
-          // Get original position (normalized direction from center)
-          const direction = new THREE.Vector3()
-            .copy(spike.position)
-            .normalize();
-          
-          // Calculate new position based on inflation
-          const distance = 0.5 * (1 + this.currentInflation);
-          spike.position.copy(direction.multiplyScalar(distance));
-          
-          // Point outward from center
-          spike.lookAt(spike.position.clone().multiplyScalar(2));
-          spike.rotateX(Math.PI / 2);
-        });
-      }
-      
-      // Adjust eyes position when inflated
-      if (this.eyes) {
-        const eyeScale = 1 + this.currentInflation * 0.5; // Eyes grow less than body
-        this.eyes.scale.set(eyeScale, eyeScale, eyeScale);
+        // Update eyes position for high quality
+        this.updateEyePositions();
+      } else {
+        // Medium/low quality uses simpler scaling animation
         
-        // Move eyes to stay on the surface
-        this.eyes.children.forEach(eye => {
-          const direction = new THREE.Vector3()
-            .copy(eye.position)
-            .normalize();
-          
-          const distance = 0.5 * (1 + this.currentInflation * 0.8);
-          eye.position.copy(direction.multiplyScalar(distance));
-        });
+        // Apply inflation scale to mesh
+        if (this.body) {
+          const scale = 1 + this.currentInflation;
+          this.body.scale.set(scale, scale, scale);
+        }
+        
+        // Update spikes less frequently for performance (every other frame)
+        if (this.spikes && (performance.now() % 2 < 1 || this.isInflating)) {
+          this.updateSpikePositions();
+        }
+        
+        // Always update eyes
+        this.updateEyePositions();
       }
     }
+  }
+  
+  /**
+   * Update spike positions - extracted to a separate method for clarity and reuse
+   */
+  private updateSpikePositions(): void {
+    if (!this.spikes) return;
+    
+    // Apply inflation effect to spikes - they extend outward
+    // Process a subset of spikes each frame if there are many
+    const spikeCount = this.spikes.children.length;
+    const processAll = spikeCount < 12; // Process all spikes at once if there aren't many
+    
+    // Either process all spikes or a subset based on time
+    const startIdx = processAll ? 0 : Math.floor(performance.now() / 32) % spikeCount;
+    const endIdx = processAll ? spikeCount : Math.min(startIdx + 4, spikeCount);
+    
+    for (let i = startIdx; i < endIdx; i++) {
+      const spike = this.spikes.children[i];
+      
+      // Get original position (normalized direction from center)
+      // Use cached vector to reduce allocations
+      Pufferfish.tmpDirection.copy(spike.position).normalize();
+      
+      // Calculate new position based on inflation
+      const distance = 0.5 * (1 + this.currentInflation);
+      spike.position.copy(Pufferfish.tmpDirection.multiplyScalar(distance));
+      
+      // Point outward from center - only update orientation when significantly inflating/deflating
+      if (this.isInflating || this.isDeflating) {
+        spike.lookAt(spike.position.clone().multiplyScalar(2));
+        spike.rotateX(Math.PI / 2);
+      }
+    }
+  }
+  
+  /**
+   * Update eye positions - extracted to a separate method for clarity and reuse
+   */
+  private updateEyePositions(): void {
+    if (!this.eyes) return;
+    
+    // Scale eyes
+    const eyeScale = 1 + this.currentInflation * 0.5; // Eyes grow less than body
+    this.eyes.scale.set(eyeScale, eyeScale, eyeScale);
+    
+    // Move eyes to stay on the surface - only 2-4 eyes typically, so we can process all
+    this.eyes.children.forEach(eye => {
+      // Use cached vector to reduce allocations
+      Pufferfish.tmpDirection.copy(eye.position).normalize();
+      
+      const distance = 0.5 * (1 + this.currentInflation * 0.8);
+      eye.position.copy(Pufferfish.tmpDirection.multiplyScalar(distance));
+    });
   }
   
   /**

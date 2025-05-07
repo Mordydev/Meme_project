@@ -124,7 +124,7 @@ export class CollisionSystem {
     if (!this.character) return;
     
     // Get character collider
-    const characterCollider = this.character.collider;
+    const characterCollider = this.character.getCollider();
     
     // Check collisions with obstacles
     for (const obstacle of this.obstacles.values()) {
@@ -259,8 +259,9 @@ export class CollisionSystem {
     if (!this.scene) return;
     
     // Add debug visualization for character collider
-    const characterDebug = this.createDebugSphere(this.character.collider.radius, 0x00ff00);
-    characterDebug.position.copy(this.character.collider.center);
+    const characterCollider = this.character.getCollider();
+    const characterDebug = this.createDebugSphere(characterCollider.radius, 0x00ff00);
+    characterDebug.position.copy(characterCollider.center);
     characterDebug.userData.id = 'player';
     characterDebug.userData.isPlayer = true;
     
@@ -313,7 +314,8 @@ export class CollisionSystem {
     // Update player debug visualization
     const playerDebug = this.debugObjects.find(obj => obj.userData.isPlayer);
     if (playerDebug) {
-      playerDebug.position.copy(this.character.collider.center);
+      const characterCollider = this.character.getCollider();
+      playerDebug.position.copy(characterCollider.center);
     }
   }
   

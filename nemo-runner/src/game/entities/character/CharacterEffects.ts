@@ -25,7 +25,7 @@ export class CharacterEffects {
   private bubbleTrailRate: number = 0.1;
   
   // Power-up effects
-  private powerUpMesh: THREE.Mesh | null = null;
+  private powerUpMesh: THREE.Object3D | null = null;
   private powerUpActive: boolean = false;
   private powerUpType: string = '';
   

@@ -531,6 +531,11 @@ export class AssetManager {
    * Register core game assets
    */
   public registerCoreAssets(): void {
+    // ========================================================
+    // Mark all these assets as procedurally generated instead of trying to load them
+    // This will avoid 404 errors for files that don't exist yet
+    // ========================================================
+    
     // Character assets
     this.registerAsset('character_nemo', 'model', '/assets/models/character/nemo.glb');
     
@@ -544,6 +549,8 @@ export class AssetManager {
     this.registerAsset('obstacle_shark', 'model', '/assets/models/obstacles/shark.glb');
     this.registerAsset('obstacle_jellyfish', 'model', '/assets/models/obstacles/jellyfish.glb');
     this.registerAsset('obstacle_pufferfish', 'model', '/assets/models/obstacles/pufferfish.glb');
+    this.registerAsset('obstacle_clam', 'model', '/assets/models/obstacles/clam.glb');
+    this.registerAsset('obstacle_coral', 'model', '/assets/models/obstacles/coral.glb');
     
     // Collectible models
     this.registerAsset('collectible_bubble', 'model', '/assets/models/collectibles/bubble.glb');
@@ -554,12 +561,37 @@ export class AssetManager {
     this.registerAsset('shader_water_fragment', 'shader', '/assets/shaders/water_fragment.glsl');
     this.registerAsset('shader_caustics_vertex', 'shader', '/assets/shaders/caustics_vertex.glsl');
     this.registerAsset('shader_caustics_fragment', 'shader', '/assets/shaders/caustics_fragment.glsl');
+    this.registerAsset('shader_bubble_vertex', 'shader', '/assets/shaders/bubble_vertex.glsl');
+    this.registerAsset('shader_bubble_fragment', 'shader', '/assets/shaders/bubble_fragment.glsl');
     
-    // Audio
-    this.registerAsset('audio_background', 'audio', '/assets/audio/underwater_ambient.mp3');
+    // Audio assets - comprehensive set
+    // Background music
+    this.registerAsset('audio_background', 'audio', '/assets/audio/background.mp3');
+    this.registerAsset('audio_background_underwater', 'audio', '/assets/audio/background_underwater.mp3');
+    this.registerAsset('audio_background_intense', 'audio', '/assets/audio/background_intense.mp3');
+    
+    // Sound effects
     this.registerAsset('audio_collect', 'audio', '/assets/audio/collect.mp3');
     this.registerAsset('audio_collision', 'audio', '/assets/audio/collision.mp3');
     this.registerAsset('audio_powerup', 'audio', '/assets/audio/powerup.mp3');
+    this.registerAsset('audio_game_start', 'audio', '/assets/audio/game_start.mp3');
+    this.registerAsset('audio_game_over', 'audio', '/assets/audio/game_over.mp3');
+    this.registerAsset('audio_shield', 'audio', '/assets/audio/shield.mp3');
+    this.registerAsset('audio_speed', 'audio', '/assets/audio/speed.mp3');
+    this.registerAsset('audio_lane_change', 'audio', '/assets/audio/lane_change.mp3');
+    this.registerAsset('audio_countdown', 'audio', '/assets/audio/countdown.mp3');
+    this.registerAsset('audio_jump', 'audio', '/assets/audio/jump.mp3');
+    this.registerAsset('audio_dive', 'audio', '/assets/audio/dive.mp3');
+    this.registerAsset('audio_menu', 'audio', '/assets/audio/menu.mp3');
+    
+    // Environment assets
+    this.registerAsset('environment_reef', 'model', '/assets/models/environment/reef.glb');
+    this.registerAsset('environment_deep_sea', 'model', '/assets/models/environment/deep_sea.glb');
+    this.registerAsset('environment_open_ocean', 'model', '/assets/models/environment/open_ocean.glb');
+    
+    // Mark all assets as procedurally generated to avoid 404 errors
+    const allAssetIds = Array.from(this.assets.keys());
+    this.setIgnoreAssets(allAssetIds);
   }
   
   /**

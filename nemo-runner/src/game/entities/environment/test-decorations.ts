@@ -123,7 +123,7 @@ export function testDecorationRendering() {
         rotationVariance: Math.PI * 2,
         scaleVariance: 0.3,
         canFloatAboveGround: false,
-        environmentTypes: ['kelp_forest'],
+        environmentTypes: ['kelpForest'],
         probability: 1.0
       }
     },
@@ -162,7 +162,7 @@ export function testDecorationRendering() {
         rotationVariance: Math.PI * 2,
         scaleVariance: 0.3,
         canFloatAboveGround: false,
-        environmentTypes: ['reef', 'kelp_forest', 'abyssal'],
+        environmentTypes: ['reef', 'kelpForest', 'deepSea'],
         probability: 1.0
       }
     },
@@ -175,7 +175,7 @@ export function testDecorationRendering() {
         rotationVariance: Math.PI * 2,
         scaleVariance: 0.3,
         canFloatAboveGround: false,
-        environmentTypes: ['reef', 'kelp_forest', 'abyssal'],
+        environmentTypes: ['reef', 'kelpForest', 'deepSea'],
         probability: 1.0
       }
     },
@@ -188,7 +188,7 @@ export function testDecorationRendering() {
         rotationVariance: Math.PI * 2,
         scaleVariance: 0.3,
         canFloatAboveGround: false,
-        environmentTypes: ['reef', 'kelp_forest', 'abyssal'],
+        environmentTypes: ['reef', 'kelpForest', 'deepSea'],
         probability: 1.0
       }
     }

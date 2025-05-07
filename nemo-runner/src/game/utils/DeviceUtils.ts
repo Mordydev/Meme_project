@@ -60,15 +60,26 @@ export function detectDeviceCapabilities(): DeviceCapabilities {
     webGL2Support: false
   };
   
-  // Check for mobile device
-  capabilities.mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  // Check for mobile device (with SSR compatibility)
+  capabilities.mobile = typeof navigator !== 'undefined' 
+    ? /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    : false;
   capabilities.desktop = !capabilities.mobile;
   
   // Get device pixel ratio (capped to avoid performance issues)
-  capabilities.pixelRatio = Math.min(window.devicePixelRatio || 1, 3);
+  // Check if window is defined (for SSR compatibility)
+  capabilities.pixelRatio = typeof window !== 'undefined' 
+    ? Math.min(window.devicePixelRatio || 1, 3)
+    : 1;
   
-  // Detect WebGL capabilities
+  // Detect WebGL capabilities (with SSR compatibility)
   try {
+    // Skip WebGL detection in non-browser environments
+    if (typeof document === 'undefined') {
+      console.log('Skipping WebGL detection in non-browser environment');
+      return capabilities;
+    }
+    
     // Create temporary canvas for WebGL detection
     const canvas = document.createElement('canvas');
     

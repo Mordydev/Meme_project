@@ -8,7 +8,7 @@ export class ShipwreckDecorations {
   /**
    * Create a ship hull decoration
    */
-  static createShipHull(definition: DecorationDefinition): THREE.Group {
+  static createShipHull(definition: DecorationDefinition): THREE.Object3D {
     try {
       // Create a group for the shipwreck
       const group = new THREE.Group();
@@ -309,7 +309,7 @@ export class ShipwreckDecorations {
   /**
    * Create a barrel decoration
    */
-  static createBarrel(definition: DecorationDefinition): THREE.Group {
+  static createBarrel(definition: DecorationDefinition): THREE.Object3D {
     try {
       // Create a group to hold all parts of the barrel
       const group = new THREE.Group();
@@ -444,7 +444,7 @@ export class ShipwreckDecorations {
   /**
    * Create a treasure chest decoration
    */
-  static createTreasure(definition: DecorationDefinition): THREE.Group {
+  static createTreasure(definition: DecorationDefinition): THREE.Object3D {
     try {
       // Create a group to hold the treasure chest and its contents
       const group = new THREE.Group();
@@ -758,7 +758,7 @@ export class ShipwreckDecorations {
   /**
    * Create an anchor decoration
    */
-  static createAnchor(definition: DecorationDefinition): THREE.Group {
+  static createAnchor(definition: DecorationDefinition): THREE.Object3D {
     try {
       // Create a group to hold all parts of the anchor
       const group = new THREE.Group();
@@ -1018,7 +1018,7 @@ export class ShipwreckDecorations {
   /**
    * Create a ship part (placeholder - can be filled in with specific ship parts)
    */
-  static createShipPart(definition: DecorationDefinition): THREE.Group {
+  static createShipPart(definition: DecorationDefinition): THREE.Object3D {
     try {
       // For now, use a simple wooden plank/debris as placeholder
       const group = new THREE.Group();
@@ -1033,12 +1033,15 @@ export class ShipwreckDecorations {
         metalness: 0.1
       });
       
+      // Define dimensions outside the loop for access by other parts
+      const plankHeight = 0.04 + Math.random() * 0.02;
+      
       // Create a group of planks
       for (let i = 0; i < plankCount; i++) {
         // Random plank dimensions
         const plankLength = 0.8 + Math.random() * 0.6;
         const plankWidth = 0.1 + Math.random() * 0.05;
-        const plankHeight = 0.04 + Math.random() * 0.02;
+        // Use the common plankHeight defined above
         
         const plankGeometry = new THREE.BoxGeometry(plankLength, plankHeight, plankWidth);
         

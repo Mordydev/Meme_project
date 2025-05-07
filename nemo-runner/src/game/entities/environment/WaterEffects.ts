@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { optimizeGeometry } from '../../utils/DeviceUtils';
 import { lerp } from '../../utils/MathUtils';
 import { EnvironmentTheme } from './EnvironmentTypes';
+import { ShaderLibrary, createShaderWithLibrary } from '../../utils/ShaderLibrary';
 
 /**
  * WaterEffects - Manages underwater visual effects
@@ -73,7 +74,7 @@ export class WaterEffects {
    * Creates caustics effect (light patterns on ocean floor)
    */
   private createCaustics(): { mesh: THREE.Mesh, material: THREE.ShaderMaterial } {
-    // Caustics shader material
+    // Caustics shader material - using the ShaderLibrary
     const causticsVertexShader = `
       varying vec2 vUv;
       
@@ -87,87 +88,39 @@ export class WaterEffects {
       uniform float uTime;
       varying vec2 vUv;
       
-      // Simple hash function
-      float hash(vec2 p) {
-        float h = dot(p, vec2(127.1, 311.7));	
-        return fract(sin(h) * 43758.5453123);
-      }
+      // Include noise functions from ShaderLibrary
+      #include <noise>
       
-      // 2D noise function
-      float noise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        
-        float a = hash(i);
-        float b = hash(i + vec2(1.0, 0.0));
-        float c = hash(i + vec2(0.0, 1.0));
-        float d = hash(i + vec2(1.0, 1.0));
-        
-        vec2 u = f * f * (3.0 - 2.0 * f);
-        return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-      }
+      // Include water functions from ShaderLibrary
+      #include <water>
       
-      // FBM (Fractal Brownian Motion)
-      float fbm(vec2 p) {
-        float value = 0.0;
-        float amplitude = 0.5;
-        float frequency = 3.0;
-        
-        for (int i = 0; i < 5; i++) {
-          value += amplitude * noise(p * frequency);
-          amplitude *= 0.5;
-          frequency *= 2.0;
-        }
-        
-        return value;
-      }
-      
-      // Voronoi cellular noise - creates more realistic caustics patterns
-      float voronoi(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        
-        float minDist = 1.0;
-        
-        for (int y = -1; y <= 1; y++) {
-          for (int x = -1; x <= 1; x++) {
-            vec2 neighbor = vec2(float(x), float(y));
-            // Convert hash output to vec2 by using it twice with offsets
-            float h = hash(i + neighbor);
-            vec2 point = vec2(h, hash(i + neighbor + vec2(42.0, 17.0))) * 0.5 + 0.5;
-            vec2 diff = neighbor + point - f;
-            float dist = length(diff);
-            minDist = min(minDist, dist);
-          }
-        }
-        
-        return minDist;
-      }
+      // Include transition utilities
+      #include <transition>
       
       void main() {
         // Scale UVs for better caustics density
         vec2 scaledUv = vUv * 5.0;
         
-        // Create moving caustics with multiple layers of noise
-        float caustics1 = fbm(scaledUv + uTime * 0.05);
-        float caustics2 = fbm(scaledUv * 1.2 - uTime * 0.06);
+        // Use fbm from noise library for layered noise
+        float caustics1 = fbm(scaledUv + vec2(uTime * 0.05, uTime * 0.07), 4, 0.5);
+        float caustics2 = fbm(scaledUv * 1.2 - vec2(uTime * 0.06, uTime * 0.03), 4, 0.5);
         
-        // Add voronoi cellular noise for more realistic water caustics patterns
-        float cellNoise = voronoi(scaledUv * 1.5 + vec2(uTime * 0.04, uTime * 0.02));
-        cellNoise = pow(1.0 - cellNoise, 2.0); // Invert and sharpen
+        // Use caustics function from water library
+        float waterCaustics = caustics(scaledUv, uTime, 1.5);
         
         // Combine noise layers with different weights
-        float caustics = smoothstep(0.4, 0.6, caustics1 * caustics2);
-        caustics = max(caustics, cellNoise * 0.7); // Blend with cellular noise
+        float causticsMix = smoothstep(0.4, 0.6, caustics1 * caustics2);
+        causticsMix = max(causticsMix, waterCaustics * 0.7); // Blend with water caustics
         
-        // Create more defined caustic edges with contrast
-        caustics = smoothstep(0.3, 0.7, caustics);
+        // Use smootherstep from transition library for better defined edges
+        causticsMix = smootherstep(0.3, 0.7, causticsMix, 0.8);
         
         // Apply color
         vec3 baseColor = vec3(0.2, 0.5, 0.9); // Blue underwater color
         vec3 causticColor = vec3(1.0, 1.0, 0.9); // Slight yellow for caustics
         
-        vec3 finalColor = mix(baseColor * 0.5, causticColor, caustics * 0.7);
+        // Use colorGradient from color library
+        vec3 finalColor = mix(baseColor * 0.5, causticColor, causticsMix * 0.7);
         
         // Add subtle color variation based on position and time
         finalColor += vec3(0.05, 0.05, 0.1) * sin(scaledUv.x * 10.0 + uTime);
@@ -177,9 +130,12 @@ export class WaterEffects {
       }
     `;
     
+    // Process the shaders to include library chunks
+    const processedShaders = createShaderWithLibrary(causticsVertexShader, causticsFragmentShader);
+    
     const material = new THREE.ShaderMaterial({
-      vertexShader: causticsVertexShader,
-      fragmentShader: causticsFragmentShader,
+      vertexShader: processedShaders.vertexShader,
+      fragmentShader: processedShaders.fragmentShader,
       uniforms: {
         uTime: { value: 0 }
       },
@@ -242,7 +198,7 @@ export class WaterEffects {
     particleGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
     particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     
-    // Particle shader material
+    // Particle shader material using ShaderLibrary
     const particleVertexShader = `
       attribute float size;
       attribute vec3 color;
@@ -257,6 +213,8 @@ export class WaterEffects {
     `;
     
     const particleFragmentShader = `
+      #include <transition>
+      
       varying vec3 vColor;
       
       void main() {
@@ -264,16 +222,19 @@ export class WaterEffects {
         float r = distance(gl_PointCoord, vec2(0.5, 0.5));
         if (r > 0.5) discard;
         
-        // Fade out towards the edges
-        float alpha = 1.0 - smoothstep(0.3, 0.5, r);
+        // Fade out towards the edges using transition library for smoother falloff
+        float alpha = 1.0 - transitionMask(r, 0.3, 0.5, 0.8);
         
         gl_FragColor = vec4(vColor, alpha * 0.6);
       }
     `;
     
+    // Process the shaders to include library chunks
+    const processedShaders = createShaderWithLibrary(particleVertexShader, particleFragmentShader);
+    
     const particleMaterial = new THREE.ShaderMaterial({
-      vertexShader: particleVertexShader,
-      fragmentShader: particleFragmentShader,
+      vertexShader: processedShaders.vertexShader,
+      fragmentShader: processedShaders.fragmentShader,
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -301,36 +262,46 @@ export class WaterEffects {
       
       const rayGeometry = new THREE.PlaneGeometry(width, height, 1, 4);
       
-      // Light ray shader material
+      // Light ray shader material using ShaderLibrary
+      const rayVertexShader = `
+        varying vec2 vUv;
+        
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `;
+      
+      const rayFragmentShader = `
+        #include <animation>
+        #include <transition>
+        
+        uniform float uTime;
+        varying vec2 vUv;
+        
+        void main() {
+          // Create gradient from bottom to top with smooth transition
+          float gradient = transitionMask(vUv.y, 0.0, 0.8, 0.7);
+          
+          // Add some variation along the ray using the animation library
+          float variation = oscillate(uTime, 0.5, 0.1, vUv.y * 10.0) + 0.9;
+          
+          // Calculate final alpha
+          float alpha = (1.0 - gradient) * variation * 0.3;
+          
+          // Light ray color
+          vec3 rayColor = vec3(1.0, 1.0, 0.9);
+          
+          gl_FragColor = vec4(rayColor, alpha);
+        }
+      `;
+      
+      // Process the shaders to include library chunks
+      const processedShaders = createShaderWithLibrary(rayVertexShader, rayFragmentShader);
+      
       const rayMaterial = new THREE.ShaderMaterial({
-        vertexShader: `
-          varying vec2 vUv;
-          
-          void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform float uTime;
-          varying vec2 vUv;
-          
-          void main() {
-            // Create gradient from bottom to top
-            float gradient = smoothstep(0.0, 0.8, vUv.y);
-            
-            // Add some variation along the ray
-            float variation = sin(vUv.y * 10.0 + uTime * 0.5) * 0.1 + 0.9;
-            
-            // Calculate final alpha
-            float alpha = (1.0 - gradient) * variation * 0.3;
-            
-            // Light ray color
-            vec3 rayColor = vec3(1.0, 1.0, 0.9);
-            
-            gl_FragColor = vec4(rayColor, alpha);
-          }
-        `,
+        vertexShader: processedShaders.vertexShader,
+        fragmentShader: processedShaders.fragmentShader,
         uniforms: {
           uTime: { value: 0 }
         },
@@ -469,7 +440,7 @@ export class WaterEffects {
     // Create bubble geometry - simple sphere
     const bubbleGeometry = new THREE.SphereGeometry(0.15, 16, 12);
     
-    // Create bubble shader material with Fresnel effect
+    // Create bubble shader material with Fresnel effect using ShaderLibrary
     const bubbleVertexShader = `
       uniform float uTime;
       attribute float scale;
@@ -481,6 +452,9 @@ export class WaterEffects {
       varying vec2 vUv;
       varying float vVisibility;
       
+      // Include animation utilities from ShaderLibrary
+      #include <animation>
+      
       void main() {
         vUv = uv;
         vNormal = normalize(normalMatrix * normal);
@@ -488,8 +462,8 @@ export class WaterEffects {
         // Scale the bubble
         vec3 pos = position * scale;
         
-        // Add slight wobble effect for more organic look
-        float wobble = sin(uTime * 2.0 + wobbleOffset) * 0.05;
+        // Use oscillate function from animation library for wobble
+        float wobble = oscillate(uTime, 2.0, 0.05, wobbleOffset);
         pos.x += wobble * position.y;
         
         // Set instance position
@@ -511,6 +485,12 @@ export class WaterEffects {
       varying vec2 vUv;
       varying float vVisibility;
       
+      // Include fresnel calculation from ShaderLibrary
+      #include <fresnel>
+      
+      // Include color utilities from ShaderLibrary
+      #include <color>
+      
       void main() {
         // Discard if not visible
         if (vVisibility < 0.5) discard;
@@ -518,21 +498,18 @@ export class WaterEffects {
         // Direction from camera to fragment (view direction)
         vec3 viewDir = normalize(-vPosition);
         
-        // Fresnel effect (stronger at grazing angles)
-        float fresnel = pow(1.0 - max(0.0, dot(vNormal, viewDir)), 3.0);
+        // Use fresnel calculation from ShaderLibrary
+        float fresnel = calculateFresnel(vNormal, viewDir, 3.0);
         
         // Base bubble color (nearly transparent)
         vec3 bubbleColor = vec3(0.8, 0.9, 1.0);
         
-        // Rainbow effect on the edges
-        vec3 rainbowEdge = vec3(
-          0.5 + 0.5 * sin(uTime + vUv.y * 5.0),
-          0.5 + 0.5 * sin(uTime + vUv.y * 5.0 + 2.0),
-          0.5 + 0.5 * sin(uTime + vUv.y * 5.0 + 4.0)
-        );
+        // Generate rainbow colors using HSL to RGB conversion from color library
+        float h = (uTime * 0.1 + vUv.y * 0.5) * 0.1;
+        vec3 rainbowEdge = hslToRgb(h, 0.7, 0.5);
         
-        // Highlight the edges with the fresnel effect
-        vec3 finalColor = mix(bubbleColor, rainbowEdge, fresnel * 0.3);
+        // Use colorGradient for better blending
+        vec3 finalColor = colorGradient(bubbleColor, rainbowEdge, fresnel * 0.3);
         
         // Set opacity based on fresnel (more transparent in center, more opaque at edges)
         float opacity = 0.2 + fresnel * 0.5;
@@ -541,14 +518,17 @@ export class WaterEffects {
       }
     `;
     
+    // Process the shaders to include library chunks
+    const processedShaders = createShaderWithLibrary(bubbleVertexShader, bubbleFragmentShader);
+    
     // Create uniforms for the shader
     this.bubbleUniforms = {
       uTime: { value: 0 }
     };
     
     const bubbleMaterial = new THREE.ShaderMaterial({
-      vertexShader: bubbleVertexShader,
-      fragmentShader: bubbleFragmentShader,
+      vertexShader: processedShaders.vertexShader,
+      fragmentShader: processedShaders.fragmentShader,
       uniforms: this.bubbleUniforms,
       transparent: true,
       depthWrite: false,
@@ -825,36 +805,46 @@ export class WaterEffects {
     
     const rayGeometry = new THREE.PlaneGeometry(width, height, 1, 4);
     
-    // Light ray shader material
+    // Light ray shader material using ShaderLibrary
+    const rayVertexShader = `
+      varying vec2 vUv;
+      
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+    
+    const rayFragmentShader = `
+      #include <animation>
+      #include <transition>
+      
+      uniform float uTime;
+      varying vec2 vUv;
+      
+      void main() {
+        // Create gradient from bottom to top with smooth transition
+        float gradient = transitionMask(vUv.y, 0.0, 0.8, 0.7);
+        
+        // Add some variation along the ray using the animation library
+        float variation = oscillate(uTime, 0.5, 0.1, vUv.y * 10.0) + 0.9;
+        
+        // Calculate final alpha
+        float alpha = (1.0 - gradient) * variation * 0.3;
+        
+        // Light ray color
+        vec3 rayColor = vec3(1.0, 1.0, 0.9);
+        
+        gl_FragColor = vec4(rayColor, alpha);
+      }
+    `;
+    
+    // Process the shaders to include library chunks
+    const processedShaders = createShaderWithLibrary(rayVertexShader, rayFragmentShader);
+    
     const rayMaterial = new THREE.ShaderMaterial({
-      vertexShader: `
-        varying vec2 vUv;
-        
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float uTime;
-        varying vec2 vUv;
-        
-        void main() {
-          // Create gradient from bottom to top
-          float gradient = smoothstep(0.0, 0.8, vUv.y);
-          
-          // Add some variation along the ray
-          float variation = sin(vUv.y * 10.0 + uTime * 0.5) * 0.1 + 0.9;
-          
-          // Calculate final alpha
-          float alpha = (1.0 - gradient) * variation * 0.3;
-          
-          // Light ray color
-          vec3 rayColor = vec3(1.0, 1.0, 0.9);
-          
-          gl_FragColor = vec4(rayColor, alpha);
-        }
-      `,
+      vertexShader: processedShaders.vertexShader,
+      fragmentShader: processedShaders.fragmentShader,
       uniforms: {
         uTime: { value: 0 }
       },
@@ -896,19 +886,18 @@ export class WaterEffects {
     // Create a plane for the water surface
     const geometry = new THREE.PlaneGeometry(width, length, 32, 32);
     
-    // Ripple shader material
+    // Ripple shader material using ShaderLibrary
     const rippleVertexShader = `
       uniform float uTime;
       varying vec2 vUv;
       varying vec3 vNormal;
       varying vec3 vViewPosition;
 
-      // Wave function for ripples
-      float wave(vec2 position, float time, float frequency, float amplitude, float speed, float sharpness) {
-        float phase = time * speed;
-        float theta = dot(position, vec2(cos(phase), sin(phase)));
-        return pow(0.5 + 0.5 * sin(theta * frequency), sharpness) * amplitude;
-      }
+      // Include animation utilities
+      #include <animation>
+      
+      // Include water utilities
+      #include <water>
       
       void main() {
         vUv = uv;
@@ -919,31 +908,13 @@ export class WaterEffects {
         // Apply multiple wave patterns for realistic ripples
         float time = uTime * 0.5;
         
-        // First wave set - larger
-        float wave1 = wave(position.xz * 0.1, time, 4.0, 0.2, 0.3, 1.0);
+        // Use waveDisplace from animation library for vertex displacement
+        vec3 displacedPos = waveDisplace(position, normalize(normal), time, 0.1, 0.2);
+        pos = displacedPos;
         
-        // Second wave set - medium
-        float wave2 = wave(position.xz * 0.15, time + 10.0, 6.0, 0.1, 0.5, 2.0);
-        
-        // Third wave set - smaller, faster
-        float wave3 = wave(position.xz * 0.3, time + 30.0, 10.0, 0.05, 1.0, 3.0);
-        
-        // Combine waves
-        pos.y += wave1 + wave2 + wave3;
-        
-        // Compute normal based on wave gradients
-        // Simple finite difference approximation
-        float delta = 0.01;
-        float dx = wave1 + wave2 + wave3;
-        float dy = wave(position.xz * 0.1 + vec2(delta, 0.0), time, 4.0, 0.2, 0.3, 1.0) +
-                  wave(position.xz * 0.15 + vec2(delta, 0.0), time + 10.0, 6.0, 0.1, 0.5, 2.0) +
-                  wave(position.xz * 0.3 + vec2(delta, 0.0), time + 30.0, 10.0, 0.05, 1.0, 3.0) - dx;
-                  
-        float dz = wave(position.xz * 0.1 + vec2(0.0, delta), time, 4.0, 0.2, 0.3, 1.0) +
-                  wave(position.xz * 0.15 + vec2(0.0, delta), time + 10.0, 6.0, 0.1, 0.5, 2.0) +
-                  wave(position.xz * 0.3 + vec2(0.0, delta), time + 30.0, 10.0, 0.05, 1.0, 3.0) - dx;
-        
-        vNormal = normalize(vec3(-dy/delta, 1.0, -dz/delta));
+        // Get water normal from our library function
+        vec3 waterNorm = waterNormal(position.xz * 0.2, time, 5.0);
+        vNormal = normalize(normalMatrix * waterNorm);
         
         // Final position
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
@@ -958,30 +929,42 @@ export class WaterEffects {
       varying vec3 vNormal;
       varying vec3 vViewPosition;
       
+      // Include fresnel calculation
+      #include <fresnel>
+      
+      // Include transition utilities
+      #include <transition>
+      
       void main() {
         // Water color
         vec3 baseColor = vec3(0.2, 0.5, 0.9);
         
-        // Basic lighting
-        vec3 normal = normalize(vNormal);
+        // Use normalized viewDir
         vec3 viewDir = normalize(vViewPosition);
         
-        // Fresnel effect for water surface
-        float fresnel = pow(1.0 - max(0.0, dot(normal, viewDir)), 5.0);
+        // Use fresnel function from ShaderLibrary
+        float fresnel = calculateFresnel(vNormal, viewDir, 5.0);
+        
+        // Use smootherstep from transition library for better blending
+        fresnel = smootherstep(0.0, 1.0, fresnel, 0.7);
         
         // Combine colors with fresnel
         vec3 color = mix(baseColor, vec3(1.0), fresnel * 0.7);
         
-        // Add some time-based variation
-        color += vec3(0.05) * sin(vUv.x * 10.0 + uTime * 0.5);
+        // Add some time-based variation using animation from ShaderLibrary
+        float timeVar = oscillate(uTime, 0.5, 0.05, vUv.x * 10.0);
+        color += vec3(timeVar);
         
         gl_FragColor = vec4(color, 0.8); // Semi-transparent
       }
     `;
     
+    // Process shaders with library
+    const processedShaders = createShaderWithLibrary(rippleVertexShader, rippleFragmentShader);
+    
     const material = new THREE.ShaderMaterial({
-      vertexShader: rippleVertexShader,
-      fragmentShader: rippleFragmentShader,
+      vertexShader: processedShaders.vertexShader,
+      fragmentShader: processedShaders.fragmentShader,
       uniforms: {
         uTime: { value: 0 }
       },
@@ -1110,5 +1093,45 @@ export class WaterEffects {
     if (this.bubbleSystem && this.bubbleSystem.parent) {
       this.scene.remove(this.bubbleSystem);
     }
+  }
+  
+  /**
+   * Disable non-essential visual effects for performance
+   */
+  public disableNonEssentialEffects(): void {
+    // Hide light rays
+    if (this.lightRays) {
+      this.lightRays.visible = false;
+    }
+    
+    // Hide surface ripples
+    if (this.surfaceRipples) {
+      this.surfaceRipples.visible = false;
+    }
+    
+    // Reduce bubble count
+    if (this.bubbleSystem && this.bubbleVisibility) {
+      // Set most bubbles to invisible (0 visibility)
+      for (let i = 0; i < this.bubbleVisibility.length; i++) {
+        // Keep only 10% of bubbles
+        if (Math.random() > 0.1) {
+          this.bubbleVisibility[i] = 0;
+        }
+      }
+      
+      // Update the instance attribute
+      const visibilityAttribute = this.bubbleSystem.geometry.getAttribute('instanceVisibility');
+      if (visibilityAttribute) {
+        (visibilityAttribute as THREE.BufferAttribute).needsUpdate = true;
+      }
+    }
+    
+    // Reduce ambient particles
+    if (this.ambientParticles) {
+      // Either hide completely or reduce opacity
+      this.ambientParticles.visible = false;
+    }
+    
+    console.log('WaterEffects: Disabled non-essential effects for performance');
   }
 }

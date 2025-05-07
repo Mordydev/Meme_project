@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styles from '@/styles/Game.module.css';
 import { initGame } from '@/game/core/GameEngine';
+import gameStartController from '@/game/core/GameStartController';
 import GameStateDisplay from './GameStateDisplay';
 import GameUI from './GameUI';
 import EnhancedUI from './EnhancedUI';
@@ -54,11 +55,15 @@ export default React.memo(function GameCanvas() {
       // Try to manually lose context if possible
       try {
         const gl = canvasRef.current.getContext('webgl') || canvasRef.current.getContext('experimental-webgl');
-        if (gl && typeof gl.getExtension === 'function') {
-          const ext = gl.getExtension('WEBGL_lose_context');
-          if (ext) {
-            console.log('GameCanvas: Successfully forcing WebGL context loss before recreating canvas');
-            ext.loseContext();
+        if (gl) {
+          // Type check to ensure gl has getExtension method
+          const context = gl as WebGLRenderingContext;
+          if (typeof context.getExtension === 'function') {
+            const ext = context.getExtension('WEBGL_lose_context');
+            if (ext) {
+              console.log('GameCanvas: Successfully forcing WebGL context loss before recreating canvas');
+              ext.loseContext();
+            }
           }
         }
       } catch (e) {
@@ -100,7 +105,7 @@ export default React.memo(function GameCanvas() {
   }, []);
   
   // Initialize game with error handling, retries, and React Strict Mode awareness
-  const initializeGame = useCallback(() => {
+  const initializeGame = useCallback(async () => {
     console.log('GameCanvas: Initializing game...');
     
     // Only log exact dimensions once at the start of initialization
@@ -192,14 +197,54 @@ export default React.memo(function GameCanvas() {
           throw new Error('Canvas is null after all checks - this should never happen');
         }
         
-        // Initialize game and store cleanup function
-        console.log('GameCanvas: Creating new game instance...');
+        // Initialize game systems first
+        console.log('GameCanvas: Initializing game systems with GameStartController...');
         
         // Log dimensions once more right before initialization
         console.log(`GameCanvas: Final canvas dimensions for init: ${canvas.clientWidth}x${canvas.clientHeight}`);
         
-        const cleanup = initGame(canvas);
-        cleanupRef.current = cleanup;
+        // First use the GameStartController to initialize core systems
+        try {
+          const initializePromise = gameStartController.initialize(canvas);
+          
+          // Listen for all-systems-ready event to know when to proceed
+          const allSystemsReadyHandler = () => {
+            console.log('GameCanvas: All systems ready, continuing with game initialization');
+            
+            // Now initialize game with the prepared canvas
+            initGame(canvas).then(cleanup => {
+              cleanupRef.current = cleanup;
+            });
+          };
+          
+          // Add the event listener the standard way instead of using once()
+          eventBus.on('all-systems-ready', allSystemsReadyHandler);
+          
+          // Set up a timeout to ensure we don't get stuck waiting for the event
+          const timeoutId = setTimeout(() => {
+            // Clean up the event listener to prevent duplicate handlers
+            eventBus.off('all-systems-ready', allSystemsReadyHandler);
+            
+            // If cleanup is still not set, proceed with initialization
+            if (!cleanupRef.current && isMounted.current) {
+              console.log('GameCanvas: Timeout - proceeding with game initialization anyway');
+              initGame(canvas).then(cleanup => {
+                if (isMounted.current) {
+                  cleanupRef.current = cleanup;
+                }
+              });
+            }
+          }, 5000);
+          
+          // Wait for initialization to complete
+          await initializePromise;
+          
+          // Clear the timeout since initialization completed
+          clearTimeout(timeoutId);
+        } catch (startControllerError) {
+          console.error('Error initializing game systems:', startControllerError);
+          throw startControllerError; // Re-throw to trigger retry logic
+        }
         
         console.log('GameCanvas: Game initialized successfully');
         
@@ -234,10 +279,10 @@ export default React.memo(function GameCanvas() {
             recreateCanvas();
             
             // Try again after a longer delay to ensure DOM updates and GC runs
-            setTimeout(() => {
+            setTimeout(async () => {
               if (isMounted.current) {
                 console.log('GameCanvas: Retrying after canvas recreation');
-                initializeGame();
+                await initializeGame();
               }
             }, 1000);
           } else {
@@ -254,9 +299,9 @@ export default React.memo(function GameCanvas() {
             // Release lock before retry
             isInitializing.current = false;
             
-            setTimeout(() => {
+            setTimeout(async () => {
               if (isMounted.current) {
-                initializeGame();
+                await initializeGame();
               }
             }, 500);
           } else {
@@ -286,9 +331,9 @@ export default React.memo(function GameCanvas() {
     if (data.to === 'ERROR') {
       console.log('GameCanvas: Error state detected, attempting to reinitialize game');
       // Small delay to ensure previous instance is fully cleaned up
-      setTimeout(() => {
+      setTimeout(async () => {
         if (isMounted.current) {
-          initializeGame();
+          await initializeGame();
         }
       }, 100);
     }
@@ -314,10 +359,10 @@ export default React.memo(function GameCanvas() {
     
     // Initialize game with a small delay to ensure canvas is fully set up
     // This helps avoid the "300x150" default dimension problem
-    const initTimeout = setTimeout(() => {
+    const initTimeout = setTimeout(async () => {
       if (isMounted.current) {
         console.log('GameCanvas: Delayed initialization starting...');
-        initializeGame();
+        await initializeGame();
       }
     }, 50); // Small delay to ensure canvas is ready
     
@@ -360,7 +405,10 @@ export default React.memo(function GameCanvas() {
       // Reinitialize the game when context is restored, if still mounted
       if (isMounted.current) {
         console.log('GameCanvas: Reinitializing game after context restore');
-        initializeGame();
+        // Use an async IIFE to handle the async call
+        (async () => {
+          await initializeGame();
+        })();
       }
     };
     
@@ -422,6 +470,23 @@ export default React.memo(function GameCanvas() {
         console.log('GameCanvas: No cleanup function to run');
       }
       
+      // Clean up the GameStartController
+      try {
+        console.log('GameCanvas: Disposing GameStartController');
+        if (gameStartController) {
+          gameStartController.dispose();
+        }
+      } catch (controllerError) {
+        console.error('GameCanvas: Error disposing GameStartController:', controllerError);
+      }
+      
+      // Clean up any event listeners that might have been added
+      try {
+        eventBus.off('all-systems-ready');
+      } catch (eventCleanupError) {
+        console.warn('GameCanvas: Error cleaning up event listeners:', eventCleanupError);
+      }
+      
       // Final cleanup: remove any remaining WebGL context lost indicators
       const indicator = document.getElementById('webgl-context-lost-indicator');
       if (indicator && indicator.parentElement) {
@@ -459,11 +524,11 @@ export default React.memo(function GameCanvas() {
       setHasError(true);
       
       // Attempt recovery
-      setTimeout(() => {
+      setTimeout(async () => {
         if (isMounted.current) {
           console.log('GameCanvas: Attempting recovery from error');
           setHasError(false);
-          initializeGame();
+          await initializeGame();
         }
       }, 1000);
     };
@@ -482,10 +547,10 @@ export default React.memo(function GameCanvas() {
             "Unable to initialize WebGL. Your browser may not support 3D graphics or has reached WebGL context limits." : 
             "Something went wrong. Attempting to recover..."}</p>
           {!criticalError && (
-            <button onClick={() => {
+            <button onClick={async () => {
               setHasError(false);
               initRetries.current = 0;
-              initializeGame();
+              await initializeGame();
             }}>Restart Game</button>
           )}
           {criticalError && (

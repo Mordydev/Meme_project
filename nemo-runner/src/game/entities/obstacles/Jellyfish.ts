@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Obstacle, ObstacleConfig } from './Obstacle';
-import { detectDeviceCapabilities } from '../../utils/DeviceUtils';
+import { ShaderLibrary, createShaderWithLibrary } from '../../utils/ShaderLibrary';
+import { getDeviceCapabilities } from '../../utils/DeviceUtils';
+import { ObstacleUtils } from './ObstacleUtils';
 import eventBus from '../../core/EventSystem';
 
 /**
@@ -62,7 +64,7 @@ export class Jellyfish extends Obstacle {
   private particleSystem: THREE.Points | null = null;
   
   // Visual quality tracking
-  private deviceCapabilities = detectDeviceCapabilities();
+  private qualityLevel = 3; // Default to medium quality
   // quality is declared in parent class as protected
   
   /**
@@ -354,14 +356,18 @@ export class Jellyfish extends Obstacle {
       uniform float uGlowIntensity;
       uniform float uPulseFrequency;
       
+      #include <noise>
+      #include <animation>
+      
       void main() {
-        // Pulsating opacity and glow
-        float pulse = sin(uTime * uPulseFrequency) * 0.5 + 0.5;
+        // Pulsating opacity and glow using animation utilities
+        float pulse = oscillate(uTime, uPulseFrequency, 0.5, 0.0) + 0.5;
         float currentOpacity = uOpacity * (0.6 + pulse * 0.4);
         float currentGlow = uGlowIntensity * (0.5 + pulse * 0.5);
         
-        // Add subtle noise variation
-        float noiseVal = fract(sin(dot(vWorldPosition.xz * 1.5 + uTime * 0.1, vec2(12.9898, 78.233))) * 43758.5453) * 0.2 - 0.1;
+        // Add subtle noise variation using the noise generator
+        vec2 noiseCoord = vWorldPosition.xz * 1.5 + vec2(uTime * 0.1);
+        float noiseVal = noise(noiseCoord) * 0.2 - 0.1;
         
         // Fresnel effect for edge glow
         float fresnel = vFresnelFactor * (0.5 + currentGlow * 0.5);
@@ -819,34 +825,38 @@ export class Jellyfish extends Obstacle {
     this.driftOffset.set(0, 0, 0);
   }
   
+  // Cached vectors for optimization
+  private static tmpMin = new THREE.Vector3();
+  private static tmpMax = new THREE.Vector3();
+  
   /**
-   * Update collider position
+   * Update collider position with optimized implementation
    */
   protected updateCollider(): void {
     if (this.collider instanceof THREE.Box3) {
-      // Calculate the box size based on the bell radius and tentacle length
-      const boxSizeX = this.bellRadius * 2;
-      const boxSizeY = this.bellHeight + this.tentacleLength;
-      const boxSizeZ = this.bellRadius * 2;
-      
-      // Create a size vector
-      const size = new THREE.Vector3(boxSizeX, boxSizeY, boxSizeZ);
-      
       // Calculate offsets to match the jellyfish's shape
       const offsetY = (this.bellHeight - this.tentacleLength) / 2;
       
-      // Set the box min and max points based on the jellyfish position and dimensions
-      this.collider.min.set(
+      // Calculate min and max points directly
+      Jellyfish.tmpMin.set(
         this.position.x - this.bellRadius,
         this.position.y - this.tentacleLength + offsetY,
         this.position.z - this.bellRadius
       );
       
-      this.collider.max.set(
+      Jellyfish.tmpMax.set(
         this.position.x + this.bellRadius,
         this.position.y + this.bellHeight + offsetY,
         this.position.z + this.bellRadius
       );
+      
+      // Only update the collider if it's different from current values
+      // This reduces unnecessary allocations when the jellyfish isn't moving much
+      if (!this.collider.min.equals(Jellyfish.tmpMin) || 
+          !this.collider.max.equals(Jellyfish.tmpMax)) {
+        this.collider.min.copy(Jellyfish.tmpMin);
+        this.collider.max.copy(Jellyfish.tmpMax);
+      }
     }
   }
   
@@ -863,27 +873,50 @@ export class Jellyfish extends Obstacle {
   }
   
   /**
-   * Update active state behavior
+   * Update active state behavior with performance optimizations
    */
   protected updateActive(deltaTime: number, playerPosition: THREE.Vector3, gameSpeed: number): void {
-    // Update pulsation animation
-    this.updatePulsation(deltaTime);
-    
-    // Update tentacle movement
-    this.updateTentacles(deltaTime);
-    
-    // Update glow effect
-    this.updateGlow(deltaTime);
-    
-    // Update drift movement
-    this.updateDrift(deltaTime);
-    
-    // Check if player is very close
+    // Calculate distance to player for LOD-based optimizations
     const distanceToPlayer = this.position.distanceTo(playerPosition);
     
+    // Get appropriate LOD level based on distance and device capabilities
+    const lodLevel = ObstacleUtils.getLODLevel(this.qualityLevel, distanceToPlayer);
+    
+    // Only perform full updates when visible or close to the player
+    // Far away jellyfish can have reduced animation updates
+    if (distanceToPlayer < 30 || lodLevel === 0) {
+      // Update all animations at full frame rate for high-quality and nearby jellyfish
+      this.updatePulsation(deltaTime);
+      this.updateTentacles(deltaTime);
+      this.updateGlow(deltaTime);
+    } else if (performance.now() % 2 < 1) {
+      // For distant jellyfish, update animations at half frame rate
+      this.updatePulsation(deltaTime * 1.5); // Slightly faster to compensate
+      
+      // Only update tentacles for medium quality
+      if (lodLevel < 2) {
+        this.updateTentacles(deltaTime * 1.5);
+      }
+      
+      // Only update glow effect for medium and high quality
+      if (lodLevel < 2) {
+        this.updateGlow(deltaTime * 1.5);
+      }
+    }
+    
+    // Always update drift movement for position changes
+    this.updateDrift(deltaTime);
+    
+    // Enhanced reactive behavior for close jellyfish 
     if (distanceToPlayer < 5) {
       // Slightly increase pulsation when player is nearby
       this.pulsationPhase += deltaTime * 0.5;
+      
+      // For high quality, increase glow intensity as player approaches
+      if (lodLevel === 0) {
+        const proximityFactor = 1.0 - (distanceToPlayer / 5.0);
+        this.setGlowIntensity(Math.min(1.0, this.glowIntensity + proximityFactor * 0.2 * deltaTime));
+      }
     }
     
     // Detect collision and transition to triggered state

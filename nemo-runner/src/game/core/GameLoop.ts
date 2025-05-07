@@ -48,8 +48,14 @@ export class GameLoop {
     // Force an initial update cycle to kick-start things again
     const initialDelta = 1/60; // Use a small fixed delta for the first update
     this.updateFn(initialDelta);
-    this.fixedUpdateFn(initialDelta);
-    this.renderFn(0);
+  }
+  
+  /**
+   * Set the fixed time step for physics updates
+   * @param timeStep New fixed time step in seconds
+   */
+  setFixedTimeStep(timeStep: number) {
+    this.fixedTimeStep = timeStep;
   }
   
   setUpdateFn(fn: (deltaTime: number) => void) {

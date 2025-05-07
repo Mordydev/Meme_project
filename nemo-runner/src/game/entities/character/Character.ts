@@ -20,7 +20,14 @@ export class Character {
   private effects: CharacterEffects;
   
   // Character mesh
-  private mesh: THREE.Group;
+  private _mesh: THREE.Group;
+  
+  /**
+   * Get the character mesh
+   */
+  public get mesh(): THREE.Group {
+    return this._mesh;
+  }
   
   // Device capabilities for optimization
   private deviceCapabilities: DeviceCapabilities;
@@ -38,19 +45,19 @@ export class Character {
     
     // Create character model
     this.model = new CharacterModel(assetManager, this.deviceCapabilities);
-    this.mesh = this.model.createModel();
+    this._mesh = this.model.createModel();
     
     // Add mesh to scene
-    this.scene.add(this.mesh);
+    this.scene.add(this._mesh);
     
     // Set up animator
-    this.animator = new CharacterAnimator(this.mesh, assetManager, this.deviceCapabilities);
+    this.animator = new CharacterAnimator(this._mesh, this.model);
     
     // Initialize effects system
-    this.effects = new CharacterEffects(this.mesh, scene, this.deviceCapabilities);
+    this.effects = new CharacterEffects(this._mesh, scene, this.deviceCapabilities);
     
     // Set up controller with all components
-    this.controller = new CharacterController(this.mesh, this.animator, this.effects, scene);
+    this.controller = new CharacterController(this._mesh, this.animator, this.effects, scene);
     
     // Set up event listeners
     this.setupEventListeners();
@@ -120,7 +127,8 @@ export class Character {
     // Activate power-up in controller
     this.controller.activatePowerUp(type, duration);
     
-    // Reset power-up after duration
+    // Note: This setTimeout is related to powerups, not game start movement,
+    // so it's appropriate to keep it here
     setTimeout(() => {
       if (type === 'speed') {
         this.controller.setSpeedMultiplier(1.0);
@@ -147,7 +155,7 @@ export class Character {
     // Check if player is dead
     if (this.health <= 0) {
       this.alive = false;
-      eventBus.emit('player-died', { position: this.mesh.position.toArray() });
+      eventBus.emit('player-died', { position: this._mesh.position.toArray() });
     }
   }
   
@@ -264,6 +272,14 @@ export class Character {
    */
   public hit(): boolean {
     return this.controller.hit();
+  }
+  
+  /**
+   * Set speed multiplier for character
+   * @param multiplier Speed multiplier
+   */
+  public setSpeedMultiplier(multiplier: number): void {
+    this.controller.setSpeedMultiplier(multiplier);
   }
   
   /**

@@ -8,7 +8,7 @@ export class FloatingDecorations {
   /**
    * Create floating plankton decoration
    */
-  static createFloatingPlankton(definition: DecorationDefinition): THREE.Group {
+  static createFloatingPlankton(definition: DecorationDefinition): THREE.Object3D {
     try {
       const group = new THREE.Group();
       
@@ -119,7 +119,7 @@ export class FloatingDecorations {
   /**
    * Create a school of small fish
    */
-  static createSchoolOfFish(definition: DecorationDefinition): THREE.Group {
+  static createSchoolOfFish(definition: DecorationDefinition): THREE.Object3D {
     try {
       const group = new THREE.Group();
       
@@ -278,7 +278,7 @@ export class FloatingDecorations {
   /**
    * Create a jellyfish decoration
    */
-  static createJellyfish(definition: DecorationDefinition): THREE.Group {
+  static createJellyfish(definition: DecorationDefinition): THREE.Object3D {
     try {
       const group = new THREE.Group();
       
@@ -553,7 +553,7 @@ export class FloatingDecorations {
   /**
    * Create a bubble stream
    */
-  static createBubbleStream(definition: DecorationDefinition): THREE.Group {
+  static createBubbleStream(definition: DecorationDefinition): THREE.Object3D {
     try {
       const group = new THREE.Group();
       
@@ -670,7 +670,7 @@ export class FloatingDecorations {
   /**
    * Create floating debris decoration
    */
-  static createFloatingDebris(definition: DecorationDefinition): THREE.Group {
+  static createFloatingDebris(definition: DecorationDefinition): THREE.Object3D {
     try {
       const group = new THREE.Group();
       
@@ -701,7 +701,12 @@ export class FloatingDecorations {
       for (let i = 0; i < debrisCount; i++) {
         // Choose a debris type
         const debrisType = Math.floor(Math.random() * 4);
-        let debris;
+        
+        // Initialize debris with a default value to ensure it's defined
+        let debris: THREE.Mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.1, 0.1, 0.1),
+          woodMaterial
+        );
         
         switch (debrisType) {
           case 0:

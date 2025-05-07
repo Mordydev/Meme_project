@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Obstacle } from './Obstacle';
 import { DeviceCapabilities } from '../../utils/DeviceUtils';
+import { NoiseGenerator } from '../../utils/NoiseGenerator';
 
 /**
  * Coral obstacle implementation with procedural generation
@@ -14,6 +15,9 @@ export class Coral extends Obstacle {
   
   // Debug visualization flag
   private showCollider: boolean = false;
+  
+  // Noise generator for procedural generation
+  private static noiseGenerator: NoiseGenerator = new NoiseGenerator(Math.PI * 2020); // Consistent seed
   
   constructor(
     position: THREE.Vector3,
@@ -147,13 +151,19 @@ export class Coral extends Obstacle {
       
       // Skip bottom vertices to keep base flat
       if (vertex.y > -height / 2 + 0.05) {
-        // Apply noise based on position
+        // Apply noise based on position using NoiseGenerator
         const noiseAmount = 0.1 * Math.min(1, vertex.y / (height / 2) + 0.5);
-        const noise = (Math.sin(vertex.y * 10) * Math.sin(vertex.x * 10) * Math.sin(vertex.z * 10)) * noiseAmount;
+        const noiseCoord = new THREE.Vector3(vertex.x * 10, vertex.y * 10, vertex.z * 10);
+        const noise = Coral.noiseGenerator.noise3D(
+          noiseCoord.x, noiseCoord.y, noiseCoord.z
+        ) * noiseAmount;
         
         // More noise higher up the branch
         const heightFactor = (vertex.y + height / 2) / height;
-        const radialNoise = Math.sin(vertex.x * 15 + vertex.z * 15) * noiseAmount * heightFactor;
+        const radialNoiseCoord = new THREE.Vector3(vertex.x * 15, 0, vertex.z * 15);
+        const radialNoise = Coral.noiseGenerator.noise2D(
+          radialNoiseCoord.x, radialNoiseCoord.z
+        ) * noiseAmount * heightFactor;
         
         // Apply the noise
         vertex.x += noise + radialNoise * vertex.x;
@@ -272,6 +282,9 @@ export class Coral extends Obstacle {
           scale * 0.5, scale, scale * 1.5, 8, 1
         );
         break;
+      default: // Fallback to sphere if somehow detailType is out of range
+        detailGeometry = new THREE.SphereGeometry(scale, 8, 6);
+        break;
     }
     
     // Create slightly more saturated material for details
@@ -334,8 +347,8 @@ export class Coral extends Obstacle {
   /**
    * Update coral animations
    */
-  public update(delta: number): void {
-    super.update(delta);
+  public update(deltaTime: number, playerPosition: THREE.Vector3, gameSpeed: number): void {
+    super.update(deltaTime, playerPosition, gameSpeed);
     
     if (this.mesh) {
       // Add subtle swaying motion
@@ -349,5 +362,42 @@ export class Coral extends Obstacle {
       this.mesh.rotation.x = this.baseRotation.x + 
         Math.sin(time * this.animationSpeed * 0.7 + this.animationOffset) * this.animationAmplitude * 0.5;
     }
+  }
+  
+  /**
+   * Update collider to match current position
+   */
+  protected updateCollider(): void {
+    if (this.collider instanceof THREE.Sphere) {
+      this.collider.center.copy(this.position);
+    }
+  }
+  
+  /**
+   * Update idle state behavior
+   */
+  protected updateIdle(deltaTime: number, playerPosition: THREE.Vector3, gameSpeed: number): void {
+    // Basic idle state for coral - it mostly stays still
+  }
+  
+  /**
+   * Update active state behavior
+   */
+  protected updateActive(deltaTime: number, playerPosition: THREE.Vector3, gameSpeed: number): void {
+    // Coral doesn't have much active behavior, it's mostly passive
+  }
+  
+  /**
+   * Update triggered state behavior
+   */
+  protected updateTriggered(deltaTime: number, playerPosition: THREE.Vector3, gameSpeed: number): void {
+    // Coral reaction to collision
+  }
+  
+  /**
+   * Update cooldown state behavior
+   */
+  protected updateCooldown(deltaTime: number, playerPosition: THREE.Vector3, gameSpeed: number): void {
+    // Return to normal state after interaction
   }
 }

@@ -355,7 +355,9 @@ export class GameStateManager {
         break;
         
       case 'PLAYING':
-        // Maybe start game timer or gameplay music
+        // Emit event to start character movement
+        console.log('GameStateManager: Emitting game-start-movement event');
+        eventBus.emit('game-start-movement', { source: 'GameStateManager' });
         break;
         
       case 'PAUSED':
@@ -442,14 +444,17 @@ export class GameStateManager {
    */
   private loadSavedData(): void {
     try {
-      const savedData = localStorage.getItem('nemo-runner-save');
-      if (savedData) {
-        const parsedData = JSON.parse(savedData) as SavedGameData;
-        this._savedData = {
-          ...this._savedData,
-          ...parsedData,
-        };
-        this._stateData.highScore = this._savedData.highScore;
+      // Check if localStorage is available (not in SSR/server environment)
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const savedData = localStorage.getItem('nemo-runner-save');
+        if (savedData) {
+          const parsedData = JSON.parse(savedData) as SavedGameData;
+          this._savedData = {
+            ...this._savedData,
+            ...parsedData,
+          };
+          this._stateData.highScore = this._savedData.highScore;
+        }
       }
     } catch (error) {
       console.error('Failed to load saved game data:', error);
@@ -461,7 +466,10 @@ export class GameStateManager {
    */
   private saveGameData(): void {
     try {
-      localStorage.setItem('nemo-runner-save', JSON.stringify(this._savedData));
+      // Check if localStorage is available (not in SSR/server environment)
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('nemo-runner-save', JSON.stringify(this._savedData));
+      }
     } catch (error) {
       console.error('Failed to save game data:', error);
     }

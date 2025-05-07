@@ -56,15 +56,16 @@ export default function GameStateDisplay({ initialState = 'MENU' }: GameStateDis
         // For all other transitions, use the fade effect
         // After current state fades out, change to the new state and fade it in
         console.log('Starting transition with fade effect');
-        setTimeout(() => {
-          setPreviousState(data.from);
-          setCurrentState(data.to);
-          
-          // Allow a little time for the DOM to update before starting fade-in
-          setTimeout(() => {
+        // Removed setTimeout to avoid potential timing issues
+        setPreviousState(data.from);
+        setCurrentState(data.to);
+        
+        // Allow a small delay before removing transition state to allow CSS animations to work
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
             setIsTransitioning(false);
-          }, 50);
-        }, 300);
+          });
+        });
       }
     };
 
@@ -81,161 +82,32 @@ export default function GameStateDisplay({ initialState = 'MENU' }: GameStateDis
     };
   }, []);
   
-  // Enhanced countdown timer for READY state with reliable transition
+  // Simplified countdown display for READY state
+  // The actual countdown logic is now handled by GameStartController
   useEffect(() => {
-    // Use an array of timeouts for better cleanup
-    const timeouts: NodeJS.Timeout[] = [];
-    
-    // Define a more robust countdown sequence
-    const startCountdown = () => {
-      console.log('GameStateDisplay: Starting enhanced countdown from 3');
-      setCountdown(3);
-      
-      // Comprehensive sequence with multiple movement triggers
-      // Stage 1: Show "3"
-      timeouts.push(setTimeout(() => {
-        console.log('GameStateDisplay: Countdown: 3');
-        setCountdown(3);
-        
-        // Stage 2: Show "2"
-        timeouts.push(setTimeout(() => {
-          console.log('GameStateDisplay: Countdown: 2');
-          setCountdown(2);
-          
-          // Stage 3: Show "1"
-          timeouts.push(setTimeout(() => {
-            console.log('GameStateDisplay: Countdown: 1');
-            setCountdown(1);
-            
-            // Stage 4: Show "GO!"
-            timeouts.push(setTimeout(() => {
-              console.log('GameStateDisplay: Countdown: GO!');
-              setCountdown(0);
-              
-              // Emit pre-movement event to prepare systems
-              console.log('GameStateDisplay: Emitting pre-movement event');
-              eventBus.emit('game-pre-movement', { 
-                startTime: Date.now(),
-                stage: 'pre-movement'
-              });
-              
-              // Stage 5: Transition to PLAYING after showing GO
-              timeouts.push(setTimeout(() => {
-                console.log('GameStateDisplay: AUTO-STARTING GAME FROM TIMEOUT');
-                
-                // ENHANCED CRITICAL SEQUENCE: More robust with even more redundancy
-                
-                // We'll emit the same event many times with increasing force to ensure the movement starts
-                const emitStartMovement = (triggerName: string, force: number = 1) => {
-                  console.log(`GameStateDisplay: Movement trigger "${triggerName}" with force ${force}`);
-                  
-                  // Emit with detailed metadata for debugging
-                  eventBus.emit('game-start-movement', { 
-                    startTime: Date.now(),
-                    trigger: triggerName,
-                    force: force,
-                    gameState: gameStateManager.state
-                  });
-                  
-                  // Also emit alternate event type as backup
-                  eventBus.emit('game-start', { 
-                    startTime: Date.now(),
-                    trigger: triggerName,
-                    force: force
-                  });
-                  
-                  // Bonus: direct DOM access to broadcast a custom event as ultimate backup
-                  try {
-                    const customEvent = new CustomEvent('nemo-game-start-movement', {
-                      detail: { timestamp: Date.now(), trigger: triggerName, force: force }
-                    });
-                    document.dispatchEvent(customEvent);
-                  } catch (e) {
-                    // Ignore errors in custom event dispatch
-                  }
-                };
-                
-                // 1. First movement trigger BEFORE state change
-                emitStartMovement('first-before-state-change', 1);
-                
-                // 2. Set state to PLAYING - CRITICAL STEP!
-                console.log('GameStateDisplay: Setting state to PLAYING');
-                gameStateManager.setState('PLAYING');
-                
-                // 3. Second movement trigger immediately AFTER state change
-                emitStartMovement('second-after-state-change', 2);
-                
-                // 4. Third movement trigger with very slight delay (20ms)
-                timeouts.push(setTimeout(() => {
-                  emitStartMovement('third-20ms-delay', 3);
-                }, 20));
-                
-                // 5. Fourth movement trigger (50ms)
-                timeouts.push(setTimeout(() => {
-                  emitStartMovement('fourth-50ms-delay', 4);
-                }, 50));
-                
-                // 6. Fifth movement trigger (100ms)
-                timeouts.push(setTimeout(() => {
-                  emitStartMovement('fifth-100ms-delay', 5);
-                }, 100));
-                
-                // 7. Sixth movement trigger (200ms)
-                timeouts.push(setTimeout(() => {
-                  emitStartMovement('sixth-200ms-delay', 6);
-                }, 200));
-                
-                // 8. Final failsafe with longer delay (500ms)
-                timeouts.push(setTimeout(() => {
-                  console.log('GameStateDisplay: FINAL failsafe movement trigger with 500ms delay');
-                  
-                  // Verify we're still in PLAYING state
-                  if (gameStateManager.state === 'PLAYING') {
-                    emitStartMovement('final-500ms-failsafe', 10);
-                    
-                    // Direct verification of character movement
-                    eventBus.emit('verify-character-movement', {
-                      timestamp: Date.now(),
-                      force: 10
-                    });
-                    
-                    // Add one more final check after a slight pause
-                    setTimeout(() => {
-                      // Double-check game state one last time
-                      if (gameStateManager.state === 'PLAYING') {
-                        console.log('GameStateDisplay: Ultimate last chance movement trigger');
-                        emitStartMovement('ultimate-last-chance', 20);
-                      }
-                    }, 100);
-                  } else {
-                    console.warn(`GameStateDisplay: Not in PLAYING state at 500ms failsafe! Current state: ${gameStateManager.state}`);
-                    // Try to force state to PLAYING as a last resort
-                    console.log('GameStateDisplay: EMERGENCY forcing state to PLAYING');
-                    gameStateManager.setState('PLAYING');
-                    
-                    // Then try movement again
-                    emitStartMovement('emergency-state-fix', 15);
-                  }
-                }, 500));
-              }, 1000)); // Wait 1 second after showing GO
-            }, 1000)); // 1 second for countdown 1
-          }, 1000)); // 1 second for countdown 2
-        }, 1000)); // 1 second for countdown 3
-      }, 0)); // Start immediately
+    // Listen for countdown updates from GameStartController
+    const handleCountdownUpdate = (data: { count: number }) => {
+      console.log(`GameStateDisplay: Received countdown update: ${data.count}`);
+      setCountdown(data.count);
     };
     
-    // Only start the countdown sequence when we first enter READY state
-    if (currentState === 'READY' && countdown === 3) {
-      console.log('GameStateDisplay: Detected READY state, starting enhanced countdown sequence');
-      startCountdown();
-    }
+    // Subscribe to countdown updates
+    eventBus.on('countdown-update', handleCountdownUpdate);
     
-    // Clean up function - clear all timeouts
+    // Clean up
     return () => {
-      console.log(`GameStateDisplay: Cleaning up ${timeouts.length} countdown timeouts`);
-      timeouts.forEach(timeout => clearTimeout(timeout));
+      eventBus.off('countdown-update', handleCountdownUpdate);
     };
-  }, [currentState]); // Only depend on currentState to prevent re-triggering
+  }, []);
+  
+  // Update display based on game state
+  useEffect(() => {
+    // Set initial countdown value when entering READY state
+    if (currentState === 'READY') {
+      console.log('GameStateDisplay: READY state detected');
+      setCountdown(3);
+    }
+  }, [currentState]);
 
   // Render based on current state
   const renderStateContent = () => {

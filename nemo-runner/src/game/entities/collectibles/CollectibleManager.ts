@@ -55,8 +55,19 @@ export class CollectibleManager {
   private effectCallbacks: Map<CollectibleType, () => void> = new Map();
   
   private collectiblePoolSize = 100;
+  private maxCollectibles = 100;
   private bubbleInstancedMesh: THREE.InstancedMesh | null = null;
   private powerupMeshes: Map<CollectibleType, THREE.Mesh> = new Map();
+  
+  // Performance settings
+  private segmentRadius = 8; // Radius for segment-based spawning
+  private maxParticles = 50; // Maximum particles for effects
+  
+  // Geometry configuration
+  private geomConfig = {
+    radialSegments: 8,
+    detail: 1
+  };
   
   // Attraction system for magnet power-up
   private isAttractionEnabled = false;
@@ -910,5 +921,41 @@ export class CollectibleManager {
     if (!enabled) {
       this.magneticPullTarget = null;
     }
+  }
+  
+  /**
+   * Set the maximum number of collectibles
+   * @param maxCollectibles Maximum number of collectibles
+   */
+  setMaxCollectibles(maxCollectibles: number): void {
+    this.maxCollectibles = Math.max(10, maxCollectibles);
+    console.log(`CollectibleManager: Set max collectibles to ${this.maxCollectibles}`);
+  }
+  
+  /**
+   * Set the detail level for collectibles
+   * @param level Detail level (1-3, where 1 is low, 2 is medium, 3 is high)
+   */
+  setDetailLevel(level: number): void {
+    const detailLevel = Math.max(1, Math.min(3, level));
+    
+    // Update detail level settings
+    this.segmentRadius = detailLevel === 1 ? 4 : 
+                         detailLevel === 2 ? 8 : 12;
+                         
+    // Set radial segments based on detail level                   
+    this.geomConfig.radialSegments = detailLevel === 1 ? 6 : 
+                                    detailLevel === 2 ? 8 : 12;
+                                    
+    console.log(`CollectibleManager: Set detail level to ${detailLevel}`);
+  }
+  
+  /**
+   * Set the maximum number of particles
+   * @param maxParticles Maximum number of particles
+   */
+  setMaxParticles(maxParticles: number): void {
+    this.maxParticles = Math.max(10, maxParticles);
+    console.log(`CollectibleManager: Set max particles to ${this.maxParticles}`);
   }
 }
