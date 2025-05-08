@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styles from '@/styles/Game.module.css';
 import { initGame } from '@/game/core/GameEngine';
 import gameStartController from '@/game/core/GameStartController';
+import gameStateManager from '@/game/core/GameStateManager';
 import GameStateDisplay from './GameStateDisplay';
 import GameUI from './GameUI';
 import EnhancedUI from './EnhancedUI';
@@ -205,42 +206,26 @@ export default React.memo(function GameCanvas() {
         
         // First use the GameStartController to initialize core systems
         try {
-          const initializePromise = gameStartController.initialize(canvas);
+          console.log('GameCanvas: Calling gameStartController.initialize() to handle all initialization');
           
-          // Listen for all-systems-ready event to know when to proceed
-          const allSystemsReadyHandler = () => {
-            console.log('GameCanvas: All systems ready, continuing with game initialization');
+          // Initialize via GameStartController, which now handles everything
+          // including calling initGame with pre-initialized components
+          const initSuccess = await gameStartController.initialize(canvas);
+          
+          if (initSuccess) {
+            console.log('GameCanvas: GameStartController initialization successful');
             
-            // Now initialize game with the prepared canvas
-            initGame(canvas).then(cleanup => {
-              cleanupRef.current = cleanup;
-            });
-          };
-          
-          // Add the event listener the standard way instead of using once()
-          eventBus.on('all-systems-ready', allSystemsReadyHandler);
-          
-          // Set up a timeout to ensure we don't get stuck waiting for the event
-          const timeoutId = setTimeout(() => {
-            // Clean up the event listener to prevent duplicate handlers
-            eventBus.off('all-systems-ready', allSystemsReadyHandler);
-            
-            // If cleanup is still not set, proceed with initialization
-            if (!cleanupRef.current && isMounted.current) {
-              console.log('GameCanvas: Timeout - proceeding with game initialization anyway');
-              initGame(canvas).then(cleanup => {
-                if (isMounted.current) {
-                  cleanupRef.current = cleanup;
-                }
-              });
-            }
-          }, 5000);
-          
-          // Wait for initialization to complete
-          await initializePromise;
-          
-          // Clear the timeout since initialization completed
-          clearTimeout(timeoutId);
+            // Store cleanup function for later use
+            cleanupRef.current = () => {
+              console.log('GameCanvas: Running cleanup via GameStartController dispose');
+              if (gameStartController) {
+                gameStartController.dispose();
+              }
+            };
+          } else {
+            console.error('GameCanvas: GameStartController initialization failed');
+            throw new Error('GameStartController initialization failed');
+          }
         } catch (startControllerError) {
           console.error('Error initializing game systems:', startControllerError);
           throw startControllerError; // Re-throw to trigger retry logic
@@ -339,9 +324,14 @@ export default React.memo(function GameCanvas() {
     }
   }, [initializeGame]);
   
+  // Track if GameEngine has been initialized
+  const gameEngineInitialized = useRef(false);
+  
+  // Note: In development mode with React StrictMode enabled, this effect will run twice.
+  // This is expected behavior and helps detect side effects. In production, it runs once.
   // Main initialization effect with improved context handling
   useEffect(() => {
-    console.log('GameCanvas: Component mounted');
+    console.log('GameCanvas: MOUNT Effect - Component mounted');
     isMounted.current = true;
     
     // Important: Check canvas reference before doing anything else
@@ -357,14 +347,58 @@ export default React.memo(function GameCanvas() {
     canvasRef.current.dataset.width = canvasRef.current.clientWidth.toString();
     canvasRef.current.dataset.height = canvasRef.current.clientHeight.toString();
     
+    // Listener for when core systems are ready
+    const handleSystemsReady = async (components: any) => {
+      console.log('GameCanvas: Received all-systems-ready event');
+      // Check component is mounted and engine hasn't been initialized yet
+      if (!isMounted.current || gameEngineInitialized.current || !canvasRef.current) {
+        console.log('GameCanvas: Skipping engine initialization (unmounted, already done, or no canvas)');
+        return;
+      }
+
+      try {
+        console.log('GameCanvas: Calling initGame to initialize GameEngine...');
+        // Call the actual initGame function with the canvas and components
+        const engineCleanup = await initGame(canvasRef.current, components);
+        if (isMounted.current) {
+          cleanupRef.current = engineCleanup; // Store the engine's specific cleanup
+          gameEngineInitialized.current = true; // Mark engine as initialized
+          console.log('GameCanvas: GameEngine initialization successful.');
+          // GameStartController should have set state to MENU, but double-check
+          if (gameStateManager.state !== 'MENU') {
+            console.warn("GameCanvas: State wasn't MENU after systems ready, forcing MENU state.");
+            gameStateManager.setState('MENU');
+          }
+        } else {
+          // Component unmounted during async init, clean up immediately
+          if (engineCleanup) engineCleanup();
+        }
+      } catch (error) {
+        console.error("GameCanvas: Error initializing GameEngine:", error);
+        if (isMounted.current) setCriticalError(true);
+      }
+    };
+
+    // Subscribe to all-systems-ready event
+    eventBus.on('all-systems-ready', handleSystemsReady);
+
+    // Ensure the initialization process is started correctly
+    const startControllerInit = async () => {
+      if (isMounted.current && canvasRef.current) {
+        console.log('GameCanvas: Starting GameStartController initialization...');
+        try {
+          // GameStartController now only preps components & emits event
+          await gameStartController.initialize(canvasRef.current);
+        } catch (error) {
+          console.error("GameCanvas: Error during GameStartController initialization:", error);
+          if (isMounted.current) setCriticalError(true);
+        }
+      }
+    };
+    
     // Initialize game with a small delay to ensure canvas is fully set up
     // This helps avoid the "300x150" default dimension problem
-    const initTimeout = setTimeout(async () => {
-      if (isMounted.current) {
-        console.log('GameCanvas: Delayed initialization starting...');
-        await initializeGame();
-      }
-    }, 50); // Small delay to ensure canvas is ready
+    const initTimeout = setTimeout(startControllerInit, 50); // Small delay to ensure canvas is ready
     
     // Subscribe to game state changes
     eventBus.on('game-state-change', handleStateChange);
@@ -420,7 +454,7 @@ export default React.memo(function GameCanvas() {
     
     // Clean up everything when component unmounts
     return () => {
-      console.log('GameCanvas: Component unmounting, cleaning up resources');
+      console.log('GameCanvas: CLEANUP Effect - Component unmounting, cleaning up resources');
       
       // Mark component as unmounted immediately
       isMounted.current = false;
@@ -431,6 +465,9 @@ export default React.memo(function GameCanvas() {
       // Unsubscribe from events first to prevent new event handling during cleanup
       console.log('GameCanvas: Unsubscribing from events');
       eventBus.off('game-state-change', handleStateChange);
+      
+      // Also unsubscribe from all-systems-ready event
+      eventBus.off('all-systems-ready', handleSystemsReady);
       
       // Remove WebGL context handlers
       if (canvasRef.current) {
@@ -493,28 +530,31 @@ export default React.memo(function GameCanvas() {
         indicator.parentElement.removeChild(indicator);
       }
       
+      // Reset GameEngine initialization flag on cleanup
+      gameEngineInitialized.current = false;
+      
       console.log('GameCanvas: Cleanup complete');
     };
   }, [initializeGame, handleStateChange]);
   
-  // Track when player has entered playing state
+  // Track state overlays visibility
   useEffect(() => {
-    if (gameState === 'PLAYING' && !hasEnteredPlayingState && isMounted.current) {
-      // Once we've entered playing state, mark it so we never show the state display again
-      // Add a small delay to ensure the state transition is complete
-      const timer = setTimeout(() => {
-        if (isMounted.current) {
-          console.log('GameCanvas: Marking playing state entered after delay');
-          setHasEnteredPlayingState(true);
-        }
-      }, 500);
-      
-      return () => clearTimeout(timer);
+    // Define which states should show the GameStateDisplay overlay
+    const overlayStates = ['MENU', 'READY', 'PAUSED', 'GAME_OVER'];
+    
+    const shouldShowOverlays = overlayStates.includes(gameState);
+    console.log(`GameCanvas: Game state is ${gameState}, setting showStateOverlays to ${shouldShowOverlays}`);
+    
+    if (isMounted.current) {
+      // This logic controls visibility of overlays
+      // We should SHOW overlays for MENU/READY/PAUSED/GAMEOVER
+      // We should HIDE overlays for PLAYING/LOADING
+      setHasEnteredPlayingState(gameState === 'PLAYING' || gameState === 'LOADING');
     }
-  }, [gameState, hasEnteredPlayingState]);
+  }, [gameState]);
   
-  // Only show GameStateDisplay when we've never entered playing state
-  const showStateDisplay = !hasEnteredPlayingState;
+  // Control overlay visibility based on current game state
+  const showStateOverlays = !hasEnteredPlayingState;
   
   // Add error boundary behavior
   const [hasError, setHasError] = useState(false);
@@ -574,7 +614,7 @@ export default React.memo(function GameCanvas() {
           
           {/* Minimal UI that doesn't depend on WebGL */}
           <GameUI />
-          {showStateDisplay && <GameStateDisplay initialState="MENU" />}
+          {showStateOverlays && <GameStateDisplay initialState="MENU" />}
           
           <div style={{marginTop: '20px'}}>
             <button onClick={() => window.location.reload()}>
@@ -592,10 +632,11 @@ export default React.memo(function GameCanvas() {
       {/* Use key to force canvas recreation when needed */}
       <canvas key={`canvas-${canvasKey}`} ref={canvasRef} className={styles.canvas} />
       <EnhancedUI />
-      {/* Original UI components - may be hidden depending on game state */}
-      <GameUI />
-      {showStateDisplay && <GameStateDisplay initialState="MENU" />}
-      <LoadingScreen />
+      
+      {/* Main game components with proper visibility control */}
+      <GameUI /> {/* GameUI will internally hide itself when not in PLAYING state */}
+      {showStateOverlays && <GameStateDisplay initialState="MENU" />} {/* Only shown for menu, ready, paused, game over */}
+      <LoadingScreen /> {/* LoadingScreen handles its own visibility based on LOADING state */}
       
       {/* Always visible components - we'll only keep audio controls here */}
       <div className={styles.audioControlsContainer} style={{ position: 'absolute', bottom: '20px', right: '20px', zIndex: 5000 }}>
