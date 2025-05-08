@@ -255,15 +255,19 @@ export class RenderingInitializer {
         }
       }
       
-      // Check for potential performance issues
+      // Check for potential performance issues using centralized logic
       const performanceMonitor = getPerformanceMonitor();
-      const metrics = performanceMonitor.getMetrics();
       
-      // If we're experiencing severe performance issues, we might apply emergency optimizations
-      if (metrics.fps < 20 || metrics.longFrames > 10) {
-        // This could trigger emergency optimization mode
-        // For now, we just log it, but could be extended to reduce particle effects, etc.
-        console.warn('Severe performance issues detected during rendering');
+      // Let the performance monitor determine if there are severe issues
+      // This replaces the direct threshold check with centralized logic
+      const performanceStatus = performanceMonitor.hasSeverePerformanceIssues();
+      
+      // We don't need to log or emit events here anymore since that's handled
+      // in the PerformanceMonitor's reportPerformance method
+      // We just need to check the status in case we need to apply specific renderer-level adjustments
+      if (performanceStatus.severe) {
+        // We could add renderer-specific optimizations here if needed
+        // But we're removing explicit emergency optimizations in favor of QualityAdjuster
       }
       
       // Pre-check for invalid state

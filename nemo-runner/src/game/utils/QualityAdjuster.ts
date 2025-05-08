@@ -167,7 +167,97 @@ export class QualityAdjuster {
     // Listen for quality change events
     eventBus.on('performance-quality-change', this.handleQualityChange.bind(this));
     
+    // Listen for severe performance warnings
+    eventBus.on('severe-performance-warning', this.handleSeverePerformanceWarning.bind(this));
+    
     console.log(`QualityAdjuster: Initialized with ${this.currentQuality} quality`);
+  }
+  
+  /**
+   * Handle severe performance warnings
+   * Immediately drops quality to low and applies more aggressive optimizations
+   * Adjusted in Phase 4 to be more device-aware and use better adaptive settings
+   */
+  private handleSeverePerformanceWarning(data: { metrics: any, reason: string }): void {
+    console.warn(`QualityAdjuster: Responding to severe performance warning: ${data.reason}`);
+    
+    // Set quality to low immediately
+    if (this.currentQuality !== 'low') {
+      this.setQuality('low');
+      
+      // Get device capabilities to better tune aggressive settings
+      // Import used inline to avoid circular dependencies
+      const { getDeviceCapabilities } = require('./DeviceUtils');
+      const capabilities = getDeviceCapabilities();
+      
+      // Determine optimal pixel ratio based on device capabilities and performance
+      // For very low-end or mobile devices, go as low as 0.5
+      // For better devices, don't go below 0.75
+      const minPixelRatio = capabilities.mobile ? 0.5 : 
+                           (capabilities.lowEnd ? 0.6 : 0.75);
+      
+      // Calculate minimum decoration count based on device
+      const minDecorationCount = capabilities.mobile ? 15 : 
+                                (capabilities.lowEnd ? 20 : 25);
+      
+      // Calculate minimum particle count
+      const minParticleCount = capabilities.mobile ? 30 :
+                              (capabilities.lowEnd ? 40 : 50);
+      
+      // Calculate minimum view distance                        
+      const minViewDistance = capabilities.mobile ? 60 :
+                             (capabilities.lowEnd ? 70 : 80);
+      
+      // Additionally, apply more aggressive settings than standard 'low'
+      // These override some of the low preset values for this specific instance
+      const aggressiveSettings = {
+        ...this.currentPreset,
+        pixelRatio: minPixelRatio,
+        maxParticles: minParticleCount,
+        maxDecorations: minDecorationCount,
+        entityDetailLevel: 1,
+        viewDistance: minViewDistance,
+        // Additional optimizations for severe performance issues
+        enablePostProcessing: false,
+        shadowMapEnabled: false,
+        antialias: false,
+        // Reduce spawn rates to further improve performance
+        maxObstacles: Math.max(3, Math.floor(QUALITY_PRESETS.low.maxObstacles * 0.6)),
+        maxCollectibles: Math.max(10, Math.floor(QUALITY_PRESETS.low.maxCollectibles * 0.6)),
+        // Always use simplified colliders in emergency mode
+        useSimplifiedColliders: true,
+        // Skip more animation frames
+        animationFrameSkip: 3
+      };
+      
+      // Apply these more aggressive settings
+      this.currentPreset = aggressiveSettings;
+      
+      // Apply new settings
+      this.applyQualitySettings();
+      
+      // Log detailed diagnosis
+      console.warn(
+        `QualityAdjuster: Applied emergency optimizations - ` +
+        `pixelRatio: ${minPixelRatio}, ` +
+        `maxParticles: ${minParticleCount}, ` + 
+        `maxDecorations: ${minDecorationCount}, ` +
+        `viewDistance: ${minViewDistance}, ` +
+        `maxObstacles: ${this.currentPreset.maxObstacles}`
+      );
+      
+      // Emit special event for very severe situations
+      eventBus.emit('aggressive-quality-reduction', { 
+        quality: 'low',
+        preset: this.getQualityPreset(),
+        reason: data.reason,
+        deviceInfo: {
+          mobile: capabilities.mobile,
+          lowEnd: capabilities.lowEnd,
+          pixelRatio: capabilities.pixelRatio
+        }
+      });
+    }
   }
   
   /**
@@ -243,6 +333,7 @@ export class QualityAdjuster {
    */
   public cleanup(): void {
     eventBus.off('performance-quality-change', this.handleQualityChange);
+    eventBus.off('severe-performance-warning', this.handleSeverePerformanceWarning);
     this.qualityChangeHandlers.clear();
     this.renderer = null;
     console.log('QualityAdjuster: Cleaned up resources');

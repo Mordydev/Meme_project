@@ -405,7 +405,12 @@ export class ProceduralEnvironment {
     }
     
     // Add decorations to the segment, considering obstacle placement
-    this.addDecorationsToSegment(segment);
+    try {
+      this.addDecorationsToSegment(segment);
+    } catch (decorationError) {
+      console.error(`Fatal error in decoration generation (segment at ${segment.mesh.position.z}): ${decorationError}`);
+      // Continue with basic environment but without decorations
+    }
     
     // Add ground details using the ground system
     const floorMeshes: THREE.Mesh[] = [];
@@ -534,7 +539,9 @@ export class ProceduralEnvironment {
           
           // Track successful decorations to limit retries
           let successfulDecorations = 0;
-          const MAX_FAILURES_PER_SEGMENT = 5;
+          // Increase the failure tolerance to avoid premature termination
+          const MAX_FAILURES_PER_SEGMENT = 10; // Increased from 5
+          const MAX_FAILURES_PER_TYPE = new Map<string, number>();
           let consecutiveFailures = 0;
           
           // Create decoration clusters instead of individual placements
@@ -581,12 +588,23 @@ export class ProceduralEnvironment {
                                     availableDecorations[0];
               }
               
+              // Check if this type has had too many failures (per-type failure limit)
+              const typeFailures = MAX_FAILURES_PER_TYPE.get(selectedDecoration.type) || 0;
+              const MAX_TYPE_FAILURES = 3; // Maximum failures per decoration type
+              
+              if (typeFailures >= MAX_TYPE_FAILURES) {
+                console.log(`Skipping decoration type ${selectedDecoration.type} due to too many failures (${typeFailures})`);
+                continue; // Skip this decoration type
+              }
+              
               // Generate position using improved distribution method
               const position = this.generateNaturalPosition(segment, selectedDecoration);
               
               // Only proceed if we got a valid position
               if (position) {
                 try {
+                  console.log(`Creating decoration ${selectedDecoration.type} at position:`, position);
+                  
                   // Use decoration factory to create the decoration
                   const decoration = this.decorationFactory.createDecoration(
                     selectedDecoration,
@@ -605,26 +623,53 @@ export class ProceduralEnvironment {
                       segment.decorations.add(decoration);
                       successfulDecorations++;
                       consecutiveFailures = 0; // Reset failure counter on success
+                      
+                      // Reset type failure count on success
+                      MAX_FAILURES_PER_TYPE.set(selectedDecoration.type, 0);
+                      
+                      console.log(`Successfully added ${selectedDecoration.type} decoration`);
                     } else {
-                      console.log(`Invalid decoration position: ${decoration.position.x}, ${decoration.position.y}, ${decoration.position.z}`);
+                      console.warn(`Invalid decoration position: ${decoration.position.x}, ${decoration.position.y}, ${decoration.position.z} for ${selectedDecoration.type}`);
                       consecutiveFailures++;
+                      
+                      // Increment type failure count
+                      MAX_FAILURES_PER_TYPE.set(
+                        selectedDecoration.type, 
+                        (MAX_FAILURES_PER_TYPE.get(selectedDecoration.type) || 0) + 1
+                      );
                     }
                   } else {
+                    console.warn(`Failed to create ${selectedDecoration.type} decoration (null returned)`);
                     consecutiveFailures++;
+                    
+                    // Increment type failure count
+                    MAX_FAILURES_PER_TYPE.set(
+                      selectedDecoration.type, 
+                      (MAX_FAILURES_PER_TYPE.get(selectedDecoration.type) || 0) + 1
+                    );
                   }
                 } catch (decorationError) {
                   // Log but continue - we want to be robust against single decoration failures
-                  console.log(`Error creating decoration ${selectedDecoration.type}: ${decorationError}`);
+                  console.warn(`Error creating decoration ${selectedDecoration.type}: ${decorationError}`);
                   consecutiveFailures++;
+                  
+                  // Increment type failure count
+                  MAX_FAILURES_PER_TYPE.set(
+                    selectedDecoration.type, 
+                    (MAX_FAILURES_PER_TYPE.get(selectedDecoration.type) || 0) + 1
+                  );
                   continue;
                 }
               } else {
                 // No valid position found
+                console.log(`No valid position found for ${selectedDecoration.type}`);
                 consecutiveFailures++;
+                
+                // Don't count this against the type failure count since it's a positioning issue
               }
             } catch (loopError) {
               // Log but continue to the next decoration
-              console.log(`Error in decoration loop: ${loopError}`);
+              console.warn(`Error in decoration loop: ${loopError}`);
               consecutiveFailures++;
               continue;
             }

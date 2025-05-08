@@ -117,14 +117,25 @@ export class FloatingDecorations {
   }
 
   /**
-   * Create a school of small fish
+   * Create a school of small fish - optimized & fixed version
    */
   static createSchoolOfFish(definition: DecorationDefinition): THREE.Object3D {
+    console.log(`Starting schoolOfFish creation with scale: ${JSON.stringify(definition.scale)}`);
     try {
       const group = new THREE.Group();
+      group.name = "schoolOfFish";
       
-      // Fish parameters
-      const fishCount = 10 + Math.floor(Math.random() * 15);
+      // Fish parameters - reduce count on lower end devices
+      const isLowEnd = typeof window !== 'undefined' && window.navigator && 
+                      window.navigator.hardwareConcurrency ? 
+                      window.navigator.hardwareConcurrency <= 4 : false;
+      
+      // Reduce fish count for performance
+      const fishCount = isLowEnd ? 
+                       5 + Math.floor(Math.random() * 5) : 
+                       8 + Math.floor(Math.random() * 7);
+                       
+      console.log(`Creating school with ${fishCount} fish`);
       
       // Base size and overall cluster size
       const fishSize = 0.08 + Math.random() * 0.06;
@@ -143,135 +154,237 @@ export class FloatingDecorations {
       
       // Create a single template fish geometry that we'll reuse
       const fishGeometry = new THREE.Group();
+      fishGeometry.name = "fishTemplate";
+      
+      // Create fish body - use simpler geometry for low-end devices
+      const segments = isLowEnd ? { radial: 6, length: 3 } : { radial: 8, length: 6 };
+      
+      console.log(`Creating fish body geometry with segments: ${segments.radial}x${segments.length}`);
       
       // Create fish body (teardrop shape)
-      const bodyGeometry = new THREE.CapsuleGeometry(
-        fishSize * 0.5,   // Radius
-        fishSize * 1.0,   // Length
-        8,                // Radial segments
-        6                 // Length segments
-      );
-      
-      // Squeeze the body slightly to make it more fish-like
-      if (bodyGeometry.attributes.position) {
-        const positions = bodyGeometry.attributes.position.array;
+      let bodyGeometry;
+      try {
+        bodyGeometry = new THREE.CapsuleGeometry(
+          fishSize * 0.5,    // Radius
+          fishSize * 1.0,    // Length
+          segments.radial,   // Radial segments
+          segments.length    // Length segments
+        );
         
-        for (let i = 0; i < positions.length / 3; i++) {
-          positions[i * 3 + 2] *= 0.7; // Flatten slightly in z direction
+        // Squeeze the body slightly to make it more fish-like
+        if (bodyGeometry.attributes.position) {
+          const positions = bodyGeometry.attributes.position.array;
+          
+          for (let i = 0; i < positions.length / 3; i++) {
+            positions[i * 3 + 2] *= 0.7; // Flatten slightly in z direction
+          }
+          
+          bodyGeometry.attributes.position.needsUpdate = true;
+          bodyGeometry.computeVertexNormals();
         }
-        
-        bodyGeometry.attributes.position.needsUpdate = true;
-        bodyGeometry.computeVertexNormals();
+      } catch (bodyError) {
+        console.error(`Error creating fish body: ${bodyError}`);
+        // Fallback to simple geometry
+        bodyGeometry = new THREE.SphereGeometry(fishSize * 0.5, 6, 4);
       }
       
       // Create fish material
       const fishMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(primaryColor),
         roughness: 0.7,
-        metalness: 0.3
+        metalness: 0.3,
+        // Simpler shading for low-end devices
+        flatShading: isLowEnd
       });
       
       const body = new THREE.Mesh(bodyGeometry, fishMaterial);
+      body.name = "fishBody";
       body.rotation.z = Math.PI / 2; // Orient fish to face forward
       fishGeometry.add(body);
       
-      // Add tail fin
-      const tailGeometry = new THREE.BufferGeometry();
-      
-      // Define tail as a simple triangle
-      const tailVertices = new Float32Array([
-        0, -fishSize * 0.8, 0,    // Base of tail
-        0, -fishSize * 1.5, fishSize * 0.6, // Top edge
-        0, -fishSize * 1.5, -fishSize * 0.6 // Bottom edge
-      ]);
-      
-      tailGeometry.setAttribute('position', new THREE.BufferAttribute(tailVertices, 3));
-      tailGeometry.setIndex([0, 1, 2]); // Define the triangle
-      tailGeometry.computeVertexNormals();
-      
-      const tail = new THREE.Mesh(tailGeometry, fishMaterial);
-      fishGeometry.add(tail);
-      
-      // Add small fins on the sides
-      const finGeometry = new THREE.BufferGeometry();
-      
-      // Define side fin as a small triangle
-      const finVertices = new Float32Array([
-        0, 0, fishSize * 0.5,     // Base of fin (attached to body)
-        fishSize * 0.2, 0, fishSize * 1.0,  // Outer point
-        -fishSize * 0.2, 0, fishSize * 1.0  // Outer point
-      ]);
-      
-      finGeometry.setAttribute('position', new THREE.BufferAttribute(finVertices, 3));
-      finGeometry.setIndex([0, 1, 2]); // Define the triangle
-      finGeometry.computeVertexNormals();
-      
-      const finLeft = new THREE.Mesh(finGeometry, fishMaterial);
-      finLeft.position.set(0, 0, fishSize * 0.3);
-      finLeft.rotation.x = Math.PI / 6; // Angle slightly downward
-      fishGeometry.add(finLeft);
-      
-      // Right fin (mirror of left)
-      const finRight = finLeft.clone();
-      finRight.position.set(0, 0, -fishSize * 0.3);
-      finRight.rotation.x = -Math.PI / 6; // Angle in opposite direction
-      fishGeometry.add(finRight);
-      
-      // Create multiple instances of the fish
-      for (let i = 0; i < fishCount; i++) {
-        const fishInstance = fishGeometry.clone();
-        
-        // Distribute fish within the school
-        const distributionRadius = clusterRadius * Math.pow(Math.random(), 0.7); // Bias toward center
-        const theta = Math.random() * Math.PI * 2;
-        const phi = (Math.random() * 0.7 + 0.2) * Math.PI; // Limit vertical spread
-        
-        fishInstance.position.set(
-          distributionRadius * Math.sin(phi) * Math.cos(theta),
-          distributionRadius * Math.cos(phi),
-          distributionRadius * Math.sin(phi) * Math.sin(theta)
-        );
-        
-        // Have all fish face roughly the same direction with small variations
-        const facingAngle = Math.random() * Math.PI * 0.5 - Math.PI * 0.25; // ±45 degrees
-        fishInstance.rotation.y = facingAngle;
-        
-        // Small random pitch and roll
-        fishInstance.rotation.x = (Math.random() - 0.5) * 0.3;
-        fishInstance.rotation.z = (Math.random() - 0.5) * 0.3;
-        
-        // Random size variations
-        const sizeFactor = 0.7 + Math.random() * 0.6;
-        fishInstance.scale.set(sizeFactor, sizeFactor, sizeFactor);
-        
-        // Occasionally vary color slightly for individuals
-        if (Math.random() > 0.7) {
-          fishInstance.traverse((child) => {
-            if (child instanceof THREE.Mesh && child.material) {
-              const material = child.material.clone();
-              material.color.offsetHSL(0, 0, (Math.random() - 0.5) * 0.2);
-              child.material = material;
-            }
-          });
+      // Only add more complex details on higher-end devices
+      if (!isLowEnd) {
+        try {
+          // Add tail fin
+          const tailGeometry = new THREE.BufferGeometry();
+          
+          // Define tail as a simple triangle
+          const tailVertices = new Float32Array([
+            0, -fishSize * 0.8, 0,    // Base of tail
+            0, -fishSize * 1.5, fishSize * 0.6, // Top edge
+            0, -fishSize * 1.5, -fishSize * 0.6 // Bottom edge
+          ]);
+          
+          tailGeometry.setAttribute('position', new THREE.BufferAttribute(tailVertices, 3));
+          tailGeometry.setIndex([0, 1, 2]); // Define the triangle
+          tailGeometry.computeVertexNormals();
+          
+          const tail = new THREE.Mesh(tailGeometry, fishMaterial);
+          tail.name = "fishTail";
+          fishGeometry.add(tail);
+          
+          // Add small fins on the sides
+          const finGeometry = new THREE.BufferGeometry();
+          
+          // Define side fin as a small triangle
+          const finVertices = new Float32Array([
+            0, 0, fishSize * 0.5,     // Base of fin (attached to body)
+            fishSize * 0.2, 0, fishSize * 1.0,  // Outer point
+            -fishSize * 0.2, 0, fishSize * 1.0  // Outer point
+          ]);
+          
+          finGeometry.setAttribute('position', new THREE.BufferAttribute(finVertices, 3));
+          finGeometry.setIndex([0, 1, 2]); // Define the triangle
+          finGeometry.computeVertexNormals();
+          
+          const finLeft = new THREE.Mesh(finGeometry, fishMaterial);
+          finLeft.name = "leftFin";
+          finLeft.position.set(0, 0, fishSize * 0.3);
+          finLeft.rotation.x = Math.PI / 6; // Angle slightly downward
+          fishGeometry.add(finLeft);
+          
+          // Right fin (mirror of left)
+          const finRight = finLeft.clone();
+          finRight.name = "rightFin";
+          finRight.position.set(0, 0, -fishSize * 0.3);
+          finRight.rotation.x = -Math.PI / 6; // Angle in opposite direction
+          fishGeometry.add(finRight);
+        } catch (finsError) {
+          console.warn(`Error creating fish fins, continuing with body only: ${finsError}`);
         }
-        
-        group.add(fishInstance);
       }
       
-      // Apply scale from definition
-      const scale = typeof definition.scale === 'number' ? definition.scale : definition.scale.x;
-      const finalScale = scale * (1 + (Math.random() - 0.5) * definition.scaleVariance);
-      group.scale.set(finalScale, finalScale, finalScale);
+      console.log(`Fish template created successfully, adding ${fishCount} instances to school`);
       
-      return group;
+      // Create multiple instances of the fish
+      let successfulFish = 0;
+      for (let i = 0; i < fishCount; i++) {
+        try {
+          const fishInstance = fishGeometry.clone();
+          fishInstance.name = `fish_${i}`;
+          
+          // Distribute fish within the school
+          const distributionRadius = clusterRadius * Math.pow(Math.random(), 0.7); // Bias toward center
+          const theta = Math.random() * Math.PI * 2;
+          const phi = (Math.random() * 0.7 + 0.2) * Math.PI; // Limit vertical spread
+          
+          const fishX = distributionRadius * Math.sin(phi) * Math.cos(theta);
+          const fishY = distributionRadius * Math.cos(phi);
+          const fishZ = distributionRadius * Math.sin(phi) * Math.sin(theta);
+          
+          // Verify position is valid
+          if (isNaN(fishX) || isNaN(fishY) || isNaN(fishZ)) {
+            console.warn(`Invalid fish position calculated [${fishX}, ${fishY}, ${fishZ}] - skipping fish ${i}`);
+            continue;
+          }
+          
+          fishInstance.position.set(fishX, fishY, fishZ);
+          
+          // Have all fish face roughly the same direction with small variations
+          const facingAngle = Math.random() * Math.PI * 0.5 - Math.PI * 0.25; // ±45 degrees
+          fishInstance.rotation.y = facingAngle;
+          
+          // Small random pitch and roll
+          fishInstance.rotation.x = (Math.random() - 0.5) * 0.3;
+          fishInstance.rotation.z = (Math.random() - 0.5) * 0.3;
+          
+          // Random size variations
+          const sizeFactor = 0.7 + Math.random() * 0.6;
+          fishInstance.scale.set(sizeFactor, sizeFactor, sizeFactor);
+          
+          // Color variations - simplified for performance
+          if (!isLowEnd && Math.random() > 0.7) {
+            fishInstance.traverse((child) => {
+              if (child instanceof THREE.Mesh && child.material) {
+                try {
+                  const material = child.material.clone();
+                  material.color.offsetHSL(0, 0, (Math.random() - 0.5) * 0.2);
+                  child.material = material;
+                } catch (materialError) {
+                  console.warn(`Error applying custom material to fish ${i}: ${materialError}`);
+                  // Continue with default material
+                }
+              }
+            });
+          }
+          
+          group.add(fishInstance);
+          successfulFish++;
+        } catch (fishInstanceError) {
+          console.warn(`Error creating fish instance ${i}: ${fishInstanceError}`);
+          // Continue with next fish
+          continue;
+        }
+      }
+      
+      // Apply scale from definition - with error handling
+      try {
+        let finalScale = 1.0; // Default fallback
+        
+        if (typeof definition.scale === 'number') {
+          finalScale = definition.scale * (1 + (Math.random() - 0.5) * (definition.scaleVariance || 0.3));
+        } else if (definition.scale && typeof definition.scale === 'object' && 'x' in definition.scale) {
+          finalScale = definition.scale.x * (1 + (Math.random() - 0.5) * (definition.scaleVariance || 0.3));
+        }
+        
+        // Verify scale is valid and reasonable
+        if (isNaN(finalScale) || finalScale <= 0 || finalScale > 10) {
+          console.warn(`Invalid scale calculated: ${finalScale}, using default 1.0`);
+          finalScale = 1.0;
+        }
+        
+        group.scale.set(finalScale, finalScale, finalScale);
+      } catch (scaleError) {
+        console.warn(`Error applying scale: ${scaleError}, using default`);
+        group.scale.set(1.0, 1.0, 1.0);
+      }
+      
+      console.log(`Successfully created schoolOfFish with ${successfulFish} fish`);
+      
+      // If we created at least one fish, return the group
+      if (successfulFish > 0) {
+        return group;
+      } else {
+        // If all fish creation failed, throw to trigger the fallback
+        throw new Error("Failed to create any fish instances");
+      }
     } catch (error) {
       console.error(`Error creating school of fish: ${error}`);
-      // Create a visible error placeholder
-      const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-      const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // bright red
-      const errorMesh = new THREE.Mesh(geometry, material);
-      errorMesh.name = "error_placeholder_schoolOfFish";
-      return errorMesh;
+      // Create a simpler, more robust error placeholder
+      try {
+        // First try a simple fish placeholder
+        const placeholder = new THREE.Group();
+        placeholder.name = "simplified_schoolOfFish";
+        
+        // Create a few simple fish shapes
+        const simpleCount = 3;
+        const fishColor = new THREE.Color(0x5588ff); // Blue
+        
+        for (let i = 0; i < simpleCount; i++) {
+          const simpleFishGeometry = new THREE.SphereGeometry(0.05, 4, 3);
+          const simpleFishMaterial = new THREE.MeshBasicMaterial({ color: fishColor });
+          const simpleFish = new THREE.Mesh(simpleFishGeometry, simpleFishMaterial);
+          
+          // Distribute simply
+          simpleFish.position.set(
+            (Math.random() - 0.5) * 0.5,
+            (Math.random() - 0.5) * 0.5,
+            (Math.random() - 0.5) * 0.5
+          );
+          
+          placeholder.add(simpleFish);
+        }
+        
+        return placeholder;
+      } catch (placeholderError) {
+        // If even that fails, create a single red box as absolute fallback
+        console.error(`Error creating fish placeholder: ${placeholderError}`);
+        const geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // bright red
+        const errorMesh = new THREE.Mesh(geometry, material);
+        errorMesh.name = "error_placeholder_schoolOfFish";
+        return errorMesh;
+      }
     }
   }
 

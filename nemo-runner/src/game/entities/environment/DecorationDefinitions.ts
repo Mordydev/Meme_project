@@ -366,10 +366,18 @@ export function getDecorationsForEnvironment(environmentType: EnvironmentType): 
   // Further reduce probability of other complex assets
   return safeDecorations.map(def => {
     // If it's a potentially complex asset type, reduce its probability
-    if (['glowingPlant', 'schoolOfFish', 'jellyfish', 'giantKelp'].includes(def.type)) {
+    if (['glowingPlant', 'jellyfish', 'giantKelp'].includes(def.type)) {
       return {
         ...def,
         probability: def.probability * 0.3 // Reduce likelihood by 70%
+      };
+    }
+    
+    // Further reduce schoolOfFish probability specifically since it's causing the most issues
+    if (def.type === 'schoolOfFish') {
+      return {
+        ...def,
+        probability: def.probability * 0.1 // Reduce likelihood by 90%
       };
     }
     return def;

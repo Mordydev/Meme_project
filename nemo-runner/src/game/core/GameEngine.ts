@@ -16,6 +16,7 @@ import { WaterEffects } from '../entities/environment/WaterEffects';
 import { getRenderingInitializer } from './RenderingInitializer';
 import { getPerformanceMonitor, reportLongTask } from '../utils/PerformanceMonitor';
 import { getQualityAdjuster, applyQualitySettings as applyQualityToEntity } from '../utils/QualityAdjuster';
+import { initPerformanceDiagnostics } from '../utils/diagnostics';
 // Import obstacle types
 import { Obstacle } from '../entities/obstacles/Obstacle';
 import { Shark } from '../entities/obstacles/Shark';
@@ -248,6 +249,13 @@ export class GameEngine {
       // Mark as initialized
       this.isInitialized = true;
       this.isLoading = false;
+      
+      // Initialize performance diagnostics
+      initPerformanceDiagnostics({
+        enableLogging: true,
+        sampleInterval: 10000 // Sample every 10 seconds
+      });
+      console.log('GameEngine: Performance diagnostics initialized');
       
       // Start the game loop (even in menu state)
       this.gameLoop.start();
@@ -767,8 +775,7 @@ export class GameEngine {
     }
   }
   
-  // Flag to track if emergency optimizations have been applied
-  private emergencyOptimizationsApplied = false;
+  // Emergency optimizations have been removed in favor of the centralized quality system
   
   /**
    * Handle quality change events from PerformanceMonitor
@@ -784,67 +791,27 @@ export class GameEngine {
   }
   
   /**
-   * Handle performance update events
+   * Handle performance update events from the centralized PerformanceMonitor
    */
   private handlePerformanceUpdate(data: { metrics: any }): void {
-    const { metrics } = data;
+    // No need to check for performance issues here anymore
+    // PerformanceMonitor now handles this and emits appropriate events
     
-    // Check for severe performance issues
-    if (metrics.fps < 20 || metrics.longFrames > 10) {
-      // Take emergency measures for very poor performance
-      this.applyEmergencyPerformanceOptimizations();
-    }
-    
-    // We could log performance metrics to server/analytics here
+    // We could log performance metrics to server/analytics here if needed
   }
   
-  /**
-   * Apply emergency optimizations when performance is critically low
-   */
-  private applyEmergencyPerformanceOptimizations(): void {
-    // Only apply emergency optimizations once to avoid thrashing
-    if (this.emergencyOptimizationsApplied) return;
-    this.emergencyOptimizationsApplied = true;
-    
-    console.warn('GameEngine: Applying emergency performance optimizations');
-    
-    try {
-      // Force quality to low
-      const qualityAdjuster = getQualityAdjuster();
-      qualityAdjuster.setQuality('low');
-      
-      // Reduce physics updates to minimum
-      this.gameLoop.setFixedTimeStep(1/30); // 30 fps physics
-      
-      // Drastically reduce obstacles and decorations
-      if (this.obstacleManager) {
-        this.obstacleManager.setMaxObstacles(3);
-        this.obstacleManager.setUseSimplifiedColliders(true);
-      }
-      
-      if (this.collectibleManager) {
-        this.collectibleManager.setMaxCollectibles(10);
-        this.collectibleManager.setMaxParticles(10);
-      }
-      
-      if (this.environment) {
-        this.environment.setMaxDecorations(20);
-        this.environment.setDetailLevel(1);
-      }
-      
-      // Disable non-essential visual effects
-      if (this.waterEffects) {
-        this.waterEffects.disableNonEssentialEffects();
-      }
-      
-      // Emit event for other systems to respond
-      eventBus.emit('emergency-performance-mode', { enabled: true });
-      
-      console.warn('GameEngine: Emergency optimizations applied');
-    } catch (error) {
-      console.error('GameEngine: Error applying emergency optimizations:', error);
-    }
-  }
+  // Flag removed: emergencyOptimizationsApplied
+  
+  // The emergency optimization function has been removed in favor of:
+  // 1. Centralized performance monitoring in PerformanceMonitor
+  // 2. Using QualityAdjuster to handle quality level changes
+  // 3. Having game entities adapt to quality settings through their handlers
+  
+  // Systems now listen for 'performance-quality-change' and 'quality-settings-changed' events
+  // to adapt their settings, which is a cleaner and more maintainable approach.
+  
+  // If special handling is needed for severe performance events, systems should
+  // listen for the 'severe-performance-warning' event emitted by PerformanceMonitor.
   
   /**
    * Handle window resize by delegating to RenderingInitializer

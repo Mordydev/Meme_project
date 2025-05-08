@@ -92,6 +92,10 @@ export class PerformanceMonitor {
     // Apply initial thresholds based on quality
     this.updateThresholds();
     
+    // Initialize tracking variables
+    this.lastLongFrameTime = performance.now();
+    this.consecutiveGoodFrames = 0;
+    
     // Register for events
     eventBus.on('renderer-initialized', this.handleRendererInitialized.bind(this));
     
@@ -196,6 +200,46 @@ export class PerformanceMonitor {
     this.longTaskCount++;
   }
 
+  /**
+   * Check if there are severe performance issues
+   * Centralizes the determination of severe performance issues
+   * @returns Object with boolean indicating severe issues and the reason
+   */
+  public hasSeverePerformanceIssues(): { severe: boolean; reason?: string } {
+    // Check for severe performance issues based on metrics
+    if (this.metrics.fps < 20) {
+      return { 
+        severe: true, 
+        reason: `Critical FPS drop (${this.metrics.fps.toFixed(1)} FPS)` 
+      };
+    }
+    
+    if (this.metrics.longFrames > 10) {
+      return { 
+        severe: true, 
+        reason: `Excessive long frames (${this.metrics.longFrames} per second)` 
+      };
+    }
+    
+    if (this.metrics.averageFrameTime > 50) {
+      return { 
+        severe: true, 
+        reason: `Very high average frame time (${this.metrics.averageFrameTime.toFixed(1)}ms)` 
+      };
+    }
+    
+    // Check for moderate performance issues
+    if (this.metrics.fps < 30 || this.metrics.longFrames > 5) {
+      return {
+        severe: false,
+        reason: `Moderate performance issues (${this.metrics.fps.toFixed(1)} FPS, ${this.metrics.longFrames} long frames)`
+      };
+    }
+    
+    // No performance issues detected
+    return { severe: false };
+  }
+  
   /**
    * Clean up resources
    */
@@ -438,7 +482,25 @@ export class PerformanceMonitor {
     // Collect current memory usage
     this.collectMemoryUsage();
     
-    // Emit performance update event
+    // Check for severe performance issues and emit appropriate events
+    const performanceStatus = this.hasSeverePerformanceIssues();
+    if (performanceStatus.severe) {
+      // Emit severe performance warning
+      console.warn(`PerformanceMonitor: ${performanceStatus.reason}`);
+      eventBus.emit('severe-performance-warning', { 
+        metrics: this.getMetrics(),
+        reason: performanceStatus.reason
+      });
+    } else if (performanceStatus.reason) {
+      // Emit moderate performance warning (not severe but has reason)
+      console.log(`PerformanceMonitor: ${performanceStatus.reason}`);
+      eventBus.emit('moderate-performance-warning', {
+        metrics: this.getMetrics(),
+        reason: performanceStatus.reason
+      });
+    }
+    
+    // Emit regular performance update event
     eventBus.emit('performance-update', { 
       metrics: this.getMetrics(),
       quality: this.quality
@@ -450,6 +512,11 @@ export class PerformanceMonitor {
     }
   }
 
+  // Track time since the last long frame for stricter upgrade conditions
+  private lastLongFrameTime: number = 0;
+  // Track consecutive good performance frames
+  private consecutiveGoodFrames: number = 0;
+  
   /**
    * Check if quality needs to be adjusted based on performance
    */
@@ -466,17 +533,40 @@ export class PerformanceMonitor {
       this.metrics.averageFrameTime > this.thresholds.maxFrameTime ||
       this.metrics.longFrames > this.thresholds.maxLongFramesPerSecond
     ) {
+      // Reset consecutive good frames count when performance issues are detected
+      this.consecutiveGoodFrames = 0;
       this.reduceQuality();
       return;
     }
     
-    // Check if we can increase quality
+    // Update long frame tracking
+    if (this.metrics.longFrames > 0) {
+      this.lastLongFrameTime = now;
+      this.consecutiveGoodFrames = 0; // Reset consecutive good frames on any long frame
+    } else {
+      // If no long frames in this report, increment the consecutive good frames counter
+      this.consecutiveGoodFrames++;
+    }
+    
+    // More conservative approach to quality increases
+    // Only increase quality if:
+    // 1. Performance is consistently good for multiple reporting intervals
+    // 2. No long frames in the last 10 seconds
+    // 3. FPS and frame time are well above target thresholds
+    const MIN_CONSECUTIVE_GOOD_FRAMES = 5; // Require 5 seconds of good performance
+    const MIN_TIME_SINCE_LAST_LONG_FRAME = 10000; // 10 seconds
+    const timeSinceLastLongFrame = now - this.lastLongFrameTime;
+    
     if (
+      this.consecutiveGoodFrames >= MIN_CONSECUTIVE_GOOD_FRAMES &&
+      timeSinceLastLongFrame > MIN_TIME_SINCE_LAST_LONG_FRAME &&
       this.metrics.fps > this.thresholds.targetFps * 1.2 &&
-      this.metrics.averageFrameTime < this.thresholds.maxFrameTime * 0.6 &&
+      this.metrics.averageFrameTime < this.thresholds.maxFrameTime * 0.5 &&
       this.metrics.longFrames === 0
     ) {
       this.increaseQuality();
+      // Reset consecutive frames after increasing quality
+      this.consecutiveGoodFrames = 0;
     }
   }
 
