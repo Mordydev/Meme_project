@@ -8,6 +8,88 @@ import { DecorationUtils } from '../DecorationUtils';
  */
 export class RockDecorations {
   /**
+   * Create a cluster of small rocks
+   * @param definition The decoration definition
+   * @returns Group of rocks
+   * 
+   * Note: When called directly from DecorationUtils.createRockCluster, 
+   * it can still use the legacy signature taking (count, baseSize, spread)
+   */
+  static createRockCluster(definition: DecorationDefinition): THREE.Group;
+  static createRockCluster(count: number, baseSize: number, spread: number): THREE.Group;
+  static createRockCluster(countOrDefinition: number | DecorationDefinition, baseSize?: number, spread?: number): THREE.Group {
+    // Determine if we're using the legacy or new signature
+    let count: number;
+    let rockBaseSize: number;
+    let rockSpread: number;
+    
+    if (typeof countOrDefinition === 'number') {
+      // Legacy signature: createRockCluster(count, baseSize, spread)
+      count = countOrDefinition;
+      rockBaseSize = baseSize || 0.3;
+      rockSpread = spread || 0.5;
+    } else {
+      // New signature: createRockCluster(definition)
+      // Extract parameters from the definition
+      count = 3 + Math.floor(Math.random() * 4); // 3-6 rocks
+      rockBaseSize = typeof countOrDefinition.scale === 'number' ? 
+        countOrDefinition.scale * 0.3 : 0.3;
+      rockSpread = 0.5; // Default spread
+    }
+    try {
+      const group = new THREE.Group();
+      group.name = 'rockCluster';
+      
+      for (let i = 0; i < count; i++) {
+        // Create a rock with random size variation
+        const size = rockBaseSize * (0.7 + Math.random() * 0.6);
+        
+        // Alternate between different rock geometry types
+        const rockGeometry = Math.random() > 0.5 
+          ? new THREE.IcosahedronGeometry(size, 1)
+          : new THREE.DodecahedronGeometry(size, 0);
+        
+        // Apply some deformation
+        DecorationUtils.deformSphereWithNoise(rockGeometry, 3, 0.15);
+        
+        // Create material with varied colors
+        const rockMaterial = DecorationUtils.createStandardMaterial(
+          DecorationUtils.createRockColor(Math.random() > 0.5), // Randomly choose darker or lighter
+          {
+            roughness: 0.9,
+            metalness: 0.1
+          }
+        );
+        
+        const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+        rock.name = `rockCluster_rock_${i}`;
+        
+        // Position randomly within spread radius
+        const angle = Math.random() * Math.PI * 2;
+        const radius = rockSpread * Math.random();
+        rock.position.set(
+          Math.cos(angle) * radius,
+          size * 0.5, // Half height to sit on ground
+          Math.sin(angle) * radius
+        );
+        
+        // Random rotation
+        rock.rotation.set(
+          Math.random() * Math.PI * 0.2,
+          Math.random() * Math.PI * 2,
+          Math.random() * Math.PI * 0.2
+        );
+        
+        group.add(rock);
+      }
+      
+      return group;
+    } catch (error) {
+      console.error(`Error creating rock cluster:`, error);
+      return DecorationUtils.createErrorPlaceholder('rockCluster');
+    }
+  }
+  /**
    * Create a basic rock (type 1)
    */
   static createRock1(definition: DecorationDefinition): THREE.Group {
@@ -324,7 +406,15 @@ export class RockDecorations {
         
         // Position rock using the pre-calculated positions
         rock.position.copy(rockPositions[i]);
-        rock.position.y += rock.geometry.boundingSphere!.radius * 0.8; // Adjust for rock height
+        
+        // Make sure we compute the bounding sphere before accessing it
+        if (!rock.geometry.boundingSphere) {
+          rock.geometry.computeBoundingSphere();
+        }
+        
+        // Safely access the bounding sphere with a fallback value
+        const radius = rock.geometry.boundingSphere?.radius || 0.3; // Default radius if still null
+        rock.position.y += radius * 0.8; // Adjust for rock height
         
         // Random rotation
         rock.rotation.set(
@@ -336,9 +426,18 @@ export class RockDecorations {
         group.add(rock);
         
         // For larger rocks, sometimes add a smaller rock on top
-        if (rock.geometry.boundingSphere!.radius > 0.4 && Math.random() > 0.6) {
-          // Use DecorationUtils.createRockCluster for small rock instead of creating manually
-          const smallRocks = DecorationUtils.createRockCluster(
+        // Make sure boundingSphere is computed and use safe access
+        if (!rock.geometry.boundingSphere) {
+          rock.geometry.computeBoundingSphere();
+        }
+        
+        // Get the radius safely
+        const rockRadius = rock.geometry.boundingSphere?.radius || 0.3;
+        
+        if (rockRadius > 0.4 && Math.random() > 0.6) {
+          // Since RockDecorations.createRockCluster now supports direct calling with the old signature
+          // We can call it directly to create small rocks
+          const smallRocks = RockDecorations.createRockCluster(
             1 + Math.floor(Math.random() * 2), // 1-2 small rocks
             0.15 + Math.random() * 0.1,        // Base size
             0.05                               // Small spread
@@ -348,7 +447,7 @@ export class RockDecorations {
           // Position on top of parent rock
           smallRocks.position.set(
             (Math.random() - 0.5) * 0.1,
-            rock.geometry.boundingSphere!.radius * 0.7,
+            rockRadius * 0.7, // Use the safe radius value
             (Math.random() - 0.5) * 0.1
           );
           

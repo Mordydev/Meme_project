@@ -78,6 +78,9 @@ export class ObstacleManager {
    * @param assetManager Asset manager
    * @param deviceCapabilities Device capabilities
    */
+  // Safe zones to avoid placing obstacles on decorations
+  private safeZones: Map<number, Array<{position: THREE.Vector3, radius: number}>> = new Map();
+  
   constructor(
     scene: THREE.Scene,
     collisionSystem: CollisionSystem,
@@ -95,7 +98,36 @@ export class ObstacleManager {
     // Define patterns
     this.definePatterns();
     
+    // Listen for environment safe zones updates
+    this.setupEventListeners();
+    
     console.log('[ObstacleManager] Initialized');
+  }
+  
+  /**
+   * Set up event listeners for environment integration
+   */
+  private setupEventListeners(): void {
+    // Listen for safe zone updates from the environment system
+    eventBus.on('environment-safe-zones-update', (data: {
+      segmentZ: number;
+      segmentLength: number;
+      safeZones: Array<{position: THREE.Vector3, radius: number}>;
+    }) => {
+      // Store safe zones for this segment Z position (rounded to nearest 10 for easier lookup)
+      const segmentZKey = Math.round(data.segmentZ / 10) * 10;
+      this.safeZones.set(segmentZKey, data.safeZones);
+      
+      // Clean up old safe zones to prevent memory leaks
+      // Keep only the last 20 segments worth of safe zones
+      const allKeys = Array.from(this.safeZones.keys()).sort((a, b) => b - a);
+      if (allKeys.length > 20) {
+        const keysToRemove = allKeys.slice(20);
+        for (const key of keysToRemove) {
+          this.safeZones.delete(key);
+        }
+      }
+    });
   }
   
   /**
@@ -309,7 +341,7 @@ export class ObstacleManager {
   }
   
   /**
-   * Spawn a pattern of obstacles
+   * Spawn a pattern of obstacles, avoiding decoration safe zones
    * @param pattern Pattern to spawn
    * @param playerPosition Current player position
    */
@@ -325,6 +357,12 @@ export class ObstacleManager {
         obstacleConfig.position[1],
         baseZ + obstacleConfig.position[2]
       );
+      
+      // Check if this position conflicts with any decoration safe zones
+      if (this.checkSafeZoneConflict(position)) {
+        // Adjust position to avoid conflict
+        this.adjustPositionForSafeZones(position);
+      }
       
       // Get optional rotation and scale
       const rotation = obstacleConfig.rotation ? 
@@ -356,7 +394,87 @@ export class ObstacleManager {
   }
   
   /**
-   * Spawn a random obstacle
+   * Check if a position conflicts with any decoration safe zones
+   * @param position Position to check
+   * @returns Whether there is a conflict
+   */
+  private checkSafeZoneConflict(position: THREE.Vector3): boolean {
+    // Get the Z segment key for lookup (rounded to nearest 10)
+    const segmentZKey = Math.round(position.z / 10) * 10;
+    
+    // Find the closest segment that has safe zones
+    // Check in nearby segments as well (current, previous, and next)
+    const segmentKeys = [segmentZKey, segmentZKey - 10, segmentZKey + 10];
+    
+    for (const key of segmentKeys) {
+      const zones = this.safeZones.get(key);
+      if (!zones) continue;
+      
+      // Check each safe zone in this segment
+      for (const zone of zones) {
+        // Calculate distance (ignoring y for simplicity)
+        const dx = position.x - zone.position.x;
+        const dz = position.z - zone.position.z;
+        const distanceSquared = dx * dx + dz * dz;
+        
+        // Check if within safe zone radius (plus a small buffer)
+        const minDistanceSquared = Math.pow(zone.radius + 0.5, 2);
+        
+        if (distanceSquared < minDistanceSquared) {
+          return true; // Conflict detected
+        }
+      }
+    }
+    
+    return false; // No conflict
+  }
+  
+  /**
+   * Adjust a position to avoid decoration safe zones
+   * @param position Position to adjust (modified in place)
+   */
+  private adjustPositionForSafeZones(position: THREE.Vector3): void {
+    // Try adjusting the position in fixed lane positions
+    const laneOptions = [-4, -2, 0, 2, 4];
+    
+    // Find the nearest lane that doesn't have a conflict
+    let bestLane = position.x; // Current lane
+    let minDistance = Infinity;
+    
+    for (const lane of laneOptions) {
+      // Calculate how far we'd need to move
+      const distance = Math.abs(lane - position.x);
+      
+      // Skip if this lane is farther away than the best found so far
+      if (distance >= minDistance) continue;
+      
+      // Check if this lane position would have a conflict
+      const tempPosition = new THREE.Vector3(lane, position.y, position.z);
+      if (!this.checkSafeZoneConflict(tempPosition)) {
+        // This lane works and is closer than any found before
+        bestLane = lane;
+        minDistance = distance;
+      }
+    }
+    
+    // If we found a better lane, use it
+    if (minDistance < Infinity) {
+      position.x = bestLane;
+    } else {
+      // If no lane works, try shifting forward or backward
+      const zShift = 5; // Shift 5 units forward
+      position.z -= zShift;
+      
+      // Check if the new position works
+      if (this.checkSafeZoneConflict(position)) {
+        // If still conflicts, try different lane as last resort
+        position.x = position.x > 0 ? -2 : 2; // Move to opposite side
+      }
+    }
+  }
+  
+  /**
+   * Spawn a random obstacle with integration to environment
    * @param playerPosition Current player position
    */
   private spawnRandomObstacle(playerPosition: THREE.Vector3): void {
@@ -364,9 +482,12 @@ export class ObstacleManager {
     const z = this.lastSpawnZ !== 0 ? this.lastSpawnZ : playerPosition.z - this.spawnAheadDistance;
     
     // Randomize x position: one of three lanes (-2, 0, 2) with slight variation
-    const laneOptions = [-2, 0, 2];
-    const lane = laneOptions[Math.floor(Math.random() * laneOptions.length)];
-    const x = lane + (Math.random() - 0.5) * 0.5;
+    // Use all five lanes for more variation (-4, -2, 0, 2, 4)
+    const laneOptions = [-4, -2, 0, 2, 4];
+    
+    // Select a random lane, but we'll verify it later
+    let lane = laneOptions[Math.floor(Math.random() * laneOptions.length)];
+    let x = lane + (Math.random() - 0.5) * 0.5;
     
     // Determine y position based on obstacle type
     let y = 0;
@@ -393,6 +514,42 @@ export class ObstacleManager {
     // Create position
     const position = new THREE.Vector3(x, y, z);
     
+    // Check for decoration conflicts and adjust position if needed
+    if (this.checkSafeZoneConflict(position)) {
+      // Try each lane until we find one that works
+      let validLaneFound = false;
+      
+      for (const testLane of laneOptions) {
+        position.x = testLane + (Math.random() - 0.5) * 0.5;
+        if (!this.checkSafeZoneConflict(position)) {
+          validLaneFound = true;
+          break;
+        }
+      }
+      
+      // If no lane works, try shifting backward slightly
+      if (!validLaneFound) {
+        // Shift backward by a small amount
+        position.z -= 5;
+        
+        // Try the lanes again at the new z-position
+        for (const testLane of laneOptions) {
+          position.x = testLane + (Math.random() - 0.5) * 0.5;
+          if (!this.checkSafeZoneConflict(position)) {
+            validLaneFound = true;
+            break;
+          }
+        }
+        
+        // If still no valid position found, just use the original
+        // (this is rare, but ensure we always spawn something)
+        if (!validLaneFound) {
+          position.x = x;
+          position.z = z;
+        }
+      }
+    }
+    
     // Create optional rotation (sharks need facing direction)
     let rotation: THREE.Euler | undefined;
     if (type === 'shark') {
@@ -403,7 +560,7 @@ export class ObstacleManager {
     this.spawnObstacle(type, position, rotation);
     
     // Update last spawn position
-    this.lastSpawnZ = z;
+    this.lastSpawnZ = position.z;
   }
   
   /**
@@ -608,6 +765,12 @@ export class ObstacleManager {
     
     // Clear pools
     this.obstaclePools.clear();
+    
+    // Remove event listeners
+    eventBus.off('environment-safe-zones-update');
+    
+    // Clear safe zones map
+    this.safeZones.clear();
   }
   
   /**

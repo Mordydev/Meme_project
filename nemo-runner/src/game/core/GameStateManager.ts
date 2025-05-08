@@ -128,28 +128,31 @@ export class GameStateManager {
    * Transition to a new game state
    */
   setState(newState: GameState): void {
-    if (newState === this._state) return;
+    // Log the state transition attempt
+    console.log(`GameStateManager: Attempting state change ${this._state} -> ${newState}`);
 
-    // Store previous state for potential returns
+    if (newState === this._state) {
+      console.log('GameStateManager: State already set to', newState);
+      // ** FIX: Remove redundant event emissions here **
+      // Re-emitting events on same-state transitions can cause issues
+      return;
+    }
+
     this._previousState = this._state;
-    
-    // Execute 'before exit' callbacks for current state
     this.executeTransitionCallbacks(`${this._state}-exit`);
-    
-    // Change state
     this._state = newState;
-    
-    // Execute 'on enter' callbacks for new state
     this.executeTransitionCallbacks(`${newState}-enter`);
-    
-    // Emit state change event
-    eventBus.emit('game-state-change', {
+
+    const eventData = {
       from: this._previousState,
       to: newState,
-      data: this._stateData,
-    });
+      data: this._stateData, // Send current game data with the event
+      timestamp: Date.now(),
+    };
+    console.log('GameStateManager: Emitting game-state-change event', eventData);
+    eventBus.emit('game-state-change', eventData);
 
-    // Special state handling
+    // Handle state-specific actions AFTER emitting the event
     this.handleStateSpecifics(newState);
   }
 
@@ -165,11 +168,16 @@ export class GameStateManager {
 
   /**
    * Start a new game
-   * This should only be called explicitly by user action (e.g., clicking Start Game)
+   * Now transitions to READY state, letting GameStartController manage the countdown.
    */
   startGame(): void {
-    console.log('Starting game from state:', this._state);
-    
+    console.log('GameStateManager: startGame called, transitioning to READY. Current state:', this._state);
+    // Only proceed if in MENU or GAME_OVER state
+    if (this._state !== 'MENU' && this._state !== 'GAME_OVER') {
+        console.warn(`GameStateManager: startGame called in invalid state: ${this._state}`);
+        return;
+    }
+
     // Reset game state data
     this._stateData.score = 0;
     this._stateData.distance = 0;
@@ -177,9 +185,10 @@ export class GameStateManager {
     this._stateData.powerups = {};
     this._stateData.level = 1;
     this._stateData.difficulty = 1;
-    
-    // Transition to ready state - we'll let the GameStateDisplay component
-    // handle the countdown and transition to PLAYING state
+    // Reset high score from saved data
+    this._stateData.highScore = this._savedData.highScore;
+
+    // *** CHANGE: Transition to READY, not PLAYING directly ***
     this.setState('READY');
   }
 
@@ -349,32 +358,38 @@ export class GameStateManager {
    * Handle state-specific actions
    */
   private handleStateSpecifics(state: GameState): void {
+    console.log(`GameStateManager: Handling specifics for state: ${state}`);
     switch (state) {
-      case 'MENU':
-        // Potentially load latest saved game
-        break;
-        
       case 'PLAYING':
-        // Emit event to start character movement
-        console.log('GameStateManager: Emitting game-start-movement event');
-        eventBus.emit('game-start-movement', { source: 'GameStateManager' });
+        // *** FIX: Emit 'game-start-movement' event upon entering PLAYING state ***
+        console.log('GameStateManager: Emitting game-start-movement from handleStateSpecifics for PLAYING state');
+        eventBus.emit('game-start-movement', {
+          startTime: Date.now(),
+          source: 'GameStateManager.handleStateSpecifics',
+          gameState: 'PLAYING'
+        });
         break;
-        
-      case 'PAUSED':
-        // Maybe pause physics/animations
+      // ... (other cases remain the same) ...
+       case 'MENU':
+        // Potentially load latest saved game or reset score display
+        this._stateData.score = 0; // Reset score when returning to menu
+        this._stateData.distance = 0;
+        eventBus.emit('score-change', 0); // Notify UI
+        eventBus.emit('distance-change', 0); // Notify UI
         break;
-        
+
       case 'GAME_OVER':
         // Record stats, prepare end-of-game summary
+         // Check for high score
+        if (this._stateData.score > this._savedData.highScore) {
+          this._savedData.highScore = this._stateData.score;
+          this._stateData.highScore = this._stateData.score; // Update current state data too
+          this.saveGameData();
+          eventBus.emit('new-high-score', this._stateData.score);
+          console.log(`GameStateManager: New high score set: ${this._stateData.score}`);
+        }
         break;
-        
-      case 'LOADING':
-        // Show loading indicator, preload assets
-        break;
-        
-      case 'READY':
-        // Show countdown or get-ready message
-        break;
+      // ... other cases
     }
   }
 
@@ -388,55 +403,42 @@ export class GameStateManager {
     }
   }
 
-  /**
-   * Setup event listeners
-   */
-  private setupEventListeners(): void {
+   private setupEventListeners(): void {
     // Listen for powerup collection
     eventBus.on('powerup-collected', (data: { type: string; duration: number }) => {
       this.activatePowerup(data.type, data.duration);
     });
-    
+
     // Listen for player hits
     eventBus.on('player-hit', () => {
       this.playerHit();
     });
-    
-    // Listen for collectible collection
-    eventBus.on('collect', (data: { type: string, points: number }) => {
-      this.updateScore(data.points);
+
+    // Listen for collectible collection points
+    eventBus.on('collect', (data: { type: string, points?: number }) => {
+      // Check if points exist before adding
+      if (data.points && typeof data.points === 'number') {
+        this.updateScore(data.points);
+      } else if (data.type === 'bubble') {
+        // Default points for bubble if not specified
+        this.updateScore(10);
+      }
     });
-    
+
     // Listen for game update to update powerups
     eventBus.on('game-update', (deltaTime: number) => {
       if (this._state === 'PLAYING') {
         this.updatePowerups(deltaTime);
       }
     });
-    
-    // Listen for explicit game control events
-    eventBus.on('game-start', () => {
-      // Only start the game if we're not already in READY or PLAYING state
-      // This prevents the infinite loop of READY->PLAYING->READY
-      if (this._state !== 'READY' && this._state !== 'PLAYING') {
-        console.log('Starting game from game-start event, current state:', this._state);
-        this.startGame();
-      } else {
-        console.log('Ignoring game-start event while in state:', this._state);
-      }
-    });
-    
-    eventBus.on('game-pause', () => {
-      this.pauseGame();
-    });
-    
-    eventBus.on('game-resume', () => {
-      this.resumeGame();
-    });
-    
-    eventBus.on('game-restart', () => {
-      this.startGame();
-    });
+
+    // Remove listeners for game-start, game-pause, game-resume, game-restart
+    // These should now be handled by direct calls to GameStateManager methods
+    // or through UI interactions triggering GameStartController
+    eventBus.off('game-start');
+    eventBus.off('game-pause');
+    eventBus.off('game-resume');
+    eventBus.off('game-restart');
   }
 
   /**

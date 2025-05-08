@@ -20,7 +20,7 @@ export default function GameUI() {
   const [gameState, setGameState] = useState<'MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER' | 'READY' | 'LOADING'>('MENU');
   const [environment, setEnvironment] = useState<string>('reef'); // Explicitly type this as string
   const [activePowerUps, setActivePowerUps] = useState<Array<{ type: string, remainingTime: number, duration: number }>>([]);
-  const [countdown, setCountdown] = useState<number | null>(null);
+  // No longer need countdown state in GameUI
   
   useEffect(() => {
     console.log("GameUI mounted - setting up event listeners");
@@ -39,10 +39,7 @@ export default function GameUI() {
         console.log("Game state changed to:", newState);
         setGameState(newState);
         
-        // Show countdown when starting game
-        if (newState === 'PLAYING' && gameState === 'MENU') {
-          startCountdown();
-        }
+        // No longer handling countdown here
       },
     });
     
@@ -117,20 +114,8 @@ export default function GameUI() {
     };
   }, [gameState]);
   
-  // Start countdown when game begins
-  const startCountdown = () => {
-    setCountdown(3);
-    
-    const countdownTimer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev === null || prev <= 1) {
-          clearInterval(countdownTimer);
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+  // Remove countdown functionality from GameUI
+  // The countdown is now handled by GameStartController and displayed by GameStateDisplay
   
   // Handle pause button click
   const handlePause = useCallback(() => {
@@ -162,15 +147,18 @@ export default function GameUI() {
     };
   }, [gameState]);
   
-  // Let GameStateDisplay component handle the menu, paused, and game over states
+  // Add log before the conditional return
+  console.log(`GameUI render check: Current local gameState is ${gameState}`);
+
+  // Let GameStateDisplay component handle the menu, paused, game over, and ready states
   // This component will only render active gameplay UI elements while in PLAYING state
-  // or show minimal UI in READY state
-  if (gameState !== 'PLAYING' && gameState !== 'READY') {
+  if (gameState !== 'PLAYING') {
+    console.log(`GameUI: Skipping render because local state is not PLAYING.`);
     return null;
   }
   
   // Log state for debugging
-  console.log('GameUI rendering with state:', gameState, 'and score:', score);
+  console.log(`GameUI: Rendering HUD elements because local state is PLAYING.`);
   
   return (
     <div className={styles.gameUI}>
@@ -192,8 +180,7 @@ export default function GameUI() {
       {/* Game controls (for mobile) */}
       <GameControls onPause={handlePause} />
       
-      {/* Countdown (if active) */}
-      <Countdown value={countdown || 0} visible={countdown !== null} />
+      {/* No longer showing countdown here - it's handled by GameStateDisplay */}
     </div>
   );
 }

@@ -83,17 +83,63 @@ export class CoralDecorations {
   
   /**
    * Create a coral formation of type 2 (brain coral)
+   * Enhanced with FBM noise for more realistic brain-like appearance
    */
   static createCoral2(definition: DecorationDefinition): THREE.Group {
     try {
       const group = new THREE.Group();
       group.name = 'coral2';
       
-      // Brain coral like structure
-      const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+      // Brain coral like structure - use higher detail for the base geometry
+      const complexity = 4; // Higher detail for brain coral
+      const geometry = new THREE.IcosahedronGeometry(0.5, Math.min(4, complexity));
       
-      // Add wrinkles to the surface using DecorationUtils
-      DecorationUtils.deformSphereWithNoise(geometry, 10, 0.1);
+      // Get noise generator for consistency
+      const noiseGen = DecorationUtils.getNoiseGenerator();
+      
+      // Apply more pronounced FBM noise displacement for brain-like wrinkles
+      const positions = geometry.attributes.position;
+      const normals = geometry.attributes.normal;
+      const vertex = new THREE.Vector3();
+      const normal = new THREE.Vector3();
+      
+      // Use different noise scales for more organic appearance
+      const noiseScale = 1.8 + Math.random() * 0.5;
+      const noiseAmp = 0.1 + Math.random() * 0.05;
+      
+      for (let i = 0; i < positions.count; i++) {
+        vertex.fromBufferAttribute(positions, i);
+        normal.fromBufferAttribute(normals, i);
+        
+        // Create more complex noise pattern using different frequencies
+        let displacement = noiseGen.noise3D(
+          vertex.x * noiseScale, 
+          vertex.y * noiseScale, 
+          vertex.z * noiseScale
+        ) * noiseAmp;
+        
+        // Add second layer of noise at higher frequency
+        displacement += noiseGen.noise3D(
+          vertex.x * noiseScale * 2, 
+          vertex.y * noiseScale * 2, 
+          vertex.z * noiseScale * 2
+        ) * (noiseAmp * 0.3);
+        
+        // Add third layer for finest details
+        displacement += noiseGen.noise3D(
+          vertex.x * noiseScale * 4, 
+          vertex.y * noiseScale * 4, 
+          vertex.z * noiseScale * 4
+        ) * (noiseAmp * 0.1);
+        
+        // Apply displacement along normal direction
+        vertex.addScaledVector(normal, displacement);
+        positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+      }
+      
+      // Update geometry
+      geometry.computeVertexNormals();
+      geometry.attributes.position.needsUpdate = true;
       
       // Create coral material with DecorationUtils
       const color = DecorationUtils.createPlantColor('coral');
@@ -135,7 +181,142 @@ export class CoralDecorations {
   }
   
   /**
+   * Creates a more sophisticated staghorn coral using recursive branching
+   * Based on advanced procedural techniques for realistic branching patterns
+   */
+  static createStaghornCoral(definition: DecorationDefinition): THREE.Group {
+    try {
+      const group = new THREE.Group();
+      group.name = 'staghornCoral';
+      
+      // Enhanced parameters for more realistic staghorn coral
+      const depth = 2 + Math.floor(Math.random() * 2); // Random depth 2 or 3  
+      const baseRadius = 0.08 + Math.random() * 0.04;
+      const baseLength = 0.6 + Math.random() * 0.4;
+      const branches = 2 + Math.floor(Math.random() * 2); // 2 to 3 branches
+      const swayFactor = 0.1 + Math.random() * 0.1; // Subtle sway for thin branches
+      
+      // Create coral color with DecorationUtils
+      const color = DecorationUtils.createPlantColor('coral');
+      const material = DecorationUtils.createStandardMaterial(color, {
+        roughness: 0.7,
+        metalness: 0.3
+      });
+      
+      // Use CylinderGeometry for branch segments
+      const segmentGeometry = new THREE.CylinderGeometry(1, 1, 1, 8, 2);
+      const UP_VECTOR = new THREE.Vector3(0, 1, 0);
+      
+      // Recursive function to add branches
+      function addBranch(
+        parentGroup: THREE.Group, 
+        currentDepth: number, 
+        radius: number, 
+        length: number, 
+        currentPos: THREE.Vector3, 
+        currentQuat: THREE.Quaternion
+      ) {
+        if (currentDepth > depth) return;
+        
+        // Create branch mesh
+        const branchMesh = new THREE.Mesh(segmentGeometry, material.clone());
+        branchMesh.scale.set(radius, length, radius);
+        branchMesh.position.copy(currentPos);
+        branchMesh.quaternion.copy(currentQuat);
+        branchMesh.translateY(length * 0.5); // Position base at the end of the parent branch
+        
+        branchMesh.name = `staghornCoral_branch_${currentDepth}_${parentGroup.children.length}`;
+        parentGroup.add(branchMesh);
+        
+        // Calculate end point for child branches
+        const endPos = new THREE.Vector3(0, length, 0)
+          .applyQuaternion(currentQuat)
+          .add(currentPos);
+        
+        // Create 2-3 branches from this position
+        const numBranches = Math.floor(Math.random() * (branches - 1)) + 2;
+        
+        for (let i = 0; i < numBranches; i++) {
+          const nextRadius = radius * (0.7 + Math.random() * 0.2); // Reduce radius
+          const nextLength = length * (0.6 + Math.random() * 0.3); // Reduce length
+          
+          // Create random rotation for branch direction
+          const randomAxis = new THREE.Vector3(
+            Math.random() - 0.5, 
+            Math.random() - 0.5, 
+            Math.random() - 0.5
+          ).normalize();
+          
+          // Angle between 24-64 degrees
+          const randomAngle = (Math.random() * 0.8 + 0.4) * (Math.PI / 3);
+          const rotationOffset = new THREE.Quaternion().setFromAxisAngle(randomAxis, randomAngle);
+          const nextQuat = currentQuat.clone().multiply(rotationOffset).normalize();
+          
+          // Recursively add the next branch
+          addBranch(parentGroup, currentDepth + 1, nextRadius, nextLength, endPos, nextQuat);
+        }
+      }
+      
+      // Start the branching process
+      addBranch(
+        group, 
+        0, 
+        baseRadius, 
+        baseLength, 
+        new THREE.Vector3(0, 0, 0), 
+        new THREE.Quaternion().setFromAxisAngle(UP_VECTOR, 0)
+      );
+      
+      // Add noise to all vertices for organic look
+      const noiseGen = DecorationUtils.getNoiseGenerator();
+      
+      group.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const positions = child.geometry.attributes.position;
+          if (positions) {
+            const vertex = new THREE.Vector3();
+            const noiseFreq = 3.0;
+            const noiseAmp = 0.1 * child.scale.x; // Noise relative to radius
+            
+            for (let i = 0; i < positions.count; i++) {
+              vertex.fromBufferAttribute(positions, i);
+              
+              // Calculate noise value
+              const noiseVal = noiseGen.noise3D(
+                vertex.x * noiseFreq, 
+                vertex.y * noiseFreq, 
+                vertex.z * noiseFreq
+              ) * noiseAmp;
+              
+              // Apply noise along vertex normal direction
+              const direction = vertex.clone().normalize();
+              vertex.addScaledVector(direction, noiseVal);
+              
+              positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+            }
+            
+            child.geometry.computeVertexNormals();
+            child.geometry.attributes.position.needsUpdate = true;
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        }
+      });
+      
+      // Apply scale and rotation using DecorationUtils
+      DecorationUtils.applyScale(group, definition);
+      DecorationUtils.applyRotation(group, definition);
+      
+      return group;
+    } catch (error) {
+      console.error(`Error creating staghorn coral:`, error);
+      return DecorationUtils.createErrorPlaceholder('staghornCoral');
+    }
+  }
+  
+  /**
    * Creates a branching coral structure
+   * Enhanced with improved geometry and branching patterns
    */
   static createBranchingCoral(definition: DecorationDefinition): THREE.Group {
     try {
@@ -144,7 +325,33 @@ export class CoralDecorations {
       
       // Create a tree-like branching structure
       const trunkHeight = 1.0 + Math.random() * 0.5;
-      const trunkGeometry = new THREE.CylinderGeometry(0.08, 0.15, trunkHeight, 6);
+      const trunkGeometry = new THREE.CylinderGeometry(0.08, 0.15, trunkHeight, 8);
+      
+      // Add organic variation to the trunk
+      const positions = trunkGeometry.attributes.position;
+      const normals = trunkGeometry.attributes.normal;
+      const vertex = new THREE.Vector3();
+      const normal = new THREE.Vector3();
+      const noiseGen = DecorationUtils.getNoiseGenerator();
+      
+      // Add subtle noise to trunk
+      for (let i = 0; i < positions.count; i++) {
+        vertex.fromBufferAttribute(positions, i);
+        normal.fromBufferAttribute(normals, i);
+        
+        // Small noise displacement for natural look
+        const noise = noiseGen.noise3D(
+          vertex.x * 5, 
+          vertex.y * 2, 
+          vertex.z * 5
+        ) * 0.03;
+        
+        vertex.addScaledVector(normal, noise);
+        positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+      }
+      
+      trunkGeometry.computeVertexNormals();
+      trunkGeometry.attributes.position.needsUpdate = true;
       
       // Create material for coral using DecorationUtils
       const material = DecorationUtils.createStandardMaterial(
@@ -161,43 +368,54 @@ export class CoralDecorations {
       trunk.position.y = trunkHeight / 2;
       group.add(trunk);
       
-      // Create branches
+      // Create branches with improved distribution
       const branchCount = 4 + Math.floor(Math.random() * 4); // 4-7 branches
+      const branchPositions = DecorationUtils.distributeRadially(
+        branchCount,
+        0.1, // Radius
+        0,   // centerY - will be adjusted for each branch
+        0.1, // Radius variation
+        0.3  // Angle variation
+      );
       
       for (let i = 0; i < branchCount; i++) {
         // Determine where on the trunk to place the branch (from middle to top)
         const heightPercent = 0.5 + Math.random() * 0.5;
         const branchHeight = 0.3 + Math.random() * 0.5;
         
-        // Thinner branches
+        // Thinner branches with higher detail
         const branchGeometry = new THREE.CylinderGeometry(
           0.03,
           0.06,
           branchHeight,
-          5
+          8
+        );
+        
+        // Apply curve to branch for natural look
+        DecorationUtils.applyCurveToStalk(
+          branchGeometry, 
+          branchHeight, 
+          0.1 + Math.random() * 0.2,
+          Math.random() * Math.PI * 2
         );
         
         const branch = new THREE.Mesh(branchGeometry, material);
         branch.name = `branchingCoral_branch_${i}`;
         
         // Position branch on trunk
-        const angle = (i / branchCount) * Math.PI * 2 + Math.random() * 0.5;
-        const radius = 0.1 + Math.random() * 0.05;
-        
-        // Base position at attachment point
-        const baseX = Math.cos(angle) * radius;
-        const baseZ = Math.sin(angle) * radius;
+        const basePos = branchPositions[i].clone();
         const baseY = trunkHeight * heightPercent;
         
         // Rotation for branches pointing outward and upward
+        const outwardAngle = Math.atan2(basePos.z, basePos.x);
         branch.rotation.x = Math.PI / 2 - Math.random() * Math.PI / 4;
-        branch.rotation.y = angle;
+        branch.rotation.y = outwardAngle;
         
-        // Account for rotation in position
+        // Base position at attachment point
         branch.position.set(
-          baseX,
+          basePos.x,
           baseY,
-          baseZ
+          basePos.z
         );
         
         // Adjust position to account for branch length
@@ -208,22 +426,38 @@ export class CoralDecorations {
         group.add(branch);
         
         // For some branches, add further sub-branches
-        if (Math.random() > 0.5) {
+        if (Math.random() > 0.4) { // Increased probability
           const subBranchCount = 1 + Math.floor(Math.random() * 3);
+          
+          // Create sub-branches with radial distribution
+          const subPositions = DecorationUtils.distributeRadially(
+            subBranchCount,
+            0.01, // Very small radius 
+            branchHeight * 0.4, // Distribute along branch length
+            0.01, // Small radius variation
+            Math.PI / 4 // Limited angle variation for natural look
+          );
           
           for (let j = 0; j < subBranchCount; j++) {
             const subBranchHeight = 0.15 + Math.random() * 0.2;
-            const subGeometry = new THREE.CylinderGeometry(0.01, 0.03, subBranchHeight, 4);
+            const subGeometry = new THREE.CylinderGeometry(0.01, 0.03, subBranchHeight, 6);
+            
+            // Apply slight curve to sub-branches 
+            DecorationUtils.applyCurveToStalk(
+              subGeometry, 
+              subBranchHeight, 
+              0.05 + Math.random() * 0.1,
+              Math.random() * Math.PI * 2
+            );
+            
             const subBranch = new THREE.Mesh(subGeometry, material);
             subBranch.name = `branchingCoral_subbranch_${i}_${j}`;
             
             // Position at the end of the branch
-            const subAngle = Math.random() * Math.PI * 2;
+            subBranch.position.set(0, branchHeight * 0.5, 0);
             
-            // Set position at end of branch
-            subBranch.position.set(0, branchHeight / 2, 0);
-            
-            // Set rotation relative to branch
+            // Rotate outward from branch
+            const subAngle = (j / subBranchCount) * Math.PI * 2;
             subBranch.rotation.z = Math.PI / 4 + Math.random() * Math.PI / 4;
             subBranch.rotation.y = subAngle;
             

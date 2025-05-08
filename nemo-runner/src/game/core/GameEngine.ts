@@ -138,27 +138,24 @@ export class GameEngine {
   }
   
   /**
-   * Fully initialize game systems after asset loading
+   * Fully initialize game systems with pre-initialized components
+   * No longer loads assets or initializes audio - those are handled by GameStartController
    */
   async initialize(): Promise<void> {
     if (this.isInitialized || this.isLoading) return;
     
-    // Set loading state
+    // Set internal loading flag but don't change global game state
     this.isLoading = true;
-    gameStateManager.setState('LOADING');
+    console.log('GameEngine: Starting internal systems initialization (using pre-initialized components)');
     
     try {
-      // Preload essential assets
-      await this.loadAssets();
-      
-      // Initialize audio with safety check
-      if (this.audioManager && this.camera) {
-        await this.audioManager.initialize(this.camera);
-        await this.audioManager.loadSoundEffects();
+      // Skip asset loading and audio initialization - already done by GameStartController
+      // These components should be injected through the constructor
+      if (!this.assetManager || !this.audioManager || !this.renderer || !this.camera || !this.scene) {
+        throw new Error('GameEngine: Initialization failed - required components not provided');
       }
       
-      // Add lighting 
-      this.setupLighting();
+      console.log('GameEngine: Using pre-initialized assets and audio systems');
       
       // Get quality settings from QualityAdjuster
       const qualityAdjuster = getQualityAdjuster();
@@ -173,6 +170,9 @@ export class GameEngine {
         this.renderer,
         this.assetManager
       );
+      
+      // Configure environment to use direct procedural generation (no asset loading)
+      this.environment.setIgnoreAssets(true);
       
       // Apply quality settings to environment
       applyQualityToEntity(this.environment, (preset) => {
@@ -252,9 +252,9 @@ export class GameEngine {
       // Start the game loop (even in menu state)
       this.gameLoop.start();
       
-      // Move to READY state after initialization is complete
-      // This will be handled by the LoadingScreen component
-      // No need to explicitly call setState here as the LoadingScreen will transition
+      // DO NOT transition to any state after initialization
+      // GameStartController now solely controls the game state during initialization
+      // This ensures we don't override the MENU state that GameStartController sets
     } catch (error) {
       console.error('Game initialization failed:', error);
       this.isLoading = false;
@@ -262,12 +262,10 @@ export class GameEngine {
       // Ensure we display a message to the user
       alert('Game initialization failed. Please try refreshing the page.');
       
-      // Try to recover by going to the MENU state
-      try {
-        gameStateManager.setState('MENU');
-      } catch (stateError) {
-        console.error('Failed to transition to MENU state after error:', stateError);
-      }
+      // Don't try to modify the state here
+      // Log the error but let GameStartController manage the game state
+      // This prevents race conditions where both components try to set the state
+      console.log('GameEngine: Not modifying game state after error, GameStartController will manage state transitions');
     }
   }
   
@@ -383,10 +381,9 @@ export class GameEngine {
         break;
         
       case 'LOADING':
-        // Only initialize once
-        if (!this.isInitialized && !this.isLoading) {
-          this.initialize();
-        }
+        // GameStartController now manages initialization
+        // We'll only track this state change but not trigger initialization
+        console.log('GameEngine: LOADING state detected, GameStartController should manage initialization');
         break;
         
       case 'READY':
@@ -445,22 +442,8 @@ export class GameEngine {
             this.audioManager.playSoundEffect('game-start');
           }
           
-          // Explicitly signal the game to start character movement
-          // Send multiple events for redundancy to ensure character movement starts
-          console.log('Emitting game-start-movement event from GameEngine');
-          eventBus.emit('game-start-movement', { startTime: Date.now() });
-          
-          // Add a couple delayed events for extra reliability
-          for (let delay of [200, 500]) {
-            setTimeout(() => {
-              console.log(`Emitting game-start-movement event with ${delay}ms delay`);
-              eventBus.emit('game-start-movement', { startTime: Date.now(), delayed: true });
-            }, delay);
-          }
-        } else {
-          // Even if coming from another state, emit game-start-movement for safety
-          console.log('Emitting game-start-movement event for ALL transitions to PLAYING');
-          eventBus.emit('game-start-movement', { startTime: Date.now() });
+          // No need to emit game-start-movement here
+          // This is now handled by GameStateManager.handleStateSpecifics
         }
         
         // Always make sure the game loop is running when in PLAYING state
@@ -1403,9 +1386,21 @@ let currentCanvasRef: HTMLCanvasElement | null = null;
 let isInitializing = false;
 let instanceId = 0;
 
-export async function initGame(canvas: HTMLCanvasElement) {
+export async function initGame(
+  canvas: HTMLCanvasElement,
+  // Accept pre-initialized components instead of creating them
+  components: {
+    renderer: THREE.WebGLRenderer;
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
+    assetManager: AssetManager;
+    audioManager: AudioManager;
+    deviceCapabilities: ReturnType<typeof detectDeviceCapabilities>;
+    gameSettings: ReturnType<typeof configureGameSettings>;
+  }
+) {
   const currentInstanceId = ++instanceId;
-  console.log(`[Game Instance ${currentInstanceId}] Init called with canvas:`, canvas);
+  console.log(`[Game Instance ${currentInstanceId}] initGame called with pre-initialized components`);
 
   if (!canvas) {
     console.error(`[Game Instance ${currentInstanceId}] Canvas is null or undefined!`);
@@ -1468,87 +1463,41 @@ export async function initGame(canvas: HTMLCanvasElement) {
   }
   
   isInitializing = true;
-  console.log(`[Game Instance ${currentInstanceId}] Starting initialization with dimensions: ${canvas.clientWidth}x${canvas.clientHeight}`);
+  console.log(`[Game Instance ${currentInstanceId}] Starting GameEngine initialization with pre-initialized components`);
   
   try {
-    // IMPORTANT: Instead of actually trying to get a WebGL context (which creates one),
-    // we check for a special flag on the canvas to see if it's been used before
-    try {
-      // Use a safer approach that doesn't create a WebGL context
-      // Instead of error, just log a warning - we'll let the GameStartController handle this
-      if ((canvas as any).__webGLContextCreated) {
-        console.warn(`[Game Instance ${currentInstanceId}] Canvas may have a previous WebGL context based on tracking`);
-        // Continue with initialization despite the warning
-      }
-      
-      // Mark the canvas for future reference
-      (canvas as any).__webGLContextCreated = true;
-    } catch (contextTestError) {
-      console.warn(`[Game Instance ${currentInstanceId}] Error checking for previous WebGL context:`, contextTestError);
-    }
-    
-    // Get the RenderingInitializer to set up core systems
-    console.log(`[Game Instance ${currentInstanceId}] Getting RenderingInitializer instance`);
-    const renderingInitializer = getRenderingInitializer();
-    
-    // Initialize rendering system (renderer, scene, camera)
-    console.log(`[Game Instance ${currentInstanceId}] Initializing rendering system`);
-    const renderingSystem = renderingInitializer.initializeRenderingSystem(canvas);
-    console.log(`[Game Instance ${currentInstanceId}] Rendering system initialized successfully`);
-    
-    // Get the asset manager
-    console.log(`[Game Instance ${currentInstanceId}] Getting AssetManager from RenderingInitializer`);
-    const assetManager = renderingInitializer.getAssetManager();
-    
-    // Get the audio manager
-    console.log(`[Game Instance ${currentInstanceId}] Getting AudioManager from RenderingInitializer`);
-    const audioManager = renderingInitializer.getAudioManager();
-    
-    // Set up lighting
-    console.log(`[Game Instance ${currentInstanceId}] Setting up lighting with RenderingInitializer`);
-    renderingInitializer.setupLighting(renderingSystem.scene);
+    // Mark the canvas for future reference - canvas tracking still needed for cleanup
+    (canvas as any).__webGLContextCreated = true;
     
     // Create new game instance with pre-initialized components
     console.log(`[Game Instance ${currentInstanceId}] Creating GameEngine instance with pre-initialized components`);
     gameInstance = new GameEngine({
-      renderer: renderingSystem.renderer,
-      scene: renderingSystem.scene,
-      camera: renderingSystem.camera,
-      assetManager: assetManager,
-      audioManager: audioManager,
-      deviceCapabilities: renderingInitializer.getDeviceCapabilities(),
-      gameSettings: renderingInitializer.getGameSettings()
+      renderer: components.renderer,
+      scene: components.scene,
+      camera: components.camera,
+      assetManager: components.assetManager,
+      audioManager: components.audioManager,
+      deviceCapabilities: components.deviceCapabilities,
+      gameSettings: components.gameSettings
     });
     console.log(`[Game Instance ${currentInstanceId}] GameEngine instance created successfully`);
     currentCanvasRef = canvas;
     
-    // Load assets
-    await renderingInitializer.loadAssets((progress) => {
-      console.log(`[Game Instance ${currentInstanceId}] Asset loading progress: ${progress}%`);
-    });
-    
-    // Initialize audio
-    await renderingInitializer.initializeAudio();
-    
-    // Start initialization process
+    // Initialize GameEngine logic only - no more asset loading or audio init
+    console.log(`[Game Instance ${currentInstanceId}] Initializing GameEngine internal game systems...`);
     await gameInstance.initialize();
     
-    // Ensure we're in MENU state (not auto-starting)
-    setTimeout(() => {
-      if (gameInstance && gameStateManager.state === 'READY') {
-        console.log(`[Game Instance ${currentInstanceId}] Forcing state to MENU instead of auto-starting`);
-        gameStateManager.setState('MENU');
-      }
-    }, 2000); // Add a safety timeout to catch any automatic transitions
+    console.log(`[Game Instance ${currentInstanceId}] GameEngine fully initialized.`);
   } catch (error) {
-    console.error(`[Game Instance ${currentInstanceId}] Error during game initialization:`, error);
+    console.error(`[Game Instance ${currentInstanceId}] Error during GameEngine initialization:`, error);
     gameInstance = null;
     currentCanvasRef = null;
+    throw error; // Re-throw for better error handling
   } finally {
     isInitializing = false;
   }
   
-  // Return cleanup function with instance tracking
+  // Return cleanup function
   return function cleanup() {
     console.log(`[Game Instance ${currentInstanceId}] Cleanup called for canvas:`, canvas);
     

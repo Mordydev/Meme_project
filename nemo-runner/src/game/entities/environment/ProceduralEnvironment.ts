@@ -151,7 +151,7 @@ export class ProceduralEnvironment {
   }
   
   /**
-   * Update environment based on player position
+   * Update environment based on player position with enhanced transitions
    * @param playerPosition Player's position
    * @param camera Camera to use for frustum culling
    * @param deltaTime Time since last update
@@ -164,9 +164,19 @@ export class ProceduralEnvironment {
     // Update total distance
     this.totalDistance = playerPosition.z;
     
+    // Check for theme change conditions before transition
+    if (this.themeTransitionProgress >= 1.0) {
+      this.checkEnvironmentTransition(playerPosition);
+    }
+    
     // Update theme transition if in progress
     if (this.themeTransitionProgress < 1.0 && this.previousTheme) {
-      this.themeTransitionProgress = Math.min(1.0, this.themeTransitionProgress + deltaTime * 0.2);
+      // Adaptive transition speed based on theme difference
+      // More drastic changes (like reef to deep sea) transition slower
+      const transitionSpeed = this.calculateTransitionSpeed(this.previousTheme, this.currentTheme);
+      
+      // Update transition progress
+      this.themeTransitionProgress = Math.min(1.0, this.themeTransitionProgress + deltaTime * transitionSpeed);
       
       // Update theme-dependent elements
       this.updateThemeTransition(this.themeTransitionProgress);
@@ -188,7 +198,7 @@ export class ProceduralEnvironment {
     // Show or hide segments based on visibility
     this.cullSegments(playerPosition);
     
-    // Update water effects
+    // Update water effects with intensity based on theme 
     this.waterEffects.update(deltaTime, playerPosition);
     
     // Update ground system
@@ -199,20 +209,157 @@ export class ProceduralEnvironment {
   }
   
   /**
-   * Update theme transition effects
+   * Calculate the appropriate transition speed based on theme difference
+   * @param fromTheme The starting theme
+   * @param toTheme The target theme
+   * @returns Transition speed factor
+   */
+  private calculateTransitionSpeed(fromTheme: EnvironmentTheme, toTheme: EnvironmentTheme): number {
+    // Base transition speed
+    const baseSpeed = 0.2;
+    
+    // Calculate color difference between themes as a measure of visual difference
+    const fromColor = new THREE.Color(fromTheme.backgroundColor);
+    const toColor = new THREE.Color(toTheme.backgroundColor);
+    
+    // Calculate color distance (simplified)
+    const colorDifference = Math.sqrt(
+      Math.pow(fromColor.r - toColor.r, 2) +
+      Math.pow(fromColor.g - toColor.g, 2) +
+      Math.pow(fromColor.b - toColor.b, 2)
+    );
+    
+    // Calculate fog density difference
+    const fogDifference = Math.abs(fromTheme.fogDensity - toTheme.fogDensity);
+    
+    // Calculate light difference
+    const lightDifference = Math.abs(fromTheme.lightIntensity - toTheme.lightIntensity);
+    
+    // Combined difference factor (normalized to 0-1 range)
+    const totalDifference = (colorDifference + fogDifference * 10 + lightDifference) / 3;
+    
+    // Adjust speed based on difference - more different themes transition more slowly
+    const speedFactor = 1.0 - Math.min(0.7, totalDifference);
+    
+    return baseSpeed * speedFactor;
+  }
+  
+  /**
+   * Update theme transition effects with enhanced transitions
    * @param progress Transition progress (0-1)
    */
   private updateThemeTransition(progress: number): void {
     if (!this.previousTheme) return;
     
-    // Update skybox colors
-    this.skyboxManager.updateSkybox(this.currentTheme, progress, this.previousTheme);
+    // Use eased progress for smoother transitions
+    // Apply cubic ease-in-out function for natural transition feeling
+    const easedProgress = this.easeInOutCubic(progress);
     
-    // Update ground colors
-    this.groundSystem.updateTheme(this.currentTheme, progress, this.previousTheme);
+    // Update skybox colors with eased progress
+    this.skyboxManager.updateSkybox(this.currentTheme, easedProgress, this.previousTheme);
     
-    // Update water effects
-    this.waterEffects.updateTheme(this.currentTheme, progress);
+    // Update ground colors with eased progress
+    this.groundSystem.updateTheme(this.currentTheme, easedProgress, this.previousTheme);
+    
+    // Update water effects with eased progress
+    this.waterEffects.updateTheme(this.currentTheme, easedProgress);
+    
+    // Apply fog transition using eased progress
+    this.updateFogTransition(easedProgress);
+    
+    // Apply scene lighting transition
+    this.updateLightingTransition(easedProgress);
+    
+    // Emit transition progress event for UI and other systems
+    eventBus.emit('environment-transition-progress', {
+      from: this.previousTheme.type,
+      to: this.currentTheme.type,
+      progress: easedProgress
+    });
+  }
+  
+  /**
+   * Apply cubic ease-in-out function for smoother transitions
+   * @param t Linear progress (0-1)
+   * @returns Eased progress (0-1)
+   */
+  private easeInOutCubic(t: number): number {
+    return t < 0.5
+      ? 4 * t * t * t
+      : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+  
+  /**
+   * Update fog during theme transition
+   * @param progress Transition progress (0-1)
+   */
+  private updateFogTransition(progress: number): void {
+    if (!this.previousTheme || !this.scene.fog) return;
+    
+    // Get fog parameters
+    const currentFog = this.currentTheme.fogColor;
+    const currentDensity = this.currentTheme.fogDensity;
+    
+    const previousFog = this.previousTheme.fogColor;
+    const previousDensity = this.previousTheme.fogDensity;
+    
+    // Create interpolated color
+    const currentColor = new THREE.Color(currentFog);
+    const previousColor = new THREE.Color(previousFog);
+    
+    // Interpolate between colors
+    const interpolatedColor = previousColor.clone().lerp(currentColor, progress);
+    
+    // Interpolate fog density
+    const interpolatedDensity = 
+      previousDensity + (currentDensity - previousDensity) * progress;
+    
+    // Apply to scene fog
+    if (this.scene.fog instanceof THREE.FogExp2) {
+      this.scene.fog.color = interpolatedColor;
+      this.scene.fog.density = interpolatedDensity;
+    } else {
+      // If fog type changes, create new fog
+      this.scene.fog = new THREE.FogExp2(interpolatedColor, interpolatedDensity);
+    }
+    
+    // Also update background color for consistent look
+    this.scene.background = interpolatedColor;
+  }
+  
+  /**
+   * Update lighting during theme transition
+   * @param progress Transition progress (0-1)
+   */
+  private updateLightingTransition(progress: number): void {
+    if (!this.previousTheme) return;
+    
+    // Find all lights in the scene
+    this.scene.traverse((object) => {
+      if (object instanceof THREE.Light) {
+        // Adjust light intensity based on theme transition
+        const previousIntensity = this.previousTheme!.lightIntensity;
+        const currentIntensity = this.currentTheme.lightIntensity;
+        
+        // Interpolate light intensity
+        const interpolatedIntensity = 
+          previousIntensity + (currentIntensity - previousIntensity) * progress;
+        
+        object.intensity = interpolatedIntensity;
+        
+        // If it's a directional or hemisphere light, may also want to adjust color
+        if (object instanceof THREE.DirectionalLight || 
+            object instanceof THREE.HemisphereLight) {
+          
+          // Use decoration colors as approximate light colors
+          const previousColor = new THREE.Color(this.previousTheme!.decorationColor || 0xffffff);
+          const currentColor = new THREE.Color(this.currentTheme.decorationColor || 0xffffff);
+          
+          // Interpolate color
+          object.color.copy(previousColor).lerp(currentColor, progress);
+        }
+      }
+    });
   }
   
   /**
@@ -229,7 +376,7 @@ export class ProceduralEnvironment {
   }
   
   /**
-   * Create a new environment segment
+   * Create a new environment segment with obstacle integration
    * @param position Segment position
    * @returns Created segment
    */
@@ -257,7 +404,7 @@ export class ProceduralEnvironment {
       }
     }
     
-    // Add decorations to the segment
+    // Add decorations to the segment, considering obstacle placement
     this.addDecorationsToSegment(segment);
     
     // Add ground details using the ground system
@@ -277,15 +424,80 @@ export class ProceduralEnvironment {
       );
     }
     
+    // Register lane safety info to avoid obstacle/decoration conflicts
+    this.registerSafeZones(segment);
+    
     return segment;
   }
   
   /**
-   * Add decorations to a segment
-   * @param segment Segment to add decorations to
+   * Registers decoration locations as safe zones to prevent obstacle collision
+   * This helps integrate the procedural environment with the obstacle system
+   * @param segment The segment to register safe zones for
    */
+  private registerSafeZones(segment: EnvironmentSegment): void {
+    try {
+      // We use an event to communicate with the obstacle manager
+      // This allows for loose coupling between systems
+      
+      // Collect decoration positions that need clearance
+      const safeZones: Array<{
+        position: THREE.Vector3;
+        radius: number;
+      }> = [];
+      
+      // Analyze segment decorations to identify important decoration clusters
+      segment.decorations.children.forEach(decoration => {
+        // Skip very small decorations
+        if (decoration.scale.x < 0.5 || !decoration.visible) return;
+        
+        // Get world position
+        const worldPos = new THREE.Vector3();
+        decoration.getWorldPosition(worldPos);
+        
+        // Calculate bounding box (approximate)
+        let radius = 0.5; // Default radius
+        
+        // If it's a group or has children, use a larger radius
+        if (decoration instanceof THREE.Group && decoration.children.length > 0) {
+          radius = 1.0; // Larger radius for groups
+          
+          // If it's a larger decoration, use an even larger radius
+          if (decoration.scale.x > 1.5 || decoration.scale.y > 1.5) {
+            radius = 2.0;
+          }
+        }
+        
+        // Add to safe zones
+        safeZones.push({
+          position: worldPos,
+          radius: radius
+        });
+      });
+      
+      // If we have safe zones to register, emit an event with the data
+      if (safeZones.length > 0) {
+        // Only use a subset of zones to avoid over-restricting obstacle placement
+        // Focus on the largest decorations (sort by radius)
+        const sortedZones = safeZones.sort((a, b) => b.radius - a.radius);
+        
+        // Take the top N zones
+        const topZones = sortedZones.slice(0, Math.min(5, sortedZones.length));
+        
+        // Emit event with zone data for the obstacle manager to consume
+        eventBus.emit('environment-safe-zones-update', {
+          segmentZ: segment.mesh.position.z,
+          segmentLength: this.segmentLength,
+          safeZones: topZones
+        });
+      }
+    } catch (error) {
+      console.warn('Error registering safe zones:', error);
+    }
+  }
+  
   /**
-   * Add decorations to a segment with comprehensive error handling
+   * Add decorations to a segment with comprehensive error handling and enhanced clustering
    * @param segment Segment to add decorations to
    */
   private addDecorationsToSegment(segment: EnvironmentSegment): void {
@@ -316,8 +528,8 @@ export class ProceduralEnvironment {
           // Significantly reduce numbers for lower-end devices
           const maxDecorations = Math.min(
             Math.floor((this.currentTheme.decorationDensity || 1) * this.segmentLength / 10),
-            this.deviceCapabilities.highEnd ? 30 : 
-            this.deviceCapabilities.midRange ? 15 : 8
+            this.deviceCapabilities.highEnd ? 40 : 
+            this.deviceCapabilities.midRange ? 25 : 12
           );
           
           // Track successful decorations to limit retries
@@ -325,7 +537,22 @@ export class ProceduralEnvironment {
           const MAX_FAILURES_PER_SEGMENT = 5;
           let consecutiveFailures = 0;
           
-          // Create decorations with retry limits
+          // Create decoration clusters instead of individual placements
+          const clusterCount = Math.ceil(maxDecorations / 5); // Approximately 5 decorations per cluster
+          const clustersCreated = this.createDecorationClusters(
+            segment,
+            clusterCount,
+            availableDecorations,
+            totalWeight
+          );
+          
+          if (clustersCreated > 0) {
+            successfulDecorations += clustersCreated * 3; // Approximate count
+            // If cluster creation was successful, we're done with this segment
+            break;
+          }
+          
+          // Fallback to individual decoration placement if clustering failed
           for (let i = 0; i < maxDecorations; i++) {
             // Break out if we've had too many consecutive failures
             if (consecutiveFailures >= MAX_FAILURES_PER_SEGMENT) {
@@ -354,25 +581,12 @@ export class ProceduralEnvironment {
                                     availableDecorations[0];
               }
               
-              // Generate random position within segment
-              const x = (Math.random() - 0.5) * this.segmentWidth;
-              const z = segment.mesh.position.z + Math.random() * this.segmentLength;
+              // Generate position using improved distribution method
+              const position = this.generateNaturalPosition(segment, selectedDecoration);
               
-              // Use noise to add some clustering to decorations
-              let noiseValue = 0;
-              try {
-                noiseValue = this.noiseGenerator.noise2D(x * 0.1, z * 0.1);
-              } catch (noiseError) {
-                // Default to a value that allows placement if noise fails
-                noiseValue = 0;
-              }
-              
-              // Only place if noise value is favorable
-              if (noiseValue > -0.2) {
+              // Only proceed if we got a valid position
+              if (position) {
                 try {
-                  // Create decoration at position
-                  const position = new THREE.Vector3(x, 0, z);
-                  
                   // Use decoration factory to create the decoration
                   const decoration = this.decorationFactory.createDecoration(
                     selectedDecoration,
@@ -404,6 +618,9 @@ export class ProceduralEnvironment {
                   consecutiveFailures++;
                   continue;
                 }
+              } else {
+                // No valid position found
+                consecutiveFailures++;
               }
             } catch (loopError) {
               // Log but continue to the next decoration
@@ -467,6 +684,241 @@ export class ProceduralEnvironment {
         console.error(`Complete decoration failure: ${failsafeError}`);
       }
     }
+  }
+  
+  /**
+   * Generate a natural position for a decoration based on noise and decoration type
+   * This creates more realistic, less uniform placements
+   * @param segment The segment to add decoration to
+   * @param definition The decoration definition
+   * @returns Position vector or null if no suitable position found
+   */
+  private generateNaturalPosition(
+    segment: EnvironmentSegment,
+    definition: DecorationDefinition
+  ): THREE.Vector3 | null {
+    try {
+      // Base position within segment
+      const segmentZ = segment.mesh.position.z;
+      
+      // Different decoration types have different placement preferences
+      const isFloating = definition.canFloatAboveGround;
+      const isRock = definition.type.includes('rock');
+      const isCoral = definition.type.includes('coral');
+      const isVegetation = definition.type.includes('weed') || 
+                         definition.type.includes('kelp') || 
+                         definition.type.includes('grass');
+      
+      // Try several times to find a good position
+      const MAX_POSITION_ATTEMPTS = 5;
+      
+      for (let attempt = 0; attempt < MAX_POSITION_ATTEMPTS; attempt++) {
+        // Generate base random position
+        let x = (Math.random() - 0.5) * this.segmentWidth;
+        let z = segmentZ + Math.random() * this.segmentLength;
+        
+        // Use main noise field for base distribution
+        const baseNoise = this.noiseGenerator.noise2D(x * 0.05, z * 0.05);
+        
+        // Use secondary noise field for type-specific distribution
+        const detailNoise = this.noiseGenerator.noise2D(x * 0.2, z * 0.2);
+        
+        // Each type has different noise thresholds for placement
+        let canPlace = false;
+        
+        if (isFloating) {
+          // Floating items are more evenly distributed but with some clustering
+          canPlace = baseNoise > -0.3;
+        } else if (isRock) {
+          // Rocks tend to form in specific areas
+          canPlace = baseNoise > 0.1 || detailNoise > 0.4;
+        } else if (isCoral) {
+          // Coral grows in clusters in specific areas
+          canPlace = baseNoise > 0.2 || detailNoise > 0.5;
+        } else if (isVegetation) {
+          // Vegetation tends to grow in patches
+          canPlace = baseNoise > -0.1 && detailNoise > 0;
+        } else {
+          // Default placement logic
+          canPlace = baseNoise > -0.2;
+        }
+        
+        if (canPlace) {
+          // Apply some clustering within the valid zones
+          // Move slightly toward nearest high-value noise point
+          const nudgeAmount = 0.15; // How much to nudge toward clusters
+          const baseNoiseGradient = {
+            x: this.noiseGenerator.noise2D((x + 0.1) * 0.05, z * 0.05) - baseNoise,
+            z: this.noiseGenerator.noise2D(x * 0.05, (z + 0.1) * 0.05) - baseNoise
+          };
+          
+          // Nudge toward higher noise values (clusters)
+          x += baseNoiseGradient.x * this.segmentWidth * nudgeAmount;
+          z += baseNoiseGradient.z * this.segmentLength * nudgeAmount;
+          
+          // Create y position - floating items have different heights
+          let y = 0;
+          if (isFloating) {
+            // Varied height for floating items
+            const heightVariation = 1.5; // Maximum height variation
+            y = (baseNoise + 1) * heightVariation;
+          }
+          
+          // Keep within segment bounds
+          x = Math.max(-this.segmentWidth/2, Math.min(this.segmentWidth/2, x));
+          
+          return new THREE.Vector3(x, y, z);
+        }
+      }
+      
+      // After several attempts, if no good position was found, fall back to basic random
+      if (Math.random() < 0.3) { // Only place 30% of fallback positions to avoid overcrowding
+        return new THREE.Vector3(
+          (Math.random() - 0.5) * this.segmentWidth,
+          definition.canFloatAboveGround ? Math.random() * 1.5 : 0,
+          segmentZ + Math.random() * this.segmentLength
+        );
+      }
+      
+      return null; // No suitable position found
+    } catch (error) {
+      console.log(`Error generating natural position: ${error}`);
+      return null;
+    }
+  }
+  
+  /**
+   * Create decoration clusters in the segment
+   * @param segment Segment to add decorations to
+   * @param clusterCount Number of clusters to create
+   * @param availableDecorations Available decoration definitions
+   * @param totalWeight Total probability weight
+   * @returns Number of successful clusters created
+   */
+  private createDecorationClusters(
+    segment: EnvironmentSegment,
+    clusterCount: number,
+    availableDecorations: DecorationDefinition[],
+    totalWeight: number
+  ): number {
+    let successfulClusters = 0;
+    
+    try {
+      for (let c = 0; c < clusterCount; c++) {
+        // Find a central position for the cluster
+        const segmentZ = segment.mesh.position.z;
+        const centerX = (Math.random() - 0.5) * this.segmentWidth * 0.8; // Keep away from edges
+        const centerZ = segmentZ + Math.random() * this.segmentLength;
+        
+        // Use noise to determine if this is a valid cluster location
+        const locationNoise = this.noiseGenerator.noise2D(centerX * 0.03, centerZ * 0.03);
+        
+        // Only place clusters in favorable noise locations
+        if (locationNoise < 0) continue;
+        
+        // Generate a cluster theme - randomly choose a primary decoration type
+        // This makes clusters more natural (like a coral cluster or rock formation)
+        let clusterTheme: string;
+        
+        const themeRoll = Math.random();
+        if (themeRoll < 0.3) {
+          clusterTheme = 'rock';
+        } else if (themeRoll < 0.6) {
+          clusterTheme = 'coral';
+        } else if (themeRoll < 0.8) {
+          clusterTheme = 'vegetation';
+        } else {
+          clusterTheme = 'mixed';
+        }
+        
+        // Filter decorations that match the cluster theme
+        const primaryDecorations = availableDecorations.filter(def => {
+          if (clusterTheme === 'rock' && def.type.includes('rock')) return true;
+          if (clusterTheme === 'coral' && def.type.includes('coral')) return true;
+          if (clusterTheme === 'vegetation' && 
+              (def.type.includes('weed') || def.type.includes('kelp') || def.type.includes('grass'))) {
+            return true;
+          }
+          return clusterTheme === 'mixed'; // All decorations for mixed clusters
+        });
+        
+        // If no matching decorations, skip this cluster
+        if (primaryDecorations.length === 0) continue;
+        
+        // Determine cluster size based on noise value (higher noise = bigger cluster)
+        const clusterSize = 3 + Math.floor(locationNoise * 5);
+        let successfulPlacements = 0;
+        
+        // Fill the cluster with decorations
+        for (let i = 0; i < clusterSize; i++) {
+          try {
+            // Select a decoration, prioritizing the cluster theme
+            let selectedDecoration: DecorationDefinition;
+            
+            if (i === 0 || Math.random() < 0.8) {
+              // 80% chance to use cluster theme decoration type (100% for first item)
+              selectedDecoration = primaryDecorations[Math.floor(Math.random() * primaryDecorations.length)];
+            } else {
+              // 20% chance for variety with any decoration type
+              const randomValue = Math.random() * totalWeight;
+              let cumulativeWeight = 0;
+              
+              selectedDecoration = availableDecorations[0]; // Fallback
+              for (const decoration of availableDecorations) {
+                cumulativeWeight += (decoration.probability || 0.1);
+                if (randomValue <= cumulativeWeight) {
+                  selectedDecoration = decoration;
+                  break;
+                }
+              }
+            }
+            
+            // Generate a position within the cluster
+            const radius = (i === 0) ? 0 : 1 + Math.random() * 3; // First item at center, others in radius
+            const angle = Math.random() * Math.PI * 2;
+            
+            const x = centerX + Math.cos(angle) * radius;
+            const z = centerZ + Math.sin(angle) * radius;
+            
+            // Ensure it's within segment bounds
+            if (x < -this.segmentWidth/2 || x > this.segmentWidth/2) continue;
+            
+            // Determine height based on decoration type
+            const y = selectedDecoration.canFloatAboveGround ? Math.random() * 1.5 : 0;
+            
+            const position = new THREE.Vector3(x, y, z);
+            
+            // Create the decoration
+            const decoration = this.decorationFactory.createDecoration(
+              selectedDecoration,
+              position,
+              this.currentTheme
+            );
+            
+            // Add to segment if valid
+            if (decoration && 
+                !isNaN(decoration.position.x) && 
+                !isNaN(decoration.position.y) && 
+                !isNaN(decoration.position.z)) {
+              segment.decorations.add(decoration);
+              successfulPlacements++;
+            }
+          } catch (clusterElementError) {
+            console.log(`Error creating cluster element: ${clusterElementError}`);
+            continue; // Try next element
+          }
+        }
+        
+        // If we successfully placed at least 2 decorations, count it as a successful cluster
+        if (successfulPlacements >= 2) {
+          successfulClusters++;
+        }
+      }
+    } catch (clusterError) {
+      console.warn(`Error creating decoration clusters: ${clusterError}`);
+    }
+    
+    return successfulClusters;
   }
   
   /**
@@ -579,5 +1031,18 @@ export class ProceduralEnvironment {
     }
     
     console.log(`ProceduralEnvironment: Set max decorations to ${this.maxDecorations}`);
+  }
+  
+  /**
+   * Configure the environment to use only procedural decorations,
+   * ignoring asset loading completely
+   * @param ignoreAssets Whether to ignore asset loading (true = use only procedural)
+   */
+  setIgnoreAssets(ignoreAssets: boolean = true): void {
+    // Pass the configuration to the decoration factory
+    if (this.decorationFactory) {
+      this.decorationFactory.setIgnoreAssets(ignoreAssets);
+      console.log(`ProceduralEnvironment: ${ignoreAssets ? 'Using only procedural generation' : 'Using mixed procedural and asset loading'}`);
+    }
   }
 }

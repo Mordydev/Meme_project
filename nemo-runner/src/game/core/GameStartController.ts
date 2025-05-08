@@ -17,12 +17,19 @@ export class GameStartController {
   private camera: THREE.PerspectiveCamera | null = null;
   private scene: THREE.Scene | null = null;
   
+  // Game engine cleanup function
+  private gameEngineCleanup: (() => void) | null = null;
+  
   // State tracking
   private isInitializing: boolean = false;
   private isInitialized: boolean = false;
   private rendererInitialized: boolean = false;
   private assetsLoaded: boolean = false;
   private audioInitialized: boolean = false;
+  
+  // Countdown handling
+  private countdownInterval: NodeJS.Timeout | null = null; // Use Interval for countdown
+  private countdownValue: number = 3;
   
   // Device capabilities
   private deviceCapabilities: ReturnType<typeof detectDeviceCapabilities>;
@@ -74,7 +81,23 @@ export class GameStartController {
       await this.initializeAudioManager();
       
       // Check if all systems are ready
-      this.checkAllSystemsReady();
+      if (this.checkAllSystemsReady()) {
+        // All systems are ready, emit event
+        console.log('GameStartController: All core systems ready, getting components');
+        
+        // Get the components to pass to GameEngine
+        const components = this.getComponents();
+        
+        // Emit all-systems-ready event with the components data
+        console.log('GameStartController: Emitting all-systems-ready event');
+        eventBus.emit('all-systems-ready', components);
+        
+        // Ensure final state is MENU after all prerequisites are ready
+        console.log('GameStartController: Initialization sequence complete, setting state to MENU');
+        if (gameStateManager.state !== 'MENU') { // Only set if not already MENU
+            gameStateManager.setState('MENU');
+        }
+      }
       
       return true;
     } catch (error) {
@@ -466,26 +489,122 @@ export class GameStartController {
   
   /**
    * Check if all required systems are ready
+   * @returns {boolean} True if all systems are ready, false otherwise
    */
-  private checkAllSystemsReady(): void {
+  private checkAllSystemsReady(): boolean {
     if (this.rendererInitialized && this.assetsLoaded && this.audioInitialized) {
-      // All systems are initialized
-      console.log('GameStartController: All systems ready');
+      console.log('GameStartController: All core systems are ready');
       this.isInitialized = true;
       this.isInitializing = false;
-      
-      // Emit event to signal game can start
-      eventBus.emit('all-systems-ready', {
-        renderer: this.renderer,
-        scene: this.scene,
-        camera: this.camera,
-        assetManager: this.assetManager,
-        audioManager: this.audioManager
-      });
-      
-      // Set game state to READY
-      gameStateManager.setState('READY');
+      return true;
     }
+    return false;
+  }
+  
+  /**
+   * Public method called by UI to start the game sequence
+   */
+  public requestStartGame(): void {
+    // Ensure GameStateManager is available
+    if (!gameStateManager) {
+      console.error("GameStartController: GameStateManager not available for requestStartGame");
+      return;
+    }
+
+    if (this.isInitialized && gameStateManager.state === 'MENU') {
+      console.log('GameStartController: Start game requested from UI');
+      this.startCountdownSequence();
+    } else {
+      console.warn("GameStartController: Cannot start game from current state:", gameStateManager.state);
+    }
+  }
+
+  /**
+   * Handle the countdown sequence from READY to PLAYING
+   */
+  private startCountdownSequence(): void {
+    // Initial validation
+    if (!this.isInitialized) {
+      console.warn("GameStartController: Cannot start countdown, not initialized.");
+      return;
+    }
+    
+    // Ensure GameStateManager is available
+    if (!gameStateManager) {
+      console.error("GameStartController: GameStateManager not available for startCountdownSequence");
+      return;
+    }
+    
+    // Check if countdown is already in progress
+    if (this.countdownInterval) {
+      console.warn("GameStartController: Countdown already in progress.");
+      return;
+    }
+    
+    // Check state *before* starting interval
+    if (gameStateManager.state === 'PLAYING') {
+      console.warn("GameStartController: Cannot start countdown, game is already in PLAYING state.");
+      return;
+    }
+    
+    console.log('GameStartController: Starting countdown sequence from 3');
+
+    // Clear any existing countdown timer (defensive)
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+
+    // Set state to READY to start the countdown (only if not already READY)
+    if (gameStateManager.state !== 'READY') {
+      console.log("GameStartController: Setting state to READY for countdown");
+      gameStateManager.setState('READY');
+    } else {
+      console.log("GameStartController: Already in READY state, continuing with countdown");
+    }
+
+    // Start countdown from 3
+    this.countdownValue = 3;
+    eventBus.emit('countdown-update', { count: this.countdownValue });
+    eventBus.emit('play-sound', { name: 'countdown' });
+
+    // Track if transition timeout has been set to prevent duplicates
+    let transitionTimeoutSet = false;
+
+    this.countdownInterval = setInterval(() => {
+      // Add more detailed logging with current state
+      console.log(`GameStartController: Countdown tick. Value: ${this.countdownValue}, State: ${gameStateManager.state}`);
+      
+      this.countdownValue--;
+      eventBus.emit('countdown-update', { count: this.countdownValue });
+
+      if (this.countdownValue > 0) {
+        // Play tick sound
+        eventBus.emit('play-sound', { name: 'countdown' });
+      } else if (this.countdownValue === 0) {
+        console.log("GameStartController: Displaying GO!");
+        // Schedule state transition *after* GO is displayed
+        if (!transitionTimeoutSet) { // Ensure timeout is set only once
+          transitionTimeoutSet = true;
+          console.log('GameStartController: Scheduling transition to PLAYING after GO! display (800ms delay)');
+          setTimeout(() => {
+            if (gameStateManager) { // Check if manager exists
+              // ** CRITICAL TRANSITION **
+              console.log(`GameStartController: Countdown complete, transitioning to PLAYING`);
+              gameStateManager.setState('PLAYING'); // Final state change
+            }
+          }, 800); // Delay after showing GO!
+        }
+      } else if (this.countdownValue < 0) {
+        // Interval should stop *after* scheduling the transition
+        console.log("GameStartController: Countdown finished, clearing interval.");
+        if (this.countdownInterval) {
+          clearInterval(this.countdownInterval);
+          this.countdownInterval = null;
+        }
+        // Do not set state here, it's handled by the setTimeout above
+      }
+    }, 1000); // Run every 1 second
   }
   
   /**
@@ -494,19 +613,36 @@ export class GameStartController {
   public dispose(): void {
     console.log('GameStartController: Disposing resources');
     
-    // Clean up event listeners
+    // Clear countdown timer
+    if (this.countdownInterval) {
+      console.log('GameStartController: Clearing countdown interval during disposal');
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+    
+    // Also clear any lingering transition timeouts
+    // This is a best practice even though we can't access the specific timeout ID
+    console.log('GameStartController: Ensuring any transition timeouts are garbage collected');
+    
+    // Clean up event listeners with better logging
+    console.log('GameStartController: Removing event listeners');
     eventBus.off('asset-loading-complete', this.handleAssetsLoaded);
     eventBus.off('audio-initialized', this.handleAudioInitialized);
     eventBus.off('renderer-initialized', this.handleRendererInitialized);
     
+    // Also remove any other lingering listeners
+    eventBus.off('countdown-update'); // In case other components subscribed
+    
     // Dispose renderer
     if (this.renderer) {
       try {
+        console.log('GameStartController: Disposing renderer');
         // Force WebGL context loss
         const gl = this.renderer.getContext();
         if (gl && 'getExtension' in gl) {
           const ext = gl.getExtension('WEBGL_lose_context');
           if (ext) {
+            console.log('GameStartController: Forcing WebGL context loss');
             ext.loseContext();
           }
         }
@@ -514,24 +650,27 @@ export class GameStartController {
         this.renderer.dispose();
         this.renderer = null;
       } catch (error) {
-        console.warn('Error disposing renderer:', error);
+        console.warn('GameStartController: Error disposing renderer:', error);
       }
     }
     
     // Dispose audio manager
     if (this.audioManager) {
+      console.log('GameStartController: Disposing audio manager');
       this.audioManager.dispose();
       this.audioManager = null;
     }
     
     // Dispose asset manager
     if (this.assetManager) {
+      console.log('GameStartController: Disposing asset manager');
       this.assetManager.dispose();
       this.assetManager = null;
     }
     
     // Clear canvas reference
     if (this.canvasElement) {
+      console.log('GameStartController: Clearing canvas reference');
       delete (this.canvasElement as any).__webGLContextCreated;
       this.canvasElement = null;
     }
@@ -540,12 +679,26 @@ export class GameStartController {
     this.camera = null;
     this.scene = null;
     
-    // Reset state
+    // Call GameEngine cleanup if it exists
+    if (this.gameEngineCleanup) {
+      console.log('GameStartController: Calling GameEngine cleanup function');
+      try {
+        this.gameEngineCleanup();
+      } catch (gameEngineCleanupError) {
+        console.error('GameStartController: Error during GameEngine cleanup:', gameEngineCleanupError);
+      }
+      this.gameEngineCleanup = null;
+    }
+    
+    // Reset state with explicit logging
+    console.log('GameStartController: Resetting internal state flags');
     this.isInitialized = false;
     this.isInitializing = false;
     this.rendererInitialized = false;
     this.assetsLoaded = false;
     this.audioInitialized = false;
+    
+    console.log('GameStartController: Disposal complete');
   }
 }
 

@@ -86,6 +86,8 @@ export class WaterEffects {
     
     const causticsFragmentShader = `
       uniform float uTime;
+      uniform vec3 uWaterColor;
+      uniform float uWaterIntensity;
       varying vec2 vUv;
       
       // Include noise functions from ShaderLibrary
@@ -96,6 +98,73 @@ export class WaterEffects {
       
       // Include transition utilities
       #include <transition>
+      
+      // Define the color conversion functions inline since they're missing from the ShaderLibrary
+      // Helper for HSL to RGB conversion
+      float hue2rgb(float p, float q, float t) {
+        if (t < 0.0) t += 1.0;
+        if (t > 1.0) t -= 1.0;
+        if (t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+        if (t < 1.0/2.0) return q;
+        if (t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+        return p;
+      }
+
+      // Convert RGB to HSL
+      vec3 rgbToHsl(vec3 color) {
+        float r = color.r;
+        float g = color.g;
+        float b = color.b;
+        
+        float max_val = max(max(r, g), b);
+        float min_val = min(min(r, g), b);
+        float h, s, l = (max_val + min_val) / 2.0;
+
+        if (max_val == min_val) {
+          h = s = 0.0; // Achromatic
+        } else {
+          float d = max_val - min_val;
+          s = l > 0.5 ? d / (2.0 - max_val - min_val) : d / (max_val + min_val);
+          
+          if (max_val == r) {
+            h = (g - b) / d + (g < b ? 6.0 : 0.0);
+          } else if (max_val == g) {
+            h = (b - r) / d + 2.0;
+          } else { // max_val == b
+            h = (r - g) / d + 4.0;
+          }
+          
+          h /= 6.0;
+        }
+
+        return vec3(h, s, l);
+      }
+
+      // Convert HSL to RGB
+      vec3 hslToRgb(vec3 hsl) {
+        float h = hsl.x;
+        float s = hsl.y;
+        float l = hsl.z;
+        
+        float r, g, b;
+
+        if (s == 0.0) {
+          r = g = b = l; // Achromatic
+        } else {
+          float q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+          float p = 2.0 * l - q;
+          r = hue2rgb(p, q, h + 1.0/3.0);
+          g = hue2rgb(p, q, h);
+          b = hue2rgb(p, q, h - 1.0/3.0);
+        }
+
+        return vec3(r, g, b);
+      }
+      
+      // Simple color gradient helper
+      vec3 colorGradient(vec3 color1, vec3 color2, float t) {
+        return mix(color1, color2, t);
+      }
       
       void main() {
         // Scale UVs for better caustics density
@@ -115,15 +184,40 @@ export class WaterEffects {
         // Use smootherstep from transition library for better defined edges
         causticsMix = smootherstep(0.3, 0.7, causticsMix, 0.8);
         
-        // Apply color
-        vec3 baseColor = vec3(0.2, 0.5, 0.9); // Blue underwater color
-        vec3 causticColor = vec3(1.0, 1.0, 0.9); // Slight yellow for caustics
+        // Apply theme-based color - using uniform if available, fallback to default
+        vec3 baseColor = vec3(0.2, 0.5, 0.9); // Default blue underwater color
+        if (length(uWaterColor) > 0.1) {
+          baseColor = uWaterColor;
+        }
         
-        // Use colorGradient from color library
-        vec3 finalColor = mix(baseColor * 0.5, causticColor, causticsMix * 0.7);
+        // Generate dynamic caustic color based on base color
+        vec3 causticColor;
+        
+        // Use HSL manipulation for better caustic coloring
+        // Convert base color to HSL
+        vec3 baseHSL = rgbToHsl(baseColor);
+        
+        // Create a complementary color by shifting hue and increasing lightness
+        vec3 causticHSL = vec3(
+          mod(baseHSL.x + 0.5, 1.0), // Complementary hue
+          max(0.0, baseHSL.y - 0.2),  // Slightly less saturated
+          min(0.95, baseHSL.z + 0.6)  // Much brighter
+        );
+        
+        // Convert back to RGB
+        causticColor = hslToRgb(causticHSL);
+        
+        // Apply intensity adjustments from theme
+        float intensity = 1.0;
+        if (uWaterIntensity > 0.0) {
+          intensity = uWaterIntensity;
+        }
+        
+        // Use color gradient for better blending
+        vec3 finalColor = mix(baseColor * 0.5, causticColor, causticsMix * 0.7 * intensity);
         
         // Add subtle color variation based on position and time
-        finalColor += vec3(0.05, 0.05, 0.1) * sin(scaledUv.x * 10.0 + uTime);
+        finalColor += vec3(0.05, 0.05, 0.1) * sin(scaledUv.x * 10.0 + uTime) * intensity;
         
         // Apply intensity based on noise pattern
         gl_FragColor = vec4(finalColor, 0.7);
@@ -137,7 +231,9 @@ export class WaterEffects {
       vertexShader: processedShaders.vertexShader,
       fragmentShader: processedShaders.fragmentShader,
       uniforms: {
-        uTime: { value: 0 }
+        uTime: { value: 0 },
+        uWaterColor: { value: new THREE.Color(0.2, 0.5, 0.9) }, // Default water color
+        uWaterIntensity: { value: 1.0 } // Default intensity
       },
       transparent: true,
       depthWrite: false,
@@ -213,19 +309,43 @@ export class WaterEffects {
     `;
     
     const particleFragmentShader = `
-      #include <transition>
-      
+      uniform vec3 uParticleColor;
+      uniform float uParticleSize;
       varying vec3 vColor;
+      
+      // Custom smootherstep function 
+      float smootherstep(float edge0, float edge1, float x, float smoothness) {
+        float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+        // Adjust power based on smoothness (higher = smoother transition)
+        float power = max(2.0, 2.0 / smoothness);
+        return pow(t, power) * (1.0 - pow(1.0 - t, power));
+      }
+      
+      // Custom transition mask function
+      float transitionMask(float value, float lower, float upper, float smoothness) {
+        float lowerSoft = max(0.0, lower - smoothness * 0.5);
+        float upperSoft = min(1.0, upper + smoothness * 0.5);
+        return smoothstep(lowerSoft, lower, value) - smoothstep(upper, upperSoft, value);
+      }
       
       void main() {
         // Create circular particle
         float r = distance(gl_PointCoord, vec2(0.5, 0.5));
         if (r > 0.5) discard;
         
-        // Fade out towards the edges using transition library for smoother falloff
+        // Fade out towards the edges using transition function for smoother falloff
         float alpha = 1.0 - transitionMask(r, 0.3, 0.5, 0.8);
         
-        gl_FragColor = vec4(vColor, alpha * 0.6);
+        // Use theme color if provided
+        vec3 finalColor = vColor;
+        if (length(uParticleColor) > 0.1) {
+          finalColor = mix(vColor, uParticleColor, 0.5);
+        }
+        
+        // Apply size adjustment if provided
+        float sizeAdjust = uParticleSize > 0.0 ? uParticleSize : 1.0;
+        
+        gl_FragColor = vec4(finalColor, alpha * 0.6 * sizeAdjust);
       }
     `;
     
@@ -235,6 +355,10 @@ export class WaterEffects {
     const particleMaterial = new THREE.ShaderMaterial({
       vertexShader: processedShaders.vertexShader,
       fragmentShader: processedShaders.fragmentShader,
+      uniforms: {
+        uParticleColor: { value: new THREE.Color(0xffffff) },
+        uParticleSize: { value: 1.0 }
+      },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -273,17 +397,26 @@ export class WaterEffects {
       `;
       
       const rayFragmentShader = `
-        #include <animation>
-        #include <transition>
-        
         uniform float uTime;
         varying vec2 vUv;
+        
+        // Custom transition mask function
+        float transitionMask(float value, float lower, float upper, float smoothness) {
+          float lowerSoft = max(0.0, lower - smoothness * 0.5);
+          float upperSoft = min(1.0, upper + smoothness * 0.5);
+          return smoothstep(lowerSoft, lower, value) - smoothstep(upper, upperSoft, value);
+        }
+        
+        // Simple oscillation function
+        float oscillate(float time, float speed, float amplitude, float offset) {
+          return sin(time * speed + offset) * amplitude;
+        }
         
         void main() {
           // Create gradient from bottom to top with smooth transition
           float gradient = transitionMask(vUv.y, 0.0, 0.8, 0.7);
           
-          // Add some variation along the ray using the animation library
+          // Add some variation along the ray using oscillation
           float variation = oscillate(uTime, 0.5, 0.1, vUv.y * 10.0) + 0.9;
           
           // Calculate final alpha
@@ -303,7 +436,9 @@ export class WaterEffects {
         vertexShader: processedShaders.vertexShader,
         fragmentShader: processedShaders.fragmentShader,
         uniforms: {
-          uTime: { value: 0 }
+          uTime: { value: 0 },
+          uRayColor: { value: new THREE.Color(1.0, 1.0, 0.9) },
+          uIntensity: { value: 1.0 }
         },
         transparent: true,
         depthWrite: false,
@@ -452,8 +587,10 @@ export class WaterEffects {
       varying vec2 vUv;
       varying float vVisibility;
       
-      // Include animation utilities from ShaderLibrary
-      #include <animation>
+      // Oscillation function for smooth animation
+      float oscillate(float time, float frequency, float amplitude, float offset) {
+        return amplitude * sin(time * frequency + offset);
+      }
       
       void main() {
         vUv = uv;
@@ -462,7 +599,7 @@ export class WaterEffects {
         // Scale the bubble
         vec3 pos = position * scale;
         
-        // Use oscillate function from animation library for wobble
+        // Use oscillate function for wobble
         float wobble = oscillate(uTime, 2.0, 0.05, wobbleOffset);
         pos.x += wobble * position.y;
         
@@ -485,11 +622,42 @@ export class WaterEffects {
       varying vec2 vUv;
       varying float vVisibility;
       
-      // Include fresnel calculation from ShaderLibrary
-      #include <fresnel>
+      // Custom fresnel calculation
+      float calculateFresnel(vec3 normal, vec3 viewDir, float power) {
+        return pow(1.0 - clamp(dot(normalize(normal), normalize(viewDir)), 0.0, 1.0), power);
+      }
       
-      // Include color utilities from ShaderLibrary
-      #include <color>
+      // Helper for HSL conversion
+      float hue2rgb(float p, float q, float t) {
+        if (t < 0.0) t += 1.0;
+        if (t > 1.0) t -= 1.0;
+        if (t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+        if (t < 1.0/2.0) return q;
+        if (t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+        return p;
+      }
+      
+      // HSL to RGB conversion
+      vec3 hslToRgb(float h, float s, float l) {
+        float r, g, b;
+        
+        if (s == 0.0) {
+          r = g = b = l; // Achromatic
+        } else {
+          float q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+          float p = 2.0 * l - q;
+          r = hue2rgb(p, q, h + 1.0/3.0);
+          g = hue2rgb(p, q, h);
+          b = hue2rgb(p, q, h - 1.0/3.0);
+        }
+        
+        return vec3(r, g, b);
+      }
+      
+      // Gradient between two colors
+      vec3 colorGradient(vec3 colorA, vec3 colorB, float t) {
+        return mix(colorA, colorB, t);
+      }
       
       void main() {
         // Discard if not visible
@@ -498,13 +666,13 @@ export class WaterEffects {
         // Direction from camera to fragment (view direction)
         vec3 viewDir = normalize(-vPosition);
         
-        // Use fresnel calculation from ShaderLibrary
+        // Use fresnel calculation
         float fresnel = calculateFresnel(vNormal, viewDir, 3.0);
         
         // Base bubble color (nearly transparent)
         vec3 bubbleColor = vec3(0.8, 0.9, 1.0);
         
-        // Generate rainbow colors using HSL to RGB conversion from color library
+        // Generate rainbow colors using HSL to RGB conversion
         float h = (uTime * 0.1 + vUv.y * 0.5) * 0.1;
         vec3 rainbowEdge = hslToRgb(h, 0.7, 0.5);
         
@@ -816,24 +984,45 @@ export class WaterEffects {
     `;
     
     const rayFragmentShader = `
-      #include <animation>
-      #include <transition>
-      
       uniform float uTime;
+      uniform vec3 uRayColor;
+      uniform float uIntensity;
       varying vec2 vUv;
+      
+      // Simple oscillation function
+      float oscillate(float time, float speed, float amplitude, float offset) {
+        return sin(time * speed + offset) * amplitude;
+      }
+      
+      // Custom smootherstep function 
+      float smootherstep(float edge0, float edge1, float x, float smoothness) {
+        float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+        // Adjust power based on smoothness (higher = smoother transition)
+        float power = max(2.0, 2.0 / smoothness);
+        return pow(t, power) * (1.0 - pow(1.0 - t, power));
+      }
+      
+      // Create a smooth mask for transitions
+      float transitionMask(float value, float start, float end, float smoothness) {
+        return smootherstep(start, end, value, smoothness);
+      }
       
       void main() {
         // Create gradient from bottom to top with smooth transition
         float gradient = transitionMask(vUv.y, 0.0, 0.8, 0.7);
         
-        // Add some variation along the ray using the animation library
+        // Add some variation along the ray using oscillation function
         float variation = oscillate(uTime, 0.5, 0.1, vUv.y * 10.0) + 0.9;
         
         // Calculate final alpha
-        float alpha = (1.0 - gradient) * variation * 0.3;
+        float intensity = uIntensity > 0.0 ? uIntensity : 1.0;
+        float alpha = (1.0 - gradient) * variation * 0.3 * intensity;
         
-        // Light ray color
+        // Light ray color - use uniform if provided, otherwise use default
         vec3 rayColor = vec3(1.0, 1.0, 0.9);
+        if (length(uRayColor) > 0.1) {
+          rayColor = uRayColor;
+        }
         
         gl_FragColor = vec4(rayColor, alpha);
       }
@@ -925,37 +1114,96 @@ export class WaterEffects {
     
     const rippleFragmentShader = `
       uniform float uTime;
+      uniform vec3 uWaterColor;
+      uniform float uWaterOpacity;
       varying vec2 vUv;
       varying vec3 vNormal;
       varying vec3 vViewPosition;
       
-      // Include fresnel calculation
-      #include <fresnel>
+      // Custom fresnel calculation
+      float calculateFresnel(vec3 normal, vec3 viewDir, float power) {
+        return pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), power);
+      }
       
-      // Include transition utilities
-      #include <transition>
+      // Custom smootherstep function 
+      float smootherstep(float edge0, float edge1, float x, float smoothness) {
+        float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+        // Adjust power based on smoothness (higher = smoother transition)
+        float power = max(2.0, 2.0 / smoothness);
+        return pow(t, power) * (1.0 - pow(1.0 - t, power));
+      }
+      
+      // Simple oscillation function
+      float oscillate(float time, float speed, float amplitude, float offset) {
+        return sin(time * speed + offset) * amplitude;
+      }
+      
+      // Helper for HSL conversion
+      float hue2rgb(float p, float q, float t) {
+        if (t < 0.0) t += 1.0;
+        if (t > 1.0) t -= 1.0;
+        if (t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+        if (t < 1.0/2.0) return q;
+        if (t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+        return p;
+      }
+      
+      // HSL to RGB conversion
+      vec3 hslToRgb(vec3 hsl) {
+        float h = hsl.x;
+        float s = hsl.y;
+        float l = hsl.z;
+        
+        float r, g, b;
+      
+        if (s == 0.0) {
+          r = g = b = l; // Achromatic
+        } else {
+          float q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+          float p = 2.0 * l - q;
+          r = hue2rgb(p, q, h + 1.0/3.0);
+          g = hue2rgb(p, q, h);
+          b = hue2rgb(p, q, h - 1.0/3.0);
+        }
+      
+        return vec3(r, g, b);
+      }
+      
+      // Create a smooth mask for transitions
+      float transitionMask(float value, float start, float end, float smoothness) {
+        return smootherstep(start, end, value, smoothness);
+      }
       
       void main() {
-        // Water color
+        // Water color - use uniform if provided, otherwise use default
         vec3 baseColor = vec3(0.2, 0.5, 0.9);
+        if (length(uWaterColor) > 0.1) {
+          baseColor = uWaterColor;
+        }
         
         // Use normalized viewDir
         vec3 viewDir = normalize(vViewPosition);
         
-        // Use fresnel function from ShaderLibrary
+        // Calculate fresnel effect
         float fresnel = calculateFresnel(vNormal, viewDir, 5.0);
         
-        // Use smootherstep from transition library for better blending
+        // Use smootherstep for better blending
         fresnel = smootherstep(0.0, 1.0, fresnel, 0.7);
         
         // Combine colors with fresnel
         vec3 color = mix(baseColor, vec3(1.0), fresnel * 0.7);
         
-        // Add some time-based variation using animation from ShaderLibrary
+        // Add some time-based variation
         float timeVar = oscillate(uTime, 0.5, 0.05, vUv.x * 10.0);
         color += vec3(timeVar);
         
-        gl_FragColor = vec4(color, 0.8); // Semi-transparent
+        // Use opacity from uniform if provided
+        float opacity = 0.8;
+        if (uWaterOpacity > 0.0) {
+          opacity = uWaterOpacity;
+        }
+        
+        gl_FragColor = vec4(color, opacity);
       }
     `;
     
@@ -966,7 +1214,9 @@ export class WaterEffects {
       vertexShader: processedShaders.vertexShader,
       fragmentShader: processedShaders.fragmentShader,
       uniforms: {
-        uTime: { value: 0 }
+        uTime: { value: 0 },
+        uWaterColor: { value: new THREE.Color(0.2, 0.5, 0.9) },
+        uWaterOpacity: { value: 0.8 }
       },
       transparent: true,
       side: THREE.DoubleSide
@@ -980,49 +1230,309 @@ export class WaterEffects {
   }
   
   /**
-   * Updates water effects based on the environment theme
+   * Updates water effects based on the environment theme with enhanced visual effects
+   * @param theme The target environment theme
+   * @param transitionProgress The transition progress (0-1)
    */
   updateTheme(theme: EnvironmentTheme, transitionProgress: number = 1.0): void {
-    // Update water color and opacity using theme values
+    // Update water color and opacity using theme values with fallbacks
     const targetWaterColor = new THREE.Color(theme.waterColor || theme.backgroundColor);
     const targetWaterOpacity = theme.waterOpacity || 0.7; // Default to 0.7 if not specified
     
-    if (transitionProgress < 1.0) {
-      // Interpolate between current and target colors
-      const tempColor = new THREE.Color();
-      tempColor.r = lerp(this.currentWaterColor.r, targetWaterColor.r, transitionProgress);
-      tempColor.g = lerp(this.currentWaterColor.g, targetWaterColor.g, transitionProgress);
-      tempColor.b = lerp(this.currentWaterColor.b, targetWaterColor.b, transitionProgress);
-      
-      // Interpolate opacity
-      const opacity = lerp(this.currentWaterOpacity, targetWaterOpacity, transitionProgress);
-      
-      // Update caustics
-      if (this.causticsMaterial && this.causticsMaterial.fragmentShader) {
-        // We're not directly modifying the shader here, but in a real implementation
-        // we might update uniform values that control the water appearance
+    // Calculate color for the current transition state
+    const transitionColor = new THREE.Color();
+    transitionColor.r = lerp(this.currentWaterColor.r, targetWaterColor.r, transitionProgress);
+    transitionColor.g = lerp(this.currentWaterColor.g, targetWaterColor.g, transitionProgress);
+    transitionColor.b = lerp(this.currentWaterColor.b, targetWaterColor.b, transitionProgress);
+    
+    // Interpolate opacity
+    const opacity = lerp(this.currentWaterOpacity, targetWaterOpacity, transitionProgress);
+    
+    // Update caustics with theme-specific adjustments
+    if (this.causticsMaterial) {
+      // Add theme-specific uniforms if they don't exist
+      if (!this.causticsMaterial.uniforms.uWaterColor) {
+        this.causticsMaterial.uniforms.uWaterColor = { value: new THREE.Color() };
       }
       
-      // Update ambient particles color
-      if (this.ambientParticles && this.ambientParticles.material instanceof THREE.ShaderMaterial) {
-        // In a real implementation, we'd update particle colors based on the theme
+      if (!this.causticsMaterial.uniforms.uWaterIntensity) {
+        this.causticsMaterial.uniforms.uWaterIntensity = { value: 1.0 };
       }
       
-      // Update light rays if they exist
-      if (this.quality !== 'low' && this.lightRays) {
-        this.lightRays.children.forEach(child => {
-          if (child instanceof THREE.Mesh && child.material instanceof THREE.ShaderMaterial) {
-            // Update ray colors based on the theme
+      // Update uniforms with transition values
+      this.causticsMaterial.uniforms.uWaterColor.value = transitionColor;
+      
+      // Adjust caustics intensity based on environment type
+      let causticsIntensity = 1.0;
+      
+      // Different environment types have different caustics intensities
+      switch (theme.type) {
+        case 'reef':
+          causticsIntensity = 1.2; // Brighter caustics in shallow reef
+          break;
+        case 'openOcean':
+          causticsIntensity = 0.8; // Moderate caustics in open ocean
+          break;
+        case 'deepSea':
+          causticsIntensity = 0.4; // Very subtle caustics in deep sea
+          break;
+        case 'shipwreck':
+          causticsIntensity = 0.6; // Muted caustics around shipwrecks
+          break;
+        case 'kelpForest':
+          causticsIntensity = 0.9; // Filtered caustics in kelp forest
+          break;
+      }
+      
+      // Apply interpolated intensity
+      const currentIntensity = this.causticsMaterial.uniforms.uWaterIntensity.value;
+      this.causticsMaterial.uniforms.uWaterIntensity.value = 
+        lerp(currentIntensity, causticsIntensity, transitionProgress);
+      
+      // Update caustics material color
+      if (this.causticsMaterial.uniforms.uWaterColor) {
+        this.causticsMaterial.uniforms.uWaterColor.value = transitionColor;
+      }
+    }
+    
+    // Update ambient particles with theme-specific colors and behavior
+    if (this.ambientParticles && this.ambientParticles.material instanceof THREE.ShaderMaterial) {
+      // Add uniforms for theme-based particle appearance if they don't exist
+      if (!this.ambientParticles.material.uniforms.uParticleColor) {
+        this.ambientParticles.material.uniforms.uParticleColor = { value: new THREE.Color() };
+      }
+      
+      if (!this.ambientParticles.material.uniforms.uParticleSize) {
+        this.ambientParticles.material.uniforms.uParticleSize = { value: 1.0 };
+      }
+      
+      // Set theme-specific particle properties
+      let particleColor: THREE.Color;
+      let particleSize = 1.0;
+      
+      switch (theme.type) {
+        case 'reef':
+          particleColor = new THREE.Color(0xffffff); // Bright particulates in reef
+          particleSize = 1.2;
+          break;
+        case 'openOcean':
+          particleColor = new THREE.Color(0xaaddff); // Blueish particulates in open ocean
+          particleSize = 1.0;
+          break;
+        case 'deepSea':
+          particleColor = new THREE.Color(0x445566); // Dark particulates in deep sea
+          particleSize = 0.8;
+          break;
+        case 'shipwreck':
+          particleColor = new THREE.Color(0xccccaa); // Murky particulates near shipwrecks
+          particleSize = 1.1;
+          break;
+        case 'kelpForest':
+          particleColor = new THREE.Color(0xaaffaa); // Greenish particulates in kelp forest
+          particleSize = 1.0;
+          break;
+        default:
+          particleColor = new THREE.Color(0xffffff);
+          particleSize = 1.0;
+      }
+      
+      // Adjust particle count based on theme's particleDensity
+      const geometry = this.ambientParticles.geometry;
+      if (geometry.attributes.size) {
+        const sizes = geometry.attributes.size.array;
+        const baseSize = particleSize * (theme.particleDensity || 1.0);
+        
+        // Update particle sizes
+        for (let i = 0; i < sizes.length; i++) {
+          // Get original random size
+          const originalSize = sizes[i];
+          // Apply theme-specific scaling but keep the randomness
+          const randomFactor = originalSize / 0.2; // Normalize based on default size
+          sizes[i] = baseSize * (0.1 + randomFactor * 0.15);
+        }
+        
+        geometry.attributes.size.needsUpdate = true;
+      }
+      
+      // Update particle material color
+      if (this.ambientParticles.material.uniforms.uParticleColor) {
+        // Interpolate between current and target particle color
+        const currentColor = this.ambientParticles.material.uniforms.uParticleColor.value;
+        this.ambientParticles.material.uniforms.uParticleColor.value = new THREE.Color().lerpColors(
+          currentColor,
+          particleColor,
+          transitionProgress
+        );
+      }
+    }
+    
+    // Update light rays if they exist
+    if (this.quality !== 'low' && this.lightRays) {
+      this.lightRays.children.forEach(child => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.ShaderMaterial) {
+          // Add ray color uniform if it doesn't exist
+          if (!child.material.uniforms.uRayColor) {
+            child.material.uniforms.uRayColor = { value: new THREE.Color(1, 1, 0.9) };
           }
-        });
+          
+          // Set theme-specific ray colors
+          let rayColor: THREE.Color;
+          let rayIntensity = 1.0;
+          
+          switch (theme.type) {
+            case 'reef':
+              rayColor = new THREE.Color(1, 1, 0.9); // Bright yellow-white in reef
+              rayIntensity = 1.2;
+              break;
+            case 'openOcean':
+              rayColor = new THREE.Color(0.8, 0.9, 1.0); // Blueish in open ocean
+              rayIntensity = 1.0;
+              break;
+            case 'deepSea':
+              rayColor = new THREE.Color(0.3, 0.4, 0.6); // Very dark blue in deep sea
+              rayIntensity = 0.5;
+              break;
+            case 'shipwreck':
+              rayColor = new THREE.Color(0.7, 0.7, 0.6); // Muted gold in shipwreck
+              rayIntensity = 0.8;
+              break;
+            case 'kelpForest':
+              rayColor = new THREE.Color(0.7, 0.9, 0.7); // Greenish in kelp forest
+              rayIntensity = 0.9;
+              break;
+            default:
+              rayColor = new THREE.Color(1, 1, 0.9);
+              rayIntensity = 1.0;
+          }
+          
+          // Update ray color with transition
+          const currentColor = child.material.uniforms.uRayColor.value;
+          child.material.uniforms.uRayColor.value = new THREE.Color().lerpColors(
+            currentColor,
+            rayColor,
+            transitionProgress
+          );
+          
+          // Adjust blending mode based on environment
+          const material = child.material as THREE.ShaderMaterial;
+          if (theme.type === 'deepSea' || theme.type === 'shipwreck') {
+            material.blending = THREE.AdditiveBlending;
+            material.blendSrc = THREE.OneFactor;
+            material.blendDst = THREE.OneFactor;
+          } else {
+            material.blending = THREE.AdditiveBlending;
+            material.blendSrc = THREE.SrcAlphaFactor;
+            material.blendDst = THREE.OneFactor;
+          }
+          
+          // Adjust ray visibility
+          const visibilityScale = theme.type === 'deepSea' ? 0.3 : 1.0;
+          child.visible = theme.type !== 'deepSea' || Math.random() < 0.3;
+          
+          // Adjust ray intensity
+          if (child.material.uniforms.uIntensity) {
+            child.material.uniforms.uIntensity.value = rayIntensity;
+          }
+        }
+      });
+    }
+    
+    // Update surface ripples if they exist
+    if (this.surfaceRipples && this.surfaceRipples.material instanceof THREE.ShaderMaterial) {
+      // Add ripple color uniform if it doesn't exist
+      if (!this.surfaceRipples.material.uniforms.uWaterColor) {
+        this.surfaceRipples.material.uniforms.uWaterColor = { value: new THREE.Color() };
       }
       
-      // Update surface ripples if they exist
-      if (this.surfaceRipples && this.surfaceRipples.material instanceof THREE.ShaderMaterial) {
-        // Update ripple color and opacity
+      if (!this.surfaceRipples.material.uniforms.uWaterOpacity) {
+        this.surfaceRipples.material.uniforms.uWaterOpacity = { value: 0.8 };
       }
-    } else {
-      // If transition is complete, just set the final values
+      
+      // Update ripple color with theme-specific colors
+      this.surfaceRipples.material.uniforms.uWaterColor.value = transitionColor;
+      
+      // Adjust ripple visibility based on depth
+      let rippleOpacity = 0.8;
+      let rippleHeight = 8;
+      
+      // Different environments have different surface appearances
+      switch (theme.type) {
+        case 'reef':
+          rippleOpacity = 0.8; // Clearer surface in reef
+          rippleHeight = 6; // Lower surface for brighter environment
+          break;
+        case 'openOcean':
+          rippleOpacity = 0.7; // Standard open ocean
+          rippleHeight = 8;
+          break;
+        case 'deepSea':
+          rippleOpacity = 0.2; // Almost invisible in deep sea
+          rippleHeight = 15; // Much higher to simulate depth
+          break;
+        case 'shipwreck':
+          rippleOpacity = 0.5; // Murky in shipwreck
+          rippleHeight = 10;
+          break;
+        case 'kelpForest':
+          rippleOpacity = 0.6; // Filtered in kelp forest
+          rippleHeight = 7;
+          break;
+      }
+      
+      // Update opacity with transition
+      const currentOpacity = this.surfaceRipples.material.uniforms.uWaterOpacity.value;
+      this.surfaceRipples.material.uniforms.uWaterOpacity.value = 
+        lerp(currentOpacity, rippleOpacity, transitionProgress);
+      
+      // Update ripple height
+      const targetY = rippleHeight;
+      this.surfaceRipples.position.y = lerp(this.surfaceRipples.position.y, targetY, transitionProgress);
+    }
+    
+    // Update bubble system based on theme
+    if (this.bubbleSystem && this.bubbleSystem.material instanceof THREE.ShaderMaterial) {
+      // Adjust bubble visibility and behavior based on environment
+      let bubbleDensity = 1.0;
+      
+      switch (theme.type) {
+        case 'reef':
+          bubbleDensity = 1.0; // Normal bubbles in reef
+          break;
+        case 'openOcean':
+          bubbleDensity = 0.7; // Fewer bubbles in open ocean
+          break;
+        case 'deepSea':
+          bubbleDensity = 0.3; // Very few bubbles in deep sea
+          break;
+        case 'shipwreck':
+          bubbleDensity = 1.2; // More bubbles around shipwrecks (organic decay)
+          break;
+        case 'kelpForest':
+          bubbleDensity = 1.1; // Slightly more bubbles in kelp (photosynthesis)
+          break;
+      }
+      
+      // Adjust bubble visibility based on density
+      if (this.bubbleVisibility) {
+        const visibilityAttribute = this.bubbleSystem.geometry.getAttribute('visibility');
+        
+        if (visibilityAttribute) {
+          for (let i = 0; i < this.bubbleVisibility.length; i++) {
+            // Only adjust bubbles that are currently invisible and randomize which ones we make visible
+            if (this.bubbleVisibility[i] < 0.5 && Math.random() < transitionProgress) {
+              // Use the theme density to determine how many bubbles to show
+              this.bubbleVisibility[i] = Math.random() < bubbleDensity ? 1.0 : 0.0;
+              (visibilityAttribute as THREE.BufferAttribute).setX(i, this.bubbleVisibility[i]);
+            }
+          }
+          
+          (visibilityAttribute as THREE.BufferAttribute).needsUpdate = true;
+        }
+      }
+    }
+    
+    // Store the final values when transition is complete
+    if (transitionProgress >= 1.0) {
       this.currentWaterColor = targetWaterColor.clone();
       this.currentWaterOpacity = targetWaterOpacity;
     }

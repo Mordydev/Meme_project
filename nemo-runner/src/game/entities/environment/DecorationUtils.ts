@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { NoiseGenerator } from '../../utils/NoiseGenerator';
 import { PlaceholderGenerator } from '../../utils/PlaceholderGenerator';
 import { getDeviceCapabilities, optimizeGeometry } from '../../utils/DeviceUtils';
+import { RockDecorations } from './decorations/RockDecorations';
 
 /**
  * Utility class providing shared methods for decoration classes
@@ -409,46 +410,8 @@ export class DecorationUtils {
     baseSize: number = 0.2,
     spread: number = 0.5
   ): THREE.Group {
-    const group = new THREE.Group();
-    group.name = "rock_cluster";
-    
-    const rockMaterial = this.createStandardMaterial(
-      this.createRockColor(), 
-      { roughness: 0.9, metalness: 0.1 }
-    );
-    
-    for (let i = 0; i < count; i++) {
-      // Vary rock shape
-      const geometry = Math.random() > 0.5 ? 
-        new THREE.IcosahedronGeometry(baseSize * (0.5 + Math.random() * 0.5), 0) :
-        new THREE.DodecahedronGeometry(baseSize * (0.5 + Math.random() * 0.5), 0);
-      
-      // Add some noise to the geometry
-      this.deformSphereWithNoise(geometry, 2, 0.1);
-      
-      const rock = new THREE.Mesh(geometry, rockMaterial);
-      rock.name = `small_rock_${i}`;
-      
-      // Position around base
-      const theta = Math.random() * Math.PI * 2;
-      const dist = spread * Math.random();
-      rock.position.set(
-        Math.cos(theta) * dist,
-        (Math.random() - 0.5) * spread * 0.5,
-        Math.sin(theta) * dist
-      );
-      
-      // Random rotation
-      rock.rotation.set(
-        Math.random() * Math.PI * 2,
-        Math.random() * Math.PI * 2,
-        Math.random() * Math.PI * 2
-      );
-      
-      group.add(rock);
-    }
-    
-    return group;
+    // Delegate to the RockDecorations implementation to avoid duplication
+    return RockDecorations.createRockCluster(count, baseSize, spread);
   }
 
   /**
