@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { ProceduralAssetFactory } from '../assets/ProceduralAssetFactory';
 import { configSystem } from '../core/ConfigurationSystem';
+import { ClamAsset } from '../assets/obstacles/ClamAsset';
 
 interface CollectibleInstanceData {
   id: number; // Unique ID for this instance
@@ -32,9 +33,10 @@ export class CollectibleManager {
 
   private spawnTimer = 0;
   private spawnInterval = 1.5; // seconds, from config later
+  private debug = false; // Enable to log spawn info
 
   private patterns: Array<(lane: number, startZ: number, type: 'bubble' | 'coin') => THREE.Vector3[]> = [
-    this.linePattern, this.wavePattern, this.clusterPattern
+    this.linePattern, this.wavePattern, this.clusterPattern, this.obviousPattern
   ];
 
   constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory) {
@@ -115,11 +117,16 @@ export class CollectibleManager {
     return [undefined, -1];
   }
 
-  private spawnPattern(playerZ: number): void {
-    const type = Math.random() < 0.7 ? 'bubble' : 'coin'; // 70% bubbles, 30% coins
-    const patternFn = this.patterns[Math.floor(Math.random() * this.patterns.length)];
+  private spawnPattern(playerZ: number, forceObvious: boolean = false): void {
+    const type = Math.random() < 0.5 ? 'bubble' : 'coin'; // 50% bubbles, 50% coins
+    
+    // Use obvious pattern if forced, otherwise random pattern
+    const patternFn = forceObvious ? 
+                      this.obviousPattern : 
+                      this.patterns[Math.floor(Math.random() * this.patterns.length)];
+    
     const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
-    const startZ = playerZ - (configSystem.get('collectibles')?.spawnDistanceAhead || 25); // Spawn ahead
+    const startZ = playerZ - (configSystem.get('collectibles')?.spawnDistanceAhead || 20); // Closer spawn for better visibility
 
     const positions = patternFn.call(this, lane, startZ, type); // Use .call to bind 'this' if pattern methods use it
 
@@ -142,17 +149,34 @@ export class CollectibleManager {
         const instancesMesh = type === 'bubble' ? this.bubbleInstances : this.coinInstances;
         instancesMesh.setMatrixAt(index, instance.matrix);
         instancesMesh.instanceMatrix.needsUpdate = true;
+
+        if (this.debug) {
+          const pos = new THREE.Vector3();
+          pos.setFromMatrixPosition(instance.matrix);
+          console.log(`CollectibleManager: Spawned ${type} at x:${pos.x.toFixed(1)}, y:${pos.y.toFixed(1)}, z:${pos.z.toFixed(1)}`);
+        }
       }
     });
-    console.log(`CollectibleManager: Spawned ${type} pattern with ${positions.length} items.`);
+
+    if (this.debug || positions.length === 0) {
+      console.log(`CollectibleManager: Spawned ${type} pattern with ${positions.length} items.`);
+    }
   }
   
   // --- Example Pattern Functions ---
   private linePattern(lane: number, startZ: number, type: 'bubble' | 'coin'): THREE.Vector3[] {
     const positions: THREE.Vector3[] = [];
     const count = type === 'bubble' ? 8 : 5;
-    const spacing = 0.8;
-    const yPos = configSystem.get('player')?.normalYPosition || -0.45; // Spawn at player's normal height
+    const spacing = 1.2; // Increased spacing for better visibility
+    
+    // Raise the height slightly above player's eye level for better visibility
+    let yPos = -0.3; // Slightly higher than player's normal position
+    
+    // Offset the height for bubble vs coin
+    if (type === 'bubble') {
+      yPos = -0.25; // Bubbles float higher
+    }
+    
     for (let i = 0; i < count; i++) {
       positions.push(new THREE.Vector3(lane * configSystem.getPlayerLaneWidth(), yPos, startZ - i * spacing));
     }
@@ -162,12 +186,20 @@ export class CollectibleManager {
   private wavePattern(lane: number, startZ: number, type: 'bubble' | 'coin'): THREE.Vector3[] {
     const positions: THREE.Vector3[] = [];
     const count = type === 'bubble' ? 10 : 6;
-    const amplitude = 0.3;
+    const amplitude = 0.5; // Increased for more noticeable wave
     const frequency = 0.5;
-    const yPos = configSystem.get('player')?.normalYPosition || -0.45;
+    
+    // Raise the height for better visibility
+    let yPos = -0.3; // Slightly higher than player's normal position
+    
+    // Offset the height for bubble vs coin
+    if (type === 'bubble') {
+      yPos = -0.25; // Bubbles float higher
+    }
+    
     for (let i = 0; i < count; i++) {
       const xOffset = Math.sin(i * frequency) * amplitude;
-      positions.push(new THREE.Vector3(lane * configSystem.getPlayerLaneWidth() + xOffset, yPos, startZ - i * 0.7));
+      positions.push(new THREE.Vector3(lane * configSystem.getPlayerLaneWidth() + xOffset, yPos, startZ - i * 0.9)); // Increased spacing
     }
     return positions;
   }
@@ -175,16 +207,59 @@ export class CollectibleManager {
   private clusterPattern(lane: number, startZ: number, type: 'bubble' | 'coin'): THREE.Vector3[] {
     const positions: THREE.Vector3[] = [];
     const count = type === 'bubble' ? 5 : 3;
-    const radius = 0.5;
-    const yPos = configSystem.get('player')?.normalYPosition || -0.45;
+    const radius = 0.7; // Increased radius for more spread
+    
+    // Raise the height for better visibility
+    let yPos = -0.3; // Slightly higher than player's normal position
+    
+    // Offset the height for bubble vs coin
+    if (type === 'bubble') {
+      yPos = -0.25; // Bubbles float higher
+    }
+    
     for (let i = 0; i < count; i++) {
         const angle = (i / count) * Math.PI * 2;
         positions.push(new THREE.Vector3(
             lane * configSystem.getPlayerLaneWidth() + Math.cos(angle) * radius,
-            yPos + Math.sin(angle) * radius * 0.5, // Slight vertical spread
-            startZ - Math.random() * 1.5 // Spread out in Z
+            yPos + Math.sin(angle) * radius * 0.5, // Vertical spread
+            startZ - Math.random() * 2.0 // More spread out in Z
         ));
     }
+    return positions;
+  }
+
+  // A very obvious pattern with larger items in all lanes - SUPER VISIBLE version
+  private obviousPattern(lane: number, startZ: number, type: 'bubble' | 'coin'): THREE.Vector3[] {
+    const positions: THREE.Vector3[] = [];
+    const laneWidth = configSystem.getPlayerLaneWidth();
+    
+    // Create collectibles in all three lanes
+    const spacing = 1.5; // Tighter spacing to create more density
+    const count = 8; // More items for better visibility
+    
+    // Higher position for guaranteed visibility - right at player eye level
+    const yPos = type === 'bubble' ? 0.0 : -0.1; // Almost at center of screen
+    
+    // Put collectibles in all lanes directly in front of player
+    for (let i = 0; i < count; i++) {
+      // Center lane - ALWAYS have items here
+      positions.push(new THREE.Vector3(0, yPos, startZ - i * spacing));
+      
+      // Left and right lanes - alternate for visual pattern
+      if (i % 3 === 0) { // Every 3rd position
+        // Add to BOTH side lanes for maximum visibility
+        positions.push(new THREE.Vector3(-laneWidth, yPos, startZ - i * spacing));
+        positions.push(new THREE.Vector3(laneWidth, yPos, startZ - i * spacing));
+      } else if (i % 3 === 1) {
+        // Left lane only
+        positions.push(new THREE.Vector3(-laneWidth, yPos, startZ - i * spacing));
+      } else {
+        // Right lane only
+        positions.push(new THREE.Vector3(laneWidth, yPos, startZ - i * spacing));
+      }
+    }
+    
+    console.log(`CollectibleManager: Obvious pattern created with ${positions.length} ${type}s starting at z=${startZ}`);
     return positions;
   }
 
@@ -230,9 +305,14 @@ export class CollectibleManager {
           
           position.y = instance.baseY + hoverOffset; // Apply hover to base Y
 
-          if (spinSpeed > 0 && instance.type === 'coin') { // Coins spin around Y axis
-              const deltaRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), spinSpeed * deltaTime);
-              quaternion.multiplyQuaternions(deltaRotation, quaternion);
+          if (spinSpeed > 0 && instance.type === 'coin') {
+              // Coins face the camera (X rotation = 90 degrees) for better visibility
+              const faceCamera = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), Math.PI / 2);
+
+              // Add spin around Z axis (now facing up since coin is rotated)
+              const spinRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), instance.hoverTime * 2);
+              quaternion.copy(faceCamera);
+              quaternion.multiply(spinRotation);
           }
           
           instance.matrix.compose(position, quaternion, scale);
@@ -252,12 +332,25 @@ export class CollectibleManager {
     const findAndDeactivate = (dataArray: CollectibleInstanceData[], instancesMesh: THREE.InstancedMesh) => {
         for (let i = 0; i < dataArray.length; i++) {
             if (dataArray[i].id === instanceId && dataArray[i].isActive) {
-                dataArray[i].isActive = false;
+                const collectedPosition = new THREE.Vector3();
+                new THREE.Vector3().setFromMatrixPosition(dataArray[i].matrix.clone(), collectedPosition);
+
+                // Get information before deactivating
+                const collectedType = dataArray[i].type;
                 scoreValue = dataArray[i].scoreValue;
+
+                // Deactivate the collectible
+                dataArray[i].isActive = false;
                 const hiddenMatrix = new THREE.Matrix4().setPosition(0, -1000, 0); // Move off-screen
                 instancesMesh.setMatrixAt(i, hiddenMatrix);
                 instancesMesh.instanceMatrix.needsUpdate = true;
-                console.log(`CollectibleManager: Collected ${dataArray[i].type} id: ${instanceId}, value: ${scoreValue}`);
+
+                // Log collection with more info
+                console.log(`CollectibleManager: Collected ${collectedType} id: ${instanceId}, value: ${scoreValue}, at position: ${collectedPosition.x.toFixed(1)}, ${collectedPosition.y.toFixed(1)}, ${collectedPosition.z.toFixed(1)}`);
+
+                // Add visual feedback at collection spot (will be implemented later)
+                // this.playCollectionEffect(collectedPosition, collectedType);
+
                 return true; // Found and deactivated
             }
         }
@@ -299,8 +392,42 @@ export class CollectibleManager {
       });
       instancesMesh.instanceMatrix.needsUpdate = true;
     });
-    this.resetTimeToNextSpawn();
-    console.log("CollectibleManager: Reset.");
+    
+    // Force immediate spawn on reset
+    this.spawnTimer = 0;
+    console.log("CollectibleManager: Reset. Will spawn collectibles immediately.");
+    
+    // Force multiple obvious patterns to ensure player sees collectibles
+    setTimeout(() => {
+      try {
+        // Get player Z position
+        // @ts-ignore - using window.__gameEngine as a way to get player position
+        const playerZ = window.__gameEngine?.playerController?.mesh?.position?.z || 0;
+        
+        // Spawn first pattern - using the forceObvious parameter
+        this.spawnPattern(playerZ, true); // Force obvious pattern
+        
+        // Force a second pattern a little further ahead
+        setTimeout(() => {
+          // Force more patterns 1 second later to ensure visibility
+          const updatedPlayerZ = window.__gameEngine?.playerController?.mesh?.position?.z || 0;
+          this.spawnPattern(updatedPlayerZ, true); // Force another obvious pattern
+          
+          // And one more specifically for coins
+          setTimeout(() => {
+            const finalZ = window.__gameEngine?.playerController?.mesh?.position?.z || 0;
+            this.spawnPattern(finalZ, true); // One final pattern
+            console.log("CollectibleManager: Third pattern spawned for maximum visibility");
+          }, 1000);
+          
+          console.log("CollectibleManager: Second pattern spawned for maximum visibility");
+        }, 1000);
+        
+        console.log("CollectibleManager: First forced pattern spawned");
+      } catch (e) {
+        console.error("CollectibleManager: Error during forced initial spawn:", e);
+      }
+    }, 500); // Short delay to ensure the game is properly set up
   }
 
   public dispose(): void {

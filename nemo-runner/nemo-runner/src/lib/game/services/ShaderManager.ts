@@ -28,20 +28,23 @@ export class ShaderManager {
     const coralMaterial = new THREE.MeshPhongMaterial({ color: 0xff7f50 }); // Coral color
     this.materials.set('obstacle_coral', coralMaterial);
 
-    // Collectible materials
+    // Collectible materials - maximizing visibility
     const bubbleMaterial = new THREE.MeshPhongMaterial({
-      color: 0xadd8e6, // Light Blue
+      color: 0x00ffff, // Bright cyan for maximum visibility
       transparent: true,
-      opacity: 0.7,
-      shininess: 90,
-      emissive: 0x112233 // Subtle glow
+      opacity: 0.9, // More opaque
+      shininess: 100,
+      emissive: 0x00ffff, // Strong self-illumination
+      emissiveIntensity: 0.8 // Increased glow
     });
     this.materials.set('collectible_bubble', bubbleMaterial);
 
     const coinMaterial = new THREE.MeshStandardMaterial({
       color: 0xffd700, // Gold
       metalness: 0.7,
-      roughness: 0.4,
+      roughness: 0.1, // Extra shiny
+      emissive: 0xffcc00, // Strong gold glow
+      emissiveIntensity: 0.6 // Increased glow
     });
     this.materials.set('collectible_coin', coinMaterial);
 

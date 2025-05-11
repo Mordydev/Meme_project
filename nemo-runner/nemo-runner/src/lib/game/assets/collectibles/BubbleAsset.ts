@@ -3,7 +3,7 @@ import { ShaderManager, MaterialType } from '../../services/ShaderManager';
 
 export class BubbleAsset {
   private shaderManager: ShaderManager;
-  public scoreValue = 10; // Points for collecting a bubble
+  public scoreValue = 25; // Points for collecting a bubble - increased for more reward
 
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
@@ -14,8 +14,8 @@ export class BubbleAsset {
   // This class primarily defines those shared resources.
 
   public getGeometry(): THREE.SphereGeometry {
-    // Bubbles are small spheres
-    return new THREE.SphereGeometry(0.2, 8, 6); // Small radius, low detail
+    // Bubbles are spheres - increased size for better visibility
+    return new THREE.SphereGeometry(0.35, 12, 12); // Larger radius, better detail
   }
 
   public getMaterial(): THREE.Material {

@@ -112,11 +112,14 @@ export default function GameCanvas() {
           top: '20px',
           left: '20px',
           color: 'white',
-          fontSize: '24px',
+          fontSize: '32px', // Larger font
           fontWeight: 'bold',
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          padding: '10px',
-          borderRadius: '5px'
+          backgroundColor: 'rgba(0,0,0,0.7)', // More opaque background
+          padding: '12px 20px', // More padding
+          borderRadius: '10px',
+          boxShadow: '0 0 10px rgba(255,255,255,0.3)', // Subtle glow
+          border: '2px solid rgba(255,255,255,0.3)', // Border for visibility
+          zIndex: 100 // Ensure it's on top
         }}>
           Score: {score}
         </div>
@@ -126,22 +129,78 @@ export default function GameCanvas() {
         <div style={{
           position: 'absolute', top: '50%', left: '50%',
           transform: 'translate(-50%, -50%)',
-          backgroundColor: 'rgba(0,0,0,0.7)', color: 'white',
-          padding: '20px', borderRadius: '10px', textAlign: 'center'
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          color: 'white',
+          padding: '30px',
+          borderRadius: '20px',
+          textAlign: 'center',
+          border: '3px solid rgba(255,255,255,0.4)',
+          boxShadow: '0 0 30px rgba(0,0,0,0.8)',
+          minWidth: '300px'
         }}>
-          <h2>Game Over!</h2>
-          <p style={{ fontSize: '20px', marginBottom: '15px' }}>Final Score: {score}</p>
+          <h2 style={{ fontSize: '36px', margin: '0 0 20px 0' }}>Game Over!</h2>
+          <div style={{
+            fontSize: '28px',
+            margin: '25px 0',
+            padding: '15px',
+            backgroundColor: 'rgba(255,255,255,0.15)',
+            borderRadius: '10px',
+            fontWeight: 'bold'
+          }}>
+            Final Score: <span style={{ color: '#ffcc00' }}>{score}</span>
+          </div>
           <button
             onClick={handleRestart}
-            style={{ padding: '10px 20px', marginTop: '10px', fontSize: '16px', cursor: 'pointer' }}
+            style={{
+              padding: '12px 30px',
+              margin: '20px 0 10px 0',
+              fontSize: '20px',
+              cursor: 'pointer',
+              backgroundColor: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+              transition: '0.3s'
+            }}
           >
             Restart
           </button>
         </div>
       )}
       {gameEngineRef.current && gameEngineRef.current.getCurrentState() === GameState.READY && !isGameOver && (
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
-          <button onClick={handleRestart} style={{ padding: '10px 20px', fontSize: '18px', cursor: 'pointer' }}>Start Game</button>
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 10,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          padding: '30px',
+          borderRadius: '20px',
+          boxShadow: '0 0 30px rgba(0,0,0,0.5)',
+          border: '2px solid rgba(255,255,255,0.3)'
+        }}>
+          <h2 style={{ color: 'white', marginTop: 0, textAlign: 'center' }}>Nemo Runner</h2>
+          <button
+            onClick={handleRestart}
+            style={{
+              padding: '15px 30px',
+              fontSize: '22px',
+              cursor: 'pointer',
+              backgroundColor: '#4169E1', // Royal Blue
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+              transition: '0.3s'
+            }}
+          >
+            Start Game
+          </button>
+          <p style={{ color: 'white', textAlign: 'center', marginBottom: 0 }}>Collect bubbles and coins for points!</p>
         </div>
       )}
     </div>

@@ -60,9 +60,9 @@ const defaultConfig: GameConfig = {
     lerpFactor: 0.05,
   },
   collectibles: {
-    spawnIntervalMin: 1.0, // Min seconds between pattern spawns
-    spawnIntervalMax: 2.5, // Max seconds
-    spawnDistanceAhead: 25, // Units ahead of player
+    spawnIntervalMin: 0.5, // Min seconds between pattern spawns - reduced for more frequent spawns
+    spawnIntervalMax: 1.5, // Max seconds - reduced for more frequent spawns
+    spawnDistanceAhead: 20, // Units ahead of player - reduced to see them sooner
   },
 };
 

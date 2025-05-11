@@ -3,15 +3,15 @@ import { ShaderManager, MaterialType } from '../../services/ShaderManager';
 
 export class CoinAsset {
   private shaderManager: ShaderManager;
-  public scoreValue = 50; // Points for collecting a coin
+  public scoreValue = 100; // Points for collecting a coin - increased for more reward
 
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
   }
 
   public getGeometry(): THREE.CylinderGeometry {
-    // Coins are thin cylinders
-    return new THREE.CylinderGeometry(0.25, 0.25, 0.05, 12); // Radius, height, segments
+    // Coins are thin cylinders - increased size for better visibility
+    return new THREE.CylinderGeometry(0.4, 0.4, 0.05, 16); // Larger radius, better detail
   }
 
   public getMaterial(): THREE.Material {

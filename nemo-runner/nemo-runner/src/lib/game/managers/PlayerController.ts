@@ -254,4 +254,9 @@ export class PlayerController {
     }
     console.log("PlayerController: Disposed.");
   }
+
+  // Get forward speed for distance-based scoring
+  public getForwardSpeed(): number {
+    return configSystem.getPlayerMoveSpeed();
+  }
 } 

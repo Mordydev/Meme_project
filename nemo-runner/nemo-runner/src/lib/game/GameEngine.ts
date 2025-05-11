@@ -172,9 +172,9 @@ export class GameEngine {
       this.obstacleManager.update(dt, this.playerController.mesh.position.z);
       this.collectibleManager.update(dt, this.playerController.mesh.position.z);
 
-      // Update score based on distance (optional)
-      // const distanceTraveled = dt * this.playerController.getForwardSpeed();
-      // this.scoringSystem.update(dt, distanceTraveled);
+      // Update score based on distance
+      const distanceTraveled = dt * this.playerController.getForwardSpeed();
+      this.scoringSystem.update(dt, distanceTraveled);
 
       this.collisionSystem.checkCollisions();
     }
@@ -255,5 +255,9 @@ export class GameEngine {
 
   public getScoringSystem(): ScoringSystem {
     return this.scoringSystem;
+  }
+
+  public getPlayerController(): PlayerController {
+    return this.playerController;
   }
 } 

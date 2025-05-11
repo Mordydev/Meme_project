@@ -4,20 +4,40 @@ export class ScoringSystem {
   public currentScore: number = 0;
   private onScoreUpdateCallbacks: Array<(score: number) => void> = [];
 
+  // Distance tracking for consistent scoring
+  private totalDistanceTraveled: number = 0;
+  private lastDistanceMilestone: number = 0;
+  private distancePerPoint: number = 0.5; // Award 1 point per 0.5 units of distance (more frequent)
+
   constructor() {
     console.log("ScoringSystem: Initialized.");
   }
 
+  // For manual score additions (collectibles)
   public addScore(points: number): void {
     this.currentScore += points;
-    // console.log(`ScoringSystem: Score updated to ${this.currentScore}`);
     this.notifyScoreUpdate();
   }
 
-  // For distance-based scoring later
+  // Distance-based scoring - ensures consistent 1-by-1 point increments
   public update(deltaTime: number, distanceIncrement: number): void {
-    // Example: 1 point per unit of distance
-    // this.addScore(Math.floor(distanceIncrement)); 
+    // Accumulate total distance
+    this.totalDistanceTraveled += distanceIncrement;
+
+    // Calculate the next milestone we should be at
+    const currentMilestone = Math.floor(this.totalDistanceTraveled / this.distancePerPoint);
+
+    // If we've reached a new milestone, add exactly one point
+    if (currentMilestone > this.lastDistanceMilestone) {
+      // Only add 1 point per milestone crossing
+      this.addScore(1);
+
+      // Debug distance-based score increments
+      console.log(`ScoringSystem: Distance milestone reached: +1 point (distance: ${this.totalDistanceTraveled.toFixed(2)})`);
+
+      // Update the milestone
+      this.lastDistanceMilestone = currentMilestone;
+    }
   }
   
   private notifyScoreUpdate(): void {
@@ -36,6 +56,8 @@ export class ScoringSystem {
 
   public reset(): void {
     this.currentScore = 0;
+    this.totalDistanceTraveled = 0;
+    this.lastDistanceMilestone = 0;
     this.notifyScoreUpdate();
     console.log("ScoringSystem: Reset.");
   }
