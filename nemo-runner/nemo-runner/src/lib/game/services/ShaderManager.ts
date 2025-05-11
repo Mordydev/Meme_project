@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export type MaterialType = 'player_default' | 'obstacle_rock' | 'collectible_bubble' | 'environment_water' | 'obstacle_coral';
+export type MaterialType = 'player_default' | 'obstacle_rock' | 'obstacle_clam' | 'collectible_bubble' | 'collectible_coin' | 'environment_water' | 'obstacle_coral';
 
 export class ShaderManager {
   private materials: Map<MaterialType, THREE.Material>;
@@ -19,11 +19,31 @@ export class ShaderManager {
     const rockMaterial = new THREE.MeshPhongMaterial({ color: 0x808080 }); // Grey
     this.materials.set('obstacle_rock', rockMaterial);
 
+    const clamMaterial = new THREE.MeshPhongMaterial({ color: 0xe0d1b0, shininess: 60 }); // Sandy beige with shine
+    this.materials.set('obstacle_clam', clamMaterial);
+
     const waterFloorMaterial = new THREE.MeshPhongMaterial({ color: 0x335599, side: THREE.DoubleSide }); // Darker blue for floor
     this.materials.set('environment_water', waterFloorMaterial);
 
     const coralMaterial = new THREE.MeshPhongMaterial({ color: 0xff7f50 }); // Coral color
     this.materials.set('obstacle_coral', coralMaterial);
+
+    // Collectible materials
+    const bubbleMaterial = new THREE.MeshPhongMaterial({
+      color: 0xadd8e6, // Light Blue
+      transparent: true,
+      opacity: 0.7,
+      shininess: 90,
+      emissive: 0x112233 // Subtle glow
+    });
+    this.materials.set('collectible_bubble', bubbleMaterial);
+
+    const coinMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffd700, // Gold
+      metalness: 0.7,
+      roughness: 0.4,
+    });
+    this.materials.set('collectible_coin', coinMaterial);
 
     // Add more placeholders as needed
     console.log("ShaderManager: Default materials initialized.");

@@ -9,6 +9,7 @@ export default function GameCanvas() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGameOver, setIsGameOver] = useState(false);
+  const [score, setScore] = useState<number>(0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -36,8 +37,8 @@ export default function GameCanvas() {
     try {
       console.log("GameCanvas: Initializing GameEngine...");
       const engine = new GameEngine(canvasMountRef.current!, {
-        // Callbacks can be passed here later, e.g., for score updates
-        // onScoreUpdate: (score) => setScoreState(score),
+        // Callback for score updates
+        onScoreUpdate: (score) => setScore(score),
         onGameOver: () => {
           console.log("GameCanvas: Received onGameOver callback.");
           setIsGameOver(true);
@@ -60,6 +61,10 @@ export default function GameCanvas() {
         console.log("GameCanvas: Cleaning up GameEngine...");
         window.removeEventListener('resize', handleResize);
         if (gameEngineRef.current) {
+          // Unregister score callback
+          if (gameEngineRef.current.getScoringSystem()) {
+            gameEngineRef.current.getScoringSystem().unregisterScoreUpdateCallback(setScore);
+          }
           gameEngineRef.current.dispose();
           gameEngineRef.current = null; // Clear the ref
         }
@@ -99,6 +104,24 @@ export default function GameCanvas() {
         </div>
       )}
       <div ref={canvasMountRef} style={{ width: '100%', height: '100%' }} />
+
+      {/* Score Display */}
+      {!isLoading && !error && (
+        <div style={{
+          position: 'absolute',
+          top: '20px',
+          left: '20px',
+          color: 'white',
+          fontSize: '24px',
+          fontWeight: 'bold',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          padding: '10px',
+          borderRadius: '5px'
+        }}>
+          Score: {score}
+        </div>
+      )}
+
       {isGameOver && (
         <div style={{
           position: 'absolute', top: '50%', left: '50%',
@@ -107,7 +130,8 @@ export default function GameCanvas() {
           padding: '20px', borderRadius: '10px', textAlign: 'center'
         }}>
           <h2>Game Over!</h2>
-          <button 
+          <p style={{ fontSize: '20px', marginBottom: '15px' }}>Final Score: {score}</p>
+          <button
             onClick={handleRestart}
             style={{ padding: '10px 20px', marginTop: '10px', fontSize: '16px', cursor: 'pointer' }}
           >

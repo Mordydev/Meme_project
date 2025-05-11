@@ -21,11 +21,26 @@ export class InputHandler {
 
   private handleKeyDown(event: KeyboardEvent): void {
     if (!this.keysPressed[event.key]) { // Only trigger on initial press
-      if (event.key === 'ArrowLeft' || event.key === 'a') {
-        this.playerController.moveLeft();
-      }
-      if (event.key === 'ArrowRight' || event.key === 'd') {
-        this.playerController.moveRight();
+      switch (event.key) {
+        case 'ArrowLeft':
+        case 'a':
+          this.playerController.moveLeft();
+          break;
+        case 'ArrowRight':
+        case 'd':
+          this.playerController.moveRight();
+          break;
+        case 'ArrowUp':
+        case 'w':
+        case ' ': // Space bar for jump
+          event.preventDefault(); // Prevent page scroll if using space
+          this.playerController.jump();
+          break;
+        case 'ArrowDown':
+        case 's':
+          event.preventDefault();
+          this.playerController.dive();
+          break;
       }
     }
     this.keysPressed[event.key] = true;

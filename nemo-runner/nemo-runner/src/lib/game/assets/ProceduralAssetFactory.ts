@@ -2,16 +2,28 @@ import * as THREE from 'three';
 import { ShaderManager, MaterialType } from '../services/ShaderManager';
 import { SeafloorAsset } from './environment/SeafloorAsset';
 import { CoralAsset } from './obstacles/CoralAsset';
+import { RockAsset } from './obstacles/RockAsset';
+import { ClamAsset } from './obstacles/ClamAsset';
+import { BubbleAsset } from './collectibles/BubbleAsset';
+import { CoinAsset } from './collectibles/CoinAsset';
 
 export class ProceduralAssetFactory {
   private shaderManager: ShaderManager;
   private seafloorAssetGenerator: SeafloorAsset;
   private coralAssetGenerator: CoralAsset;
+  private rockAssetGenerator: RockAsset;
+  private clamAssetGenerator: ClamAsset;
+  private bubbleAssetGenerator: BubbleAsset;
+  private coinAssetGenerator: CoinAsset;
 
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
     this.seafloorAssetGenerator = new SeafloorAsset(this.shaderManager);
     this.coralAssetGenerator = new CoralAsset(this.shaderManager);
+    this.rockAssetGenerator = new RockAsset(this.shaderManager);
+    this.clamAssetGenerator = new ClamAsset(this.shaderManager);
+    this.bubbleAssetGenerator = new BubbleAsset(this.shaderManager);
+    this.coinAssetGenerator = new CoinAsset(this.shaderManager);
     console.log("ProceduralAssetFactory: Initialized.");
   }
 
@@ -19,7 +31,7 @@ export class ProceduralAssetFactory {
     // Placeholder geometry, will become procedural later
     const geometry = new THREE.SphereGeometry(0.5, 16, 16);
     const material = this.shaderManager.getMaterial('player_default') || new THREE.MeshBasicMaterial({color: 0xff0000}); // Fallback
-    
+
     const mesh = new THREE.Mesh(geometry, material);
     // Set initial properties, name, userData etc. if needed
     mesh.name = "PlayerPlaceholder";
@@ -30,10 +42,14 @@ export class ProceduralAssetFactory {
     return this.seafloorAssetGenerator.createMesh();
   }
 
-  public createObstacleMesh(type: 'coral'): THREE.Mesh {
+  public createObstacleMesh(type: 'coral' | 'rock' | 'clam'): THREE.Mesh | THREE.Group {
     switch (type) {
       case 'coral':
         return this.coralAssetGenerator.createMesh();
+      case 'rock':
+        return this.rockAssetGenerator.createMesh();
+      case 'clam':
+        return this.clamAssetGenerator.createMesh();
       default:
         console.warn(`ProceduralAssetFactory: Unknown obstacle type "${type}". Creating fallback.`);
         // Fallback simple mesh
@@ -59,5 +75,24 @@ export class ProceduralAssetFactory {
 
   public get seafloorAsset(): SeafloorAsset {
     return this.seafloorAssetGenerator;
+  }
+
+  // Methods for collectibles - used by CollectibleManager for instanced rendering
+  public getCollectibleGeometry(type: 'bubble' | 'coin'): THREE.BufferGeometry {
+    return type === 'bubble'
+      ? this.bubbleAssetGenerator.getGeometry()
+      : this.coinAssetGenerator.getGeometry();
+  }
+
+  public getCollectibleMaterial(type: 'bubble' | 'coin'): THREE.Material {
+    return type === 'bubble'
+      ? this.bubbleAssetGenerator.getMaterial()
+      : this.coinAssetGenerator.getMaterial();
+  }
+
+  public getCollectibleScoreValue(type: 'bubble' | 'coin'): number {
+    return type === 'bubble'
+      ? this.bubbleAssetGenerator.scoreValue
+      : this.coinAssetGenerator.scoreValue;
   }
 } 

@@ -8,6 +8,8 @@ import { ProceduralAssetFactory } from './assets/ProceduralAssetFactory';
 import { EnvironmentManager } from './managers/EnvironmentManager';
 import { ObstacleManager } from './managers/ObstacleManager';
 import { CollisionDetectionSystem } from './core/CollisionDetectionSystem';
+import { CollectibleManager } from './managers/CollectibleManager';
+import { ScoringSystem } from './managers/ScoringSystem';
 
 interface GameEngineCallbacks {
   onScoreUpdate?: (score: number) => void;
@@ -41,6 +43,8 @@ export class GameEngine {
   private assetFactory!: ProceduralAssetFactory;
   private environmentManager!: EnvironmentManager;
   private obstacleManager!: ObstacleManager;
+  private collectibleManager!: CollectibleManager;
+  private scoringSystem!: ScoringSystem;
   private collisionSystem!: CollisionDetectionSystem;
 
   private animationFrameId?: number;
@@ -98,12 +102,28 @@ export class GameEngine {
       // ObstacleManager
       this.obstacleManager = new ObstacleManager(this.scene, this.assetFactory);
 
+      // ScoringSystem and CollectibleManager
+      this.scoringSystem = new ScoringSystem();
+
+      // Register callback for score updates if provided
+      if (this.callbacks.onScoreUpdate) {
+        this.scoringSystem.registerScoreUpdateCallback(this.callbacks.onScoreUpdate);
+      }
+
+      this.collectibleManager = new CollectibleManager(this.scene, this.assetFactory);
+
       // CollisionDetectionSystem
       this.collisionSystem = new CollisionDetectionSystem(
         this.playerController,
         this.obstacleManager,
-        () => this.gameOver()
+        this.collectibleManager,
+        this.scoringSystem,
+        () => this.gameOver(),
+        this // Pass reference to game engine for state checking
       );
+
+      // Recreate obstacle pool to ensure all obstacles have the latest updates (collision spheres)
+      this.obstacleManager.recreatePool();
 
       this.currentState = GameState.READY;
       console.log("GameEngine: Initialized successfully. State: READY");
@@ -150,6 +170,12 @@ export class GameEngine {
       this.playerController.update(dt);
       this.environmentManager.update(dt, this.playerController.mesh.position.z);
       this.obstacleManager.update(dt, this.playerController.mesh.position.z);
+      this.collectibleManager.update(dt, this.playerController.mesh.position.z);
+
+      // Update score based on distance (optional)
+      // const distanceTraveled = dt * this.playerController.getForwardSpeed();
+      // this.scoringSystem.update(dt, distanceTraveled);
+
       this.collisionSystem.checkCollisions();
     }
     this.cameraManager.update(dt);
@@ -179,6 +205,8 @@ export class GameEngine {
     if (this.playerController) this.playerController.dispose();
     if (this.environmentManager) this.environmentManager.dispose();
     if (this.obstacleManager) this.obstacleManager.dispose();
+    if (this.collectibleManager) this.collectibleManager.dispose();
+    if (this.scoringSystem) this.scoringSystem.dispose();
     if (this.collisionSystem) this.collisionSystem.dispose();
     if (this.assetFactory) this.assetFactory.dispose();
     if (this.shaderManager) this.shaderManager.dispose();
@@ -210,6 +238,8 @@ export class GameEngine {
     this.playerController.reset();
     this.obstacleManager.reset();
     this.environmentManager.reset(this.playerController.mesh.position.z);
+    this.collectibleManager.reset();
+    this.scoringSystem.reset();
     this.lastTimestamp = performance.now();
     this.currentState = GameState.READY;
     console.log("GameEngine: Game reset.");
@@ -221,5 +251,9 @@ export class GameEngine {
 
   public getScene(): THREE.Scene {
     return this.scene;
+  }
+
+  public getScoringSystem(): ScoringSystem {
+    return this.scoringSystem;
   }
 } 

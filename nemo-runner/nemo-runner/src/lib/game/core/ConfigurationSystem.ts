@@ -6,7 +6,15 @@ interface GameConfig {
     laneWidth: number; // Width of a single lane
     laneChangeDuration: number; // Duration of the lane change animation
     initialLives: number;
-    // Add more player-specific configs later (jumpHeight, diveDepth, etc.)
+    jumpHeight: number; // Max height of the jump arc
+    jumpDuration: number; // Time to complete one jump (up and down)
+    diveDepth: number; // Max depth of the dive arc
+    diveDuration: number; // Time to complete one dive (down and up)
+    gravity?: number; // Optional: If using physics-based jump/dive
+    normalYPosition: number; // Default Y position for the player
+  };
+  collisions: {
+    obstacleRadiusFactor: number; // Factor to scale obstacle bounding sphere radius for collision detection
   };
   world: {
     // World-specific configs (gravity, segmentLength, etc.)
@@ -18,7 +26,12 @@ interface GameConfig {
     lookAtOffset: { x: number; y: number; z: number };
     lerpFactor: number;
   };
-  // Add more categories like 'difficulty', 'obstacles', 'collectibles'
+  collectibles: {
+    spawnIntervalMin: number; // Min seconds between pattern spawns
+    spawnIntervalMax: number; // Max seconds
+    spawnDistanceAhead: number; // How far ahead to spawn collectibles
+  }
+  // Add more categories like 'difficulty', 'obstacles'
 }
 
 // Default configuration values
@@ -28,6 +41,14 @@ const defaultConfig: GameConfig = {
     laneWidth: 2, // Example, adjust as needed
     laneChangeDuration: 0.2, // Seconds for lane change
     initialLives: 1,
+    jumpHeight: 2.2, // 2.2 units above normal Y - increased for better clearance
+    jumpDuration: 0.8, // 0.8 seconds for the full jump arc - increased for more hang time
+    diveDepth: 1.2, // 1.2 units below normal Y - increased for better clearance
+    diveDuration: 0.65, // 0.65 seconds for the full dive arc - increased for more time underwater
+    normalYPosition: -0.5, // Default Y position when not jumping/diving
+  },
+  collisions: {
+    obstacleRadiusFactor: 0.7, // Scale obstacle collision radius to 70% of visual radius
   },
   world: {
     xBoundary: 5,
@@ -37,6 +58,11 @@ const defaultConfig: GameConfig = {
     offset: { x: 0, y: 2.5, z: 6 },
     lookAtOffset: { x: 0, y: 0.5, z: -10 },
     lerpFactor: 0.05,
+  },
+  collectibles: {
+    spawnIntervalMin: 1.0, // Min seconds between pattern spawns
+    spawnIntervalMax: 2.5, // Max seconds
+    spawnDistanceAhead: 25, // Units ahead of player
   },
 };
 
@@ -70,6 +96,28 @@ class ConfigurationSystem {
 
   public getWorldLaneCount(): number {
     return this.config.world.laneCount;
+  }
+
+  // Jump & dive getters
+  public getPlayerJumpHeight(): number {
+    return this.config.player.jumpHeight;
+  }
+
+  public getPlayerJumpDuration(): number {
+    return this.config.player.jumpDuration;
+  }
+
+  public getPlayerDiveDepth(): number {
+    return this.config.player.diveDepth;
+  }
+
+  public getPlayerDiveDuration(): number {
+    return this.config.player.diveDuration;
+  }
+
+  // Collision getters
+  public getObstacleRadiusFactor(): number {
+    return this.config.collisions.obstacleRadiusFactor;
   }
 }
 
