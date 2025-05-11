@@ -10,6 +10,7 @@ interface GameConfig {
     jumpDuration: number; // Time to complete one jump (up and down)
     diveDepth: number; // Max depth of the dive arc
     diveDuration: number; // Time to complete one dive (down and up)
+    invincibilityDuration: number; // Duration of invincibility after taking damage
     gravity?: number; // Optional: If using physics-based jump/dive
     normalYPosition: number; // Default Y position for the player
   };
@@ -45,6 +46,7 @@ const defaultConfig: GameConfig = {
     jumpDuration: 0.8, // 0.8 seconds for the full jump arc - increased for more hang time
     diveDepth: 1.2, // 1.2 units below normal Y - increased for better clearance
     diveDuration: 0.65, // 0.65 seconds for the full dive arc - increased for more time underwater
+    invincibilityDuration: 1.5, // 1.5 seconds of invincibility after being hit
     normalYPosition: -0.5, // Default Y position when not jumping/diving
   },
   collisions: {
@@ -60,9 +62,9 @@ const defaultConfig: GameConfig = {
     lerpFactor: 0.05,
   },
   collectibles: {
-    spawnIntervalMin: 0.5, // Min seconds between pattern spawns - reduced for more frequent spawns
-    spawnIntervalMax: 1.5, // Max seconds - reduced for more frequent spawns
-    spawnDistanceAhead: 20, // Units ahead of player - reduced to see them sooner
+    spawnIntervalMin: 2.0, // More balanced spawn rate
+    spawnIntervalMax: 3.5, // Provides good pacing and variety
+    spawnDistanceAhead: 20, // Good distance for player reaction time
   },
 };
 

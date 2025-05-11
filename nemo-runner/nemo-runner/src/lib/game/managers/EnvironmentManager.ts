@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ProceduralAssetFactory } from '../assets/ProceduralAssetFactory';
+import { ConfigurationSystem, configSystem } from '../core/ConfigurationSystem';
 // import { PlayerController } from './PlayerController'; // Will need later for player position
 
 interface EnvironmentSegment {
@@ -134,5 +135,13 @@ export class EnvironmentManager {
       this.spawnSegmentAhead(true);
     }
     console.log("EnvironmentManager: Reset.");
+  }
+
+  /**
+   * Gets the configuration system used by the game
+   * @returns The configuration system
+   */
+  public getConfigSystem(): ConfigurationSystem {
+    return configSystem;
   }
 } 

@@ -65,101 +65,106 @@ export class PlayerController {
 
   // Jump method
   public jump(): void {
-    // Can only jump if on the ground (not already jumping/diving) and not hit/defeated
+    // Can only jump if in a "grounded" or neutral state
     if ((this.state === PlayerState.IDLE || this.state === PlayerState.LANE_CHANGING) &&
         this.state !== PlayerState.HIT && this.state !== PlayerState.DEFEATED) {
       this.state = PlayerState.JUMPING;
-      this.isJumping = true;
+      this.isJumping = true; // Redundant if using state, but can keep for clarity
+      this.isDiving = false; // Ensure not diving
       this.jumpTime = 0;
+      this.diveTime = 0; // Reset dive time
       console.log("PlayerController: Jump started.");
       // Later: Trigger jump animation
+    } else {
+      console.log(`PlayerController: Cannot jump from state: ${PlayerState[this.state]}`);
     }
   }
 
   // Dive method
   public dive(): void {
-    // Can only dive if on the ground (not already jumping/diving) and not hit/defeated
-    if ((this.state === PlayerState.IDLE || this.state === PlayerState.LANE_CHANGING) &&
+    // Can dive if idle, lane changing, OR to cancel a jump
+    if ((this.state === PlayerState.IDLE || this.state === PlayerState.LANE_CHANGING || this.state === PlayerState.JUMPING) &&
         this.state !== PlayerState.HIT && this.state !== PlayerState.DEFEATED) {
+
+      if (this.state === PlayerState.JUMPING) {
+        console.log("PlayerController: Jump cancelled by dive.");
+        // Optionally, you could factor in current jump height/velocity to make the dive start smoother
+        // For now, it will just switch to the dive arc from current Y.
+      }
+
       this.state = PlayerState.DIVING;
-      this.isDiving = true;
+      this.isDiving = true; // Redundant if using state
+      this.isJumping = false; // Ensure not jumping
       this.diveTime = 0;
+      this.jumpTime = 0; // Reset jump time
       console.log("PlayerController: Dive started.");
       // Later: Trigger dive animation
+    } else {
+      console.log(`PlayerController: Cannot dive from state: ${PlayerState[this.state]}`);
     }
   }
 
   public update(deltaTime: number): void {
-    // Forward movement
-    const forwardSpeed = configSystem.getPlayerMoveSpeed();
-    this.mesh.position.z -= forwardSpeed * deltaTime;
+    const playerConfig = configSystem.get('player'); // Get config once
 
-    // Lane transition logic
-    if (this.isTransitioningLane) {
-      this.laneTransitionProgress += deltaTime / configSystem.get('player').laneChangeDuration;
+    // Forward movement
+    if (this.state !== PlayerState.DEFEATED) { // Don't move if defeated
+      this.mesh.position.z -= playerConfig.moveSpeed * deltaTime;
+    }
+
+    // Lane transition logic (only if not defeated)
+    if (this.isTransitioningLane && this.state !== PlayerState.DEFEATED) {
+      this.laneTransitionProgress += deltaTime / playerConfig.laneChangeDuration;
       this.mesh.position.x = this.previousLaneX + (this.targetLaneX - this.previousLaneX) * easeOutCubic(this.laneTransitionProgress);
       if (this.laneTransitionProgress >= 1) {
         this.isTransitioningLane = false;
         this.mesh.position.x = this.targetLaneX;
-
-        // Update state if not jumping or diving
-        if (!this.isJumping && !this.isDiving) {
+        if (this.state === PlayerState.LANE_CHANGING) { // If only lane changing, return to IDLE/RUNNING
           this.state = PlayerState.IDLE;
         }
-      } else {
-        this.state = PlayerState.LANE_CHANGING;
       }
     }
 
     // Vertical Movement Logic
-    if (this.isJumping) {
+    if (this.state === PlayerState.JUMPING) {
       this.jumpTime += deltaTime;
-      const jumpConfig = configSystem.get('player');
-      const jumpProgress = this.jumpTime / jumpConfig.jumpDuration;
-
-      // Simple parabolic arc: y = 4 * h * x * (1-x)
-      // where h is max height, x is progress (0 to 1)
+      const jumpProgress = this.jumpTime / playerConfig.jumpDuration;
       if (jumpProgress < 1) {
-        this.mesh.position.y = this.normalYPosition + (4 * jumpConfig.jumpHeight * jumpProgress * (1 - jumpProgress));
+        this.mesh.position.y = this.normalYPosition + (4 * playerConfig.jumpHeight * jumpProgress * (1 - jumpProgress));
       } else {
-        this.mesh.position.y = this.normalYPosition; // Snap back to ground
-        this.isJumping = false;
-        this.state = this.isTransitioningLane ? PlayerState.LANE_CHANGING : PlayerState.IDLE;
+        this.mesh.position.y = this.normalYPosition;
+        this.isJumping = false; // Keep for direct checks if needed
+        this.state = PlayerState.IDLE;
         console.log("PlayerController: Jump ended.");
       }
-    } else if (this.isDiving) {
+    } else if (this.state === PlayerState.DIVING) {
       this.diveTime += deltaTime;
-      const diveConfig = configSystem.get('player');
-      const diveProgress = this.diveTime / diveConfig.diveDuration;
-
-      // Similar parabolic arc, but downwards
+      const diveProgress = this.diveTime / playerConfig.diveDuration;
       if (diveProgress < 1) {
-        this.mesh.position.y = this.normalYPosition - (4 * diveConfig.diveDepth * diveProgress * (1 - diveProgress));
+        this.mesh.position.y = this.normalYPosition - (4 * playerConfig.diveDepth * diveProgress * (1 - diveProgress));
       } else {
-        this.mesh.position.y = this.normalYPosition; // Snap back to ground
-        this.isDiving = false;
-        this.state = this.isTransitioningLane ? PlayerState.LANE_CHANGING : PlayerState.IDLE;
+        this.mesh.position.y = this.normalYPosition;
+        this.isDiving = false; // Keep for direct checks
+        this.state = PlayerState.IDLE;
         console.log("PlayerController: Dive ended.");
       }
     }
-    // Ensure state is reset if not actively jumping/diving/lane changing
-    else if (!this.isTransitioningLane && this.state !== PlayerState.HIT && this.state !== PlayerState.DEFEATED) {
+    // If not in a specific action state (jump, dive, lane_change) and not hit/defeated, ensure it's IDLE
+    else if (this.state !== PlayerState.HIT && this.state !== PlayerState.DEFEATED && !this.isTransitioningLane) {
        this.state = PlayerState.IDLE;
     }
 
-    // Invincibility timer
-    if (this.isInvincible) {
+    // Invincibility logic (only if in HIT state)
+    if (this.state === PlayerState.HIT) { // Check state for invincibility
       this.invincibilityTimer -= deltaTime;
       if (this.invincibilityTimer <= 0) {
-        this.isInvincible = false;
+        this.isInvincible = false; // Redundant if state drives this
+        this.state = PlayerState.IDLE; // Return to normal state after invincibility
         if (!Array.isArray(this.mesh.material)) {
           this.mesh.material.opacity = 1.0;
           (this.mesh.material as THREE.Material).needsUpdate = true;
         }
-        this.state = PlayerState.IDLE;
-        console.log("PlayerController: Invincibility ended.");
-      } else {
-        this.state = PlayerState.HIT;
+        console.log("PlayerController: Invincibility ended. State set to IDLE.");
       }
     }
   }
@@ -186,34 +191,34 @@ export class PlayerController {
     this.currentLane = nextLane;
   }
 
-  public handleHit(): boolean {
-    if (this.isInvincible) return false;
-    console.log("PlayerController: Player hit!");
+  public handleHit(): boolean { // Returns true if game should be over (player is defeated)
+    if (this.state === PlayerState.HIT || this.state === PlayerState.DEFEATED) return false; // Already hit or defeated
+
+    console.log("PlayerController: Player hit! Processing hit...");
     this.lives--;
 
     // Reset any active jump/dive on hit
-    this.isJumping = false;
-    this.jumpTime = 0;
-    this.isDiving = false;
-    this.diveTime = 0;
-    this.mesh.position.y = this.normalYPosition; // Force back to ground on hit
+    this.isJumping = false; this.jumpTime = 0;
+    this.isDiving = false; this.diveTime = 0;
+    this.mesh.position.y = this.normalYPosition; // Force back to ground
 
     if (this.lives <= 0) {
-      if (!Array.isArray(this.mesh.material)) {
-        (this.mesh.material as THREE.MeshPhongMaterial).color.setHex(0xff0000);
-      }
       this.state = PlayerState.DEFEATED;
-      console.log("PlayerController: No lives left.");
-      return true;
+      if (!Array.isArray(this.mesh.material)) {
+        (this.mesh.material as THREE.MeshPhongMaterial).color.setHex(0xff0000); // Red
+      }
+      console.log("PlayerController: No lives left. State: DEFEATED.");
+      return true; // Signal game over
     } else {
-      this.isInvincible = true;
-      this.invincibilityTimer = this.invincibilityDuration;
-      this.state = PlayerState.HIT;
+      this.state = PlayerState.HIT; // Transition to HIT state for invincibility
+      this.isInvincible = true; // Still useful for quick checks in CollisionDetection
+      this.invincibilityTimer = configSystem.get('player').invincibilityDuration || 2;
       if (!Array.isArray(this.mesh.material)) {
         this.mesh.material.transparent = true;
         this.mesh.material.opacity = 0.5;
+        (this.mesh.material as THREE.Material).needsUpdate = true;
       }
-      console.log(`PlayerController: Lives remaining: ${this.lives}. Invincible.`);
+      console.log(`PlayerController: Lives remaining: ${this.lives}. State: HIT (Invincible).`);
       return false;
     }
   }
@@ -223,23 +228,22 @@ export class PlayerController {
     this.currentLane = 0;
     this.targetLane = 0;
     this.isTransitioningLane = false;
-    this.isInvincible = false;
-    this.invincibilityTimer = 0;
-    this.lives = this.initialLives;
 
-    // Reset jump/dive state
-    this.isJumping = false;
-    this.jumpTime = 0;
-    this.isDiving = false;
-    this.diveTime = 0;
-    this.state = PlayerState.IDLE;
+    this.isJumping = false; this.jumpTime = 0;
+    this.isDiving = false; this.diveTime = 0;
+
+    this.lives = this.initialLives;
+    this.state = PlayerState.IDLE; // Set to IDLE (or RUNNING)
+    this.isInvincible = false; // Ensure invincibility is off
+    this.invincibilityTimer = 0;
 
     if (!Array.isArray(this.mesh.material)) {
       (this.mesh.material as THREE.MeshPhongMaterial).color.setHex(0xffa500);
       this.mesh.material.opacity = 1.0;
       this.mesh.material.transparent = false;
+      (this.mesh.material as THREE.Material).needsUpdate = true;
     }
-    console.log("PlayerController: Reset.");
+    console.log("PlayerController: Reset. State: IDLE.");
   }
 
   public dispose(): void {

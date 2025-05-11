@@ -10,6 +10,7 @@ import { ObstacleManager } from './managers/ObstacleManager';
 import { CollisionDetectionSystem } from './core/CollisionDetectionSystem';
 import { CollectibleManager } from './managers/CollectibleManager';
 import { ScoringSystem } from './managers/ScoringSystem';
+import { PowerUpManager } from './managers/PowerUpManager';
 
 interface GameEngineCallbacks {
   onScoreUpdate?: (score: number) => void;
@@ -44,6 +45,7 @@ export class GameEngine {
   private environmentManager!: EnvironmentManager;
   private obstacleManager!: ObstacleManager;
   private collectibleManager!: CollectibleManager;
+  private powerUpManager!: PowerUpManager;
   private scoringSystem!: ScoringSystem;
   private collisionSystem!: CollisionDetectionSystem;
 
@@ -112,6 +114,9 @@ export class GameEngine {
 
       this.collectibleManager = new CollectibleManager(this.scene, this.assetFactory);
 
+      // PowerUpManager (after config system and asset factory)
+      this.powerUpManager = new PowerUpManager(this.scene, this.assetFactory, this.environmentManager.getConfigSystem());
+
       // CollisionDetectionSystem
       this.collisionSystem = new CollisionDetectionSystem(
         this.playerController,
@@ -119,7 +124,8 @@ export class GameEngine {
         this.collectibleManager,
         this.scoringSystem,
         () => this.gameOver(),
-        this // Pass reference to game engine for state checking
+        this, // Pass reference to game engine for state checking
+        this.powerUpManager // Pass the power-up manager
       );
 
       // Recreate obstacle pool to ensure all obstacles have the latest updates (collision spheres)
@@ -172,6 +178,10 @@ export class GameEngine {
       this.obstacleManager.update(dt, this.playerController.mesh.position.z);
       this.collectibleManager.update(dt, this.playerController.mesh.position.z);
 
+      // Update forward speed for power-ups
+      this.powerUpManager.setGameSpeed(this.playerController.getForwardSpeed());
+      this.powerUpManager.update(dt);
+
       // Update score based on distance
       const distanceTraveled = dt * this.playerController.getForwardSpeed();
       this.scoringSystem.update(dt, distanceTraveled);
@@ -206,6 +216,7 @@ export class GameEngine {
     if (this.environmentManager) this.environmentManager.dispose();
     if (this.obstacleManager) this.obstacleManager.dispose();
     if (this.collectibleManager) this.collectibleManager.dispose();
+    if (this.powerUpManager) this.powerUpManager.dispose();
     if (this.scoringSystem) this.scoringSystem.dispose();
     if (this.collisionSystem) this.collisionSystem.dispose();
     if (this.assetFactory) this.assetFactory.dispose();
@@ -239,6 +250,8 @@ export class GameEngine {
     this.obstacleManager.reset();
     this.environmentManager.reset(this.playerController.mesh.position.z);
     this.collectibleManager.reset();
+    this.powerUpManager.dispose(); // Dispose and reinitialize power-ups
+    this.powerUpManager = new PowerUpManager(this.scene, this.assetFactory, this.environmentManager.getConfigSystem());
     this.scoringSystem.reset();
     this.lastTimestamp = performance.now();
     this.currentState = GameState.READY;

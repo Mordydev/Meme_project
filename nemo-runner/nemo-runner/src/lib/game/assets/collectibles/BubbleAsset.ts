@@ -14,19 +14,19 @@ export class BubbleAsset {
   // This class primarily defines those shared resources.
 
   public getGeometry(): THREE.SphereGeometry {
-    // Bubbles are spheres - increased size for better visibility
-    return new THREE.SphereGeometry(0.35, 12, 12); // Larger radius, better detail
+    // Increased radius from original 0.2/0.35 to 0.4 for better visibility
+    return new THREE.SphereGeometry(0.4, 12, 10); // Better detail with more segments
   }
 
   public getMaterial(): THREE.Material {
-    // Later, a custom shader for a nice bubble effect (refraction, iridescence)
+    // Use the material from shader manager or create one with good visibility
     const material = this.shaderManager.getMaterial('collectible_bubble')
-                    || new THREE.MeshPhongMaterial({ 
-                        color: 0xadd8e6, // Light blue
-                        transparent: true, 
-                        opacity: 0.6,
-                        emissive: 0x224466, // Slight inner glow
-                        shininess: 80,
+                    || new THREE.MeshPhongMaterial({
+                        color: 0x66ccff, // Bright blue
+                        transparent: true,
+                        opacity: 0.8,    // More opaque than original for visibility
+                        emissive: 0x112233,
+                        shininess: 90,
                      });
     return material;
   }

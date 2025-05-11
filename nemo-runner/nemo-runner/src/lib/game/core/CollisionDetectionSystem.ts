@@ -5,6 +5,7 @@ import { GameEngine, GameState } from '../GameEngine';
 import { configSystem } from './ConfigurationSystem';
 import { CollectibleManager } from '../managers/CollectibleManager';
 import { ScoringSystem } from '../managers/ScoringSystem';
+import { PowerUpManager } from '../managers/PowerUpManager';
 
 declare global {
   interface Window { __gameEngine?: any }
@@ -14,6 +15,7 @@ export class CollisionDetectionSystem {
   private playerController: PlayerController;
   private obstacleManager: ObstacleManager;
   private collectibleManager: CollectibleManager;
+  private powerUpManager?: PowerUpManager;
   private scoringSystem: ScoringSystem;
   private onPlayerKilled: () => void;
   private gameEngine?: GameEngine; // Optional because we may get it from window.__gameEngine
@@ -38,7 +40,8 @@ export class CollisionDetectionSystem {
     collectibleManager: CollectibleManager,
     scoringSystem: ScoringSystem,
     onPlayerKilled: () => void,
-    gameEngine?: GameEngine
+    gameEngine?: GameEngine,
+    powerUpManager?: PowerUpManager
   ) {
     this.playerController = playerController;
     this.obstacleManager = obstacleManager;
@@ -46,6 +49,7 @@ export class CollisionDetectionSystem {
     this.scoringSystem = scoringSystem;
     this.onPlayerKilled = onPlayerKilled;
     this.gameEngine = gameEngine;
+    this.powerUpManager = powerUpManager;
 
     this.playerBoundingSphere = new THREE.Sphere();
     this.obstacleBoundingSphere = new THREE.Sphere();
@@ -282,6 +286,44 @@ export class CollisionDetectionSystem {
     // Check both bubble and coin collectibles
     checkCollectibleType(this.collectibleManager.getBubbleData(), this.collectibleManager.getBubbleInstances());
     checkCollectibleType(this.collectibleManager.getCoinData(), this.collectibleManager.getCoinInstances());
+
+    // --- Power-Up Collisions ---
+    if (this.powerUpManager) {
+      const powerUpMeshes = this.powerUpManager.getActivePowerUpMeshes();
+
+      for (const powerUpMesh of powerUpMeshes) {
+        if (powerUpMesh.visible && powerUpMesh.userData?.collider) {
+          // Use a bounding sphere for the power-up
+          const powerUpBoundingSphere = new THREE.Sphere();
+
+          // Get the bounding sphere based on mesh position and size
+          const tempBox = new THREE.Box3().setFromObject(powerUpMesh);
+          tempBox.getBoundingSphere(powerUpBoundingSphere);
+
+          // Check for intersection with player
+          if (this.playerBoundingSphere.intersectsSphere(powerUpBoundingSphere)) {
+            // Find the actual power-up asset using the mesh
+            const powerUpAssets = this.powerUpManager.getActivePowerUpMeshes().map(mesh =>
+              this.powerUpManager?.getActivePowerUps().find(powerUp => powerUp.getMesh() === mesh)
+            );
+
+            // Get the power-up that was hit
+            const powerUpHit = powerUpAssets.find(powerUp =>
+              powerUp && powerUp.getMesh() === powerUpMesh
+            );
+
+            if (powerUpHit) {
+              // Handle power-up collection
+              const powerUpType = this.powerUpManager.onPowerUpCollected(powerUpHit);
+              console.log(`CollisionDetectionSystem: Player collected ${powerUpType} power-up.`);
+
+              // For now, we're only handling the visual aspects in Phase 1
+              // In Phase 2, we'll add the actual functionality here
+            }
+          }
+        }
+      }
+    }
   }
   
   public dispose(): void {

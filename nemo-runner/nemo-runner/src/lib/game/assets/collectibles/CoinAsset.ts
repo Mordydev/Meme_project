@@ -10,16 +10,19 @@ export class CoinAsset {
   }
 
   public getGeometry(): THREE.CylinderGeometry {
-    // Coins are thin cylinders - increased size for better visibility
-    return new THREE.CylinderGeometry(0.4, 0.4, 0.05, 16); // Larger radius, better detail
+    // Increased radius from original 0.25 to 0.35 for better visibility
+    return new THREE.CylinderGeometry(0.35, 0.35, 0.08, 16); // Better detail with more segments
   }
 
   public getMaterial(): THREE.Material {
+    // Use the material from shader manager or create one with good visibility
     const material = this.shaderManager.getMaterial('collectible_coin')
-                    || new THREE.MeshStandardMaterial({ // StandardMaterial for metallic look
+                    || new THREE.MeshStandardMaterial({
                         color: 0xffd700, // Gold
-                        metalness: 0.8,
-                        roughness: 0.3,
+                        metalness: 0.7,
+                        roughness: 0.3,  // Make it shinier
+                        emissive: 0x554400, // Slight glow
+                        emissiveIntensity: 0.3
                      });
     return material;
   }

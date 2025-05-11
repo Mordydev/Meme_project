@@ -6,6 +6,9 @@ import { RockAsset } from './obstacles/RockAsset';
 import { ClamAsset } from './obstacles/ClamAsset';
 import { BubbleAsset } from './collectibles/BubbleAsset';
 import { CoinAsset } from './collectibles/CoinAsset';
+import { ShieldPowerUpAsset } from './powerups/ShieldPowerUpAsset';
+import { MagnetPowerUpAsset } from './powerups/MagnetPowerUpAsset';
+import { DoubleScorePowerUpAsset } from './powerups/DoubleScorePowerUpAsset';
 
 export class ProceduralAssetFactory {
   private shaderManager: ShaderManager;
@@ -94,5 +97,25 @@ export class ProceduralAssetFactory {
     return type === 'bubble'
       ? this.bubbleAssetGenerator.scoreValue
       : this.coinAssetGenerator.scoreValue;
+  }
+
+  /**
+   * Creates a power-up mesh of the specified type at the given position
+   * @param type The type of power-up to create
+   * @param position The position of the power-up
+   * @returns The power-up asset
+   */
+  public createPowerUpAsset(type: 'shield' | 'magnet' | 'doublescore', position: THREE.Vector3): ShieldPowerUpAsset | MagnetPowerUpAsset | DoubleScorePowerUpAsset {
+    switch (type) {
+      case 'shield':
+        return new ShieldPowerUpAsset(position);
+      case 'magnet':
+        return new MagnetPowerUpAsset(position);
+      case 'doublescore':
+        return new DoubleScorePowerUpAsset(position);
+      default:
+        console.warn(`ProceduralAssetFactory: Unknown power-up type "${type}". Creating shield as fallback.`);
+        return new ShieldPowerUpAsset(position);
+    }
   }
 } 
