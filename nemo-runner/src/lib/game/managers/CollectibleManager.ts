@@ -39,7 +39,7 @@ export class CollectibleManager {
   // Magnet power-up properties
   private isMagnetActive: boolean = false;
   private magnetAttractionRadius: number = 0;
-  private magnetAttractionSpeed: number = 15; // Increased speed for more obvious effect
+  private magnetAttractionSpeed: number = 20; // Default, will be overridden by config
   private playerController?: PlayerController; // To get player position
 
   private patterns: Array<(lane: number, startZ: number, type: 'bubble' | 'coin') => THREE.Vector3[]> = [
@@ -52,6 +52,11 @@ export class CollectibleManager {
     this.initializeInstancedMeshes();
     this.resetTimeToNextSpawn();
     this.debug = false; // Disable debug logging for production
+
+    // Initialize attraction speed from config if available
+    const powerUpConfig = configSystem.getPowerUpsConfig().magnet;
+    this.magnetAttractionSpeed = powerUpConfig.attractionSpeed || 20; // Get from config or use default
+
     console.log("CollectibleManager: Initialized.");
   }
 
@@ -139,8 +144,10 @@ export class CollectibleManager {
   public setMagnetActive(isActive: boolean): void {
     this.isMagnetActive = isActive;
     if (isActive) {
-      this.magnetAttractionRadius = configSystem.getPowerUpsConfig().magnet.attractionRadius;
-      console.log("CollectibleManager: Magnet ACTIVE, radius:", this.magnetAttractionRadius);
+      const magnetConfig = configSystem.getPowerUpsConfig().magnet;
+      this.magnetAttractionRadius = magnetConfig.attractionRadius;
+      this.magnetAttractionSpeed = magnetConfig.attractionSpeed || 20; // Ensure speed is set from config
+      console.log("CollectibleManager: Magnet ACTIVE, radius:", this.magnetAttractionRadius, "speed:", this.magnetAttractionSpeed);
     } else {
       this.magnetAttractionRadius = 0;
       console.log("CollectibleManager: Magnet DEACTIVE");

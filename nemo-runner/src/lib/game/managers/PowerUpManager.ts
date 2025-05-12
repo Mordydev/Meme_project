@@ -64,7 +64,7 @@ export class PowerUpManager {
   };
 
   // Maximum number of power-ups to pool (per type)
-  private maxPoolSize: number = 3;
+  private maxPoolSize: number = 5; // Increased for better availability
 
   // Current game speed (distance per second)
   private gameSpeed: number = 0;
@@ -110,21 +110,20 @@ export class PowerUpManager {
    */
   private initializePools(): void {
     // Pre-create a few power-ups of each type
-    const initialPoolSize = 1; // Start with just 1 of each type
+    const initialPoolSize = 2; // Increased for better availability
     const dummyPosition = new THREE.Vector3(0, 0, -2000); // Far off-screen position
 
     // For each power-up type, create initial pool objects
-    Object.keys(this.powerUpPools).forEach((type) => {
-      const powerUpType = type as PowerUpType;
+    (Object.keys(this.powerUpPools) as PowerUpType[]).forEach((powerUpType) => {
       for (let i = 0; i < initialPoolSize; i++) {
-        const powerUp = this.assetFactory.createPowerUpAsset(powerUpType, dummyPosition);
+        const powerUp = this.assetFactory.createPowerUpAsset(powerUpType, dummyPosition.clone());
         powerUp.getMesh().visible = false; // Hide initially
         this.scene.add(powerUp.getMesh());
         this.powerUpPools[powerUpType].push(powerUp);
       }
     });
 
-    console.log(`PowerUpManager: Object pools initialized with ${initialPoolSize} power-ups of each type.`);
+    console.log(`PowerUpManager: Object pools initialized with ${initialPoolSize} of each type. Max pool size: ${this.maxPoolSize}.`);
   }
 
   /**
@@ -138,13 +137,12 @@ export class PowerUpManager {
     if (this.powerUpPools[type].length > 0) {
       const powerUp = this.powerUpPools[type].pop()!;
       powerUp.getMesh().position.copy(position);
-      powerUp.reset();
-      powerUp.getMesh().visible = true;
+      powerUp.reset(); // Ensure asset's internal state is reset (visibility, etc.)
       return powerUp;
     }
 
-    // If pool is empty, create a new power-up
-    console.log(`PowerUpManager: Pool for ${type} is empty.`);
+    // If pool is empty, log warning
+    console.warn(`PowerUpManager: Pool for ${type} is empty. No power-up spawned.`);
     return null;
   }
 
@@ -179,7 +177,10 @@ export class PowerUpManager {
    * @param playerZ The player's current Z position
    */
   private spawnPowerUp(playerZ: number): void {
-    if (!this.playerController) return; // Managers not linked yet
+    if (!this.playerController) {
+        console.warn("PowerUpManager: PlayerController not linked, cannot spawn power-up.");
+        return;
+    }
 
     // Available lanes for power-up placement
     const lanes = [-1, 0, 1];
@@ -188,8 +189,8 @@ export class PowerUpManager {
     const spawnX = lanes[randomLaneIndex] * laneWidth;
 
     // Spawn above player's normal height
-    const spawnY = configSystem.get('player').normalYPosition + 0.5;
-    const spawnZ = playerZ - this.spawnDistanceAhead - (Math.random() * 10); // Add some variance
+    const spawnY = configSystem.get('player').normalYPosition + 0.7; // Slightly higher for visibility
+    const spawnZ = playerZ - this.spawnDistanceAhead - (Math.random() * 5); // Reduced random Z variation
 
     // Random power-up type based on probabilities
     const rand = Math.random();
@@ -207,8 +208,9 @@ export class PowerUpManager {
     if (typeToSpawn) {
       const powerUpAsset = this.getPowerUpFromPool(typeToSpawn, new THREE.Vector3(spawnX, spawnY, spawnZ));
       if (powerUpAsset) {
+        powerUpAsset.getMesh().visible = true; // Ensure visibility when taken from pool
         this.activeVisualPowerUps.push(powerUpAsset);
-        console.log(`PowerUpManager: Spawned ${typeToSpawn} at X:${spawnX.toFixed(1)}, Y:${spawnY.toFixed(1)}, Z:${spawnZ.toFixed(1)}`);
+        // console.log(`PowerUpManager: Spawned ${typeToSpawn} at X:${spawnX.toFixed(1)}, Y:${spawnY.toFixed(1)}, Z:${spawnZ.toFixed(1)}`);
       }
     }
 
@@ -230,8 +232,12 @@ export class PowerUpManager {
    * @param collectedAsset The power-up asset that was collected
    */
   public onPowerUpCollected(collectedAsset: PowerUpAsset): void {
+    // Check if managers are properly linked
     if (!this.playerController || !this.scoringSystem || !this.collectibleManager) {
-      console.error("PowerUpManager: Managers not linked, cannot apply effect.");
+      console.error("PowerUpManager: Essential managers not linked. Cannot apply power-up effect for", collectedAsset.getMesh().userData.subtype);
+      // Still despawn the visual part
+      collectedAsset.collect();
+      this.returnPowerUpToPool(collectedAsset);
       return;
     }
 
@@ -246,7 +252,7 @@ export class PowerUpManager {
     // Remove any existing effect of the same type to reset duration
     this.activeEffects = this.activeEffects.filter(effect => {
       if (effect.type === type) {
-        this.deactivateEffect(effect.type);
+        this.deactivateEffect(effect.type); // Deactivate previous effect if any
         return false;
       }
       return true;
@@ -255,7 +261,7 @@ export class PowerUpManager {
     // Add new effect with full duration
     const newEffect: ActivePowerUpEffect = {
       type,
-      remainingDuration: config[type].duration,
+      remainingDuration: config[type]?.duration || 10, // Fallback duration if missing
     };
     this.activeEffects.push(newEffect);
 
@@ -317,10 +323,14 @@ export class PowerUpManager {
    */
   public getActiveEffectsForUI(): ActivePowerUpInfo[] {
     const powerUpConfig = configSystem.getPowerUpsConfig();
-    return this.activeEffects.map(effect => ({
-      type: effect.type,
-      remainingNormalizedTime: Math.max(0, effect.remainingDuration / powerUpConfig[effect.type].duration),
-    }));
+    return this.activeEffects.map(effect => {
+      const durationConfig = powerUpConfig[effect.type];
+      const totalDuration = durationConfig?.duration || 10; // Fallback if config missing
+      return {
+        type: effect.type,
+        remainingNormalizedTime: Math.max(0, effect.remainingDuration / totalDuration),
+      };
+    });
   }
 
   /**
@@ -350,8 +360,8 @@ export class PowerUpManager {
 
       // Check if power-up is behind the player by sufficient distance to despawn it
       // As player moves in negative Z, power-ups will naturally appear to move in positive Z relative to player
-      if (powerUpAsset.getMesh().position.z > playerZ + 10) {
-        console.log(`PowerUpManager: Despawning ${powerUpAsset.getMesh().userData.subtype} at Z:${powerUpAsset.getMesh().position.z.toFixed(1)} (playerZ: ${playerZ.toFixed(1)})`);
+      if (powerUpAsset.getMesh().position.z > playerZ + 15) { // Increased despawn distance
+        // console.log(`PowerUpManager: Despawning ${powerUpAsset.getMesh().userData.subtype} at Z:${powerUpAsset.getMesh().position.z.toFixed(1)} (playerZ: ${playerZ.toFixed(1)})`);
         this.returnPowerUpToPool(powerUpAsset);
       }
     }
@@ -431,7 +441,8 @@ export class PowerUpManager {
   }
 
   /**
-   * Resets the power-up manager (called when resetting game)
+   * Resets the PowerUpManager to its initial state for game restart
+   * This retains existing pooled objects but clears active ones
    */
   public reset(): void {
     // Return all active visual power-ups to their pools
@@ -444,28 +455,6 @@ export class PowerUpManager {
 
     // Reset spawn timer
     this.resetSpawnTimer();
-    console.log("PowerUpManager: Reset.");
-  }
-
-  /**
-   * Resets the PowerUpManager to its initial state for game restart
-   * This retains existing pooled objects but clears active ones
-   */
-  public reset(): void {
-    // Remove active power-ups from scene but don't dispose them - return to pool
-    this.activeVisualPowerUps.forEach(p => {
-      p.getMesh().visible = false;
-      this.returnPowerUpToPool(p);
-    });
-    this.activeVisualPowerUps = [];
-
-    // Deactivate all active effects
-    this.activeEffects.forEach(effect => this.deactivateEffect(effect.type));
-    this.activeEffects = [];
-
-    // Reset spawn timer
-    this.resetSpawnTimer();
-
     console.log("PowerUpManager: Reset.");
   }
 

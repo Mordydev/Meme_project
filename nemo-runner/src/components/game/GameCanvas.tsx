@@ -135,12 +135,14 @@ const GameOverlay: React.FC<GameOverlayProps> = memo(({ score, isGameOver, activ
             <span style={{
               marginLeft: '10px',
               color: powerUpColors.doublescore,
-              backgroundColor: 'rgba(0,0,0,0.5)',
+              backgroundColor: 'rgba(0,0,0,0.6)', // Slightly darker background for contrast
               borderRadius: '5px',
-              padding: '0 8px',
+              padding: '2px 10px', // Adjusted padding
               fontSize: '24px',
               fontWeight: 'bold',
-              animation: 'pulse 1s infinite'
+              animation: 'pulse 1s infinite ease-in-out', // Smoother pulse
+              border: `1px solid ${powerUpColors.doublescore}`, // Add a border
+              boxShadow: `0 0 8px ${powerUpColors.doublescore}` // Add glow
             }}>
               ×2
             </span>
@@ -261,7 +263,7 @@ export default function GameCanvas() {
         setIsLoading(false); // Already loaded
         return;
     }
-    
+
     // Clear previous content if any (e.g., from HMR or previous errors)
     while (canvasMountRef.current.firstChild) {
         canvasMountRef.current.removeChild(canvasMountRef.current.firstChild);
@@ -269,6 +271,29 @@ export default function GameCanvas() {
 
     try {
       console.log("GameCanvas: Initializing GameEngine...");
+
+      // Create error recovery handler
+      const handleWebGLError = () => {
+        // Only show error if we weren't already loading or had an error
+        if (!isLoading && !error) {
+          setError("WebGL context error occurred. Attempting to recover...");
+
+          // Allow time for the recovery process
+          setTimeout(() => {
+            if (gameEngineRef.current) {
+              // Check if engine is still valid
+              if (gameEngineRef.current.getCurrentState() === GameState.PAUSED) {
+                // If paused due to context loss, try to restart
+                gameEngineRef.current.start();
+                setError(null); // Clear error if restart succeeds
+              }
+            } else {
+              setError("WebGL context could not be recovered. Please refresh the page.");
+            }
+          }, 2000);
+        }
+      };
+
       const engine = new GameEngine(canvasMountRef.current!, {
         // Callbacks for UI updates
         onScoreUpdate: (score) => setScore(score),
@@ -280,10 +305,18 @@ export default function GameCanvas() {
         },
         onActivePowerUpsUpdate: (powerUps) => setActivePowerUps(powerUps)
       });
+
       // Expose for debug helpers
       // @ts-ignore
       window.__gameEngine = engine;
       gameEngineRef.current = engine;
+
+      // Add WebGL context error listeners to the canvas
+      const canvas = canvasMountRef.current.querySelector('canvas');
+      if (canvas) {
+        canvas.addEventListener('webglcontextlost', handleWebGLError, false);
+        canvas.addEventListener('webglcontexterror', handleWebGLError, false);
+      }
 
       // Set up screen flash callback for hit effects
       const vfxService = engine.getVisualEffectsService?.();
@@ -299,12 +332,24 @@ export default function GameCanvas() {
       setIsLoading(false);
       console.log("GameCanvas: GameEngine started.");
 
-      const handleResize = () => engine.handleResize();
+      const handleResize = () => {
+        if (gameEngineRef.current) {
+          gameEngineRef.current.handleResize();
+        }
+      };
+
       window.addEventListener('resize', handleResize);
 
       return () => {
         console.log("GameCanvas: Cleaning up GameEngine...");
         window.removeEventListener('resize', handleResize);
+
+        // Remove WebGL context event listeners
+        if (canvas) {
+          canvas.removeEventListener('webglcontextlost', handleWebGLError);
+          canvas.removeEventListener('webglcontexterror', handleWebGLError);
+        }
+
         if (gameEngineRef.current) {
           // Unregister score callback
           if (gameEngineRef.current.getScoringSystem()) {
@@ -313,6 +358,7 @@ export default function GameCanvas() {
           gameEngineRef.current.dispose();
           gameEngineRef.current = null; // Clear the ref
         }
+
         // The GameEngine's dispose should handle removing the canvas child
         console.log("GameCanvas: Cleanup complete.");
         setIsGameOver(false);

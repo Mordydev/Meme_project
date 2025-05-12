@@ -1,13 +1,21 @@
 // src/lib/game/config/gameConfig.ts
 
 // Interface for PowerUp specific configurations
+export interface PowerUpVisualConfig {
+  color?: number;
+  emissive?: number;
+  emissiveIntensity?: number;
+  opacity?: number;
+}
+
 export interface PowerUpConfig {
   duration: number; // Default duration in seconds
+  visual?: PowerUpVisualConfig; // Optional visual configuration
 }
 
 export interface PowerUpsGameConfig {
-  shield: PowerUpConfig;
-  magnet: PowerUpConfig & { attractionRadius: number }; // Magnet specific
+  shield: PowerUpConfig & { visual?: PowerUpVisualConfig }; // Shield with visual override
+  magnet: PowerUpConfig & { attractionRadius: number; attractionSpeed?: number }; // Magnet specific
   doublescore: PowerUpConfig;
   spawnIntervalMin: number;
   spawnIntervalMax: number;
@@ -100,6 +108,31 @@ export interface ObstaclesConfig {
   schoolOfFish: SchoolOfFishObstacleConfig;
 }
 
+export interface VisualSettings {
+  skyColor: number | string;
+  ambientLightColor: number | string;
+  ambientLightIntensity: number;
+  directionalLightColor: number | string;
+  directionalLightIntensity: number;
+  directionalLightPosition: { x: number; y: number; z: number };
+
+  // Fog configuration
+  fogColor: number | string;
+  fogNearFactor: number; // e.g., 2.0 (fog starts at 2x cameraFar/some_base_distance)
+  fogFarFactor: number;  // e.g., 5.0 (fog is dense at 5x cameraFar/some_base_distance)
+
+  // Caustics configuration
+  enableCaustics: boolean;
+  causticIntensity: number; // Modulates the brightness of caustics
+  causticScale: number;     // Controls the size of the caustic patterns
+  causticSpeed: number;     // Controls the animation speed of caustics
+  causticColor: number | string; // Color tint for caustics
+
+  // Groundwork for God Rays (parameters for future implementation)
+  enableGodRays: boolean;
+  godRayLightSourceOffsetY: number; // Offset Y from directional light for god ray source visual
+}
+
 export interface GameConfig {
   player: {
     moveSpeed: number; // Units per second
@@ -134,6 +167,7 @@ export interface GameConfig {
   powerUps: PowerUpsGameConfig; // Power-up configuration
   difficulty: DifficultyGameConfig; // Difficulty configuration
   obstacles: ObstaclesConfig; // Obstacle configuration
+  visuals: VisualSettings; // Visual settings including lighting, fog, and caustics
 }
 
 // Default configuration values
@@ -162,6 +196,28 @@ export const defaultConfig: GameConfig = {
     lookAtOffset: { x: 0, y: 0.5, z: -10 },
     lerpFactor: 0.05,
   },
+  visuals: {
+    skyColor: 0x1a2b3c, // Darker blue for underwater
+    ambientLightColor: 0x406080, // Bluish ambient
+    ambientLightIntensity: 0.4,
+    directionalLightColor: 0xa0c0ff, // Lighter blue/white sunlight from above
+    directionalLightIntensity: 0.8,
+    directionalLightPosition: { x: 0.5, y: 1, z: 0.3 }, // More overhead
+
+    // Fog parameters
+    fogColor: 0x1a2b3c, // Match sky/background for seamless blend
+    fogNearFactor: 1.5,  // Start fog relatively close to player camera's Z offset
+    fogFarFactor: 6.0,   // Fog becomes dense further out
+
+    enableCaustics: true,
+    causticIntensity: 0.25,
+    causticScale: 8.0, // Larger scale for broader patterns
+    causticSpeed: 0.05,
+    causticColor: 0x90c0ff, // Light blue caustics
+
+    enableGodRays: false, // Disabled for Phase 1 initial, focus on caustics
+    godRayLightSourceOffsetY: 10,
+  },
   collectibles: {
     spawnIntervalMin: 2.0,
     spawnIntervalMax: 3.5,
@@ -169,8 +225,20 @@ export const defaultConfig: GameConfig = {
   },
   // Power-up configurations
   powerUps: {
-    shield: { duration: 8 }, // 8 seconds of shield
-    magnet: { duration: 10, attractionRadius: 6.0 }, // 10 seconds, 6.0 units radius (increased to attract from all lanes)
+    shield: {
+      duration: 8, // 8 seconds of shield
+      visual: {
+        color: 0x00ccff, // Bright cyan
+        emissive: 0x00ffff,
+        emissiveIntensity: 1.5,
+        opacity: 0.7
+      }
+    },
+    magnet: {
+      duration: 10,
+      attractionRadius: 6.0, // 6.0 units radius (attracts from all lanes)
+      attractionSpeed: 20 // Units per second for attraction speed
+    },
     doublescore: { duration: 12 }, // 12 seconds of double score
     spawnIntervalMin: 8,  // Power-ups are rarer
     spawnIntervalMax: 15,

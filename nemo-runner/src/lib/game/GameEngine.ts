@@ -3,7 +3,8 @@ import { RenderManager } from './core/RenderManager';
 import { CameraManager } from './core/CameraManager';
 import { PlayerController } from './managers/PlayerController';
 import { InputHandler } from './core/InputHandler';
-import { ShaderManager } from './services/ShaderManager';
+import { ShaderManager, ShaderProgramSource } from './services/ShaderManager';
+import { LightingManager } from './services/LightingManager';
 import { ProceduralAssetFactory } from './assets/ProceduralAssetFactory';
 import { EnvironmentManager } from './managers/EnvironmentManager';
 import { ObstacleManager } from './managers/ObstacleManager';
@@ -12,6 +13,8 @@ import { CollectibleManager } from './managers/CollectibleManager';
 import { ScoringSystem } from './managers/ScoringSystem';
 import { PowerUpManager } from './managers/PowerUpManager';
 import { DifficultyManager } from './managers/DifficultyManager';
+import { vertexShaderSource as testPatternVertex } from './shaders/test/testPattern.vert';
+import { fragmentShaderSource as testPatternFragment } from './shaders/test/testPattern.frag';
 
 // Import the types from PowerUpManager
 import { ActivePowerUpInfo, PowerUpType } from './managers/PowerUpManager';
@@ -49,6 +52,7 @@ export class GameEngine {
   private inputHandler!: InputHandler;
 
   private shaderManager!: ShaderManager;
+  private lightingManager!: LightingManager;
   private assetFactory!: ProceduralAssetFactory;
   private environmentManager!: EnvironmentManager;
   private obstacleManager!: ObstacleManager;
@@ -62,6 +66,9 @@ export class GameEngine {
   private isRunning: boolean = false;
   private lastTimestamp: number = 0;
   private currentState: GameState = GameState.LOADING;
+
+  private contextLostHandler: ((event: WebGLContextEvent) => void) | null = null;
+  private contextRestoredHandler: ((event: WebGLContextEvent) => void) | null = null;
 
   constructor(mountElement: HTMLDivElement, callbacks: GameEngineCallbacks = {}) {
     this.mountElement = mountElement;
@@ -79,23 +86,44 @@ export class GameEngine {
       this.camera = new THREE.PerspectiveCamera(75, aspectRatio, 0.1, 1000);
 
       // Renderer
-      this.renderer = new THREE.WebGLRenderer({ antialias: true });
+      this.renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: "high-performance", // Prefer higher performance
+        preserveDrawingBuffer: false // Better performance
+      });
       this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
       this.renderer.setPixelRatio(window.devicePixelRatio);
       this.mountElement.appendChild(this.renderer.domElement);
 
+      // Set up WebGL context loss/restore handlers
+      this.setupWebGLContextHandlers();
+
       this.renderManager = new RenderManager(this.scene, this.camera, this.renderer);
 
-      // Lighting
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-      this.scene.add(ambientLight);
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-      directionalLight.position.set(5, 5, 5).normalize();
-      this.scene.add(directionalLight);
-
-      // ShaderManager and AssetFactory
+      // ShaderManager for assets and lighting effects
       this.shaderManager = new ShaderManager();
+
+      // LightingManager for scene lighting, fog, and underwater effects
+      this.lightingManager = new LightingManager(this.scene, this.shaderManager);
+
+      // Register the test pattern shader
+      this.shaderManager.registerShader({
+        name: 'testPatternShader',
+        vertexShaderSource: testPatternVertex,
+        fragmentShaderSource: testPatternFragment,
+        defaultUniforms: () => ({ // Function to return fresh uniform objects
+          uBaseColor: { value: new THREE.Color(0x00ffff) }, // Cyan base color
+        }),
+        materialParameters: {
+          transparent: false,
+          side: THREE.FrontSide
+        }
+      });
+
       this.assetFactory = new ProceduralAssetFactory(this.shaderManager);
+
+      // Link the LightingManager to the SeafloorAsset for caustic effects
+      this.assetFactory.seafloorAsset.linkLightingManager(this.lightingManager);
 
       // EnvironmentManager
       this.environmentManager = new EnvironmentManager(this.scene, this.assetFactory);
@@ -211,6 +239,9 @@ export class GameEngine {
       this.obstacleManager.update(dt, this.playerController.mesh.position.z);
       this.collectibleManager.update(dt, this.playerController.mesh.position.z);
 
+      // Update lighting and caustic effects
+      this.lightingManager.update(dt, timestamp / 1000);
+
       // Update forward speed for power-ups
       this.powerUpManager.setGameSpeed(this.playerController.getForwardSpeed());
       // Fix: Pass player's Z position to powerUpManager.update
@@ -225,6 +256,14 @@ export class GameEngine {
         const activePowerUps = this.powerUpManager.getActiveEffectsForUI();
         this.callbacks.onActivePowerUpsUpdate(activePowerUps);
       }
+
+      // Update shader global uniforms (time, resolution)
+      this.shaderManager.update(
+        dt,                             // deltaTime
+        timestamp / 1000,               // elapsedTime in seconds
+        this.mountElement.clientWidth,  // screenWidth
+        this.mountElement.clientHeight   // screenHeight
+      );
 
       this.collisionSystem.checkCollisions();
     }
@@ -249,8 +288,129 @@ export class GameEngine {
     console.log("GameEngine: Handled resize via managers.");
   }
 
+  /**
+   * Sets up WebGL context loss/restore event handlers on the renderer's canvas
+   */
+  private setupWebGLContextHandlers(): void {
+    if (!this.renderer || !this.renderer.domElement) {
+      console.warn("GameEngine: Cannot set up WebGL context handlers - renderer not initialized");
+      return;
+    }
+
+    // Remove any existing handlers to prevent duplicates
+    this.removeWebGLContextHandlers();
+
+    // Create new bound handlers
+    this.contextLostHandler = (event: WebGLContextEvent) => {
+      event.preventDefault(); // This is important - allows context to be restored
+      console.warn("GameEngine: WebGL context lost");
+
+      this.isRunning = false;
+      this.currentState = GameState.PAUSED;
+
+      // Cancel animation frame to stop rendering attempts
+      if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+        this.animationFrameId = undefined;
+      }
+    };
+
+    this.contextRestoredHandler = (event: WebGLContextEvent) => {
+      console.log("GameEngine: WebGL context restored, reinitializing renderer");
+
+      try {
+        // Recreate all WebGL-dependent objects
+        this.recreateAfterContextLoss();
+
+        // Resume game loop if the game was running before
+        if (this.currentState === GameState.PAUSED) {
+          this.currentState = GameState.PLAYING;
+          this.isRunning = true;
+          this.gameLoop();
+        }
+      } catch (error) {
+        console.error("GameEngine: Failed to recover from context loss:", error);
+      }
+    };
+
+    // Add the handlers to the canvas
+    this.renderer.domElement.addEventListener('webglcontextlost', this.contextLostHandler, false);
+    this.renderer.domElement.addEventListener('webglcontextrestored', this.contextRestoredHandler, false);
+
+    console.log("GameEngine: WebGL context handlers set up");
+  }
+
+  /**
+   * Removes WebGL context event handlers
+   */
+  private removeWebGLContextHandlers(): void {
+    if (this.renderer && this.renderer.domElement) {
+      if (this.contextLostHandler) {
+        this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLostHandler);
+      }
+
+      if (this.contextRestoredHandler) {
+        this.renderer.domElement.removeEventListener('webglcontextrestored', this.contextRestoredHandler);
+      }
+    }
+
+    this.contextLostHandler = null;
+    this.contextRestoredHandler = null;
+  }
+
+  /**
+   * Recreates renderer and WebGL-dependent objects after context loss
+   */
+  private recreateAfterContextLoss(): void {
+    if (!this.renderer || !this.mountElement) {
+      console.error("GameEngine: Cannot recreate after context loss - critical objects missing");
+      return;
+    }
+
+    console.log("GameEngine: Recreating WebGL context and objects");
+
+    try {
+      // Dispose old renderer but keep reference to domElement
+      const oldCanvas = this.renderer.domElement;
+
+      // Create new renderer with same settings
+      this.renderer = new THREE.WebGLRenderer({
+        canvas: oldCanvas, // Reuse the same canvas element
+        antialias: true,
+        powerPreference: "high-performance",
+        preserveDrawingBuffer: false
+      });
+
+      this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
+      this.renderer.setPixelRatio(window.devicePixelRatio);
+
+      // Update RenderManager with new renderer
+      if (this.renderManager) {
+        // Update the renderer reference in RenderManager
+        // This assumes we add a method to update the renderer in RenderManager
+        // which we'll implement next
+        this.renderManager.updateRenderer(this.renderer);
+      }
+
+      // Reinitialize WebGL context handlers
+      this.setupWebGLContextHandlers();
+
+      // Update other managers that might reference the renderer
+      // Most managers use the scene reference which hasn't changed
+
+      console.log("GameEngine: Successfully recovered from WebGL context loss");
+    } catch (error) {
+      console.error("GameEngine: Failed to recreate WebGL context:", error);
+      throw error; // Rethrow to signal that recovery failed
+    }
+  }
+
   public dispose(): void {
     this.stop();
+
+    // Remove WebGL context handlers
+    this.removeWebGLContextHandlers();
+
     if (this.inputHandler) this.inputHandler.dispose();
     if (this.playerController) this.playerController.dispose();
     if (this.environmentManager) this.environmentManager.dispose();
@@ -260,18 +420,36 @@ export class GameEngine {
     if (this.scoringSystem) this.scoringSystem.dispose();
     if (this.collisionSystem) this.collisionSystem.dispose();
     if (this.difficultyManager) this.difficultyManager.dispose();
+    if (this.lightingManager) this.lightingManager.dispose();
     if (this.assetFactory) this.assetFactory.dispose();
     if (this.shaderManager) this.shaderManager.dispose();
     if (this.renderManager) this.renderManager.dispose();
     if (this.cameraManager) this.cameraManager.dispose();
+
+    // Dispose renderer last
     if (this.renderer) {
       this.renderer.dispose();
+
+      // Explicitly clean up renderer's WebGL context
+      const gl = this.renderer.getContext();
+      if (gl) {
+        const loseContext = gl.getExtension('WEBGL_lose_context');
+        if (loseContext) {
+          try {
+            loseContext.loseContext();
+          } catch (e) {
+            console.warn("GameEngine: Could not force context loss during disposal:", e);
+          }
+        }
+      }
     }
+
     if (this.mountElement && this.renderer) {
       if (this.mountElement.contains(this.renderer.domElement)) {
         this.mountElement.removeChild(this.renderer.domElement);
       }
     }
+
     console.log("GameEngine: Disposed.");
   }
 

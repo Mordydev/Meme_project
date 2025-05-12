@@ -1,14 +1,63 @@
+// src/lib/game/services/ShaderManager.ts
 import * as THREE from 'three';
+import NoiseGLSL from '../shaders/common/noise.glsl'; // Import our chunks
+import UtilsGLSL from '../shaders/common/utils.glsl'; // Import our chunks
 
 export type MaterialType = 'player_default' | 'obstacle_rock' | 'obstacle_clam' | 'collectible_bubble' | 'collectible_coin' | 'environment_water' | 'obstacle_coral' | 'powerup_shield' | 'powerup_magnet' | 'powerup_doublescore' | 'obstacle_pufferfish' | 'obstacle_jellyfish' | 'obstacle_shark' | 'obstacle_seaturtle_shell' | 'obstacle_seaturtle_skin' | 'obstacle_kelpwall' | 'obstacle_schooloffish_fish';
 
+// Interface for shader source code before processing
+export interface ShaderProgramSource {
+  name: string;
+  vertexShaderSource: string;
+  fragmentShaderSource: string;
+  defaultUniforms?: () => THREE.ShaderMaterialParameters['uniforms']; // Function to get fresh uniforms
+  materialParameters?: Partial<Omit<THREE.ShaderMaterialParameters, 'vertexShader' | 'fragmentShader' | 'uniforms'>>;
+}
+
+// Cache for compiled materials to avoid recompilation
+interface CachedMaterial {
+    material: THREE.ShaderMaterial;
+    sourceKey: string; // Key based on shader name and custom uniforms structure
+}
+
 export class ShaderManager {
-  private materials: Map<MaterialType, THREE.Material>;
+  private materials: Map<MaterialType, THREE.Material>; // For backward compatibility
+  private shaderSources: Map<string, ShaderProgramSource> = new Map();
+  private shaderChunks: Map<string, string> = new Map();
+  private materialCache: Map<string, CachedMaterial> = new Map();
+
+  public globalUniforms: {
+    uTime: THREE.IUniform<number>;
+    uResolution: THREE.IUniform<THREE.Vector2>;
+  };
 
   constructor() {
+    // Initialize backward compatibility materials
     this.materials = new Map();
     this.initializeDefaultMaterials();
-    console.log("ShaderManager: Initialized.");
+
+    // Initialize global uniforms for all shaders
+    try {
+      // Create uniforms with initial default values - protect against undefined window
+      const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+      const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+
+      this.globalUniforms = {
+        uTime: { value: 0.0 },
+        uResolution: { value: new THREE.Vector2(screenWidth, screenHeight) },
+      };
+    } catch (error) {
+      console.warn('ShaderManager: Error initializing global uniforms', error);
+      // Safe fallback if anything fails
+      this.globalUniforms = {
+        uTime: { value: 0.0 },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+      };
+    }
+
+    // Register built-in GLSL chunks
+    this.registerCoreChunks();
+    console.log('ShaderManager: Initialized with basic materials and chunk system.');
   }
 
   private initializeDefaultMaterials(): void {
@@ -29,116 +78,37 @@ export class ShaderManager {
     this.materials.set('obstacle_coral', coralMaterial);
 
     // New obstacle materials for pufferfish and jellyfish with improved shaders
-    // Try to load custom shaders for pufferfish
-    try {
-      // This is a placeholder for shader loading - in a full implementation,
-      // would use dynamic import or shader loader plugin
-      // const pufferfishVert = await import('../shaders/obstacles/pufferfish.vert.glsl').then(m => m.default);
-      // const pufferfishFrag = await import('../shaders/obstacles/pufferfish.frag.glsl').then(m => m.default);
+    const pufferfishMaterial = new THREE.MeshPhongMaterial({
+      color: 0xEC9F0F,        // Mustard yellow (#EC9F0F)
+      emissive: 0x552200,     // Subtle emissive glow
+      emissiveIntensity: 0.2,
+      specular: 0xFFFFFF,     // White specular highlights
+      shininess: 40,          // Moderately shiny
+      name: 'PufferfishMaterial'
+    });
+    this.materials.set('obstacle_pufferfish', pufferfishMaterial);
 
-      // For now, since we've put shader files in place but the import mechanism
-      // might need additional bundler config, we'll use a high-quality fallback
-      const pufferfishMaterial = new THREE.MeshPhongMaterial({
-        color: 0xEC9F0F,        // Mustard yellow (#EC9F0F)
-        emissive: 0x552200,     // Subtle emissive glow
-        emissiveIntensity: 0.2,
-        specular: 0xFFFFFF,     // White specular highlights
-        shininess: 40,          // Moderately shiny
-        name: 'PufferfishMaterial'
-      });
-
-      // In the future, we would use ShaderMaterial:
-      /*
-      const pufferfishMaterial = new THREE.ShaderMaterial({
-        uniforms: {
-          uInflation: { value: 0.0 },
-          uTime: { value: 0.0 },
-          diffuse: { value: new THREE.Color(0xEC9F0F) },
-          emissive: { value: new THREE.Color(0x552200) },
-          specular: { value: new THREE.Color(0xFFFFFF) },
-          shininess: { value: 40 },
-          opacity: { value: 1.0 }
-        },
-        vertexShader: pufferfishVert,
-        fragmentShader: pufferfishFrag,
-        lights: true,
-        transparent: false
-      });
-      */
-
-      this.materials.set('obstacle_pufferfish', pufferfishMaterial);
-    } catch (e) {
-      console.warn("Failed to load pufferfish custom shader, using fallback", e);
-      const pufferfishFallback = new THREE.MeshPhongMaterial({
-        color: 0xE57C04, // Orange
-        emissive: 0x441100,
-        emissiveIntensity: 0.2,
-        shininess: 30
-      });
-      this.materials.set('obstacle_pufferfish', pufferfishFallback);
-    }
-
-    // Try to load custom shaders for jellyfish
-    try {
-      // Similar placeholder for shader loading
-      // const jellyfishVert = await import('../shaders/obstacles/jellyfish.vert.glsl').then(m => m.default);
-      // const jellyfishFrag = await import('../shaders/obstacles/jellyfish.frag.glsl').then(m => m.default);
-
-      // High-quality fallback using MeshPhysicalMaterial for better translucency
-      const jellyfishMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0x88CCFF,             // Light blue
-        transparent: true,
-        opacity: 0.7,
-        transmission: 0.3,           // Translucent quality
-        roughness: 0.1,              // Very smooth
-        metalness: 0.1,              // Slight metallic look
-        emissive: 0x113355,          // Subtle blue glow
-        emissiveIntensity: 0.4,
-        clearcoat: 0.5,              // Slight clearcoat for "wet" appearance
-        clearcoatRoughness: 0.2,
-        ior: 1.2,                    // Refraction index
-        reflectivity: 0.3,
-        iridescence: 0.2,            // Slight rainbow effect
-        iridescenceIOR: 1.5,
-        sheen: 0.1,                  // Slight fabric-like sheen
-        sheenRoughness: 0.2,
-        sheenColor: new THREE.Color(0xAAFFFF),
-        name: 'JellyfishMaterial'
-      });
-
-      // In the future, we would use ShaderMaterial:
-      /*
-      const jellyfishMaterial = new THREE.ShaderMaterial({
-        uniforms: {
-          uBellColor: { value: new THREE.Color(0x88CCFF) },
-          uOpacity: { value: 0.7 },
-          uTime: { value: 0.0 },
-          uGlowIntensity: { value: 0.6 },
-          uPulseAmplitude: { value: 0.1 },
-          uPulseSpeed: { value: 1.5 }
-        },
-        vertexShader: jellyfishVert,
-        fragmentShader: jellyfishFrag,
-        transparent: true,
-        lights: true
-      });
-      */
-
-      this.materials.set('obstacle_jellyfish', jellyfishMaterial);
-    } catch (e) {
-      console.warn("Failed to load jellyfish custom shader, using fallback", e);
-      const jellyfishFallback = new THREE.MeshPhysicalMaterial({
-        color: 0x88CCFF, // Light blue
-        transparent: true,
-        opacity: 0.7,
-        transmission: 0.3, // Translucent quality
-        roughness: 0.2,
-        metalness: 0.1,
-        emissive: 0x113355, // Subtle blue glow
-        emissiveIntensity: 0.3
-      });
-      this.materials.set('obstacle_jellyfish', jellyfishFallback);
-    }
+    const jellyfishMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x88CCFF,             // Light blue
+      transparent: true,
+      opacity: 0.7,
+      transmission: 0.3,           // Translucent quality
+      roughness: 0.1,              // Very smooth
+      metalness: 0.1,              // Slight metallic look
+      emissive: 0x113355,          // Subtle blue glow
+      emissiveIntensity: 0.4,
+      clearcoat: 0.5,              // Slight clearcoat for "wet" appearance
+      clearcoatRoughness: 0.2,
+      ior: 1.2,                    // Refraction index
+      reflectivity: 0.3,
+      iridescence: 0.2,            // Slight rainbow effect
+      iridescenceIOR: 1.5,
+      sheen: 0.1,                  // Slight fabric-like sheen
+      sheenRoughness: 0.2,
+      sheenColor: new THREE.Color(0xAAFFFF),
+      name: 'JellyfishMaterial'
+    });
+    this.materials.set('obstacle_jellyfish', jellyfishMaterial);
 
     // Collectible materials - good visibility without being extreme
     const bubbleMaterial = new THREE.MeshPhongMaterial({
@@ -234,10 +204,311 @@ export class ShaderManager {
     });
     this.materials.set('obstacle_schooloffish_fish', schoolOfFishMaterial);
 
-    // Add more placeholders as needed
-    console.log("ShaderManager: Default materials initialized.");
+    console.log("ShaderManager: Default materials initialized for backward compatibility.");
   }
 
+  private registerCoreChunks(): void {
+    try {
+      // Check if THREE.ShaderChunk exists before using it
+      if (!THREE.ShaderChunk) {
+        console.error("ShaderManager: THREE.ShaderChunk is undefined. This may cause shader compilation errors.");
+        THREE.ShaderChunk = {}; // Create empty object as fallback
+      }
+
+      // Register chunks from imported GLSL modules
+      this.registerChunk('random2D', NoiseGLSL.random2D);
+      this.registerChunk('noise2D', NoiseGLSL.noise2D); // Depends on random2D
+      this.registerChunk('PI', UtilsGLSL.PI);
+      this.registerChunk('saturate', UtilsGLSL.saturate);
+
+      console.log('ShaderManager: Registered core GLSL chunks:', Array.from(this.shaderChunks.keys()));
+    } catch (error) {
+      console.error("ShaderManager: Error registering core chunks:", error);
+    }
+  }
+
+  public registerChunk(name: string, source: string): void {
+    try {
+      if (!name || typeof name !== 'string') {
+        console.error(`ShaderManager: Invalid chunk name: ${name}`);
+        return;
+      }
+
+      if (!source || typeof source !== 'string') {
+        console.error(`ShaderManager: Invalid chunk source for "${name}"`);
+        return;
+      }
+
+      if (this.shaderChunks.has(name)) {
+        console.warn(`ShaderManager: Chunk "${name}" is already registered. Overwriting.`);
+      }
+
+      this.shaderChunks.set(name, source);
+
+      // Also register with THREE.js ShaderChunk for compatibility with THREE.js material system
+      // Make sure THREE.ShaderChunk exists
+      if (!THREE.ShaderChunk) {
+        console.warn("ShaderManager: THREE.ShaderChunk is undefined. Creating empty object.");
+        THREE.ShaderChunk = {};
+      }
+
+      THREE.ShaderChunk[name] = source;
+    } catch (error) {
+      console.error(`ShaderManager: Error registering chunk "${name}":`, error);
+    }
+  }
+
+  public registerShader(programSource: ShaderProgramSource): void {
+    if (this.shaderSources.has(programSource.name)) {
+      console.warn(`ShaderManager: Shader program "${programSource.name}" is already registered. Overwriting.`);
+    }
+    this.shaderSources.set(programSource.name, programSource);
+    console.log(`ShaderManager: Registered shader "${programSource.name}".`);
+  }
+  
+  private preprocessShader(source: string, processingHistory: Set<string> = new Set()): string {
+    try {
+      const includeRegex = /^[ \t]*#include\s+<([\w./]+)>/gm;
+      let match;
+      let processedSource = source;
+
+      // Track unprocessed includes to avoid infinite loop
+      const unprocessedIncludes = new Set<string>();
+
+      // First pass: Check all required chunks and log warnings
+      while ((match = includeRegex.exec(source)) !== null) {
+        const chunkName = match[1];
+
+        if (!this.shaderChunks.has(chunkName)) {
+          console.warn(`ShaderManager: Shader chunk "${chunkName}" not found for #include directive.`);
+          unprocessedIncludes.add(chunkName);
+        }
+      }
+
+      // Reset regex
+      includeRegex.lastIndex = 0;
+
+      // Second pass: Process the includes
+      while ((match = includeRegex.exec(source)) !== null) {
+        const chunkName = match[1];
+
+        // Skip processing if this is an unresolved include
+        if (unprocessedIncludes.has(chunkName)) {
+          // Replace with empty placeholder to avoid errors
+          processedSource = processedSource.replace(
+            match[0],
+            `// PLACEHOLDER for missing chunk "${chunkName}"\n// Functions and variables from this chunk won't be available`
+          );
+          continue;
+        }
+
+        // Protect against circular dependencies
+        if (processingHistory.has(chunkName)) {
+          console.warn(`ShaderManager: Circular dependency detected for chunk "${chunkName}". Skipping.`);
+          continue;
+        }
+
+        processingHistory.add(chunkName);
+
+        const chunkSource = this.shaderChunks.get(chunkName);
+        if (chunkSource) {
+          // Recursively preprocess the chunk itself
+          const processedChunk = this.preprocessShader(chunkSource, new Set(processingHistory)); // Pass a copy of history
+          processedSource = processedSource.replace(match[0], `// ---- Start #include <${chunkName}> ----\n${processedChunk}\n// ---- End #include <${chunkName}> ----`);
+        } else {
+          // This shouldn't happen due to the first pass, but just in case
+          processedSource = processedSource.replace(match[0], `// ERROR: Shader chunk "${chunkName}" not found.`);
+        }
+
+        processingHistory.delete(chunkName); // Remove from history for this path
+      }
+
+      return processedSource;
+    } catch (error) {
+      console.error("ShaderManager: Error preprocessing shader:", error);
+      // Return original source if processing fails, to avoid breaking everything
+      return source;
+    }
+  }
+
+  public createShaderMaterial(
+    shaderName: string,
+    instanceUniformsOverrides?: THREE.ShaderMaterialParameters['uniforms'],
+    instanceMaterialParams?: Partial<Omit<THREE.ShaderMaterialParameters, 'vertexShader' | 'fragmentShader' | 'uniforms'>>
+  ): THREE.ShaderMaterial | null {
+    try {
+      // Validate input parameters
+      if (!shaderName || typeof shaderName !== 'string') {
+        console.error(`ShaderManager: Invalid shader name: ${shaderName}`);
+        return null;
+      }
+
+      const programSource = this.shaderSources.get(shaderName);
+      if (!programSource) {
+        console.error(`ShaderManager: Shader source "${shaderName}" not found.`);
+        return null;
+      }
+
+      // Validate shader source
+      if (!programSource.vertexShaderSource || !programSource.fragmentShaderSource) {
+        console.error(`ShaderManager: Incomplete shader source for "${shaderName}".`);
+        return null;
+      }
+
+      // Process the shaders
+      const processedVertexShader = this.preprocessShader(programSource.vertexShaderSource);
+      const processedFragmentShader = this.preprocessShader(programSource.fragmentShaderSource);
+
+      // Create an empty, safe uniform object as a fallback
+      const safeDefaultUniforms = {
+        uTime: { value: 0.0 },
+        uResolution: { value: new THREE.Vector2(1, 1) }
+      };
+
+      // Create uniforms safely
+      let finalUniforms: THREE.ShaderMaterialParameters['uniforms'] = { ...safeDefaultUniforms };
+
+      try {
+        // Get default uniforms with safe fallback
+        let defaultUniforms = {};
+        if (programSource.defaultUniforms) {
+          try {
+            defaultUniforms = programSource.defaultUniforms() || {};
+
+            // Validate each uniform has a valid value property
+            Object.entries(defaultUniforms).forEach(([key, uniform]) => {
+              const typedUniform = uniform as THREE.IUniform<any>;
+              if (typedUniform.value === undefined || typedUniform.value === null) {
+                console.warn(`ShaderManager: Uniform "${key}" in "${shaderName}" has undefined value. Setting default.`);
+                typedUniform.value = null; // Ensure value exists, even if null
+              }
+            });
+          } catch (uniformError) {
+            console.warn(`ShaderManager: Error creating default uniforms for "${shaderName}":`, uniformError);
+          }
+        }
+
+        // Clone uniforms with safety checks
+        let clonedGlobalUniforms = { ...safeDefaultUniforms };
+        let clonedDefaultUniforms = {};
+        let clonedInstanceUniforms = {};
+
+        try {
+          if (this.globalUniforms && Object.keys(this.globalUniforms).length > 0) {
+            clonedGlobalUniforms = THREE.UniformsUtils.clone(this.globalUniforms);
+          }
+        } catch (error) {
+          console.warn("ShaderManager: Failed to clone global uniforms, using safe defaults", error);
+        }
+
+        try {
+          if (Object.keys(defaultUniforms).length > 0) {
+            clonedDefaultUniforms = THREE.UniformsUtils.clone(defaultUniforms);
+          }
+        } catch (error) {
+          console.warn("ShaderManager: Failed to clone default uniforms", error);
+        }
+
+        try {
+          if (instanceUniformsOverrides && Object.keys(instanceUniformsOverrides).length > 0) {
+            clonedInstanceUniforms = THREE.UniformsUtils.clone(instanceUniformsOverrides);
+          }
+        } catch (error) {
+          console.warn("ShaderManager: Failed to clone instance uniforms", error);
+        }
+
+        // Merge uniforms safely
+        finalUniforms = { ...safeDefaultUniforms };
+
+        // Helper to safely merge uniform objects
+        const safelyMergeUniforms = (target: any, source: any) => {
+          if (!source || typeof source !== 'object') return;
+
+          Object.keys(source).forEach(key => {
+            if (source[key] !== undefined) {
+              // Always ensure the uniform has a valid structure
+              if (!target[key]) target[key] = { value: null };
+
+              // Only set the value if it's a valid uniform object
+              if (source[key].value !== undefined) {
+                target[key] = source[key];
+              } else {
+                console.warn(`ShaderManager: Uniform "${key}" has invalid structure. Creating default.`);
+                target[key] = { value: source[key] }; // Wrap primitive values if needed
+              }
+            }
+          });
+        };
+
+        // First apply global uniforms
+        safelyMergeUniforms(finalUniforms, clonedGlobalUniforms);
+
+        // Then apply default uniforms
+        safelyMergeUniforms(finalUniforms, clonedDefaultUniforms);
+
+        // Finally apply instance-specific uniforms
+        safelyMergeUniforms(finalUniforms, clonedInstanceUniforms);
+
+      } catch (uniformsError) {
+        console.warn(`ShaderManager: Error processing uniforms for "${shaderName}":`, uniformsError);
+        // Fallback to safe default uniforms
+        finalUniforms = { ...safeDefaultUniforms };
+      }
+
+      // Create the material with default params that can be overridden
+      const defaultMaterialParams = {
+        vertexShader: processedVertexShader,
+        fragmentShader: processedFragmentShader,
+        uniforms: finalUniforms,
+        lights: false,
+        transparent: false,
+        side: THREE.FrontSide
+      };
+
+      // Add program source material parameters
+      const materialParams = {
+        ...defaultMaterialParams,
+        ...(programSource.materialParameters || {}),
+        ...(instanceMaterialParams || {})
+      };
+
+      // Create the material
+      const material = new THREE.ShaderMaterial(materialParams);
+
+      // Set name for debugging
+      material.name = shaderName;
+
+      // Verify the material is valid
+      if (!material.vertexShader || !material.fragmentShader) {
+        console.error(`ShaderManager: Created material for "${shaderName}" has missing shaders.`);
+        return null;
+      }
+
+      console.log(`ShaderManager: Successfully created material for "${shaderName}"`);
+      return material;
+    } catch (error) {
+      console.error(`ShaderManager: Error creating material for "${shaderName}":`, error);
+      return null;
+    }
+  }
+
+  public update(deltaTime: number, elapsedTime: number, screenWidth: number, screenHeight: number): void {
+    // Update global uniforms that all shaders can access
+    // Safely handle update in case objects are undefined
+    try {
+      if (this.globalUniforms.uTime && this.globalUniforms.uTime.value !== undefined) {
+        this.globalUniforms.uTime.value = elapsedTime;
+      }
+
+      if (this.globalUniforms.uResolution && this.globalUniforms.uResolution.value) {
+        this.globalUniforms.uResolution.value.set(screenWidth, screenHeight);
+      }
+    } catch (error) {
+      console.warn("ShaderManager: Error updating global uniforms", error);
+    }
+  }
+  
+  // For backward compatibility with existing code
   public getMaterial(type: MaterialType): THREE.Material | undefined {
     if (!this.materials.has(type)) {
         console.warn(`ShaderManager: Material type "${type}" not found. Creating a fallback basic material.`);
@@ -249,11 +520,16 @@ export class ShaderManager {
     return this.materials.get(type);
   }
 
-  // Later: methods to load GLSL shaders, create ShaderMaterials, manage uniforms
-
   public dispose(): void {
+    // Dispose all materials in both systems
     this.materials.forEach(material => material.dispose());
     this.materials.clear();
-    console.log("ShaderManager: Disposed materials.");
+    
+    this.materialCache.forEach(cached => cached.material.dispose());
+    this.materialCache.clear();
+    
+    this.shaderSources.clear();
+    this.shaderChunks.clear();
+    console.log('ShaderManager: Disposed all materials, shaders, and chunks.');
   }
-} 
+}

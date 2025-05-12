@@ -80,13 +80,15 @@ export class PlayerController {
   }
 
   private initializeVisualMaterials(): void {
-    // Create shield visual material with stronger glow
+    // Create shield visual material with properties from config
+    const shieldConfig = configSystem.getPowerUpsConfig().shield.visual || {};
+
     this.shieldVisualMaterial = new THREE.MeshPhongMaterial({
-      color: 0x00ccff, // Bright cyan
-      emissive: 0x00ffff,
-      emissiveIntensity: 1.5, // Increased intensity
+      color: shieldConfig.color || 0x00ccff, // Use config value or default to cyan
+      emissive: shieldConfig.emissive || 0x00ffff,
+      emissiveIntensity: shieldConfig.emissiveIntensity || 1.5,
       transparent: true,
-      opacity: 0.7, // More opaque
+      opacity: shieldConfig.opacity || 0.7,
       wireframe: false, // Keep it solid for shield effect
       shininess: 100 // Add shininess for better visibility
     });
@@ -124,20 +126,29 @@ export class PlayerController {
         console.log("PlayerController: Shield ACTIVE");
         // Apply shield visual effect
         if (this.mesh && this.shieldVisualMaterial) {
-          if (!this.originalPlayerMaterial) {
-            // Store original material to restore later
+          if (!this.originalPlayerMaterial && this.mesh.material !== this.shieldVisualMaterial) {
+            // Store original material only if not already shielded and not the shield material itself
             this.originalPlayerMaterial = this.mesh.material;
           }
           // Apply shield material
           this.mesh.material = this.shieldVisualMaterial;
+          (this.mesh.material as THREE.Material).needsUpdate = true;
         }
       } else {
         console.log("PlayerController: Shield DEACTIVE");
         // Remove shield visual effect
-        if (this.mesh && this.originalPlayerMaterial) {
-          // Restore original material
+        if (this.mesh && this.originalPlayerMaterial && this.state !== PlayerState.HIT) {
+          // Restore original material only if not in hit state
           this.mesh.material = this.originalPlayerMaterial;
           this.originalPlayerMaterial = undefined;
+          (this.mesh.material as THREE.Material).needsUpdate = true;
+        } else if (this.state !== PlayerState.HIT) {
+          // If no originalPlayerMaterial or in HIT state, revert to a default if necessary
+          const defaultMaterial = this.assetFactory.shaderManager.getMaterial('player_default');
+          if (defaultMaterial && this.mesh.material !== defaultMaterial) {
+            this.mesh.material = defaultMaterial;
+            (this.mesh.material as THREE.Material).needsUpdate = true;
+          }
         }
       }
     }
