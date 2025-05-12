@@ -1,27 +1,29 @@
 {
-  "name": "nemo-underwater-adventure",
+  "name": "nemo-runner",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^15.3.1",
+    "@types/three": "^0.176.0",
+    "next": "15.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "^0.176.0",
-    "zustand": "^4.5.0"
+    "three": "^0.176.0"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@types/three": "^0.176.0",
-    "eslint": "^8.56.0",
-    "eslint-config-next": "^15.3.1",
-    "typescript": "^5.4.2"
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }
