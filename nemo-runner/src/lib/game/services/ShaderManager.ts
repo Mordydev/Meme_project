@@ -2,6 +2,9 @@
 import * as THREE from 'three';
 import NoiseGLSL from '../shaders/common/noise.glsl'; // Import our chunks
 import UtilsGLSL from '../shaders/common/utils.glsl'; // Import our chunks
+import { vertexShaderSource as clownfishVertex } from '../shaders/character/clownfish.vert';
+import { fragmentShaderSource as clownfishFragment } from '../shaders/character/clownfish.frag';
+import { configSystem } from '../core/ConfigurationSystem';
 
 export type MaterialType = 'player_default' | 'obstacle_rock' | 'obstacle_clam' | 'collectible_bubble' | 'collectible_coin' | 'environment_water' | 'obstacle_coral' | 'powerup_shield' | 'powerup_magnet' | 'powerup_doublescore' | 'obstacle_pufferfish' | 'obstacle_jellyfish' | 'obstacle_shark' | 'obstacle_seaturtle_shell' | 'obstacle_seaturtle_skin' | 'obstacle_kelpwall' | 'obstacle_schooloffish_fish';
 
@@ -61,6 +64,9 @@ export class ShaderManager {
     // Register particle and post-processing shaders
     this.registerParticleShaders();
     
+    // Register clownfish shader
+    this.registerClownfishShader();
+    
     console.log('ShaderManager: Initialized with basic materials and shader systems.');
   }
   
@@ -70,6 +76,53 @@ export class ShaderManager {
    * This is now a synchronous method that imports shaders directly
    * to ensure registration happens immediately rather than in a Promise
    */
+  /**
+   * Register clownfish shader for player character
+   */
+  private registerClownfishShader(): void {
+    try {
+      const playerCfg = configSystem.get('player'); // For default animation params
+
+      this.registerShader({
+        name: 'clownfishShader',
+        vertexShaderSource: clownfishVertex,
+        fragmentShaderSource: clownfishFragment,
+        defaultUniforms: () => ({ // Ensure fresh objects
+          uBaseColor: { value: new THREE.Color(playerCfg.clownFishBaseColor) },
+          uStripeColor: { value: new THREE.Color(playerCfg.clownFishStripeColor) },
+          uStripeEdgeColor: { value: new THREE.Color(playerCfg.clownFishStripeEdgeColor) },
+          uFinAccentColor: { value: new THREE.Color(playerCfg.clownFishFinAccentColor) },
+          uEyePupilColor: { value: new THREE.Color(playerCfg.eyePupilColor) },
+          uEyeIrisColor: { value: new THREE.Color(playerCfg.eyeIrisColor) },
+          uEyeHighlightColor: { value: new THREE.Color(playerCfg.eyeHighlightColor) },
+          // Animation uniforms
+          uTime: { value: 0.0 },
+          uPlayerSpeed: { value: 0.0 }, 
+          uIsTurning: { value: 0.0 },
+          uTurnDirection: { value: 0.0 },
+          uTailFinFrequency: { value: playerCfg.tailFinFrequency },
+          uTailFinAmplitude: { value: playerCfg.tailFinAmplitude },
+          uPectoralFinFrequency: { value: playerCfg.pectoralFinFrequency },
+          uPectoralFinAmplitude: { value: playerCfg.pectoralFinAmplitude },
+        }),
+        materialParameters: {
+          fog: true, // Character should be affected by scene fog
+          lights: true, // Character should react to scene lights
+          side: THREE.DoubleSide, // Use DoubleSide for both body and fins
+          transparent: true, // Enable transparency for fins
+          depthWrite: true, // Enable depth writing
+          glslVersion: THREE.GLSL3, // Explicitly use GLSL 3.0
+          defines: {
+            GLSL3: true // Define GLSL3 for the shader to adapt
+          }
+        }
+      });
+      console.log('ShaderManager: Registered clownfishShader.');
+    } catch (error) {
+      console.error("ShaderManager: Error registering clownfish shader:", error);
+    }
+  }
+
   private registerParticleShaders(): void {
     try {
       // Import shader sources directly
@@ -338,6 +391,25 @@ export class ShaderManager {
   
   private preprocessShader(source: string, processingHistory: Set<string> = new Set()): string {
     try {
+      // Check if this shader uses THREE.js built-in chunks
+      if (source.includes('#include <') && (
+          source.includes('#include <common>') ||
+          source.includes('#include <lights_pars_begin>') ||
+          source.includes('#include <fog_pars_fragment>') ||
+          source.includes('#include <bsdfs>') ||
+          source.includes('#include <tonemapping_fragment>') ||
+          source.includes('#include <colorspace_fragment>') ||
+          source.includes('#include <fog_fragment>')
+      )) {
+        // If it includes THREE.js chunks, don't try to process them ourselves
+        // Add a marker to prevent double processing
+        if (!source.includes('// THREE.js chunks handled by THREE.js shader system')) {
+          source = "// THREE.js chunks handled by THREE.js shader system\n" + source;
+          console.log("ShaderManager: Found THREE.js includes, letting THREE.js handle them");
+        }
+        return source; // Let THREE.js handle its own includes
+      }
+
       const includeRegex = /^[ \t]*#include\s+<([\w./]+)>/gm;
       let match;
       let processedSource = source;
@@ -526,14 +598,34 @@ export class ShaderManager {
       }
 
       // Create the material with default params that can be overridden
+      // Detect if this is a shader that uses THREE.js built-in chunks or gl_FragColor
+      // WebGL 1.0 shaders use gl_FragColor, WebGL 2.0 uses custom output variables
+      const usesLegacyShaderSyntax = processedFragmentShader.includes('gl_FragColor');
+      const usesThreeChunks = processedVertexShader.includes('// THREE.js chunks handled') || 
+                              processedFragmentShader.includes('// THREE.js chunks handled');
+                           
+      // Default parameters with correct GLSL version based on shader content
       const defaultMaterialParams = {
         vertexShader: processedVertexShader,
         fragmentShader: processedFragmentShader,
         uniforms: finalUniforms,
         lights: false,
         transparent: false,
-        side: THREE.FrontSide
+        side: THREE.FrontSide,
+        // Use WebGL 1.0 for shaders that use gl_FragColor, WebGL 2.0 for others
+        glslVersion: usesLegacyShaderSyntax ? THREE.GLSL1 : THREE.GLSL3,
+        defines: {
+          USE_THREE_CHUNKS: usesThreeChunks,
+          // Add GLSL3 define for WebGL 2.0 shaders so the shader can adapt
+          GLSL3: !usesLegacyShaderSyntax
+        }
       };
+      
+      // Log the GLSL version being used for this shader
+      console.log(`ShaderManager: Created material for "${shaderName}" using ${
+        usesLegacyShaderSyntax ? 'GLSL1 (WebGL 1.0)' : 'GLSL3 (WebGL 2.0)'
+      }`);
+      
 
       // Add program source material parameters
       const materialParams = {
@@ -541,6 +633,11 @@ export class ShaderManager {
         ...(programSource.materialParameters || {}),
         ...(instanceMaterialParams || {})
       };
+      
+      // Log success or potential issues with material creation
+      if (materialParams.vertexShader.includes('#include <') || materialParams.fragmentShader.includes('#include <')) {
+        console.log(`ShaderManager: ${shaderName} uses THREE.js includes, ensuring proper handling`);
+      }
 
       // Create the material
       const material = new THREE.ShaderMaterial(materialParams);
@@ -696,12 +793,43 @@ export class ShaderManager {
       // Reset any internal state that might be tied to old WebGL context
       this.globalUniforms.uTime.value = 0.0;
 
+      // Reset basic materials too as they might be linked to the broken context
+      try {
+        console.log("ShaderManager: Reinitializing basic materials...");
+        
+        // Dispose all materials in both systems
+        this.materials.forEach(material => {
+          try { material.dispose(); } catch(e) { /* Ignore */ }
+        });
+        this.materials.clear();
+        
+        // Re-initialize with fresh materials
+        this.initializeDefaultMaterials();
+      } catch (basicMaterialsError) {
+        console.warn("ShaderManager: Error reinitializing basic materials:", basicMaterialsError);
+      }
+
       // Force THREE.ShaderChunk to refresh in case any chunks were tainted
       try {
         // Re-register core chunks to ensure they're fresh
         this.registerCoreChunks();
       } catch (chunkError) {
         console.warn("ShaderManager: Error re-registering chunks:", chunkError);
+      }
+
+      // Trigger safety flag to use simple fallbacks for any subsequent shader creations
+      try {
+        // Create a global flag to indicate we're in recovery mode
+        // This will signal player and other assets to use fallbacks more aggressively
+        (window as any).__shaderSystemRecoveryMode = true;
+        
+        // Set a timer to clear the recovery mode after a delay
+        setTimeout(() => {
+          (window as any).__shaderSystemRecoveryMode = false;
+          console.log("ShaderManager: Exited recovery mode");
+        }, 5000); // 5 seconds should be enough for all assets to reinitialize
+      } catch (flagError) {
+        console.warn("ShaderManager: Error setting recovery flag:", flagError);
       }
 
       console.log('ShaderManager: Program cache reset completed successfully.');

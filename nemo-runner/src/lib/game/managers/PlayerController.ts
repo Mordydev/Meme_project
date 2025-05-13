@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { configSystem } from '../core/ConfigurationSystem';
 import { ProceduralAssetFactory } from '../assets/ProceduralAssetFactory';
 import { PowerUpType } from './PowerUpManager';
+import { ClownfishAsset } from '../assets/character/ClownfishAsset';
 
 // Helper function for smooth animation
 function easeOutCubic(t: number): number {
@@ -19,10 +20,11 @@ export enum PlayerState {
 }
 
 export class PlayerController {
-  public mesh!: THREE.Mesh; // The visual representation of the player
+  public mesh!: THREE.Group; // The visual representation of the player (now a Group)
   private scene: THREE.Scene;
   private assetFactory: ProceduralAssetFactory;
   private gameEngine?: any; // Reference to game engine for accessing VFX
+  private clownfishAsset!: ClownfishAsset; // Store the asset instance
 
   private currentLane: number = 0; // -1 (left), 0 (center), 1 (right)
   private targetLane: number = 0;
@@ -38,7 +40,7 @@ export class PlayerController {
 
   // For shield power-up invincibility (separate from post-hit)
   public isPowerUpShieldActive: boolean = false;
-  private originalPlayerMaterial?: THREE.Material | THREE.Material[];
+  private originalPlayerMaterials?: Map<string, THREE.Material>;
   private shieldVisualMaterial?: THREE.Material;
   private hitVisualMaterial?: THREE.Material; // For post-hit visual feedback
 
@@ -105,12 +107,14 @@ export class PlayerController {
   }
 
   private initialize(): void {
-    this.mesh = this.assetFactory.createPlayerMesh();
-    this.mesh.position.y = this.normalYPosition; // Floor is at Y=-1, sphere radius 0.5, so -1 + 0.5 = -0.5. A bit higher for clearance.
+    // Get the clownfish asset and its mesh
+    this.clownfishAsset = this.assetFactory.createClownfishAsset();
+    this.mesh = this.clownfishAsset.getMesh();
+    this.mesh.position.y = this.normalYPosition;
     this.mesh.position.x = 0;
     this.mesh.position.z = 0;
     this.scene.add(this.mesh);
-    console.log("PlayerController: Initialized with player mesh from factory.");
+    console.log("PlayerController: Initialized with clownfish player mesh.");
   }
 
   /**
@@ -124,31 +128,45 @@ export class PlayerController {
 
       if (isActive) {
         console.log("PlayerController: Shield ACTIVE");
-        // Apply shield visual effect
+        
+        // Store original materials and apply shield to all meshes in the group
         if (this.mesh && this.shieldVisualMaterial) {
-          if (!this.originalPlayerMaterial && this.mesh.material !== this.shieldVisualMaterial) {
-            // Store original material only if not already shielded and not the shield material itself
-            this.originalPlayerMaterial = this.mesh.material;
+          if (!this.originalPlayerMaterials) {
+            this.originalPlayerMaterials = new Map();
+            
+            // Store original materials for all child meshes
+            this.mesh.traverse((child) => {
+              if (child instanceof THREE.Mesh && child.material) {
+                this.originalPlayerMaterials!.set(child.name, child.material);
+                
+                // Apply shield material to each mesh
+                child.material = this.shieldVisualMaterial!.clone();
+                child.material.needsUpdate = true;
+              }
+            });
           }
-          // Apply shield material
-          this.mesh.material = this.shieldVisualMaterial;
-          (this.mesh.material as THREE.Material).needsUpdate = true;
         }
       } else {
         console.log("PlayerController: Shield DEACTIVE");
-        // Remove shield visual effect
-        if (this.mesh && this.originalPlayerMaterial && this.state !== PlayerState.HIT) {
-          // Restore original material only if not in hit state
-          this.mesh.material = this.originalPlayerMaterial;
-          this.originalPlayerMaterial = undefined;
-          (this.mesh.material as THREE.Material).needsUpdate = true;
+        
+        // Restore original materials if not in hit state
+        if (this.mesh && this.originalPlayerMaterials && this.state !== PlayerState.HIT) {
+          // Traverse the group and restore materials
+          this.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.name) {
+              const originalMaterial = this.originalPlayerMaterials!.get(child.name);
+              if (originalMaterial) {
+                child.material = originalMaterial;
+                child.material.needsUpdate = true;
+              }
+            }
+          });
+          
+          this.originalPlayerMaterials = undefined;
         } else if (this.state !== PlayerState.HIT) {
-          // If no originalPlayerMaterial or in HIT state, revert to a default if necessary
-          const defaultMaterial = this.assetFactory.shaderManager.getMaterial('player_default');
-          if (defaultMaterial && this.mesh.material !== defaultMaterial) {
-            this.mesh.material = defaultMaterial;
-            (this.mesh.material as THREE.Material).needsUpdate = true;
-          }
+          // If no original materials and not in hit state, could restore defaults
+          // For now, let's just log this
+          console.log("PlayerController: No original materials to restore after shield");
         }
       }
     }
@@ -226,6 +244,14 @@ export class PlayerController {
         }
       }
     }
+    
+    // Update clownfish animation with current speed and turning state
+    if (this.clownfishAsset) {
+      const currentSpeedNormalized = this.currentForwardSpeed / this.baseForwardSpeed; // Normalize speed
+      let isTurning = this.isTransitioningLane;
+      let turnDirection = this.isTransitioningLane ? Math.sign(this.targetLaneX - this.previousLaneX) : 0;
+      this.clownfishAsset.updateAnimation(deltaTime, currentSpeedNormalized, isTurning, turnDirection);
+    }
 
     // Vertical Movement Logic
     if (this.state === PlayerState.JUMPING) {
@@ -261,7 +287,8 @@ export class PlayerController {
       this.invincibilityTimer -= deltaTime;
 
       // Add flashing effect for post-hit invincibility
-      this.mesh.visible = Math.floor(this.invincibilityTimer * 10) % 2 === 0;
+      const isVisible = Math.floor(this.invincibilityTimer * 10) % 2 === 0;
+      this.mesh.visible = isVisible;
 
       if (this.invincibilityTimer <= 0) {
         this.isInvincible = false;
@@ -273,22 +300,20 @@ export class PlayerController {
         }
 
         // Restore original appearance if not shielded by power-up
-        if (!this.isPowerUpShieldActive) {
-          if (!Array.isArray(this.mesh.material)) {
-            // If we have the original material, restore it
-            if (this.originalPlayerMaterial &&
-                this.mesh.material !== this.shieldVisualMaterial) {
-              this.mesh.material = this.originalPlayerMaterial;
-            } else {
-              // Otherwise just reset properties
-              this.mesh.material.opacity = 1.0;
-              this.mesh.material.transparent = false;
-              if ('color' in this.mesh.material) {
-                (this.mesh.material as THREE.MeshPhongMaterial).color.setHex(0xffa500); // Default orange
+        if (!this.isPowerUpShieldActive && this.originalPlayerMaterials) {
+          // Restore all original materials
+          this.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.name) {
+              const originalMaterial = this.originalPlayerMaterials!.get(child.name);
+              if (originalMaterial) {
+                child.material = originalMaterial;
+                child.material.needsUpdate = true;
               }
             }
-            (this.mesh.material as THREE.Material).needsUpdate = true;
-          }
+          });
+          
+          // Clear the stored materials
+          this.originalPlayerMaterials = undefined;
         }
 
         console.log("PlayerController: Post-hit invincibility ended.");
@@ -361,17 +386,16 @@ export class PlayerController {
         vfxService.triggerHitEffect('major');
       }
 
-      // Apply red material to indicate defeat (unless shielded)
-      if (!Array.isArray(this.mesh.material)) {
-        if (this.hitVisualMaterial) {
-          this.mesh.material = this.hitVisualMaterial;
-          this.mesh.material.opacity = 1.0; // Fully visible red for defeat
-          this.mesh.material.transparent = true;
-          (this.mesh.material as THREE.Material).needsUpdate = true;
-        } else {
-          // Fallback to just changing color if hit material isn't initialized
-          (this.mesh.material as THREE.MeshPhongMaterial).color.setHex(0xff0000); // Red
-        }
+      // Apply red material to all meshes in the group to indicate defeat (unless shielded)
+      if (this.mesh && this.hitVisualMaterial) {
+        this.mesh.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.material = this.hitVisualMaterial!.clone();
+            child.material.opacity = 1.0; // Fully visible red for defeat
+            child.material.transparent = true;
+            child.material.needsUpdate = true;
+          }
+        });
       }
 
       // Update UI for lives if there's a callback
@@ -392,16 +416,30 @@ export class PlayerController {
         vfxService.triggerHitEffect('minor');
       }
 
-      // Apply visual cue for post-hit invincibility (if not already shielded)
-      if (!Array.isArray(this.mesh.material)) {
-        if (this.hitVisualMaterial) {
-          this.mesh.material = this.hitVisualMaterial;
-        } else {
-          // Fallback if hit material isn't initialized
-          this.mesh.material.transparent = true;
-          this.mesh.material.opacity = 0.5;
+      // Apply visual cue for post-hit invincibility to all meshes
+      if (this.mesh) {
+        if (!this.originalPlayerMaterials) {
+          this.originalPlayerMaterials = new Map();
+          
+          // Store original materials for all child meshes
+          this.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material) {
+              this.originalPlayerMaterials!.set(child.name, child.material);
+              
+              // Apply hit material to each mesh
+              if (this.hitVisualMaterial) {
+                child.material = this.hitVisualMaterial.clone();
+              } else {
+                // Fallback - just make the existing material semi-transparent
+                if (!child.material.transparent) {
+                  child.material.transparent = true;
+                  child.material.opacity = 0.5;
+                }
+              }
+              child.material.needsUpdate = true;
+            }
+          });
         }
-        (this.mesh.material as THREE.Material).needsUpdate = true;
       }
 
       // Update UI for lives if there's a callback
@@ -442,17 +480,23 @@ export class PlayerController {
     // Reset visibility and appearance
     this.mesh.visible = true;
 
-    // Reset material to default player material
-    const defaultMaterial = this.assetFactory.shaderManager.getMaterial('player_default');
-    if (defaultMaterial) {
-      this.mesh.material = defaultMaterial;
-    } else if (!Array.isArray(this.mesh.material)) {
-      // Fallback if default material not available
-      (this.mesh.material as THREE.MeshPhongMaterial).color.setHex(0xffa500); // Default orange
-      this.mesh.material.opacity = 1.0;
-      this.mesh.material.transparent = false;
-      (this.mesh.material as THREE.Material).needsUpdate = true;
+    // Create a new clownfish with original materials
+    if (this.clownfishAsset) {
+      // First remove the old mesh from the scene
+      this.scene.remove(this.mesh);
+      
+      // Dispose current asset
+      this.clownfishAsset.dispose();
+      
+      // Create a new clownfish
+      this.clownfishAsset = this.assetFactory.createClownfishAsset();
+      this.mesh = this.clownfishAsset.getMesh();
+      this.mesh.position.set(0, this.normalYPosition, 0);
+      this.scene.add(this.mesh);
     }
+    
+    // Clear stored materials
+    this.originalPlayerMaterials = undefined;
 
     // Update UI for lives if there's a callback
     if (this.gameEngine?.getCallbacks?.().onLivesUpdate) {
@@ -468,13 +512,13 @@ export class PlayerController {
       this.shieldVisualMaterial.dispose();
     }
 
+    // Dispose the clownfish asset properly
+    if (this.clownfishAsset) {
+      this.clownfishAsset.dispose();
+    }
+
+    // Remove the mesh from the scene
     if (this.mesh) {
-      this.mesh.geometry.dispose();
-      if (Array.isArray(this.mesh.material)) {
-        this.mesh.material.forEach(m => m.dispose());
-      } else {
-        this.mesh.material.dispose();
-      }
       this.scene.remove(this.mesh);
     }
 
@@ -490,8 +534,25 @@ export class PlayerController {
    * Returns the mesh to use for collision detection
    */
   public getCollisionObject(): THREE.Mesh {
-    // For now, we're just using the player's main mesh for collision
-    // Later we could add a specific collision sphere child
-    return this.mesh;
+    // Since the player is now a Group containing multiple meshes,
+    // return the body mesh which is most appropriate for collisions
+    const bodyMesh = this.mesh.getObjectByName("ClownfishBody") as THREE.Mesh;
+    if (bodyMesh) {
+      return bodyMesh;
+    }
+    
+    // Fallback: create a simple collision sphere if body mesh not found
+    if (!this.mesh.userData.collisionMesh) {
+      const collisionGeometry = new THREE.SphereGeometry(0.4); // Approximately the size of the fish body
+      const collisionMaterial = new THREE.MeshBasicMaterial({ 
+        visible: false // Invisible collision mesh
+      });
+      const collisionMesh = new THREE.Mesh(collisionGeometry, collisionMaterial);
+      collisionMesh.name = "PlayerCollider";
+      this.mesh.add(collisionMesh);
+      this.mesh.userData.collisionMesh = collisionMesh;
+    }
+    
+    return this.mesh.userData.collisionMesh;
   }
 } 

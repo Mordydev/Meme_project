@@ -161,20 +161,39 @@ export interface VisualSettings {
   distortionSpeed: number;
 }
 
+export interface PlayerSettings {
+  moveSpeed: number; // Units per second
+  laneWidth: number; // Width of a single lane
+  laneChangeDuration: number; // Duration of the lane change animation
+  initialLives: number;
+  jumpHeight: number; // Max height of the jump arc
+  jumpDuration: number; // Time to complete one jump (up and down)
+  diveDepth: number; // Max depth of the dive arc
+  diveDuration: number; // Time to complete one dive (down and up)
+  invincibilityDuration: number; // Duration of invincibility after taking damage
+  gravity?: number; // Optional: If using physics-based jump/dive
+  normalYPosition: number; // Default Y position for the player
+  
+  // Clownfish visual properties
+  clownFishBaseColor: number; // Main orange color
+  clownFishStripeColor: number; // White stripe color
+  clownFishStripeEdgeColor: number; // Dark edge around stripes
+  clownFishFinAccentColor: number; // Color for fin edges/tips
+  
+  // Eye properties
+  eyePupilColor: number; // Dark center of eye
+  eyeIrisColor: number; // Colored part around pupil
+  eyeHighlightColor: number; // Specular highlight on eye
+  
+  // Animation parameters
+  tailFinFrequency: number; // Frequency of tail fin movement
+  tailFinAmplitude: number; // Amplitude of tail fin movement
+  pectoralFinFrequency: number; // Frequency of pectoral fin movement
+  pectoralFinAmplitude: number; // Amplitude of pectoral fin movement
+}
+
 export interface GameConfig {
-  player: {
-    moveSpeed: number; // Units per second
-    laneWidth: number; // Width of a single lane
-    laneChangeDuration: number; // Duration of the lane change animation
-    initialLives: number;
-    jumpHeight: number; // Max height of the jump arc
-    jumpDuration: number; // Time to complete one jump (up and down)
-    diveDepth: number; // Max depth of the dive arc
-    diveDuration: number; // Time to complete one dive (down and up)
-    invincibilityDuration: number; // Duration of invincibility after taking damage
-    gravity?: number; // Optional: If using physics-based jump/dive
-    normalYPosition: number; // Default Y position for the player
-  };
+  player: PlayerSettings;
   collisions: {
     obstacleRadiusFactor: number; // Factor to scale obstacle bounding sphere radius for collision detection
   };
@@ -211,6 +230,23 @@ export const defaultConfig: GameConfig = {
     diveDuration: 0.6, // Slightly quicker dive
     invincibilityDuration: 1.5, // Duration of invincibility after taking damage
     normalYPosition: -0.45, // Player's default Y position
+    
+    // Clownfish visual properties
+    clownFishBaseColor: 0xFF9E30, // Bright orange
+    clownFishStripeColor: 0xFFFFFF, // White
+    clownFishStripeEdgeColor: 0x333333, // Dark grey
+    clownFishFinAccentColor: 0x66BBFF, // Light blue
+    
+    // Eye properties
+    eyePupilColor: 0x000000, // Black
+    eyeIrisColor: 0x3366CC, // Blue
+    eyeHighlightColor: 0xFFFFFF, // White
+    
+    // Animation parameters
+    tailFinFrequency: 5.0, // Frequency of tail fin movement
+    tailFinAmplitude: 0.3, // Amplitude of tail fin movement
+    pectoralFinFrequency: 3.0, // Frequency of pectoral fin movement
+    pectoralFinAmplitude: 0.15, // Amplitude of pectoral fin movement
   },
   collisions: {
     obstacleRadiusFactor: 0.7,

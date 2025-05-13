@@ -15,6 +15,7 @@ import { CoinAsset } from './collectibles/CoinAsset';
 import { ShieldPowerUpAsset } from './powerups/ShieldPowerUpAsset';
 import { MagnetPowerUpAsset } from './powerups/MagnetPowerUpAsset';
 import { DoubleScorePowerUpAsset } from './powerups/DoubleScorePowerUpAsset';
+import { ClownfishAsset } from './character/ClownfishAsset';
 
 // Define a union type for all obstacle asset classes
 export type ObstacleAssetType = CoralAsset | RockAsset | ClamAsset | PufferfishAsset | JellyfishAsset | SharkAsset | SeaTurtleAsset | KelpWallAsset | SchoolOfFishAsset;
@@ -30,6 +31,7 @@ export class ProceduralAssetFactory {
   private jellyfishAssetGenerator: JellyfishAsset;
   private bubbleAssetGenerator: BubbleAsset;
   private coinAssetGenerator: CoinAsset;
+  private clownfishAssetGenerator: ClownfishAsset; // Add clownfish asset generator
 
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
@@ -41,18 +43,21 @@ export class ProceduralAssetFactory {
     this.jellyfishAssetGenerator = new JellyfishAsset(this.shaderManager);
     this.bubbleAssetGenerator = new BubbleAsset(this.shaderManager);
     this.coinAssetGenerator = new CoinAsset(this.shaderManager);
-    console.log("ProceduralAssetFactory: Initialized with new obstacles.");
+    this.clownfishAssetGenerator = new ClownfishAsset(this.shaderManager);
+    console.log("ProceduralAssetFactory: Initialized with new obstacles and clownfish player.");
   }
 
-  public createPlayerMesh(): THREE.Mesh {
-    // Placeholder geometry, will become procedural later
-    const geometry = new THREE.SphereGeometry(0.5, 16, 16);
-    const material = this.shaderManager.getMaterial('player_default') || new THREE.MeshBasicMaterial({color: 0xff0000}); // Fallback
-
-    const mesh = new THREE.Mesh(geometry, material);
-    // Set initial properties, name, userData etc. if needed
-    mesh.name = "PlayerPlaceholder";
-    return mesh;
+  public createPlayerMesh(): THREE.Group {
+    // Create or retrieve a clownfish asset and return its mesh
+    return this.clownfishAssetGenerator.getMesh();
+  }
+  
+  /**
+   * Creates a new clownfish asset instance
+   * @returns A new ClownfishAsset instance
+   */
+  public createClownfishAsset(): ClownfishAsset {
+    return new ClownfishAsset(this.shaderManager);
   }
 
   public createSeafloorSegmentMesh(): THREE.Mesh {
