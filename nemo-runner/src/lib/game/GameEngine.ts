@@ -5,6 +5,7 @@ import { PlayerController } from './managers/PlayerController';
 import { InputHandler } from './core/InputHandler';
 import { ShaderManager, ShaderProgramSource } from './services/ShaderManager';
 import { LightingManager } from './services/LightingManager';
+import { VisualEffectsService } from './services/VisualEffectsService';
 import { ProceduralAssetFactory } from './assets/ProceduralAssetFactory';
 import { EnvironmentManager } from './managers/EnvironmentManager';
 import { ObstacleManager } from './managers/ObstacleManager';
@@ -53,6 +54,7 @@ export class GameEngine {
 
   private shaderManager!: ShaderManager;
   private lightingManager!: LightingManager;
+  private visualEffectsService!: VisualEffectsService;
   private assetFactory!: ProceduralAssetFactory;
   private environmentManager!: EnvironmentManager;
   private obstacleManager!: ObstacleManager;
@@ -106,6 +108,16 @@ export class GameEngine {
       // LightingManager for scene lighting, fog, and underwater effects
       this.lightingManager = new LightingManager(this.scene, this.shaderManager);
 
+      // Visual Effects Service for particles and post-processing
+      this.visualEffectsService = new VisualEffectsService();
+      this.visualEffectsService.linkCameraManager(this.cameraManager);
+      this.visualEffectsService.linkGameEngine(this);
+      this.visualEffectsService.initializeParticlesAndPostProcessing(
+        this.scene, 
+        this.shaderManager, 
+        this.renderManager
+      );
+
       // Register the test pattern shader
       this.shaderManager.registerShader({
         name: 'testPatternShader',
@@ -133,6 +145,9 @@ export class GameEngine {
 
       // CameraManager (after playerController)
       this.cameraManager = new CameraManager(this.camera, this.playerController);
+      
+      // Update CameraManager link for VisualEffectsService since it was created after CameraManager
+      this.visualEffectsService.linkCameraManager(this.cameraManager);
 
       // Input Handler
       this.inputHandler = new InputHandler(this.playerController);
@@ -241,6 +256,9 @@ export class GameEngine {
 
       // Update lighting and caustic effects
       this.lightingManager.update(dt, timestamp / 1000);
+      
+      // Update visual effects (particles and post-processing)
+      this.visualEffectsService.update(dt, timestamp / 1000, this.playerController.mesh.position);
 
       // Update forward speed for power-ups
       this.powerUpManager.setGameSpeed(this.playerController.getForwardSpeed());
@@ -588,6 +606,7 @@ export class GameEngine {
     if (this.scoringSystem) this.scoringSystem.dispose();
     if (this.collisionSystem) this.collisionSystem.dispose();
     if (this.difficultyManager) this.difficultyManager.dispose();
+    if (this.visualEffectsService) this.visualEffectsService.dispose();
     if (this.lightingManager) this.lightingManager.dispose();
     if (this.assetFactory) this.assetFactory.dispose();
     if (this.shaderManager) this.shaderManager.dispose();
@@ -639,6 +658,9 @@ export class GameEngine {
     this.obstacleManager.reset();
     this.environmentManager.reset(this.playerController.mesh.position.z);
     this.collectibleManager.reset();
+    
+    // Reset the VisualEffectsService
+    this.visualEffectsService.reset();
 
     // Reset the PowerUpManager instead of recreating it
     this.powerUpManager.reset();

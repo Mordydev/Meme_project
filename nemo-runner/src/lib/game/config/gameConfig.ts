@@ -131,6 +131,34 @@ export interface VisualSettings {
   // Groundwork for God Rays (parameters for future implementation)
   enableGodRays: boolean;
   godRayLightSourceOffsetY: number; // Offset Y from directional light for god ray source visual
+
+  // Particle Effects
+  enableParticles: boolean;
+  bubblesEnabled: boolean;
+  bubbleCount: number;
+  bubbleBaseSpeed: number;
+  bubbleSize: number;
+  bubbleSpawnAreaX: number; // Width over which bubbles spawn
+  bubbleSpawnDepth: number; // Depth below seafloor bubbles spawn from
+
+  dustEnabled: boolean;
+  dustCount: number;
+  dustSize: number;
+  dustWanderSpeed: number;
+
+  // Screen Effects (Post-Processing)
+  enableScreenEffects: boolean;
+  vignetteEnabled: boolean;
+  vignetteIntensity: number; // 0 to 1 typically
+  vignetteSmoothness: number; // Controls the falloff sharpness
+
+  colorGradingEnabled: boolean;
+  colorGradeIntensity: number; // How much to apply grading
+  colorGradeTargetColor: number | string; // e.g., shift towards a deeper blue
+
+  distortionEnabled: boolean;
+  distortionIntensity: number; // Subtle water ripple effect
+  distortionSpeed: number;
 }
 
 export interface GameConfig {
@@ -217,6 +245,34 @@ export const defaultConfig: GameConfig = {
 
     enableGodRays: false, // Disabled for Phase 1 initial, focus on caustics
     godRayLightSourceOffsetY: 10,
+
+    // Particle Effects
+    enableParticles: true,
+    bubblesEnabled: true,
+    bubbleCount: 150,
+    bubbleBaseSpeed: 0.2, // Units per second
+    bubbleSize: 0.05,
+    bubbleSpawnAreaX: 10, // Spawn across a 10 unit width
+    bubbleSpawnDepth: 0.1, // Spawn slightly below surface
+
+    dustEnabled: true,
+    dustCount: 300,
+    dustSize: 0.03,
+    dustWanderSpeed: 0.02,
+
+    // Screen Effects
+    enableScreenEffects: true,
+    vignetteEnabled: true,
+    vignetteIntensity: 0.4,
+    vignetteSmoothness: 0.5,
+
+    colorGradingEnabled: true,
+    colorGradeIntensity: 0.15,
+    colorGradeTargetColor: 0x305080, // Shift towards a slightly deeper blue
+
+    distortionEnabled: true, // Very subtle
+    distortionIntensity: 0.005,
+    distortionSpeed: 0.1,
   },
   collectibles: {
     spawnIntervalMin: 2.0,

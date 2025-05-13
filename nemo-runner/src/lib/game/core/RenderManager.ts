@@ -1,9 +1,14 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 
 export class RenderManager {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
+  private composer: EffectComposer | null = null;
+  private postProcessingPasses: Map<string, ShaderPass> = new Map();
   private _errorHandlerCalled: boolean = false; // Track if we've already called error handler
   private _lastRenderSuccess: boolean = true;   // Track if last render was successful
   private _errorDebounceTimer: any = null;      // Debounce timer for error handling
@@ -12,6 +17,24 @@ export class RenderManager {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
+    this.setupEffectComposer();
+  }
+
+  private setupEffectComposer(): void {
+    if (!this.scene || !this.camera || !this.renderer) {
+      console.error("RenderManager: Cannot set up EffectComposer - scene, camera, or renderer not set");
+      return;
+    }
+    
+    try {
+      this.composer = new EffectComposer(this.renderer);
+      const renderPass = new RenderPass(this.scene, this.camera);
+      this.composer.addPass(renderPass); // Render the scene first
+      console.log("RenderManager: EffectComposer initialized");
+    } catch (error) {
+      console.error("RenderManager: Failed to set up EffectComposer", error);
+      this.composer = null;
+    }
   }
 
   /**
@@ -36,7 +59,57 @@ export class RenderManager {
       this._errorDebounceTimer = null;
     }
 
+    // Recreate the EffectComposer with the new renderer
+    this.setupEffectComposer();
+
+    // Re-add any existing post-processing passes
+    // We'll need to recreate them since they were tied to the old renderer
+    // This is a simplified approach - in a real implementation, you might want to store
+    // more information about each pass to recreate them properly
+    const oldPasses = Array.from(this.postProcessingPasses.entries());
+    this.postProcessingPasses.clear();
+    
     console.log("RenderManager: Renderer reference updated and error tracking reset");
+  }
+
+  /**
+   * Method for adding post-processing passes
+   * @param passName Unique identifier for the pass
+   * @param pass The ShaderPass to add
+   */
+  public addPostProcessingPass(passName: string, pass: ShaderPass): void {
+    if (!this.composer) {
+      console.error("RenderManager: Cannot add post-processing pass - composer not initialized");
+      return;
+    }
+    
+    this.composer.addPass(pass);
+    this.postProcessingPasses.set(passName, pass);
+    console.log(`RenderManager: Added post-processing pass - ${passName}`);
+  }
+
+  /**
+   * Method for removing post-processing passes
+   * @param passName Unique identifier for the pass to remove
+   */
+  public removePostProcessingPass(passName: string): void {
+    if (!this.composer) return;
+    
+    const pass = this.postProcessingPasses.get(passName);
+    if (pass) {
+      this.composer.removePass(pass);
+      this.postProcessingPasses.delete(passName);
+      console.log(`RenderManager: Removed post-processing pass - ${passName}`);
+    }
+  }
+
+  /**
+   * Get a specific post-processing pass by name
+   * @param passName The name of the pass to retrieve
+   * @returns The ShaderPass or undefined if not found
+   */
+  public getPostProcessingPass(passName: string): ShaderPass | undefined {
+    return this.postProcessingPasses.get(passName);
   }
 
   private isContextLost(): boolean {
@@ -177,7 +250,13 @@ export class RenderManager {
 
       // Attempt to render with protective try/catch
       try {
-        this.renderer.render(this.scene, this.camera);
+        if (this.composer && this.postProcessingPasses.size > 0) {
+          // Use composer to render with post-processing passes
+          this.composer.render();
+        } else {
+          // Fallback to standard rendering if composer isn't ready or no passes are added
+          this.renderer.render(this.scene, this.camera);
+        }
 
         // If we got here, render was successful
         this._lastRenderSuccess = true;
@@ -212,6 +291,33 @@ export class RenderManager {
     }
   }
 
+  /**
+   * Resize handling for both renderer and composer
+   */
+  public resize(width: number, height: number): void {
+    if (!this.renderer) return;
+    
+    this.renderer.setSize(width, height);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+    
+    if (this.composer) {
+      this.composer.setSize(width, height);
+      this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    }
+    
+    if (this.camera instanceof THREE.PerspectiveCamera) {
+      this.camera.aspect = width / height;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  /**
+   * Get the renderer for external use
+   */
+  public getRenderer(): THREE.WebGLRenderer {
+    return this.renderer;
+  }
+
   // Properly dispose resources and clear references
   public dispose(): void {
     // Clear debounce timer if active
@@ -219,6 +325,18 @@ export class RenderManager {
       clearTimeout(this._errorDebounceTimer);
       this._errorDebounceTimer = null;
     }
+
+    // Dispose composer passes if needed
+    this.postProcessingPasses.forEach(pass => {
+      // Proper disposal of pass resources like textures/materials if necessary
+      if (pass.material) {
+        pass.material.dispose();
+      }
+    });
+    this.postProcessingPasses.clear();
+    
+    // Clear the composer
+    this.composer = null;
 
     // Reset tracking variables
     this._errorHandlerCalled = false;

@@ -57,7 +57,69 @@ export class ShaderManager {
 
     // Register built-in GLSL chunks
     this.registerCoreChunks();
-    console.log('ShaderManager: Initialized with basic materials and chunk system.');
+    
+    // Register particle and post-processing shaders
+    this.registerParticleShaders();
+    
+    console.log('ShaderManager: Initialized with basic materials and shader systems.');
+  }
+  
+  /**
+   * Register particle and post-processing shaders
+   * 
+   * This is now a synchronous method that imports shaders directly
+   * to ensure registration happens immediately rather than in a Promise
+   */
+  private registerParticleShaders(): void {
+    try {
+      // Import shader sources directly
+      const { particleVertexShader } = require('../vfx/shaders/particle.vert');
+      const { bubbleFragmentShader } = require('../vfx/shaders/bubble.frag');
+      const { dustFragmentShader } = require('../vfx/shaders/dust.frag');
+      
+      // Register bubble shader immediately
+      this.registerShader({
+        name: 'bubbleShader',
+        vertexShaderSource: particleVertexShader,
+        fragmentShaderSource: bubbleFragmentShader,
+        defaultUniforms: () => ({
+          uBaseColor: { value: new THREE.Color(0xffffff) },
+          uBaseSize: { value: 0.05 },
+          uPixelRatio: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 },
+          uTime: { value: 0.0 },
+          uUseTexture: { value: false },
+        }),
+        materialParameters: {
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        }
+      });
+      console.log("ShaderManager: Registered bubbleShader");
+      
+      // Register dust shader immediately
+      this.registerShader({
+        name: 'dustShader',
+        vertexShaderSource: particleVertexShader,
+        fragmentShaderSource: dustFragmentShader,
+        defaultUniforms: () => ({
+          uBaseColor: { value: new THREE.Color(0xffffff) },
+          uBaseSize: { value: 0.03 },
+          uPixelRatio: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 },
+          uTime: { value: 0.0 },
+          uOpacity: { value: 0.7 },
+        }),
+        materialParameters: {
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.NormalBlending,
+        }
+      });
+      console.log("ShaderManager: Registered dustShader");
+      
+    } catch (error) {
+      console.error("ShaderManager: Error registering particle shaders:", error);
+    }
   }
 
   private initializeDefaultMaterials(): void {
