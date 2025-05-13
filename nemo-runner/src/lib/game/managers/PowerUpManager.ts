@@ -351,9 +351,22 @@ export class PowerUpManager {
     for (let i = this.activeVisualPowerUps.length - 1; i >= 0; i--) {
       const powerUpAsset = this.activeVisualPowerUps[i];
 
-      // For Phase 1, power-ups don't need explicit movement
-      // They're spawned ahead of the player and appear to move toward the player naturally
-      // This line was causing power-ups to move away from the player, so we're removing it
+      // Make power-ups move toward the player to add more dynamism to the scene
+      // This creates the effect of power-ups drifting toward the player
+      // instead of moving with the environment
+      const powerUpTowardPlayerSpeed = this.gameSpeed * 0.2; // 20% of player speed
+      powerUpAsset.getMesh().position.z += powerUpTowardPlayerSpeed * deltaTime;
+
+      // Add a gentle bobbing motion for more visual interest
+      const meshPosition = powerUpAsset.getMesh().position;
+      const timeOffset = meshPosition.x * 0.5 + meshPosition.z * 0.2; // Different offsets for each power-up
+      const bobHeight = 0.05; // Height of the bobbing motion
+      const bobSpeed = 1.5; // Speed of the bobbing
+      const yOffset = Math.sin((performance.now() * 0.001 + timeOffset) * bobSpeed) * bobHeight;
+
+      // Apply the bobbing motion to the original spawn height
+      const baseY = meshPosition.y - yOffset; // Remove any previous bobbing
+      meshPosition.y = baseY + yOffset; // Apply new bobbing
 
       // Update power-up animation
       powerUpAsset.update(deltaTime);

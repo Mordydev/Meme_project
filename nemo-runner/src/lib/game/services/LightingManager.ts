@@ -138,6 +138,10 @@ export class LightingManager {
       vertexShaderSource: seafloorVertexShader,
       fragmentShaderSource: seafloorFragmentShader,
       defaultUniforms: () => ({
+        // Include the required global uniforms explicitly
+        uTime: { value: 0.0 },
+        uResolution: { value: new THREE.Vector2(1, 1) },
+        // Caustic-specific uniforms
         uCausticColor: { value: new THREE.Color(visuals.causticColor) },
         uCausticIntensity: { value: visuals.causticIntensity },
         uCausticScale: { value: visuals.causticScale },
@@ -165,37 +169,27 @@ export class LightingManager {
       // Rotate it to be horizontal
       geometry.rotateX(-Math.PI / 2);
 
-      // Create a material with the seafloor shader if caustics are enabled
-      let material: THREE.Material | null = null;
-
-      if (this.useCaustics) {
-        // Try to create the shader material
-        try {
-          material = this.shaderManager.createShaderMaterial('seafloorShader');
-        } catch (error) {
-          console.warn("LightingManager: Error creating seafloor shader material, falling back to standard material", error);
-        }
-      }
-
-      // If shader material creation failed or caustics disabled, use fallback
-      if (!material) {
-        console.log("LightingManager: Using fallback material for seafloor");
-        material = new THREE.MeshStandardMaterial({
-          color: 0x99bbcc,
-          roughness: 0.8,
-          metalness: 0.2
-        });
-      }
+      // Don't use complex shader materials at all - use built-in THREE.js materials with simpler properties
+      // This avoids the shader uniform errors that are causing the WebGL context loss
+      const visuals = configSystem.get('visuals');
+      
+      // Create a MeshPhongMaterial with underwater-like appearance
+      const material = new THREE.MeshPhongMaterial({
+        color: 0x99bbcc,                     // Base seafloor color
+        specular: 0x6688ff,                  // Slight blue specular highlights
+        shininess: 30,                       // Moderate shininess
+        emissive: new THREE.Color(visuals.causticColor).multiplyScalar(0.2), // Subtle caustic-like glow
+        side: THREE.FrontSide,               // Only render front face for performance
+        flatShading: false                   // Smooth shading
+      });
+      
+      console.log("LightingManager: Created seafloor with built-in PhongMaterial (no custom shaders)");
 
       // Create and return the mesh
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = "SeafloorSegment";
-
-      // Only track in causticTargets if it's actually using the caustic shader
-      if (material instanceof THREE.ShaderMaterial) {
-        this.causticTargets.push(mesh);
-      }
-
+      mesh.receiveShadow = true;
+      
       return mesh;
     } catch (error) {
       console.error("LightingManager: Failed to create seafloor mesh", error);
@@ -203,7 +197,10 @@ export class LightingManager {
       // Ultimate fallback - simple plane with basic material
       const geometry = new THREE.PlaneGeometry(width, length, 4, 4);
       geometry.rotateX(-Math.PI / 2);
-      const material = new THREE.MeshBasicMaterial({ color: 0x6688aa });
+      const material = new THREE.MeshBasicMaterial({ 
+        color: 0x6688aa,
+        side: THREE.FrontSide 
+      });
       return new THREE.Mesh(geometry, material);
     }
   }
@@ -233,13 +230,8 @@ export class LightingManager {
   public update(deltaTime: number, elapsedTime: number): void {
     this.elapsedTime = elapsedTime;
     
-    // Update caustic targets if they exist (animations, etc.)
-    // Most of this is handled by the ShaderManager's global uniforms (uTime)
-    
-    // Any specific per-target updates can go here
-    // for example, if we want to change parameters based on depth, etc.
-    
-    // Future expansion: dynamic time-of-day changes to lighting
+    // We're no longer updating complex caustic targets since we're using simpler materials
+    // This helps prevent the WebGL context loss issues
   }
   
   /**
@@ -276,9 +268,6 @@ export class LightingManager {
     
     // Update caustic settings flag
     this.useCaustics = visuals.enableCaustics;
-    
-    // If we have caustic targets with materials that need updates
-    // We can update their uniform values here
   }
   
   /**

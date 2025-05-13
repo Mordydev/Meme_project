@@ -359,50 +359,218 @@ export class GameEngine {
   }
 
   /**
-   * Recreates renderer and WebGL-dependent objects after context loss
+   * Handler for shader-related errors
+   * This is called by RenderManager when it detects shader compilation issues
    */
-  private recreateAfterContextLoss(): void {
-    if (!this.renderer || !this.mountElement) {
-      console.error("GameEngine: Cannot recreate after context loss - critical objects missing");
-      return;
+  public handleShaderError(): void {
+    console.warn("GameEngine: Handling shader error, attempting to recover");
+
+    // If we're already handling a recovery, don't trigger another one
+    if (this._isRecovering) return;
+
+    // Trigger a full WebGL context and shader program reset
+    this.resetRendererAndShaders();
+  }
+
+  /**
+   * Reset the renderer and all shader programs
+   * This can be triggered by handleShaderError or manually if needed
+   */
+  private _isRecovering: boolean = false;
+
+  // Make this method public so it can be called directly during Fast Refresh
+  public resetRendererAndShaders(): Promise<void> {
+    if (this._isRecovering) {
+      console.log("GameEngine: Already recovering, skipping new request");
+      return Promise.resolve(); // Return resolved promise if already recovering
+    }
+    
+    this._isRecovering = true;
+    console.log("GameEngine: Resetting renderer and shader programs");
+
+    // Return a promise that resolves when recovery is complete
+    return new Promise<void>((resolve) => {
+      // Schedule the recovery to happen in the next frame
+      // This gives the current render loop a chance to finish
+      setTimeout(() => {
+        this.recreateAfterContextLoss(true)
+          .then(() => {
+            console.log("GameEngine: Reset completed successfully");
+            this._isRecovering = false;
+            resolve();
+          })
+          .catch(error => {
+            console.error("GameEngine: Error during recovery:", error);
+            this._isRecovering = false;
+            resolve(); // Still resolve the promise to avoid hanging
+          });
+      }, 0);
+    });
+  }
+
+  /**
+   * Safely destroys and recreates the WebGL context and renderer using a fresh canvas
+   * with proper timing to prevent "Cannot read properties of null (reading 'precision')" errors
+   * @param forceShaderReset Whether to force shader program cache reset
+   * @returns Promise that resolves when recreation is complete
+   */
+  private recreateAfterContextLoss(forceShaderReset: boolean = false): Promise<void> {
+    if (!this.mountElement) {
+      console.error("GameEngine: Cannot recreate after context loss - mount element missing");
+      return Promise.reject(new Error("Mount element missing"));
     }
 
-    console.log("GameEngine: Recreating WebGL context and objects");
+    console.log("GameEngine: Recreating WebGL context with safe approach");
 
-    try {
-      // Dispose old renderer but keep reference to domElement
-      const oldCanvas = this.renderer.domElement;
+    // First pause the game loop to avoid rendering during recreation
+    const wasRunning = this.isRunning;
+    this.isRunning = false;
 
-      // Create new renderer with same settings
-      this.renderer = new THREE.WebGLRenderer({
-        canvas: oldCanvas, // Reuse the same canvas element
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false
-      });
-
-      this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
-      this.renderer.setPixelRatio(window.devicePixelRatio);
-
-      // Update RenderManager with new renderer
-      if (this.renderManager) {
-        // Update the renderer reference in RenderManager
-        // This assumes we add a method to update the renderer in RenderManager
-        // which we'll implement next
-        this.renderManager.updateRenderer(this.renderer);
+    // Create a promise chain for proper async sequencing
+    return new Promise<void>((resolve, reject) => {
+      try {
+        let oldCanvas: HTMLCanvasElement | null = null;
+        if (this.renderer) {
+          // Step 1: Save reference to current canvas dimensions
+          oldCanvas = this.renderer.domElement;
+        }
+        
+        const canvasWidth = oldCanvas ? oldCanvas.width : this.mountElement.clientWidth;
+        const canvasHeight = oldCanvas ? oldCanvas.height : this.mountElement.clientHeight;
+        const canvasStyleWidth = oldCanvas?.style.width || '100%';
+        const canvasStyleHeight = oldCanvas?.style.height || '100%';
+        
+        // Fully dispose the old renderer and associated resources
+        if (this.renderer) {
+          try {
+            console.log("GameEngine: Disposing old renderer completely");
+            
+            // First reset state to avoid errors
+            if (this.renderer.state) {
+              this.renderer.state.reset();
+            }
+            
+            // CRITICAL: Dispose renderer without forcing context loss
+            this.renderer.dispose();
+            this.renderer = null;
+          } catch (disposeError) {
+            console.warn("GameEngine: Error during renderer disposal:", disposeError);
+            // Continue despite errors - we'll create a fresh context
+          }
+        }
+        
+        // Remove any existing canvas elements first to ensure clean slate
+        if (oldCanvas && oldCanvas.parentElement) {
+          try {
+            oldCanvas.parentElement.removeChild(oldCanvas);
+          } catch (e) {
+            console.warn("GameEngine: Error removing old canvas:", e);
+          }
+        }
+        
+        // Wait a longer period to ensure browser has fully cleaned up WebGL resources
+        // This is critical for avoiding "Cannot read properties of null (reading 'precision')" errors
+        console.log("GameEngine: Waiting for browser to fully clean up WebGL resources");
+        setTimeout(() => {
+          try {
+            // Create a completely fresh canvas
+            const freshCanvas = document.createElement('canvas');
+            freshCanvas.width = canvasWidth;
+            freshCanvas.height = canvasHeight;
+            freshCanvas.style.width = canvasStyleWidth;
+            freshCanvas.style.height = canvasStyleHeight;
+            
+            // Append to mount element
+            this.mountElement?.appendChild(freshCanvas);
+            
+            // Wait a bit more before creating the renderer
+            // This ensures browser has fully initialized the new canvas
+            setTimeout(() => {
+              try {
+                // Now create a new renderer with the fresh canvas
+                console.log("GameEngine: Creating new WebGLRenderer with fresh canvas");
+                
+                // Use safest initialization options for compatibility
+                this.renderer = new THREE.WebGLRenderer({
+                  canvas: freshCanvas,
+                  antialias: true,
+                  powerPreference: "default", // Less aggressive than "high-performance"
+                  alpha: true,
+                  preserveDrawingBuffer: false
+                });
+                
+                // Configure the new renderer
+                if (this.mountElement) {
+                  this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
+                  this.renderer.setPixelRatio(window.devicePixelRatio);
+                }
+                
+                // Always reset shader cache when recreating renderer
+                if (this.shaderManager) {
+                  console.log("GameEngine: Resetting shader program cache");
+                  try {
+                    this.shaderManager.resetProgramCache();
+                  } catch (shaderError) {
+                    console.warn("GameEngine: Error resetting shader cache:", shaderError);
+                  }
+                }
+                
+                // Update RenderManager with new renderer
+                if (this.renderManager) {
+                  this.renderManager.updateRenderer(this.renderer);
+                }
+                
+                // Reinitialize WebGL context handlers
+                this.setupWebGLContextHandlers();
+                
+                // Force a redraw of all objects with new shaders
+                if (this.scene) {
+                  this.scene.traverse((object) => {
+                    if (object instanceof THREE.Mesh && object.material) {
+                      if (Array.isArray(object.material)) {
+                        object.material.forEach(mat => {
+                          mat.needsUpdate = true;
+                        });
+                      } else {
+                        object.material.needsUpdate = true;
+                      }
+                    }
+                  });
+                }
+                
+                // Wait a bit more for everything to stabilize before resuming
+                setTimeout(() => {
+                  // Resume game loop if it was running before
+                  if (wasRunning) {
+                    console.log("GameEngine: Resuming game loop");
+                    this.isRunning = true;
+                    if (!this.animationFrameId) {
+                      this.gameLoop();
+                    }
+                  }
+                  
+                  console.log("GameEngine: Successfully recovered from WebGL context loss");
+                  this._isRecovering = false;
+                  resolve();
+                }, 150);
+              } catch (error) {
+                console.error("GameEngine: Failed to create new renderer:", error);
+                this._isRecovering = false;
+                reject(error);
+              }
+            }, 150); // Wait before creating renderer
+          } catch (error) {
+            console.error("GameEngine: Error creating fresh canvas:", error);
+            this._isRecovering = false;
+            reject(error);
+          }
+        }, 500); // Longer delay after disposing old renderer
+      } catch (error) {
+        console.error("GameEngine: Fatal error during context recreation:", error);
+        this._isRecovering = false;
+        reject(error);
       }
-
-      // Reinitialize WebGL context handlers
-      this.setupWebGLContextHandlers();
-
-      // Update other managers that might reference the renderer
-      // Most managers use the scene reference which hasn't changed
-
-      console.log("GameEngine: Successfully recovered from WebGL context loss");
-    } catch (error) {
-      console.error("GameEngine: Failed to recreate WebGL context:", error);
-      throw error; // Rethrow to signal that recovery failed
-    }
+    });
   }
 
   public dispose(): void {
@@ -525,4 +693,12 @@ export class GameEngine {
   public getDifficultyManager(): DifficultyManager {
     return this.difficultyManager;
   }
-} 
+
+  /**
+   * Get direct access to the ShaderManager
+   * This is used for Fast Refresh recovery to reset shader programs
+   */
+  public getShaderManager(): ShaderManager {
+    return this.shaderManager;
+  }
+}

@@ -9,6 +9,7 @@ export class SeafloorAsset {
   public segmentWidth: number;
   public segmentLength: number; // Depth along Z
   private useCaustics: boolean;
+  private seafloorMaterial: THREE.Material | null = null;
 
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
@@ -42,30 +43,41 @@ export class SeafloorAsset {
     // Rotate plane to be horizontal
     geometry.rotateX(-Math.PI / 2);
 
-    // Check if we have a seafloor shader in the ShaderManager
-    let material: THREE.Material | null = null;
-
-    try {
-      // First try to use the seafloorShader
-      material = this.shaderManager.createShaderMaterial('seafloorShader');
-    } catch (error) {
-      // If that fails, fall back to basic materials
-      console.warn("SeafloorAsset: Custom seafloor shader not available, using fallback material");
+    // Use cached material if it exists to prevent shader recompilation issues
+    if (!this.seafloorMaterial) {
+      try {
+        // Create basic material with simple blue color - no shaders
+        this.seafloorMaterial = new THREE.MeshStandardMaterial({
+          color: 0x335599,
+          side: THREE.DoubleSide,
+          roughness: 0.8,
+          metalness: 0.2
+        });
+        console.log("SeafloorAsset: Created fallback standard material for seafloor");
+      } catch (error) {
+        console.warn("SeafloorAsset: Error creating material, using most basic fallback", error);
+        // Ultimate fallback - if even MeshStandardMaterial fails
+        this.seafloorMaterial = new THREE.MeshBasicMaterial({
+          color: 0x335599,
+          side: THREE.DoubleSide
+        });
+      }
     }
 
-    // If no shader material, use the basic material
-    if (!material) {
-      material = this.shaderManager.getMaterial('environment_water')
-                || new THREE.MeshPhongMaterial({
-                    color: 0x335599,
-                    side: THREE.DoubleSide,
-                    flatShading: false,
-                });
-    }
-
-    const mesh = new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(geometry, this.seafloorMaterial);
     mesh.name = "SeafloorSegment";
+    mesh.receiveShadow = true;
 
     return mesh;
+  }
+
+  /**
+   * Disposes material resources to prevent memory leaks
+   */
+  public dispose(): void {
+    if (this.seafloorMaterial) {
+      this.seafloorMaterial.dispose();
+      this.seafloorMaterial = null;
+    }
   }
 } 

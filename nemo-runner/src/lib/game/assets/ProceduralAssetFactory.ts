@@ -161,8 +161,15 @@ export class ProceduralAssetFactory {
   // Later: createObstacleMesh(type), createCollectibleMesh(type), etc.
 
   public dispose(): void {
-    // This factory itself might not hold disposable resources if meshes are managed elsewhere,
-    // but good to have the method.
+    // Make sure to dispose any asset generators that have their own dispose methods
+    // This is critical for assets that hold their own materials or WebGL resources
+    if (this.seafloorAssetGenerator && typeof this.seafloorAssetGenerator.dispose === 'function') {
+      this.seafloorAssetGenerator.dispose();
+    }
+
+    // Add dispose calls for any other asset generators that implement dispose()
+    // For future maintenance
+
     console.log("ProceduralAssetFactory: Disposed.");
   }
 

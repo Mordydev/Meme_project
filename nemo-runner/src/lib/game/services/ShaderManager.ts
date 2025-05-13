@@ -215,11 +215,19 @@ export class ShaderManager {
         THREE.ShaderChunk = {}; // Create empty object as fallback
       }
 
-      // Register chunks from imported GLSL modules
-      this.registerChunk('random2D', NoiseGLSL.random2D);
-      this.registerChunk('noise2D', NoiseGLSL.noise2D); // Depends on random2D
-      this.registerChunk('PI', UtilsGLSL.PI);
-      this.registerChunk('saturate', UtilsGLSL.saturate);
+      // Only register a chunk if it doesn't already exist to avoid the "already registered" warnings
+      // Use a helper function to register only if not exists
+      const registerIfNotExists = (name: string, source: string) => {
+        if (!this.shaderChunks.has(name)) {
+          this.registerChunk(name, source);
+        }
+      };
+
+      // Register chunks from imported GLSL modules - only if they don't already exist
+      registerIfNotExists('random2D', NoiseGLSL.random2D);
+      registerIfNotExists('noise2D', NoiseGLSL.noise2D); // Depends on random2D
+      registerIfNotExists('PI', UtilsGLSL.PI);
+      registerIfNotExists('saturate', UtilsGLSL.saturate);
 
       console.log('ShaderManager: Registered core GLSL chunks:', Array.from(this.shaderChunks.keys()));
     } catch (error) {
@@ -520,14 +528,134 @@ export class ShaderManager {
     return this.materials.get(type);
   }
 
+  /**
+   * Reset the internal shader program cache.
+   * This is useful when shader errors occur, allowing clean recompilation.
+   */
+  /**
+   * Thoroughly resets the shader program cache to handle WebGL context recreation
+   * and prevent "Cannot set properties of undefined (setting 'value')" errors
+   */
+  public resetProgramCache(): void {
+    try {
+      console.log('ShaderManager: Starting complete program cache reset...');
+
+      // First, attempt to fully dispose each material and its WebGL resources
+      this.materialCache.forEach((cached, key) => {
+        try {
+          if (cached.material) {
+            // Mark for recompilation
+            cached.material.needsUpdate = true;
+
+            // Safely clear uniform values to prevent stale references
+            if (cached.material.uniforms) {
+              Object.keys(cached.material.uniforms).forEach(uniformKey => {
+                try {
+                  const uniform = cached.material.uniforms[uniformKey];
+                  if (!uniform) return;
+
+                  // Handle different uniform types properly
+                  if (uniform.value !== null && typeof uniform.value === 'object') {
+                    // THREE.js objects
+                    if (typeof uniform.value.dispose === 'function') {
+                      try { uniform.value.dispose(); } catch (e) { /* ignore */ }
+                    }
+
+                    // Try to clone if possible, or safely set to null or default value
+                    if (typeof uniform.value.clone === 'function') {
+                      try {
+                        uniform.value = uniform.value.clone();
+                      } catch (e) {
+                        console.warn(`ShaderManager: Error cloning uniform ${uniformKey}, creating fresh object`, e);
+
+                        // Create appropriate fresh default based on common THREE.js types
+                        if (uniform.value instanceof THREE.Vector2) {
+                          uniform.value = new THREE.Vector2(0, 0);
+                        } else if (uniform.value instanceof THREE.Vector3) {
+                          uniform.value = new THREE.Vector3(0, 0, 0);
+                        } else if (uniform.value instanceof THREE.Vector4) {
+                          uniform.value = new THREE.Vector4(0, 0, 0, 0);
+                        } else if (uniform.value instanceof THREE.Matrix3) {
+                          uniform.value = new THREE.Matrix3();
+                        } else if (uniform.value instanceof THREE.Matrix4) {
+                          uniform.value = new THREE.Matrix4();
+                        } else if (uniform.value instanceof THREE.Color) {
+                          uniform.value = new THREE.Color(0xffffff);
+                        } else if (uniform.value instanceof THREE.Texture) {
+                          uniform.value = null; // Textures need special handling
+                        } else {
+                          // Last resort
+                          uniform.value = null;
+                        }
+                      }
+                    } else {
+                      // For non-THREE.js objects that don't have clone
+                      if (Array.isArray(uniform.value)) {
+                        uniform.value = [...uniform.value]; // Create a fresh array copy
+                      } else {
+                        // For other objects, create a fresh empty object
+                        uniform.value = {};
+                      }
+                    }
+                  } else if (typeof uniform.value === 'number') {
+                    // Numbers can stay as-is
+                  } else if (typeof uniform.value === 'boolean') {
+                    // Booleans can stay as-is
+                  } else {
+                    // For other primitive types or null/undefined
+                    uniform.value = null;
+                  }
+                } catch (uniformError) {
+                  console.warn(`ShaderManager: Error processing uniform ${uniformKey}`, uniformError);
+                  // Set to null as a fallback
+                  try { cached.material.uniforms[uniformKey].value = null; } catch (e) { /* ignore */ }
+                }
+              });
+            }
+
+            // Dispose the material and all its WebGL resources
+            try {
+              cached.material.dispose();
+            } catch (disposeError) {
+              console.warn(`ShaderManager: Error disposing material for ${key}`, disposeError);
+            }
+
+            // Clear material reference
+            cached.material = null;
+          }
+        } catch (materialError) {
+          console.warn(`ShaderManager: Error processing cached material`, materialError);
+        }
+      });
+
+      // Clear the cache entirely
+      this.materialCache.clear();
+
+      // Reset any internal state that might be tied to old WebGL context
+      this.globalUniforms.uTime.value = 0.0;
+
+      // Force THREE.ShaderChunk to refresh in case any chunks were tainted
+      try {
+        // Re-register core chunks to ensure they're fresh
+        this.registerCoreChunks();
+      } catch (chunkError) {
+        console.warn("ShaderManager: Error re-registering chunks:", chunkError);
+      }
+
+      console.log('ShaderManager: Program cache reset completed successfully.');
+    } catch (error) {
+      console.error('ShaderManager: Error during program cache reset:', error);
+    }
+  }
+
   public dispose(): void {
     // Dispose all materials in both systems
     this.materials.forEach(material => material.dispose());
     this.materials.clear();
-    
+
     this.materialCache.forEach(cached => cached.material.dispose());
     this.materialCache.clear();
-    
+
     this.shaderSources.clear();
     this.shaderChunks.clear();
     console.log('ShaderManager: Disposed all materials, shaders, and chunks.');

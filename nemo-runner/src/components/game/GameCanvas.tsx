@@ -238,6 +238,7 @@ GameOverlay.displayName = 'GameOverlay';
 export default function GameCanvas() {
   const canvasMountRef = useRef<HTMLDivElement>(null);
   const gameEngineRef = useRef<GameEngine | null>(null); // Ref for GameEngine instance
+  const isHotReloadingRef = useRef<boolean>(false); // Track React Fast Refresh
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -246,6 +247,42 @@ export default function GameCanvas() {
   const [activePowerUps, setActivePowerUps] = useState<ActivePowerUpInfo[]>([]);
   const [screenFlash, setScreenFlash] = useState<{color: string, duration: number, key: number} | null>(null);
 
+  // This effect runs on every render to detect Fast Refresh
+  useEffect(() => {
+    // If we already have a game engine, this might be a Fast Refresh
+    if (gameEngineRef.current && !isHotReloadingRef.current) {
+      console.log("GameCanvas: Fast Refresh detected, marking hot reload state");
+      isHotReloadingRef.current = true;
+
+      // Reset shader program cache to avoid "Cannot set properties of undefined" errors
+      // that happen during Fast Refresh - but delay to let React finish its work
+      setTimeout(() => {
+        try {
+          // The safest approach is to do a full renderer recreation on each Fast Refresh
+          if (window.__gameEngine && typeof (window.__gameEngine as any).resetRendererAndShaders === 'function') {
+            console.log("GameCanvas: Performing complete WebGL context reset after Fast Refresh");
+            (window.__gameEngine as any).resetRendererAndShaders()
+              .then(() => console.log("GameCanvas: Fast Refresh recovery completed successfully"))
+              .catch((e: any) => console.warn("GameCanvas: Fast Refresh recovery failed:", e));
+          } else {
+            console.warn("GameCanvas: Cannot find resetRendererAndShaders method - Fast Refresh may cause WebGL errors");
+          }
+        } catch (e) {
+          console.warn("GameCanvas: Error initiating Fast Refresh recovery:", e);
+        }
+      }, 250); // Longer delay to ensure React has completed its work
+    }
+
+    // Mark that we're not hot reloading after a longer delay
+    // This helps distinguish between initial mount and actual hot reload
+    const timerId = setTimeout(() => {
+      isHotReloadingRef.current = false;
+    }, 1500); // Longer delay to ensure recovery completes
+
+    return () => clearTimeout(timerId);
+  });
+
+  // Main initialization effect (runs once)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -341,7 +378,12 @@ export default function GameCanvas() {
       window.addEventListener('resize', handleResize);
 
       return () => {
-        console.log("GameCanvas: Cleaning up GameEngine...");
+        // Check if this cleanup is due to Fast Refresh or actual unmount
+        const isFastRefresh = isHotReloadingRef.current;
+
+        console.log(`GameCanvas: Cleaning up GameEngine... (Fast Refresh: ${isFastRefresh})`);
+
+        // Always remove event listeners
         window.removeEventListener('resize', handleResize);
 
         // Remove WebGL context event listeners
@@ -351,12 +393,47 @@ export default function GameCanvas() {
         }
 
         if (gameEngineRef.current) {
-          // Unregister score callback
-          if (gameEngineRef.current.getScoringSystem()) {
-            gameEngineRef.current.getScoringSystem().unregisterScoreUpdateCallback(setScore);
+          // During Fast Refresh, we don't want to fully dispose the engine
+          // This prevents the ThreeJS "Cannot set properties of undefined" errors
+          if (isFastRefresh) {
+            console.log("GameCanvas: Fast Refresh detected during cleanup, preserving engine");
+
+            // Only pause the game loop, don't dispose
+            if (gameEngineRef.current.getCurrentState() === GameState.PLAYING) {
+              // Just stop the animation loop
+              gameEngineRef.current.stop();
+            }
+
+            // During Fast Refresh cleanup, don't attempt any WebGL operations at all
+            // We'll simply preserve the engine reference and let the Fast Refresh detection effect
+            // handle the proper WebGL state reset AFTER React has completed its work
+            console.log("GameCanvas: Fast Refresh cleanup - preserving engine reference only");
+
+            // Don't try to modify any WebGL state here - this is critical to prevent
+            // "Cannot read properties of null (reading 'precision')" errors
+
+            // The strategy is:
+            // 1. During cleanup - just stop the game loop, don't touch WebGL
+            // 2. After React re-renders - completely rebuild WebGL renderer with proper timing
+            // 3. This prevents race conditions with React's reconciliation
+          } else {
+            // Full disposal for actual unmount
+            console.log("GameCanvas: Full cleanup - not a Fast Refresh");
+
+            // Unregister score callback
+            if (gameEngineRef.current.getScoringSystem()) {
+              gameEngineRef.current.getScoringSystem().unregisterScoreUpdateCallback(setScore);
+            }
+
+            try {
+              // For full component unmount, perform proper cleanup
+              gameEngineRef.current.dispose();
+            } catch (disposeError) {
+              console.warn("GameCanvas: Error during engine disposal:", disposeError);
+            }
+
+            gameEngineRef.current = null; // Clear the ref
           }
-          gameEngineRef.current.dispose();
-          gameEngineRef.current = null; // Clear the ref
         }
 
         // The GameEngine's dispose should handle removing the canvas child
