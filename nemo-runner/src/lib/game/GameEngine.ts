@@ -665,6 +665,10 @@ export class GameEngine {
     // Reset the PowerUpManager instead of recreating it
     this.powerUpManager.reset();
 
+    // CRITICAL: Explicitly reset the camera to the player's new position
+    // This ensures the camera follows the player after restart
+    this.cameraManager.reset(this.playerController);
+    
     // CRITICAL FIX: Recreate the CollisionDetectionSystem to ensure it has fresh references
     // This is needed so collisions with power-ups work after restart
     this.collisionSystem = new CollisionDetectionSystem(
@@ -689,7 +693,7 @@ export class GameEngine {
       this.callbacks.onActivePowerUpsUpdate([]);
     }
 
-    console.log("GameEngine: Game reset with new PowerUpManager and CollisionDetectionSystem.");
+    console.log("GameEngine: Game reset complete with camera explicitly repositioned.");
   }
 
   public getCurrentState(): GameState {

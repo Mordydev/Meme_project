@@ -1,93 +1,191 @@
 export const vertexShaderSource = `
   uniform float uTime;
-  uniform float uPlayerSpeed; // Normalized speed factor
-  uniform float uIsTurning;   // 0.0 or 1.0
-  uniform float uTurnDirection; // -1.0 (left), 1.0 (right)
+  uniform float uPlayerSpeed;     // Normalized speed factor (e.g., 0 for idle, 1 for normal speed)
+  uniform float uIsTurning;       // 0.0 (not turning) or 1.0 (turning)
+  uniform float uTurnDirection;   // -1.0 (left turn), 1.0 (right turn)
 
-  // Animation parameters from config (passed as uniforms if varied per instance, or baked if const)
+  // Animation parameters from config (passed as uniforms)
   uniform float uTailFinFrequency;
   uniform float uTailFinAmplitude;
   uniform float uPectoralFinFrequency;
   uniform float uPectoralFinAmplitude;
-  // Could add more for dorsal, pelvic, anal fins
 
-  // Attribute to identify parts (0: body, 1: tail, 2: L pectoral, 3: R pectoral, 4: dorsal, etc.)
-  // This needs to be set when creating BufferGeometry for the fish parts
+  // Attribute to identify parts
+  // 0.0: Body
+  // 1.0: Tail Fin (Caudal)
+  // 2.0: Left Pectoral Fin
+  // 3.0: Right Pectoral Fin
+  // 4.0: Dorsal Fin
+  // 5.0: Left Pelvic Fin
+  // 6.0: Right Pelvic Fin
+  // 7.0: Anal Fin
   attribute float aPartIndex; 
 
   varying vec3 vNormal;
   varying vec2 vUv;
   varying vec3 vWorldPosition;
-  varying float vDepthForStripes; // Object-space Z for stripe calculation
+  varying float vObjectZDepth; // Object-space Z for stripe calculation, relative to body center
+  varying float vPartId;       // Pass part ID to fragment shader if needed for different effects
+
+  // Simple rotation matrix around Y
+  mat3 rotationY(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return mat3(
+      c, 0, s,
+      0, 1, 0,
+      -s, 0, c
+    );
+  }
+  
+  // Simple rotation matrix around X
+  mat3 rotationX(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return mat3(
+      1, 0, 0,
+      0, c, -s,
+      0, s, c
+    );
+  }
+  
+  // Simple rotation matrix around Z
+  mat3 rotationZ(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return mat3(
+      c, -s, 0,
+      s, c, 0,
+      0, 0, 1
+    );
+  }
 
   void main() {
     vUv = uv;
-    vNormal = normalize(normalMatrix * normal);
-    vDepthForStripes = position.z; // Assuming Z is along the fish's length before world transform
+    vPartId = aPartIndex; // Pass part index to fragment
+    
+    vec3 pos = position; // Start with original position
+    vec3 transformedNormal = normal; // Start with original normal
 
-    vec3 animatedPosition = position;
-    vec3 animatedNormal = normal; // Normals also need to be transformed by animation
+    float effectiveSpeedFactor = 0.5 + uPlayerSpeed * 1.5; // Animation is more pronounced with speed
 
-    float speedFactor = 1.0 + uPlayerSpeed * 2.0; // Make animations faster with speed
+    // --- Procedural Animation based on aPartIndex ---
 
-    // --- Procedural Animation ---
-    // Caudal (Tail) Fin Animation (assuming aPartIndex == 1.0)
-    if (aPartIndex == 1.0) { 
-      float tailAngle = sin(uTime * uTailFinFrequency * speedFactor) * uTailFinAmplitude * speedFactor;
-      // Bend based on horizontal position relative to fin's local Z axis (animatedPosition.x)
-      // This assumes tail fin geometry is oriented along Z axis in local space
-      // And its width is along X. We want to sway it side-to-side (around Y axis).
-      // The amount of sway depends on how far along the tail the vertex is (animatedPosition.z)
-      float zNormalized = clamp(animatedPosition.z / 0.3, 0.0, 1.0); // Assuming tail length ~0.3
-      float currentTailAngle = tailAngle * zNormalized * zNormalized; // Stronger bend at tip
-
-      // Apply rotation around Y axis for side-to-side sway
-      mat2 rotY = mat2(cos(currentTailAngle), -sin(currentTailAngle), 
-                       sin(currentTailAngle),  cos(currentTailAngle));
-      animatedPosition.xz = rotY * animatedPosition.xz;
-      // Also rotate normal (simplified for small angles)
-      // For more accuracy, transform normal by the same rotation matrix
-      // animatedNormal.xz = rotY * animatedNormal.xz; 
+    // Caudal (Tail) Fin Animation (ID: 1.0)
+    if (abs(aPartIndex - 1.0) < 0.1) { 
+      // Tail sways side-to-side (around local Y axis of the fin, assuming fin points along Z)
+      // The amount of sway depends on how far along the tail the vertex is (local Z)
+      // Assuming tail fin geometry's length is along its local Z, base at Z=0
+      float zNormalized = clamp(pos.z / 0.4, 0.0, 1.0); // Approx tail length for normalization
+      float tailAngle = sin(uTime * uTailFinFrequency * effectiveSpeedFactor) * uTailFinAmplitude * effectiveSpeedFactor;
+      float currentSwayAngle = tailAngle * zNormalized * zNormalized; // More bend at the tip
+      
+      // Apply rotation to the position - for more complex matrix rotations we could use the rotation matrices
+      // defined above, but this simplified approach works well for the tail fin
+      float c = cos(currentSwayAngle);
+      float s = sin(currentSwayAngle);
+      pos.x = pos.x * c - pos.z * s; // Simplified Y-axis rotation for X component
+      pos.z = pos.x * s + pos.z * c; // Simplified Y-axis rotation for Z component
+      
+      // Also rotate the normal for better lighting
+      transformedNormal = rotationY(currentSwayAngle) * transformedNormal;
     }
 
-    // Pectoral Fin Animation (Left: aPartIndex == 2.0, Right: aPartIndex == 3.0)
-    // Similar logic: flapping around an axis (likely local X or Z depending on fin orientation)
-    if (aPartIndex == 2.0 || aPartIndex == 3.0) { // Pectoral Fins
-        float flapAngle = sin(uTime * uPectoralFinFrequency * speedFactor + (aPartIndex == 2.0 ? 0.0 : 0.2)) * uPectoralFinAmplitude; // Offset phase for right fin
-        // Assuming pectoral fins are oriented to flap around their local X-axis
-        // And extend along their local Z-axis
-        float finZNormalized = clamp(abs(animatedPosition.z) / 0.15, 0.0, 1.0); // Assuming fin length ~0.15 from its pivot
-        float currentFlapAngle = flapAngle * finZNormalized;
+    // Pectoral Fin Animation (Left: ID 2.0, Right: ID 3.0)
+    // Assuming pectoral fins are created in XY plane, extending along Y, attached near Y=0, flapping around X.
+    if (abs(aPartIndex - 2.0) < 0.1 || abs(aPartIndex - 3.0) < 0.1) {
+      float flapPhaseOffset = (abs(aPartIndex - 2.0) < 0.1) ? 0.0 : 0.3; // Right fin slightly offset
+      float flapAngle = sin(uTime * uPectoralFinFrequency * effectiveSpeedFactor + flapPhaseOffset) 
+                        * uPectoralFinAmplitude * (1.0 + uPlayerSpeed * 0.2);
+      
+      // Assuming fin length is along its local Y, and it flaps around its local X axis
+      float finYNormalized = clamp(abs(pos.y) / 0.3, 0.0, 1.0); // Approx fin length for normalization
+      float currentFlapAngle = flapAngle * finYNormalized;
+      
+      // Rotate around X-axis (flapping up/down)
+      vec3 originalPos = pos;
+      pos = rotationX(currentFlapAngle) * pos;
+      
+      // Also rotate the normal
+      transformedNormal = rotationX(currentFlapAngle) * transformedNormal;
+      
+      // Add slight outward splay when swimming fast
+      float splayAngle = 0.1 * uPlayerSpeed * sin(uTime * 0.5);
+      if (abs(aPartIndex - 2.0) < 0.1) { // Left fin
+        pos = rotationZ(splayAngle) * pos;
+        transformedNormal = rotationZ(splayAngle) * transformedNormal;
+      } else { // Right fin
+        pos = rotationZ(-splayAngle) * pos;
+        transformedNormal = rotationZ(-splayAngle) * transformedNormal;
+      }
+    }
 
-        mat2 rotX = mat2(cos(currentFlapAngle), -sin(currentFlapAngle),
-                         sin(currentFlapAngle),  cos(currentFlapAngle));
-        // If fin's length is along Z and it flaps up/down (around X), then YZ components rotate
-        // This depends on how the fin geometry was initially created and oriented in ClownfishAsset.ts
-        // Let's assume fins are created in XY plane, extending along Y, attached at Y=0, flapping around X
-        // animatedPosition.yz = rotX * animatedPosition.yz; // Example
-        // For side fins that flap:
-        animatedPosition.xy = rotX * animatedPosition.xy; // If fin is in YZ plane, flaps around Z
+    // Dorsal Fin Subtle Sway (ID: 4.0)
+    if (abs(aPartIndex - 4.0) < 0.1) {
+      // Gentle swaying animation, stronger at the top portion
+      float yNormalized = clamp(pos.y / 0.3, 0.0, 1.0); // Approx dorsal fin height
+      float dorsalSwayAngle = sin(uTime * 1.5 * effectiveSpeedFactor + pos.z * 5.0) * 0.05 * yNormalized; // pos.z for wave effect
+      
+      // Apply subtle rotation around Z axis
+      pos = rotationZ(dorsalSwayAngle) * pos;
+      transformedNormal = rotationZ(dorsalSwayAngle) * transformedNormal;
+    }
+
+    // Pelvic Fins Subtle Animation (ID: 5.0 Left, 6.0 Right)
+    if (abs(aPartIndex - 5.0) < 0.1 || abs(aPartIndex - 6.0) < 0.1) {
+      float flutterPhaseOffset = (abs(aPartIndex - 5.0) < 0.1) ? 0.0 : 0.15;
+      // Small, quick flutter, mostly around local X and Z
+      float flutterAngle = sin(uTime * 7.0 * effectiveSpeedFactor + flutterPhaseOffset) * 0.15;
+      float finYNormalized = clamp(abs(pos.y) / 0.2, 0.0, 1.0); // Approx pelvic fin length
+      float currentFlutterAngle = flutterAngle * finYNormalized;
+
+      // Apply rotation - combination of X and Z axis rotations
+      pos = rotationX(currentFlutterAngle * 0.7) * rotationZ(currentFlutterAngle * 0.3) * pos;
+      transformedNormal = rotationX(currentFlutterAngle * 0.7) * rotationZ(currentFlutterAngle * 0.3) * transformedNormal;
     }
     
-    // Body Bending/Turning Animation (aPartIndex == 0.0 for body)
-    if (uIsTurning > 0.5 && aPartIndex == 0.0) {
-        float turnInfluence = -position.z; // More bend towards the tail (positive Z in local space)
-        turnInfluence = smoothstep(0.0, 0.5, turnInfluence); // Apply only to back half
-        float bodyBendAngle = uTurnDirection * turnInfluence * 0.2; // Max bend angle
-
-        mat2 bodyRotY = mat2(cos(bodyBendAngle), -sin(bodyBendAngle),
-                             sin(bodyBendAngle), cos(bodyBendAngle));
-        animatedPosition.xz = bodyRotY * animatedPosition.xz;
+    // Anal Fin (ID: 7.0) - similar to dorsal but less pronounced
+    if (abs(aPartIndex - 7.0) < 0.1) {
+      float yNormalized = clamp(abs(pos.y) / 0.2, 0.0, 1.0); // Approx anal fin height
+      float analSwayAngle = sin(uTime * 1.8 * effectiveSpeedFactor + pos.z * 6.0) * 0.04 * yNormalized;
+      
+      // Apply subtle rotation
+      pos = rotationZ(analSwayAngle) * pos;
+      transformedNormal = rotationZ(analSwayAngle) * transformedNormal;
     }
 
+    // Body Bending/Turning Animation (apply to BODY_ID == 0.0)
+    if (abs(aPartIndex - 0.0) < 0.1 && uIsTurning > 0.5) {
+      float turnInfluence = -position.z; // More bend towards the tail (original local Z)
+      turnInfluence = smoothstep(0.0, 0.5, turnInfluence); // Apply mostly to back half
+      float bodyBendAngle = uTurnDirection * turnInfluence * 0.25 * uIsTurning; // Max bend angle
 
-    vec4 worldPos = modelMatrix * vec4(animatedPosition, 1.0);
+      // Rotate around the body's local Y axis
+      pos = rotationY(bodyBendAngle) * pos;
+      transformedNormal = rotationY(bodyBendAngle) * transformedNormal;
+    }
+
+    // Add subtle organic motion to body vertices
+    if (abs(aPartIndex - 0.0) < 0.1) {
+      // Subtle breathing/pulsing effect
+      float breatheFactor = sin(uTime * 0.8) * 0.01;
+      pos.y *= (1.0 + breatheFactor);
+      pos.x *= (1.0 - breatheFactor * 0.5);
+      
+      // Very subtle undulation along the body
+      float undulatePhase = uTime * 2.0 * effectiveSpeedFactor;
+      float undulateAmount = sin(undulatePhase + pos.z * 8.0) * 0.01;
+      pos.y += undulateAmount * smoothstep(0.0, 0.7, abs(pos.z)); // Stronger toward tail
+    }
+
+    // Object-space Z for stripes (use original Z before animation if animation displaces Z significantly)
+    vObjectZDepth = position.z;
+
+    vec4 worldPos = modelMatrix * vec4(pos, 1.0);
     vWorldPosition = worldPos.xyz;
     
-    // Recompute normal based on animated position if complex deformation
-    // For simpler rotations, transform normal by rotation matrix
-    // For now, we pass the original normal, but this might need refinement for lighting on animated parts
-    // vNormal = normalize(normalMatrix * animatedNormal); // More accurate
+    // Use the transformed normal for lighting
+    vNormal = normalize(normalMatrix * transformedNormal);
 
     gl_Position = projectionMatrix * viewMatrix * worldPos;
   }

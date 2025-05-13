@@ -37,11 +37,20 @@ export class CameraManager {
   }
 
   public setTarget(playerController: PlayerController): void {
+    // Update player mesh reference
     this.playerMesh = playerController.mesh;
+    
+    // Immediately update camera position to match player
     if (this.playerMesh) {
+      // Set camera position directly to target position (no lerping)
       this.camera.position.copy(this.playerMesh.position).add(this.offset);
+      
+      // Set camera look-at
       const lookAtPoint = this.playerMesh.position.clone().add(this.lookAtOffset);
       this.camera.lookAt(lookAtPoint);
+      
+      console.log("CameraManager: Set target to new player mesh at position", 
+                 this.playerMesh.position.x, this.playerMesh.position.y, this.playerMesh.position.z);
     }
   }
 
@@ -61,8 +70,26 @@ export class CameraManager {
   }
 
   public update(deltaTime: number): void {
-    if (!this.playerMesh) return;
+    // Validate player mesh exists and is valid
+    if (!this.playerMesh) {
+      console.warn("CameraManager: No player mesh to follow, camera will remain stationary");
+      return;
+    }
+
+    // Ensure mesh is actually in the scene by checking isObject3D & parent
+    if (!this.playerMesh.isObject3D || !this.playerMesh.parent) {
+      console.warn("CameraManager: Player mesh is either not Object3D or not added to scene");
+      return;
+    }
+
+    // Get current player position
     const playerPos = this.playerMesh.position;
+
+    // Log camera motion occasionally for debugging
+    if (Math.random() < 0.01) { // Log approximately 1% of frames
+      console.log("CameraManager: Following player at position", 
+                 playerPos.x.toFixed(2), playerPos.y.toFixed(2), playerPos.z.toFixed(2));
+    }
 
     // Camera X stays at offset.x (usually 0 for centered), follows player Y/Z
     const targetPosition = new THREE.Vector3(
@@ -87,6 +114,48 @@ export class CameraManager {
 
     // Note: We don't apply shake to lookAt to maintain a stable view direction
     this.camera.lookAt(targetLookAt);
+  }
+
+  /**
+   * Explicitly reset the camera to follow the player
+   * This ensures the camera is properly positioned during game resets
+   */
+  public reset(playerController: PlayerController): void {
+    console.log("CameraManager: Explicit reset called");
+    
+    // Update the player mesh reference
+    this.playerMesh = playerController.mesh;
+    
+    // Force camera to exact position without any lerping
+    if (this.playerMesh) {
+      // Calculate where camera should be relative to player
+      const targetPosition = new THREE.Vector3(
+        this.offset.x, // Usually 0 for centered
+        this.playerMesh.position.y + this.offset.y,
+        this.playerMesh.position.z + this.offset.z
+      );
+      
+      // Force camera to this position immediately (no lerping)
+      this.camera.position.copy(targetPosition);
+      
+      // Update look-at target
+      const lookAtTarget = new THREE.Vector3(
+        this.playerMesh.position.x * 0.1 + this.lookAtOffset.x,
+        this.playerMesh.position.y + this.lookAtOffset.y,
+        this.playerMesh.position.z + this.lookAtOffset.z
+      );
+      this.camera.lookAt(lookAtTarget);
+      
+      // Clear any shake effects
+      this.clearShakeOffset();
+      
+      console.log("CameraManager: Camera reset to position", 
+                  this.camera.position.x.toFixed(2), 
+                  this.camera.position.y.toFixed(2), 
+                  this.camera.position.z.toFixed(2));
+    } else {
+      console.warn("CameraManager: Reset called but player mesh is undefined");
+    }
   }
 
   public handleResize(aspectRatio: number): void {

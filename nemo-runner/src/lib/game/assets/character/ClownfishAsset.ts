@@ -2,406 +2,773 @@
 import * as THREE from 'three';
 import { ShaderManager } from '../../services/ShaderManager';
 import { configSystem } from '../../core/ConfigurationSystem';
-import { PlayerSettings } from '../../config/gameConfig'; // For player visual settings
+import { PlayerSettings } from '../../config/gameConfig';
+
+// Part IDs for vertex shader animation
+const BODY_ID = 0.0;
+const TAIL_FIN_ID = 1.0;
+const LEFT_PECTORAL_ID = 2.0;
+const RIGHT_PECTORAL_ID = 3.0;
+const DORSAL_FIN_ID = 4.0;
+const LEFT_PELVIC_ID = 5.0;
+const RIGHT_PELVIC_ID = 6.0;
+const ANAL_FIN_ID = 7.0;
 
 export class ClownfishAsset {
-  private shaderManager: ShaderManager;
-  public mesh!: THREE.Group; // Main group for all parts
+  public mesh!: THREE.Group;
   private playerConfig: Readonly<PlayerSettings>;
   private animationTime: number = 0;
-  private bodyMaterial: THREE.Material | null = null;
-  private finMaterial: THREE.Material | null = null;
-  private stripeMaterial: THREE.Material | null = null;
-  private eyeMaterial: THREE.Material | null = null;
+
+  // Store references to animatable parts
+  private bodyMesh?: THREE.Mesh;
+  private tailFin?: THREE.Mesh;
+  private leftPectoralFin?: THREE.Mesh;
+  private rightPectoralFin?: THREE.Mesh;
+  private dorsalFin?: THREE.Mesh;
+  private leftPelvicFin?: THREE.Mesh;
+  private rightPelvicFin?: THREE.Mesh;
+  private analFin?: THREE.Mesh;
+  private leftEye?: THREE.Group;
+  private rightEye?: THREE.Group;
+  
+  // Material references for animation and effects
+  private bodyMaterial?: THREE.MeshStandardMaterial;
+  private finMaterial?: THREE.MeshStandardMaterial;
+  private stripesTexture?: THREE.Texture;
 
   constructor(shaderManager: ShaderManager) {
-    this.shaderManager = shaderManager;
+    // We still need the ShaderManager parameter for backward compatibility
+    // but we don't actually use it anymore
     this.playerConfig = configSystem.get('player');
-    this.createStandardMesh();
+    this.createClownfishMesh();
   }
 
-  private createBodyGeometry(): THREE.BufferGeometry {
-    // Start with a sphere and deform it for fish body shape
-    const bodyRadius = 0.4; // Base radius
-    const bodyLengthFactor = 1.8; // How elongated the body is
-    const bodyHeightFactor = 1.1; // How tall vs wide
-    const radialSegments = 24; // More segments for smoother curves
-    const heightSegments = 16;
-
-    const geometry = new THREE.SphereGeometry(bodyRadius, radialSegments, heightSegments);
-    const positions = geometry.attributes.position.array as Float32Array;
-
-    // Deform the sphere into an ovoid clownfish body shape
-    for (let i = 0; i < positions.length; i += 3) {
-      const x = positions[i];
-      const y = positions[i + 1];
-      const z = positions[i + 2];
-
-      // Normalized position (from -1 to 1 in Z, assuming sphere radius 1 before scaling)
-      const normalizedZ = z / bodyRadius; // z is along the length here
-
-      // Tapering factor: stronger tapering at the tail (positive Z)
-      let taper = 1.0 - Math.pow(Math.max(0, normalizedZ * 0.8 + 0.1), 2.5); // Stronger taper towards tail
-      taper = Math.max(0.2, taper); // Prevent collapsing to a point
-
-      // Bulge slightly in the middle
-      const bulge = 1.0 + Math.sin(Math.PI * (1.0 - Math.abs(normalizedZ * 0.9))) * 0.15;
-      
-      positions[i] *= taper * bulge * 0.9; // Slightly slimmer X
-      positions[i+1] *= taper * bulge * bodyHeightFactor; // Taller Y
-      positions[i+2] *= bodyLengthFactor; // Elongate along Z
-    }
-    geometry.attributes.position.needsUpdate = true;
-    geometry.computeVertexNormals(); // Crucial for smooth shading
-    return geometry;
+  /**
+   * Adds part index attribute to geometry for shader-based animations
+   */
+  private addPartIndexAttribute(geometry: THREE.BufferGeometry, partId: number): void {
+    const vertexCount = geometry.attributes.position.count;
+    const partIndices = new Float32Array(vertexCount);
+    
+    // Set the same part ID for all vertices in this geometry
+    partIndices.fill(partId);
+    
+    // Add the attribute that will be accessible in the vertex shader
+    geometry.setAttribute('aPartIndex', new THREE.BufferAttribute(partIndices, 1));
   }
 
-  private createFinGeometry(
-    width: number, 
-    height: number, 
-    segmentsW: number = 3, 
-    segmentsH: number = 4,
-    shape: 'pectoral' | 'dorsal' | 'caudal' | 'pelvic' | 'anal' = 'pectoral'
-  ): THREE.BufferGeometry {
-    const geometry = new THREE.PlaneGeometry(width, height, segmentsW, segmentsH);
-    const positions = geometry.attributes.position.array as Float32Array;
-
-    // Deform plane to a fin shape based on the specified type
-    for (let i = 0; i < positions.length; i += 3) {
-        // Y is 'height' of fin, X is 'width'
-        const x = positions[i]; // -width/2 to width/2
-        const y = positions[i+1]; // -height/2 to height/2
-
-        // Normalized coordinates
-        const nx = (x / width) + 0.5; // 0 to 1
-        const ny = (y / height) + 0.5; // 0 to 1
-
-        if (shape === 'pectoral' || shape === 'pelvic') {
-            // Rounded fan shape for pectoral/pelvic
-            let taper = Math.sin(ny * Math.PI); // Strongest taper at base/tip
-            taper *= (1.0 - Math.pow(nx * 0.8, 2)); // Taper towards side edges
-            positions[i] *= taper * Math.cos(ny * Math.PI * 0.1); // Slight curve
-            if (ny < 0.2) positions[i] *= ny / 0.2; // Pinch the base
-        } else if (shape === 'dorsal' || shape === 'anal') {
-            // Taper height towards front and back, more towards front
-            let taper = Math.sin(nx * Math.PI);
-            if (nx < 0.3) taper *= (nx / 0.3); // Sharper front
-            positions[i+1] *= taper * (1.0 - Math.pow(ny - 0.3, 2) * 0.5); // Curve the top edge
-        } else if (shape === 'caudal') { // Tail fin
-            let taperY = Math.sin(ny * Math.PI); // Taper top/bottom
-            let taperX = 1.0 - Math.pow(Math.abs(nx - 0.2), 2.0); // Wider at base, tapers towards tip
-            if (nx < 0.1) taperX = Math.max(0.3, nx / 0.1); // Ensure base is not zero
-            positions[i] *= taperX * 1.2; // Make tail wider
-            positions[i+1] *= taperY;
-        }
-    }
-    geometry.attributes.position.needsUpdate = true;
-    geometry.computeVertexNormals();
-    return geometry;
-  }
-
-  private createStandardMesh(): void {
+  /**
+   * Creates the complete clownfish with all parts using enhanced standard materials
+   * This is a completely refactored version that uses clear orientation rules
+   */
+  private createClownfishMesh(): void {
     try {
-      // Create materials with standard Three.js materials instead of shaders
-      this.bodyMaterial = new THREE.MeshStandardMaterial({
-        color: this.playerConfig.clownFishBaseColor,
-        roughness: 0.3,
-        metalness: 0.1, 
-        emissive: 0xFF4400,
-        emissiveIntensity: 0.2,
-        side: THREE.DoubleSide
-      });
-      
-      this.finMaterial = new THREE.MeshStandardMaterial({
-        color: 0xEE8822, // Slightly different orange for fins
-        transparent: true,
-        opacity: 0.9,
-        roughness: 0.4,
-        metalness: 0.1,
-        side: THREE.DoubleSide
-      });
-      
-      this.stripeMaterial = new THREE.MeshStandardMaterial({
-        color: this.playerConfig.clownFishStripeColor,
-        roughness: 0.2,
-        metalness: 0.0,
-        emissive: 0xFFFFFF,
-        emissiveIntensity: 0.1,
-        side: THREE.DoubleSide
-      });
-      
-      this.eyeMaterial = new THREE.MeshStandardMaterial({
-        color: 0x000000, // Black pupil
-        roughness: 0.0,
-        metalness: 0.9,
-        emissive: 0x000000,
-        side: THREE.DoubleSide
-      });
-
-      // Create main group
+      // Initialize the top-level group that contains all parts
       this.mesh = new THREE.Group();
       this.mesh.name = "ClownfishPlayer";
-
-      // Create body
-      const bodyGeom = this.createBodyGeometry();
-      const body = new THREE.Mesh(bodyGeom, this.bodyMaterial);
-      body.name = "ClownfishBody";
-      this.mesh.add(body);
-
-      // Add stripes using torus geometries
-      this.addStripes();
-
-      // Add fins
-      this.addFins();
-
-      // Add eyes
-      this.addEyes();
-
-      // Rotate the whole fish to swim along negative Z
-      this.mesh.rotation.y = Math.PI;
       
-      console.log("ClownfishAsset: Successfully created with standard materials");
+      // Create stripe texture for the body with error handling
+      try {
+        this.stripesTexture = this.createStripeTexture();
+      } catch (error) {
+        console.error("ClownfishAsset: Error creating stripe texture:", error);
+        this.stripesTexture = this.createSimpleFallbackTexture();
+      }
+      
+      // Get player configuration for colors
+      const playerConfig = configSystem.get('player');
+      
+      // Create main body material with enhanced Pixar-style properties
+      const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(playerConfig.clownFishBaseColor || 0xFC6000), // Vibrant orange as requested
+        emissive: new THREE.Color(playerConfig.clownFishBaseColor || 0xFC6000).multiplyScalar(0.3),
+        emissiveIntensity: 0.5,
+        roughness: 0.3,
+        metalness: 0.1,
+        side: THREE.DoubleSide,
+        map: this.stripesTexture,
+        envMapIntensity: 0.8,
+      });
+      
+      // Create fin material with enhanced Pixar-style properties
+      const finMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(playerConfig.clownFishBaseColor || 0xFC6000), // Vibrant orange as requested
+        emissive: new THREE.Color(playerConfig.clownFishBaseColor || 0xFC6000).multiplyScalar(0.3),
+        emissiveIntensity: 0.5,
+        roughness: 0.3,
+        metalness: 0.1,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.9,
+        envMapIntensity: 0.8
+      });
+      
+      // Store references to materials for animation and updates
+      this.bodyMaterial = bodyMaterial;
+      this.finMaterial = finMaterial;
+      
+      // IMPORTANT: Our coordinate system follows this convention:
+      // Forward = -Z (fish swims into the screen)
+      // Up = +Y (top of the fish)
+      // Right = +X (fish's right side)
+      
+      // IMPORTANT: The fish's "forward" direction should align with the -Z axis
+      
+      // Create the body (a modified ellipsoid)
+      this.bodyMesh = this.createFishBody(bodyMaterial);
+      this.mesh.add(this.bodyMesh);
+      
+      // Create tail fin (at the back of the fish, +Z)
+      this.tailFin = this.createTailFin(finMaterial);
+      this.bodyMesh.add(this.tailFin); // Attach to body for proper animations
+      
+      // Create dorsal fin (on top of the fish, +Y)
+      this.dorsalFin = this.createDorsalFin(finMaterial);
+      this.bodyMesh.add(this.dorsalFin);
+      
+      // Create anal fin (on bottom of the fish, -Y)
+      this.analFin = this.createAnalFin(finMaterial);
+      this.bodyMesh.add(this.analFin);
+      
+      // Create pectoral fins (on the sides, +/-X)
+      this.leftPectoralFin = this.createPectoralFin(finMaterial, true);
+      this.rightPectoralFin = this.createPectoralFin(finMaterial, false);
+      this.bodyMesh.add(this.leftPectoralFin);
+      this.bodyMesh.add(this.rightPectoralFin);
+      
+      // Create pelvic fins (on bottom sides)
+      this.leftPelvicFin = this.createPelvicFin(finMaterial, true);
+      this.rightPelvicFin = this.createPelvicFin(finMaterial, false);
+      this.bodyMesh.add(this.leftPelvicFin);
+      this.bodyMesh.add(this.rightPelvicFin);
+      
+      // Create eyes (on front sides)
+      this.leftEye = this.createEye(true);
+      this.rightEye = this.createEye(false);
+      this.bodyMesh.add(this.leftEye);
+      this.bodyMesh.add(this.rightEye);
+      
+      // Scale the fish to appropriate size
+      this.mesh.scale.set(0.5, 0.5, 0.5); // Reduced to 0.5 scale as requested
+      
+      console.log("ClownfishAsset: Successfully created enhanced clownfish");
     } catch (error) {
       console.error("ClownfishAsset: Error creating mesh:", error);
-      // Create a minimal fallback if even the standard approach fails
       this.createMinimalFallback();
     }
   }
-
-  private addStripes(): void {
-    if (!this.mesh || !this.stripeMaterial) return;
+  
+  /**
+   * Creates the main fish body using a properly oriented ellipsoid
+   */
+  private createFishBody(material: THREE.MeshStandardMaterial): THREE.Mesh {
+    // Create a sphere and deform it into a fish-like shape
+    const bodyGeometry = new THREE.SphereGeometry(1, 32, 24);
     
-    // Add three white stripes as torus segments
-    // First stripe (near head)
-    const stripe1 = new THREE.Mesh(
-      new THREE.TorusGeometry(0.3, 0.1, 8, 24, Math.PI * 2),
-      this.stripeMaterial
-    );
-    stripe1.name = "Stripe1";
-    stripe1.position.set(0, 0, -0.25);
-    stripe1.rotation.x = Math.PI / 2;
-    stripe1.scale.set(1.2, 1, 0.7); // Flatten and widen
-    this.mesh.add(stripe1);
-
-    // Middle stripe
-    const stripe2 = new THREE.Mesh(
-      new THREE.TorusGeometry(0.3, 0.1, 8, 24, Math.PI * 2),
-      this.stripeMaterial
-    );
-    stripe2.name = "Stripe2";
-    stripe2.position.set(0, 0, 0.05);
-    stripe2.rotation.x = Math.PI / 2;
-    stripe2.scale.set(1.2, 1, 0.7);
-    this.mesh.add(stripe2);
-    
-    // Rear stripe (near tail)
-    const stripe3 = new THREE.Mesh(
-      new THREE.TorusGeometry(0.25, 0.07, 8, 24, Math.PI * 2),
-      this.stripeMaterial
-    );
-    stripe3.name = "Stripe3";
-    stripe3.position.set(0, 0, 0.3);
-    stripe3.rotation.x = Math.PI / 2;
-    stripe3.scale.set(1.1, 1, 0.7);
-    this.mesh.add(stripe3);
-  }
-
-  private addFins(): void {
-    if (!this.mesh || !this.finMaterial) return;
-
-    // Create all fins with the fin material
-    const dorsalFinGeom = this.createFinGeometry(0.7, 0.35, 5, 3, 'dorsal');
-    const dorsalFin = new THREE.Mesh(dorsalFinGeom, this.finMaterial);
-    dorsalFin.name = "DorsalFin";
-    dorsalFin.position.set(0, 0.3, -0.1); // On top, slightly back
-    dorsalFin.rotation.x = Math.PI * 0.05; // Slight angle
-    this.mesh.add(dorsalFin);
-
-    const pectoralFinGeom = this.createFinGeometry(0.3, 0.25, 3, 3, 'pectoral');
-    const leftPectoralFin = new THREE.Mesh(pectoralFinGeom, this.finMaterial);
-    leftPectoralFin.name = "LeftPectoralFin";
-    leftPectoralFin.position.set(-0.3, -0.05, -0.2); // Side, slightly forward and down
-    leftPectoralFin.rotation.y = -Math.PI / 2; // Pointing outwards
-    leftPectoralFin.rotation.z = -Math.PI / 6; // Angled slightly down
-    this.mesh.add(leftPectoralFin);
-
-    const rightPectoralFin = new THREE.Mesh(pectoralFinGeom.clone(), this.finMaterial);
-    rightPectoralFin.name = "RightPectoralFin";
-    rightPectoralFin.position.set(0.3, -0.05, -0.2);
-    rightPectoralFin.rotation.y = Math.PI / 2;
-    rightPectoralFin.rotation.z = -Math.PI / 6;
-    this.mesh.add(rightPectoralFin);
-    
-    const tailFinGeom = this.createFinGeometry(0.3, 0.45, 4, 3, 'caudal');
-    const tailFin = new THREE.Mesh(tailFinGeom, this.finMaterial);
-    tailFin.name = "TailFin";
-    tailFin.position.set(0, 0.05, 0.65); // At the back
-    this.mesh.add(tailFin);
-
-    // Add more fins for completeness
-    const pelvicFinGeom = this.createFinGeometry(0.2, 0.15, 3, 2, 'pelvic');
-    const leftPelvicFin = new THREE.Mesh(pelvicFinGeom, this.finMaterial);
-    leftPelvicFin.name = "LeftPelvicFin";
-    leftPelvicFin.position.set(-0.15, -0.3, -0.05);
-    leftPelvicFin.rotation.y = -Math.PI / 2;
-    leftPelvicFin.rotation.z = Math.PI / 8;
-    this.mesh.add(leftPelvicFin);
-
-    const rightPelvicFin = new THREE.Mesh(pelvicFinGeom.clone(), this.finMaterial);
-    rightPelvicFin.name = "RightPelvicFin";
-    rightPelvicFin.position.set(0.15, -0.3, -0.05);
-    rightPelvicFin.rotation.y = Math.PI / 2;
-    rightPelvicFin.rotation.z = Math.PI / 8;
-    this.mesh.add(rightPelvicFin);
-
-    const analFinGeom = this.createFinGeometry(0.4, 0.2, 4, 2, 'anal');
-    const analFin = new THREE.Mesh(analFinGeom, this.finMaterial);
-    analFin.name = "AnalFin";
-    analFin.position.set(0, -0.3, 0.3);
-    analFin.rotation.x = -Math.PI * 0.05;
-    this.mesh.add(analFin);
-  }
-
-  private addEyes(): void {
-    if (!this.mesh || !this.eyeMaterial) return;
-    
-    // Create eyes with black material
-    const eyeGeometry = new THREE.SphereGeometry(0.06, 8, 8);
-    const leftEye = new THREE.Mesh(eyeGeometry, this.eyeMaterial);
-    leftEye.name = "LeftEye";
-    leftEye.position.set(-0.25, 0.08, -0.3);
-    this.mesh.add(leftEye);
-    
-    const rightEye = new THREE.Mesh(eyeGeometry.clone(), this.eyeMaterial);
-    rightEye.name = "RightEye";
-    rightEye.position.set(0.25, 0.08, -0.3);
-    this.mesh.add(rightEye);
-    
-    // Add eye highlights (small white spheres)
-    const highlightGeometry = new THREE.SphereGeometry(0.02, 6, 6);
-    const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
-    
-    const leftHighlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
-    leftHighlight.name = "LeftEyeHighlight";
-    leftHighlight.position.set(-0.22, 0.11, -0.28);
-    this.mesh.add(leftHighlight);
-    
-    const rightHighlight = new THREE.Mesh(highlightGeometry.clone(), highlightMaterial);
-    rightHighlight.name = "RightEyeHighlight";
-    rightHighlight.position.set(0.22, 0.11, -0.28);
-    this.mesh.add(rightHighlight);
-  }
-
-  private createMinimalFallback(): void {
-    console.error("ClownfishAsset: Creating emergency minimal fallback");
-    
-    // Create a new group or clear existing one
-    if (this.mesh) {
-      while (this.mesh.children.length > 0) {
-        const child = this.mesh.children[0];
-        if (child instanceof THREE.Mesh) {
-          child.geometry.dispose();
-          if (child.material instanceof THREE.Material) {
-            child.material.dispose();
-          }
-        }
-        this.mesh.remove(child);
+    // Deform the sphere into an elongated fish body
+    const positions = bodyGeometry.attributes.position.array as Float32Array;
+    for (let i = 0; i < positions.length; i += 3) {
+      // Scale to create fish body proportions
+      positions[i] *= 0.6;     // X - narrow the width
+      positions[i+1] *= 0.8;   // Y - slightly flatten vertically
+      positions[i+2] *= 1.5;   // Z - elongate the body
+      
+      // Get the normalized Z position to apply tapering
+      const z = positions[i+2];
+      const normalizedZ = z / 1.5;
+      
+      // Taper toward the tail (back) and slightly toward the head (front)
+      let taper = 1.0;
+      if (normalizedZ > 0.3) {
+        // Tail tapering (gradually narrower toward the back/tail)
+        taper = 1.0 - Math.pow((normalizedZ - 0.3) / 0.7, 2) * 0.7;
+      } else if (normalizedZ < -0.5) {
+        // Head tapering (slightly narrower at the front)
+        taper = 1.0 - Math.pow((Math.abs(normalizedZ) - 0.5) / 0.5, 2) * 0.3;
       }
-    } else {
-      this.mesh = new THREE.Group();
-      this.mesh.name = "ClownfishPlayer";
+      
+      // Apply tapering to X and Y dimensions
+      positions[i] *= taper;
+      positions[i+1] *= taper;
     }
-
-    // Use the most basic material possible
-    const basicMaterial = new THREE.MeshBasicMaterial({
-      color: 0xFF8800,
+    
+    // Update geometry after modifications
+    bodyGeometry.attributes.position.needsUpdate = true;
+    bodyGeometry.computeVertexNormals();
+    
+    // Add part index for animations
+    this.addPartIndexAttribute(bodyGeometry, BODY_ID);
+    
+    // Add UVs for stripe pattern
+    this.addStripeUVs(bodyGeometry);
+    
+    // Create and return the mesh
+    const bodyMesh = new THREE.Mesh(bodyGeometry, material);
+    bodyMesh.name = "ClownfishBody";
+    
+    return bodyMesh;
+  }
+  
+  /**
+   * Add proper UV coordinates for stripe pattern
+   */
+  private addStripeUVs(geometry: THREE.BufferGeometry): void {
+    const positions = geometry.attributes.position.array as Float32Array;
+    const uvs: number[] = [];
+    
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = positions[i];
+      const y = positions[i+1];
+      const z = positions[i+2];
+      
+      // Map from -1,1 range to 0,1 range
+      const v = (y + 1) * 0.5;
+      
+      // Map the Z coordinate (fish length) to U
+      // Adjust for the elongated body
+      const u = (z / 3) + 0.5;
+      
+      uvs.push(u, v);
+    }
+    
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  }
+  
+  /**
+   * Creates the tail fin
+   */
+  private createTailFin(material: THREE.MeshStandardMaterial): THREE.Mesh {
+    // Create a triangular tail fin shape
+    const tailShape = new THREE.Shape();
+    tailShape.moveTo(0, 0);
+    tailShape.lineTo(1.2, 1);    // Top point
+    tailShape.lineTo(1.6, 0);    // Middle extension
+    tailShape.lineTo(1.2, -1);   // Bottom point
+    tailShape.lineTo(0, 0);      // Back to center
+    
+    // Extrude to create thickness
+    const extrudeSettings = {
+      depth: 0.1,
+      bevelEnabled: true,
+      bevelThickness: 0.05,
+      bevelSize: 0.05,
+      bevelSegments: 3
+    };
+    
+    const tailGeometry = new THREE.ExtrudeGeometry(tailShape, extrudeSettings);
+    
+    // Center the geometry
+    tailGeometry.center();
+    
+    // Rotate to proper orientation
+    tailGeometry.rotateY(Math.PI/2);
+    
+    // Add part index
+    this.addPartIndexAttribute(tailGeometry, TAIL_FIN_ID);
+    
+    // Create the mesh
+    const tailMesh = new THREE.Mesh(tailGeometry, material);
+    tailMesh.name = "TailFin";
+    
+    // Position at the back of the fish
+    tailMesh.position.set(0, 0, 1.5);
+    
+    return tailMesh;
+  }
+  
+  /**
+   * Creates the dorsal fin (top fin)
+   */
+  private createDorsalFin(material: THREE.MeshStandardMaterial): THREE.Mesh {
+    // Create a triangular dorsal fin shape
+    const dorsalShape = new THREE.Shape();
+    dorsalShape.moveTo(-0.5, 0);
+    dorsalShape.lineTo(0, 0.8);    // Peak
+    dorsalShape.lineTo(0.5, 0);    // Back to baseline
+    
+    // Extrude for thickness
+    const extrudeSettings = {
+      depth: 0.1,
+      bevelEnabled: true,
+      bevelThickness: 0.05,
+      bevelSize: 0.05,
+      bevelSegments: 2
+    };
+    
+    const dorsalGeometry = new THREE.ExtrudeGeometry(dorsalShape, extrudeSettings);
+    
+    // Center and rotate
+    dorsalGeometry.center();
+    dorsalGeometry.rotateX(Math.PI/2);
+    
+    // Add part index
+    this.addPartIndexAttribute(dorsalGeometry, DORSAL_FIN_ID);
+    
+    // Create mesh
+    const dorsalMesh = new THREE.Mesh(dorsalGeometry, material);
+    dorsalMesh.name = "DorsalFin";
+    
+    // Position on top of the fish
+    dorsalMesh.position.set(0, 0.8, 0.2);
+    
+    return dorsalMesh;
+  }
+  
+  /**
+   * Creates the anal fin (bottom back fin)
+   */
+  private createAnalFin(material: THREE.MeshStandardMaterial): THREE.Mesh {
+    // Create anal fin shape (smaller than dorsal)
+    const analShape = new THREE.Shape();
+    analShape.moveTo(-0.3, 0);
+    analShape.lineTo(0, -0.5);    // Peak (downward)
+    analShape.lineTo(0.3, 0);     // Back to baseline
+    
+    // Extrude for thickness
+    const extrudeSettings = {
+      depth: 0.08,
+      bevelEnabled: true,
+      bevelThickness: 0.04,
+      bevelSize: 0.04,
+      bevelSegments: 2
+    };
+    
+    const analGeometry = new THREE.ExtrudeGeometry(analShape, extrudeSettings);
+    
+    // Center and rotate
+    analGeometry.center();
+    analGeometry.rotateX(Math.PI/2);
+    
+    // Add part index
+    this.addPartIndexAttribute(analGeometry, ANAL_FIN_ID);
+    
+    // Create mesh
+    const analMesh = new THREE.Mesh(analGeometry, material);
+    analMesh.name = "AnalFin";
+    
+    // Position on bottom back of fish
+    analMesh.position.set(0, -0.7, 0.6);
+    
+    return analMesh;
+  }
+  
+  /**
+   * Creates a pectoral fin (side fin)
+   */
+  private createPectoralFin(material: THREE.MeshStandardMaterial, isLeft: boolean): THREE.Mesh {
+    // Create wing-like pectoral fin
+    const pectoralShape = new THREE.Shape();
+    pectoralShape.moveTo(0, 0);
+    pectoralShape.bezierCurveTo(
+      0.2, 0.2,     // Control point 1
+      0.6, 0.2,     // Control point 2
+      0.8, 0        // End point - curved top
+    );
+    pectoralShape.bezierCurveTo(
+      0.6, -0.3,    // Control point 1
+      0.3, -0.3,    // Control point 2
+      0, 0          // End point - curved bottom back to start
+    );
+    
+    // Extrude for thickness
+    const extrudeSettings = {
+      depth: 0.05,
+      bevelEnabled: true,
+      bevelThickness: 0.02,
+      bevelSize: 0.02,
+      bevelSegments: 2
+    };
+    
+    const pectoralGeometry = new THREE.ExtrudeGeometry(pectoralShape, extrudeSettings);
+    
+    // Center and rotate to proper orientation
+    pectoralGeometry.center();
+    
+    // Different rotation for left/right fins
+    if (isLeft) {
+      pectoralGeometry.rotateY(-Math.PI/2);
+    } else {
+      pectoralGeometry.rotateY(Math.PI/2);
+    }
+    
+    // Add part index
+    this.addPartIndexAttribute(pectoralGeometry, isLeft ? LEFT_PECTORAL_ID : RIGHT_PECTORAL_ID);
+    
+    // Create mesh
+    const pectoralMesh = new THREE.Mesh(pectoralGeometry, material);
+    pectoralMesh.name = isLeft ? "LeftPectoralFin" : "RightPectoralFin";
+    
+    // Position on side of fish toward the front
+    const xPos = isLeft ? 0.6 : -0.6;
+    pectoralMesh.position.set(xPos, -0.1, -0.2);
+    
+    // Add slight rotation to look more natural
+    pectoralMesh.rotation.z = isLeft ? -Math.PI/10 : Math.PI/10;
+    
+    return pectoralMesh;
+  }
+  
+  /**
+   * Creates a pelvic fin (bottom side fin)
+   */
+  private createPelvicFin(material: THREE.MeshStandardMaterial, isLeft: boolean): THREE.Mesh {
+    // Create small pelvic fin
+    const pelvicShape = new THREE.Shape();
+    pelvicShape.moveTo(0, 0);
+    pelvicShape.bezierCurveTo(
+      0.1, -0.1,    // Control point 1
+      0.2, -0.2,    // Control point 2
+      0.3, -0.1     // End point
+    );
+    pelvicShape.bezierCurveTo(
+      0.25, 0,      // Control point 1
+      0.15, 0,      // Control point 2
+      0, 0          // Back to start
+    );
+    
+    // Extrude for thickness
+    const extrudeSettings = {
+      depth: 0.03,
+      bevelEnabled: true,
+      bevelThickness: 0.01,
+      bevelSize: 0.01,
+      bevelSegments: 1
+    };
+    
+    const pelvicGeometry = new THREE.ExtrudeGeometry(pelvicShape, extrudeSettings);
+    
+    // Center and rotate
+    pelvicGeometry.center();
+    if (isLeft) {
+      pelvicGeometry.rotateY(-Math.PI/2);
+    } else {
+      pelvicGeometry.rotateY(Math.PI/2);
+    }
+    
+    // Add part index
+    this.addPartIndexAttribute(pelvicGeometry, isLeft ? LEFT_PELVIC_ID : RIGHT_PELVIC_ID);
+    
+    // Create mesh
+    const pelvicMesh = new THREE.Mesh(pelvicGeometry, material);
+    pelvicMesh.name = isLeft ? "LeftPelvicFin" : "RightPelvicFin";
+    
+    // Position on bottom side
+    const xPos = isLeft ? 0.4 : -0.4;
+    pelvicMesh.position.set(xPos, -0.6, -0.4);
+    
+    return pelvicMesh;
+  }
+  
+  /**
+   * Creates an eye
+   */
+  private createEye(isLeft: boolean): THREE.Group {
+    const eyeGroup = new THREE.Group();
+    eyeGroup.name = isLeft ? "LeftEye" : "RightEye";
+    
+    // Create eyeball
+    const eyeballGeometry = new THREE.SphereGeometry(0.15, 16, 12);
+    const eyeballMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.1,
+      metalness: 0.1
+    });
+    
+    const eyeball = new THREE.Mesh(eyeballGeometry, eyeballMaterial);
+    eyeball.name = isLeft ? "LeftEyeball" : "RightEyeball";
+    eyeGroup.add(eyeball);
+    
+    // Create iris
+    const irisGeometry = new THREE.CircleGeometry(0.1, 16);
+    const irisMaterial = new THREE.MeshStandardMaterial({
+      color: 0x3366ff,
+      roughness: 0.1,
+      metalness: 0.1
+    });
+    
+    const iris = new THREE.Mesh(irisGeometry, irisMaterial);
+    iris.name = isLeft ? "LeftIris" : "RightIris";
+    iris.position.set(0, 0, 0.13);
+    eyeGroup.add(iris);
+    
+    // Create pupil
+    const pupilGeometry = new THREE.CircleGeometry(0.05, 16);
+    const pupilMaterial = new THREE.MeshStandardMaterial({
+      color: 0x000000,
+      roughness: 0.1,
+      metalness: 0.1
+    });
+    
+    const pupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
+    pupil.name = isLeft ? "LeftPupil" : "RightPupil";
+    pupil.position.set(0, 0, 0.14);
+    eyeGroup.add(pupil);
+    
+    // Create highlight
+    const highlightGeometry = new THREE.CircleGeometry(0.02, 8);
+    const highlightMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.1,
+      metalness: 0.1,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.5
+    });
+    
+    const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
+    highlight.name = isLeft ? "LeftHighlight" : "RightHighlight";
+    highlight.position.set(0.03, 0.03, 0.15);
+    eyeGroup.add(highlight);
+    
+    // Position the eye on the side of the head
+    const xPos = isLeft ? 0.5 : -0.5;
+    eyeGroup.position.set(xPos, 0.2, -0.9);
+    
+    // Rotate to face slightly outward
+    eyeGroup.rotation.y = isLeft ? Math.PI/6 : -Math.PI/6;
+    
+    return eyeGroup;
+  }
+  
+  /**
+   * Create a simple stripe texture
+   */
+  private createSimpleFallbackTexture(): THREE.Texture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.Texture();
+    
+    // Fill with vibrant orange color
+    ctx.fillStyle = '#FC6000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Add three white stripes
+    ctx.fillStyle = '#FFFFFF';
+    const stripeHeight = 80;
+    ctx.fillRect(0, 100, canvas.width, stripeHeight);
+    ctx.fillRect(0, 250, canvas.width, stripeHeight);
+    ctx.fillRect(0, 400, canvas.width, stripeHeight);
+    
+    // Create texture
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    
+    return texture;
+  }
+  
+  /**
+   * Create more detailed stripe texture
+   */
+  private createStripeTexture(): THREE.Texture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.Texture();
+    
+    // Get colors from config
+    const playerConfig = configSystem.get('player');
+    const baseColorHex = playerConfig.clownFishBaseColor || 0xFC6000; // Vibrant orange
+    const stripeColorHex = playerConfig.clownFishStripeColor || 0xFFFFFF;
+    
+    // Convert to CSS colors
+    const baseColor = '#' + baseColorHex.toString(16).padStart(6, '0');
+    const stripeColor = '#' + stripeColorHex.toString(16).padStart(6, '0');
+    
+    // Create gradient background
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    gradient.addColorStop(0, baseColor);
+    gradient.addColorStop(0.5, shadeColor(baseColor, 20)); // Lighter middle
+    gradient.addColorStop(1, baseColor);
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw three stripes with soft edges
+    const stripePositions = [0.25, 0.5, 0.75]; // Normalized positions
+    const stripeHeight = 0.15; // 15% of height
+    
+    stripePositions.forEach((pos) => {
+      const y = pos * canvas.height;
+      const height = stripeHeight * canvas.height;
+      
+      // Create gradient for the stripe with soft edges
+      const stripeGradient = ctx.createLinearGradient(0, y - height/2 - 20, 0, y + height/2 + 20);
+      stripeGradient.addColorStop(0, baseColor); // Start with base color
+      stripeGradient.addColorStop(0.2, stripeColor); // Transition to stripe color
+      stripeGradient.addColorStop(0.8, stripeColor); // Hold stripe color
+      stripeGradient.addColorStop(1, baseColor); // Back to base color
+      
+      ctx.fillStyle = stripeGradient;
+      ctx.fillRect(0, y - height/2 - 20, canvas.width, height + 40);
+    });
+    
+    // Create texture
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    
+    return texture;
+  }
+  
+  /**
+   * Create a minimal fallback fish for emergency cases
+   */
+  private createMinimalFallback(): void {
+    // Create a simple group
+    this.mesh = new THREE.Group();
+    this.mesh.name = "ClownfishFallback";
+    
+    // Create simple body
+    const bodyGeometry = new THREE.SphereGeometry(1, 16, 12);
+    const positions = bodyGeometry.attributes.position.array as Float32Array;
+    
+    // Deform to fish shape
+    for (let i = 0; i < positions.length; i += 3) {
+      positions[i] *= 0.6;   // X
+      positions[i+1] *= 0.8; // Y
+      positions[i+2] *= 1.5; // Z
+    }
+    
+    bodyGeometry.attributes.position.needsUpdate = true;
+    bodyGeometry.computeVertexNormals();
+    
+    // Create very bright material for visibility
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xFC6000, // Vibrant orange as requested
       wireframe: false
     });
-
-    // Create a very simple fish shape with a sphere
-    const bodyGeom = new THREE.SphereGeometry(0.4, 16, 12);
-    const body = new THREE.Mesh(bodyGeom, basicMaterial);
-    body.name = "ClownfishBody";
-    body.scale.set(1, 0.8, 1.8); // Flatten and elongate
-    this.mesh.add(body);
-
-    // Add a simple tail
-    const tailGeom = new THREE.BoxGeometry(0.3, 0.4, 0.1);
-    const tail = new THREE.Mesh(tailGeom, basicMaterial);
-    tail.name = "TailFin";
-    tail.position.set(0, 0, 0.65);
-    this.mesh.add(tail);
-
-    // Add simple eyes
-    const eyeGeom = new THREE.SphereGeometry(0.05, 8, 8);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
     
-    const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
-    leftEye.name = "LeftEye";
-    leftEye.position.set(-0.25, 0.1, -0.3);
-    this.mesh.add(leftEye);
+    // Create body
+    this.bodyMesh = new THREE.Mesh(bodyGeometry, material);
+    this.bodyMesh.name = "ClownfishBody";
+    this.mesh.add(this.bodyMesh);
     
-    const rightEye = new THREE.Mesh(eyeGeom.clone(), eyeMat);
-    rightEye.name = "RightEye";
-    rightEye.position.set(0.25, 0.1, -0.3);
-    this.mesh.add(rightEye);
-
-    // Rotate to face -Z direction
-    this.mesh.rotation.y = Math.PI;
+    // Add simple eyes for orientation
+    const eyeGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(0.3, 0.2, -0.8);
+    this.bodyMesh.add(leftEye);
+    
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(-0.3, 0.2, -0.8);
+    this.bodyMesh.add(rightEye);
+    
+    // Add simple tail
+    const tailGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.1);
+    const tail = new THREE.Mesh(tailGeometry, material);
+    tail.position.set(0, 0, 1.4);
+    this.bodyMesh.add(tail);
+    
+    // Scale the fish to match main implementation
+    this.mesh.scale.set(0.5, 0.5, 0.5); // Reduced to 0.5 scale
   }
-
+  
+  /**
+   * Returns the player mesh
+   */
   public getMesh(): THREE.Group {
     return this.mesh;
   }
   
-  // Animation method called by PlayerController
+  /**
+   * Updates animation - called from PlayerController
+   */
   public updateAnimation(deltaTime: number, playerSpeed: number, isTurning: boolean, turnDirection: number): void {
     this.animationTime += deltaTime;
-    const config = this.playerConfig;
-
-    // Direct CPU-based animation for fins
-    // Tail fin animation
-    const tailFin = this.mesh.getObjectByName("TailFin") as THREE.Mesh;
-    if (tailFin) {
-      const frequency = config.tailFinFrequency; // Base frequency
-      const amplitude = config.tailFinAmplitude; // Base amplitude
-      const speedFactor = 1.0 + playerSpeed * 0.1;
+    
+    // Ensure visibility
+    this.mesh.visible = true;
+    
+    // Skip animation if parts don't exist
+    if (!this.bodyMesh) return;
+    
+    // Speed factor for animations
+    const speedFactor = 1.0 + playerSpeed * 0.15;
+    
+    // Body animation (subtle sway)
+    if (isTurning) {
+      // When turning, lean into the turn
+      this.bodyMesh.rotation.y = turnDirection * 0.2 * speedFactor;
+      this.bodyMesh.rotation.z = -turnDirection * 0.1 * speedFactor;
+    } else {
+      // Gentle undulation
+      this.bodyMesh.rotation.y = Math.sin(this.animationTime * 1.5) * 0.05;
+      this.bodyMesh.rotation.z = Math.sin(this.animationTime * 0.7) * 0.02;
+    }
+    
+    // Tail fin animation (side to side swishing)
+    if (this.tailFin) {
+      const tailFreq = this.playerConfig.tailFinFrequency || 5;
+      const tailAmp = this.playerConfig.tailFinAmplitude || 0.3;
       
-      // Apply sine wave motion to tail with speed adjustment
-      tailFin.rotation.y = Math.sin(this.animationTime * frequency * speedFactor) * amplitude * speedFactor;
+      // Main side-to-side motion
+      this.tailFin.rotation.y = Math.sin(this.animationTime * tailFreq * speedFactor) * tailAmp * speedFactor;
       
-      // If turning, add some bend to the tail
+      // Add extra motion when turning
       if (isTurning) {
-        tailFin.rotation.y += turnDirection * 0.2; // Add turning bias
+        this.tailFin.rotation.y += turnDirection * 0.2;
       }
     }
-
-    // Pectoral fins animation - flapping
-    const leftPectoral = this.mesh.getObjectByName("LeftPectoralFin") as THREE.Mesh;
-    if (leftPectoral) {
-      leftPectoral.rotation.x = Math.sin(this.animationTime * config.pectoralFinFrequency * (1 + playerSpeed * 0.1)) 
-                                 * config.pectoralFinAmplitude;
+    
+    // Pectoral fin animation (gentle flapping)
+    const finFreq = this.playerConfig.pectoralFinFrequency || 3;
+    const finAmp = this.playerConfig.pectoralFinAmplitude || 0.2;
+    
+    if (this.leftPectoralFin) {
+      // Asymmetric motion
+      const leftFinPhase = this.animationTime * finFreq * speedFactor;
+      this.leftPectoralFin.rotation.z = Math.sin(leftFinPhase) * finAmp - Math.PI/10;
     }
     
-    const rightPectoral = this.mesh.getObjectByName("RightPectoralFin") as THREE.Mesh;
-    if (rightPectoral) {
-      // Offset phase for right fin slightly for more natural look
-      rightPectoral.rotation.x = Math.sin(this.animationTime * config.pectoralFinFrequency * (1 + playerSpeed * 0.1) + Math.PI * 0.1) 
-                                  * config.pectoralFinAmplitude;
+    if (this.rightPectoralFin) {
+      // Slightly out of phase
+      const rightFinPhase = this.animationTime * finFreq * speedFactor + 0.4;
+      this.rightPectoralFin.rotation.z = -Math.sin(rightFinPhase) * finAmp + Math.PI/10;
     }
     
-    // Add subtle body rotation when turning
-    if (isTurning && turnDirection !== 0) {
-      const body = this.mesh.getObjectByName("ClownfishBody") as THREE.Mesh;
-      if (body) {
-        // Small rotation to emphasize turning
-        body.rotation.y = turnDirection * 0.1;
+    // Eye animation (subtle looks)
+    const eyePhase = this.animationTime * 0.2;
+    
+    if (this.leftEye && this.rightEye) {
+      if (isTurning) {
+        // Look in direction of turn
+        this.leftEye.rotation.y = Math.PI/6 + turnDirection * 0.2;
+        this.rightEye.rotation.y = -Math.PI/6 + turnDirection * 0.2;
+      } else {
+        // Random-looking movements
+        this.leftEye.rotation.y = Math.PI/6 + Math.sin(eyePhase) * 0.1;
+        this.rightEye.rotation.y = -Math.PI/6 + Math.sin(eyePhase + 0.1) * 0.1;
       }
+    }
+    
+    // Other fin animations
+    if (this.dorsalFin) {
+      this.dorsalFin.rotation.x = Math.sin(this.animationTime * 1.2) * 0.1;
+    }
+    
+    if (this.analFin) {
+      this.analFin.rotation.x = Math.sin(this.animationTime * 1.1 + 0.3) * 0.08;
+    }
+    
+    if (this.leftPelvicFin) {
+      this.leftPelvicFin.rotation.z = Math.sin(this.animationTime * 0.9) * 0.1;
+    }
+    
+    if (this.rightPelvicFin) {
+      this.rightPelvicFin.rotation.z = -Math.sin(this.animationTime * 0.9 + 0.2) * 0.1;
     }
   }
-
+  
+  /**
+   * Disposes of all geometries and materials
+   */
   public dispose(): void {
-    // Properly dispose all geometries and materials
+    // Dispose all meshes and materials
     this.mesh.traverse(child => {
       if (child instanceof THREE.Mesh) {
         if (child.geometry) {
@@ -416,16 +783,40 @@ export class ClownfishAsset {
       }
     });
     
-    // Dispose direct material references
-    if (this.bodyMaterial) this.bodyMaterial.dispose();
-    if (this.finMaterial) this.finMaterial.dispose();
-    if (this.stripeMaterial) this.stripeMaterial.dispose();
-    if (this.eyeMaterial) this.eyeMaterial.dispose();
+    // Dispose textures
+    if (this.stripesTexture) {
+      this.stripesTexture.dispose();
+    }
     
     // Clear references
-    this.bodyMaterial = null;
-    this.finMaterial = null;
-    this.stripeMaterial = null;
-    this.eyeMaterial = null;
+    this.bodyMesh = undefined;
+    this.tailFin = undefined;
+    this.leftPectoralFin = undefined;
+    this.rightPectoralFin = undefined;
+    this.dorsalFin = undefined;
+    this.leftPelvicFin = undefined;
+    this.rightPelvicFin = undefined;
+    this.analFin = undefined;
+    this.leftEye = undefined;
+    this.rightEye = undefined;
+    this.bodyMaterial = undefined;
+    this.finMaterial = undefined;
+    this.stripesTexture = undefined;
   }
+}
+
+// Helper function to lighten/darken a color
+function shadeColor(color: string, percent: number): string {
+  let R = parseInt(color.substring(1, 3), 16);
+  let G = parseInt(color.substring(3, 5), 16);
+  let B = parseInt(color.substring(5, 7), 16);
+
+  R = Math.min(255, Math.max(0, R + Math.floor(256 * percent / 100)));
+  G = Math.min(255, Math.max(0, G + Math.floor(256 * percent / 100)));
+  B = Math.min(255, Math.max(0, B + Math.floor(256 * percent / 100)));
+
+  return "#" + 
+    (R.toString(16).padStart(2, '0')) +
+    (G.toString(16).padStart(2, '0')) +
+    (B.toString(16).padStart(2, '0'));
 }

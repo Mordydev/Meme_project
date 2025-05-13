@@ -104,14 +104,17 @@ export class ShaderManager {
           uTailFinAmplitude: { value: playerCfg.tailFinAmplitude },
           uPectoralFinFrequency: { value: playerCfg.pectoralFinFrequency },
           uPectoralFinAmplitude: { value: playerCfg.pectoralFinAmplitude },
+          uEmissiveIntensity: { value: 0.5 }, // Default emission strength for visibility
         }),
         materialParameters: {
           fog: true, // Character should be affected by scene fog
           lights: true, // Character should react to scene lights
           side: THREE.DoubleSide, // Use DoubleSide for both body and fins
-          transparent: true, // Enable transparency for fins
+          transparent: false, // Changed to false for better visibility
           depthWrite: true, // Enable depth writing
           glslVersion: THREE.GLSL3, // Explicitly use GLSL 3.0
+          emissive: 0xffbb00, // Add default emissive color
+          emissiveIntensity: 0.5, // With medium intensity
           defines: {
             GLSL3: true // Define GLSL3 for the shader to adapt
           }

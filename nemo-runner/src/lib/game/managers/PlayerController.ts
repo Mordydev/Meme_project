@@ -107,14 +107,27 @@ export class PlayerController {
   }
 
   private initialize(): void {
+    console.log("PlayerController: initialize called");
+    
     // Get the clownfish asset and its mesh
     this.clownfishAsset = this.assetFactory.createClownfishAsset();
+    console.log("PlayerController: clownfish asset created");
+    
     this.mesh = this.clownfishAsset.getMesh();
-    this.mesh.position.y = this.normalYPosition;
-    this.mesh.position.x = 0;
-    this.mesh.position.z = 0;
+    console.log(`PlayerController: got mesh from asset, visible = ${this.mesh.visible}`);
+    
+    // Make sure it's visible from the start
+    this.mesh.visible = true;
+    
+    // Set the fish at the default player position
+    this.mesh.position.x = 0; // Center lane
+    this.mesh.position.y = this.normalYPosition; // Default Y height
+    this.mesh.position.z = 0; // Starting position
+    
     this.scene.add(this.mesh);
-    console.log("PlayerController: Initialized with clownfish player mesh.");
+    console.log(`PlayerController: Added mesh to scene. Scene children count: ${this.scene.children.length}`);
+    
+    // Scene is now set up with the player
   }
 
   /**
@@ -293,6 +306,7 @@ export class PlayerController {
       if (this.invincibilityTimer <= 0) {
         this.isInvincible = false;
         this.mesh.visible = true; // Ensure player is visible when invincibility ends
+        console.log("PlayerController: Invincibility ended, setting visible=true");
 
         // Only reset to IDLE if still in HIT state
         if (this.state === PlayerState.HIT) {
@@ -323,6 +337,7 @@ export class PlayerController {
       this.state = PlayerState.IDLE;
       // Make sure player is visible
       this.mesh.visible = true;
+      console.log("PlayerController: Leaving HIT state, setting visible=true");
     }
   }
 
@@ -493,6 +508,20 @@ export class PlayerController {
       this.mesh = this.clownfishAsset.getMesh();
       this.mesh.position.set(0, this.normalYPosition, 0);
       this.scene.add(this.mesh);
+      
+      // CRITICAL: Ensure camera follows the new mesh in multiple ways
+      if (this.gameEngine?.getCameraManager) {
+        const cameraManager = this.gameEngine.getCameraManager();
+        if (cameraManager) {
+          // Method 1: Update target reference (regular following)
+          cameraManager.setTarget(this);
+          
+          // Method 2: Force an immediate camera reset to player position (reliable reset)
+          cameraManager.reset(this);
+        }
+      } else {
+        console.warn("PlayerController: Cannot update camera - no getCameraManager method");
+      }
     }
     
     // Clear stored materials
@@ -502,8 +531,6 @@ export class PlayerController {
     if (this.gameEngine?.getCallbacks?.().onLivesUpdate) {
       this.gameEngine.getCallbacks().onLivesUpdate(this.lives);
     }
-
-    console.log("PlayerController: Reset. Lives:", this.lives, "State: IDLE. Shield deactivated.");
   }
 
   public dispose(): void {
