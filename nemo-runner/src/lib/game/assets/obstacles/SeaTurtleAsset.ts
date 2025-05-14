@@ -17,7 +17,7 @@ export class SeaTurtleAsset {
 
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
-    this.createMesh();
+    // Don't create mesh in constructor - let factory call getMesh() explicitly
   }
 
   /**
@@ -441,9 +441,9 @@ export class SeaTurtleAsset {
     collisionGeom.scale(1.3, 0.6, 1.1); // Slightly larger than visual shell
     
     const collisionMat = new THREE.MeshBasicMaterial({
-      visible: false, // Invisible
-      wireframe: true, // Wireframe for debugging
-      color: 0xff00ff // Bright color for debugging
+      visible: false, // Keep invisible in production
+      wireframe: true, // For debugging if made visible
+      color: 0xff00ff  // Magenta for debugging
     });
     
     this.collisionMesh = new THREE.Mesh(collisionGeom, collisionMat);
@@ -587,8 +587,27 @@ export class SeaTurtleAsset {
 
   /**
    * Returns the main turtle mesh
+   * Creates it if it doesn't exist yet
    */
   public getMesh(): THREE.Group {
+    if (!this.mesh) {
+      this.createMesh();
+    }
+    
+    // Make sure mesh and all children are visible
+    if (this.mesh) {
+      this.mesh.visible = true;
+      
+      // Ensure all children are visible (except collision mesh)
+      this.mesh.traverse(child => {
+        if (child instanceof THREE.Mesh && child.name !== "SeaTurtleCollisionShape") {
+          child.visible = true;
+        }
+      });
+      
+      console.log("SeaTurtleAsset: Ensured visibility of turtle mesh and children");
+    }
+    
     return this.mesh;
   }
 
@@ -692,13 +711,54 @@ export class SeaTurtleAsset {
   /**
    * Creates the procedural mesh for this asset
    */
-  public createMesh(): void {
-    // Implementation already handles mesh creation in constructor
-    if (!this.mesh) {
+  public createMesh(): THREE.Group {
+    try {
       // Only recreate if not already created
-      this.mesh = new THREE.Group();
-      this.createMesh();
+      if (!this.mesh) {
+        this.mesh = new THREE.Group();
+        this.mesh.name = "SeaTurtleObstacle";
+        const config = this.config;
+        const scale = config.baseScale || 1.3;
+  
+        // Get visual properties from config with fallbacks
+        const bodyVisuals = config.visuals || {};
+        const shellVisuals = config.shellVisuals || bodyVisuals;
+  
+        // Create body parts
+        this.shell = this.createShell(scale, shellVisuals);
+        this.head = this.createHead(scale, bodyVisuals);
+        this.flippers = this.createFlippers(scale, bodyVisuals);
+        
+        // Add parts to the main mesh
+        this.mesh.add(this.shell);
+        this.mesh.add(this.head);
+        this.flippers.forEach(flipper => this.mesh.add(flipper));
+        
+        // Create collision mesh
+        this.createCollisionMesh(scale);
+  
+        // Set userData for collision detection and identification
+        this.mesh.userData = { 
+          type: 'obstacle', 
+          name: 'seaTurtle', 
+          assetInstance: this,
+          isDangerous: true
+        };
+        
+        // Ensure all parts are visible
+        this.mesh.visible = true;
+        this.mesh.traverse(child => {
+          if (child instanceof THREE.Mesh && !child.name.includes("Collision")) {
+            child.visible = true;
+          }
+        });
+        
+        console.log("SeaTurtleAsset: Created new mesh with visibility enforced");
+      }
+      return this.mesh;
+    } catch (error) {
+      console.error("Error in SeaTurtleAsset.createMesh():", error);
+      return this.createFallbackMesh();
     }
-    return;
   }
 }

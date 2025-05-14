@@ -83,8 +83,50 @@ export class RenderManager {
       this.fixNaNBoundingSpheres(child);
     });
     
+    // Log visibility of obstacles for debugging
+    if (object.userData?.type === 'obstacle') {
+      const obstacleType = object.userData?.name || 'unknown';
+      console.log(`Obstacle ${obstacleType} visibility: ${object.visible}, children count: ${object.children.length}`);
+      
+      // Fix visibility if needed
+      if (!object.visible) {
+        object.visible = true;
+        console.log(`Fixed visibility for obstacle: ${obstacleType}`);
+      }
+      
+      // Check child visibility - important for complex obstacles
+      object.children.forEach(child => {
+        if (!child.visible && !(child instanceof THREE.Mesh && child.name.includes("Collision"))) {
+          child.visible = true;
+          console.log(`Fixed child visibility for obstacle ${obstacleType}: ${child.name || "unnamed"}`);
+        }
+      });
+    }
+    
     // Check if this is a mesh with geometry
     if (object instanceof THREE.Mesh && object.geometry) {
+      // Fix NaN values in the position attribute if they exist
+      if (object.geometry.attributes.position) {
+        const positions = object.geometry.attributes.position.array;
+        let hasNaN = false;
+        
+        // Check for NaN values in the position attribute
+        for (let i = 0; i < positions.length; i++) {
+          if (isNaN(positions[i])) {
+            positions[i] = 0; // Replace NaN with 0
+            hasNaN = true;
+          }
+        }
+        
+        // Mark the attribute as needing an update if we fixed NaN values
+        if (hasNaN) {
+          object.geometry.attributes.position.needsUpdate = true;
+          // Force bounding sphere recomputation
+          object.geometry.boundingSphere = null;
+          console.log("Fixed NaN position values in geometry:", object.name || "unnamed");
+        }
+      }
+      
       // Fix bounding sphere if necessary
       if (!object.geometry.boundingSphere) {
         try {
@@ -106,6 +148,24 @@ export class RenderManager {
           new THREE.Vector3(0, 0, 0),
           1.0
         );
+        console.log("Fixed NaN bounding sphere for geometry:", object.name || "unnamed");
+      }
+      
+      // Ensure mesh materials have proper visibility settings
+      if (object.material) {
+        if (Array.isArray(object.material)) {
+          object.material.forEach(mat => {
+            if (mat.visible === false && !object.name.includes("Collision")) {
+              mat.visible = true;
+              console.log(`Fixed invisible material for ${object.name || "unnamed"}`);
+            }
+          });
+        } else {
+          if (object.material.visible === false && !object.name.includes("Collision")) {
+            object.material.visible = true;
+            console.log(`Fixed invisible material for ${object.name || "unnamed"}`);
+          }
+        }
       }
     }
   }

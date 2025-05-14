@@ -312,6 +312,13 @@ export class CollisionDetectionSystem {
                   continue; // Skip this obstacle
                 }
                 
+                // Log visibility state
+                console.log(`KelpWall collision check - collider visible: ${kelpCollider.visible}, parent visible: ${kelpCollider.parent?.visible || false}`);
+                
+                // Ensure the collider and its parent are up to date
+                if (kelpCollider.parent) {
+                  kelpCollider.parent.updateMatrixWorld(true);
+                }
                 kelpCollider.updateMatrixWorld(true);
                 
                 // Ensure geometry exists
@@ -332,19 +339,32 @@ export class CollisionDetectionSystem {
                     isNaN(kelpCollider.geometry.boundingSphere.center.y) ||
                     isNaN(kelpCollider.geometry.boundingSphere.center.z)) {
                   
-                  // Create a default bounding sphere
+                  // Create a default bounding sphere with reasonable size
+                  const config = configSystem.getObstaclesConfig()?.kelpWall;
+                  const wallHeight = config?.baseScaleY || 3.5;
+                  const laneWidth = configSystem.get('player')?.laneWidth || 2.0;
+                  const segmentWidth = (config?.segmentWidthCoverage || 0.9) * laneWidth;
+                  
+                  // Create sphere that encompasses the whole wall
+                  const radius = Math.sqrt((wallHeight/2) * (wallHeight/2) + (segmentWidth/2) * (segmentWidth/2));
+                  
                   kelpCollider.geometry.boundingSphere = new THREE.Sphere(
-                    new THREE.Vector3(0, 0, 0), 
-                    1.0
+                    new THREE.Vector3(0, wallHeight/2, 0), 
+                    radius
                   );
-                  console.warn("Fixed NaN bounding sphere in KelpWall");
+                  console.warn("Fixed NaN bounding sphere in KelpWall with proper dimensions");
                 }
 
                 this.obstaclePartBoundingSphere.copy(kelpCollider.geometry.boundingSphere!);
                 this.obstaclePartBoundingSphere.applyMatrix4(kelpCollider.matrixWorld);
+                
+                // Log collision sphere info for debugging
+                console.log(`KelpWall collision sphere: center=[${this.obstaclePartBoundingSphere.center.x.toFixed(2)}, ${this.obstaclePartBoundingSphere.center.y.toFixed(2)}, ${this.obstaclePartBoundingSphere.center.z.toFixed(2)}], radius=${this.obstaclePartBoundingSphere.radius.toFixed(2)}`);
+                console.log(`Player sphere: center=[${this.playerBoundingSphere.center.x.toFixed(2)}, ${this.playerBoundingSphere.center.y.toFixed(2)}, ${this.playerBoundingSphere.center.z.toFixed(2)}], radius=${this.playerBoundingSphere.radius.toFixed(2)}`);
 
                 if (this.playerBoundingSphere.intersectsSphere(this.obstaclePartBoundingSphere)) {
                   hitDetected = true;
+                  console.log("KelpWall collision detected!");
                 }
               } catch (error) {
                 console.warn("Error during KelpWall collision detection:", error);

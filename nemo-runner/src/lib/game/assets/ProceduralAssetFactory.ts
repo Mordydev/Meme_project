@@ -77,11 +77,28 @@ export class ProceduralAssetFactory {
       case 'jellyfish':
         return this.jellyfishAssetGenerator.createMesh();
       case 'shark':
+        // Properly handle shark obstacle separately to ensure visibility
+        const sharkAsset = new SharkAsset(this.shaderManager);
+        const sharkMesh = sharkAsset.getMesh();
+        sharkMesh.userData = { type: 'obstacle', name: 'shark', assetInstance: sharkAsset, isDangerous: true };
+        return sharkMesh;
+        
       case 'seaTurtle':
+        // Properly handle sea turtle obstacle separately to ensure visibility
+        const turtleAsset = new SeaTurtleAsset(this.shaderManager);
+        const turtleMesh = turtleAsset.getMesh();
+        turtleMesh.userData = { type: 'obstacle', name: 'seaTurtle', assetInstance: turtleAsset, isDangerous: true };
+        return turtleMesh;
+        
       case 'kelpWall':
+        // Properly handle kelp wall obstacle separately to ensure visibility
+        const kelpAsset = new KelpWallAsset(this.shaderManager);
+        const kelpMesh = kelpAsset.getMesh();
+        kelpMesh.userData = { type: 'obstacle', name: 'kelpWall', assetInstance: kelpAsset, isDangerous: true };
+        return kelpMesh;
+        
       case 'schoolOfFish':
-        // These obstacles implement getMesh() instead of createMesh()
-        // Use createObstacle() for these types which returns both mesh and asset instance
+        // Use createObstacle() for schoolOfFish which returns both mesh and asset instance
         console.warn(`ProceduralAssetFactory: Obstacle type "${type}" uses getMesh() not createMesh(). Use createObstacle() instead.`);
         const { mesh } = this.createObstacle(type);
         return mesh;

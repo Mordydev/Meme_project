@@ -12,7 +12,7 @@ export class KelpWallAsset {
   
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
-    this.createMesh();
+    // Don't create mesh in constructor - let factory call getMesh() explicitly
   }
 
   /**
@@ -358,8 +358,8 @@ export class KelpWallAsset {
     
     // Create invisible material for collision mesh
     const collisionMat = new THREE.MeshBasicMaterial({
-      visible: false,     // Invisible
-      wireframe: true,    // Wireframe for debugging
+      visible: false,     // Keep invisible in production
+      wireframe: true,    // For debugging if made visible
       color: 0x00ff00     // Green for debugging
     });
     
@@ -475,8 +475,27 @@ export class KelpWallAsset {
 
   /**
    * Returns the main kelp wall mesh
+   * Creates it if it doesn't exist yet
    */
   public getMesh(): THREE.Group {
+    if (!this.mesh) {
+      this.createMesh();
+    }
+    
+    // Make sure mesh and all children are visible
+    if (this.mesh) {
+      this.mesh.visible = true;
+      
+      // Ensure all children are visible (except collision mesh)
+      this.mesh.traverse(child => {
+        if (child instanceof THREE.Mesh && child.name !== "KelpWallCollisionBox") {
+          child.visible = true;
+        }
+      });
+      
+      console.log("KelpWallAsset: Ensured visibility of kelp wall mesh and children");
+    }
+    
     return this.mesh;
   }
 
@@ -554,13 +573,51 @@ export class KelpWallAsset {
   /**
    * Creates the procedural mesh for this asset
    */
-  public createMesh(): void {
-    // Implementation already handles mesh creation in constructor
-    if (!this.mesh) {
+  public createMesh(): THREE.Group {
+    try {
       // Only recreate if not already created
-      this.mesh = new THREE.Group();
-      this.createMesh();
+      if (!this.mesh) {
+        this.mesh = new THREE.Group();
+        this.mesh.name = "KelpWallObstacle";
+        const config = this.config;
+        
+        // Get visual properties from config with fallbacks
+        const visualConfig = config.visuals || {};
+        
+        // Create kelp strands
+        this.kelpStrands = this.createKelpStrands(config, visualConfig);
+        
+        // Add kelp strands to the main mesh
+        this.kelpStrands.forEach(strand => {
+          this.mesh.add(strand);
+        });
+        
+        // Create collision mesh for the entire wall
+        this.createCollisionMesh(config);
+        
+        // Set userData for collision detection and identification
+        this.mesh.userData = { 
+          type: 'obstacle', 
+          name: 'kelpWall', 
+          assetInstance: this,
+          isDangerous: true
+        };
+        
+        // Ensure all parts are visible
+        this.mesh.visible = true;
+        this.mesh.traverse(child => {
+          if (child instanceof THREE.Mesh && !child.name.includes("Collision")) {
+            child.visible = true;
+          }
+        });
+        
+        console.log("KelpWallAsset: Created new mesh with visibility enforced");
+      }
+      return this.mesh;
+    } catch (error) {
+      console.error("Error in KelpWallAsset.createMesh():", error);
+      this.createFallbackMesh();
+      return this.mesh;
     }
-    return;
   }
 }

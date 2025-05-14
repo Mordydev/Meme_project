@@ -64,6 +64,16 @@ export class SharkAsset {
         patrolRangeX: config.patrolRangeX
       };
       
+      // Ensure all parts are visible
+      this.mesh.visible = true;
+      this.mesh.traverse(child => {
+        if (child instanceof THREE.Mesh && child.name !== "SharkCollisionShape") {
+          child.visible = true;
+        }
+      });
+      
+      console.log("SharkAsset: Created new mesh with visibility enforced");
+      
       return this.mesh;
     } catch (error) {
       console.error("SharkAsset: Error creating mesh:", error);
@@ -996,10 +1006,11 @@ export class SharkAsset {
     // Rotate to align with shark body
     collisionGeometry.rotateX(Math.PI / 2);
     
-    // Create invisible material
+    // Create invisible material for collision mesh
     const collisionMaterial = new THREE.MeshBasicMaterial({
-      visible: false,
-      wireframe: false
+      visible: false, // Keep invisible in production
+      wireframe: true, // For debugging if made visible
+      color: 0xff0000  // Red for debugging
     });
     
     // Create collision mesh
@@ -1228,6 +1239,21 @@ export class SharkAsset {
     if (!this.mesh) {
       this.createMesh();
     }
+    
+    // Make sure mesh and all children are visible
+    if (this.mesh) {
+      this.mesh.visible = true;
+      
+      // Ensure all children are visible (except collision mesh)
+      this.mesh.traverse(child => {
+        if (child instanceof THREE.Mesh && child.name !== "SharkCollisionShape") {
+          child.visible = true;
+        }
+      });
+      
+      console.log("SharkAsset: Ensured visibility of shark mesh and children");
+    }
+    
     return this.mesh;
   }
 
