@@ -305,36 +305,100 @@ export class CollisionDetectionSystem {
           else if (obstacle.assetInstance instanceof KelpWallAsset) {
             // Kelp Walls are always dangerous if you hit them
             if (obstacle.assetInstance.isDangerous()) {
-              const kelpCollider = obstacle.assetInstance.getCollisionObject();
-              kelpCollider.updateMatrixWorld(true);
+              try {
+                const kelpCollider = obstacle.assetInstance.getCollisionObject();
+                if (!kelpCollider) {
+                  console.warn("Collision check failed: KelpWall returned undefined collider");
+                  continue; // Skip this obstacle
+                }
+                
+                kelpCollider.updateMatrixWorld(true);
+                
+                // Ensure geometry exists
+                if (!kelpCollider.geometry) {
+                  console.warn("Collision check failed: KelpWall collider has no geometry");
+                  continue; // Skip this obstacle
+                }
 
-              if (!kelpCollider.geometry.boundingSphere) {
-                kelpCollider.geometry.computeBoundingSphere();
+                // Create or fix bounding sphere if needed
+                if (!kelpCollider.geometry.boundingSphere) {
+                  kelpCollider.geometry.computeBoundingSphere();
+                }
+                
+                // Fix NaN values in bounding sphere
+                if (!kelpCollider.geometry.boundingSphere || 
+                    isNaN(kelpCollider.geometry.boundingSphere.radius) || 
+                    isNaN(kelpCollider.geometry.boundingSphere.center.x) ||
+                    isNaN(kelpCollider.geometry.boundingSphere.center.y) ||
+                    isNaN(kelpCollider.geometry.boundingSphere.center.z)) {
+                  
+                  // Create a default bounding sphere
+                  kelpCollider.geometry.boundingSphere = new THREE.Sphere(
+                    new THREE.Vector3(0, 0, 0), 
+                    1.0
+                  );
+                  console.warn("Fixed NaN bounding sphere in KelpWall");
+                }
+
+                this.obstaclePartBoundingSphere.copy(kelpCollider.geometry.boundingSphere!);
+                this.obstaclePartBoundingSphere.applyMatrix4(kelpCollider.matrixWorld);
+
+                if (this.playerBoundingSphere.intersectsSphere(this.obstaclePartBoundingSphere)) {
+                  hitDetected = true;
+                }
+              } catch (error) {
+                console.warn("Error during KelpWall collision detection:", error);
+                // Continue to next obstacle - don't block gameplay on collision errors
               }
-
-              this.obstaclePartBoundingSphere.copy(kelpCollider.geometry.boundingSphere!);
-              this.obstaclePartBoundingSphere.applyMatrix4(kelpCollider.matrixWorld);
-
-              if (this.playerBoundingSphere.intersectsSphere(this.obstaclePartBoundingSphere)) {
-                hitDetected = true;
               }
             }
-          }
           else if (obstacle.assetInstance instanceof SchoolOfFishAsset) {
             // School of Fish are always dangerous if you hit them
             if (obstacle.assetInstance.isDangerous()) {
-              const schoolCollider = obstacle.assetInstance.getCollisionObject();
-              schoolCollider.updateMatrixWorld(true);
+              try {
+                const schoolCollider = obstacle.assetInstance.getCollisionObject();
+                if (!schoolCollider) {
+                  console.warn("Collision check failed: SchoolOfFish returned undefined collider");
+                  continue; // Skip this obstacle
+                }
+                
+                schoolCollider.updateMatrixWorld(true);
+                
+                // Ensure geometry exists
+                if (!schoolCollider.geometry) {
+                  console.warn("Collision check failed: SchoolOfFish collider has no geometry");
+                  continue; // Skip this obstacle
+                }
 
-              if (!schoolCollider.geometry.boundingSphere) {
-                schoolCollider.geometry.computeBoundingSphere();
-              }
+                // Create or fix bounding sphere if needed
+                if (!schoolCollider.geometry.boundingSphere) {
+                  schoolCollider.geometry.computeBoundingSphere();
+                }
+                
+                // Fix NaN values in bounding sphere
+                if (!schoolCollider.geometry.boundingSphere || 
+                    isNaN(schoolCollider.geometry.boundingSphere.radius) || 
+                    isNaN(schoolCollider.geometry.boundingSphere.center.x) ||
+                    isNaN(schoolCollider.geometry.boundingSphere.center.y) ||
+                    isNaN(schoolCollider.geometry.boundingSphere.center.z)) {
+                  
+                  // Create a default bounding sphere
+                  schoolCollider.geometry.boundingSphere = new THREE.Sphere(
+                    new THREE.Vector3(0, 0, 0), 
+                    1.0
+                  );
+                  console.warn("Fixed NaN bounding sphere in SchoolOfFish");
+                }
 
-              this.obstaclePartBoundingSphere.copy(schoolCollider.geometry.boundingSphere!);
-              this.obstaclePartBoundingSphere.applyMatrix4(schoolCollider.matrixWorld);
+                this.obstaclePartBoundingSphere.copy(schoolCollider.geometry.boundingSphere!);
+                this.obstaclePartBoundingSphere.applyMatrix4(schoolCollider.matrixWorld);
 
-              if (this.playerBoundingSphere.intersectsSphere(this.obstaclePartBoundingSphere)) {
-                hitDetected = true;
+                if (this.playerBoundingSphere.intersectsSphere(this.obstaclePartBoundingSphere)) {
+                  hitDetected = true;
+                }
+              } catch (error) {
+                console.warn("Error during SchoolOfFish collision detection:", error);
+                // Continue to next obstacle - don't block gameplay on collision errors
               }
             }
           }

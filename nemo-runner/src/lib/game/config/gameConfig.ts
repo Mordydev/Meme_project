@@ -1,5 +1,22 @@
 // src/lib/game/config/gameConfig.ts
 
+// Interface for StandardMaterial visual configurations (for obstacles and other assets)
+export interface StandardMaterialVisuals {
+  mainColor?: number | string;         // Main color of the object
+  emissiveColor?: number | string;     // Emissive color (glow)
+  emissiveIntensity?: number;          // Intensity of emissive effect (0-1)
+  roughness?: number;                  // Surface roughness (0-1)
+  metalness?: number;                  // Metallic look (0-1)
+  opacity?: number;                    // Transparency (0-1)
+  transmission?: number;               // Glass/water-like translucency (0-1)
+  clearcoat?: number;                  // Wet/polished look (0-1)
+  clearcoatRoughness?: number;         // Roughness of clearcoat (0-1)
+  animationSpeed?: number;             // Speed of CPU-based animations
+  animationAmplitude?: number;         // Amplitude of CPU-based animations
+  textureScale?: number;               // For procedural texture scaling
+  patternColor?: number | string;      // Secondary color for patterns
+}
+
 // Interface for PowerUp specific configurations
 export interface PowerUpVisualConfig {
   color?: number;
@@ -38,26 +55,49 @@ export interface DifficultyGameConfig {
   transitionSpeed: number; // How quickly to transition between difficulty tiers (0-1)
 }
 
+// Interface for Coral obstacle configuration
+export interface CoralConfig {
+  visuals?: StandardMaterialVisuals;
+}
+
+// Interface for Rock obstacle configuration
+export interface RockConfig {
+  visuals?: StandardMaterialVisuals;
+}
+
+// Interface for Clam obstacle configuration
+export interface ClamConfig {
+  openingSpeed?: number;      // Speed at which the clam opens
+  closingSpeed?: number;      // Speed at which the clam closes
+  detectionRadius?: number;   // Distance at which clam detects player
+  openingAngle?: number;      // Maximum angle in degrees for open state
+  visuals?: StandardMaterialVisuals;
+}
+
 // Interface for Pufferfish obstacle configuration
 export interface PufferfishConfig {
-  baseRadius: number; // Normal radius before inflation
-  inflatedRadius: number; // Maximum radius when fully inflated
-  inflationDuration: number; // Time to fully inflate in seconds
-  deflationDuration: number; // Time to fully deflate in seconds
-  detectionRadius: number; // Distance at which pufferfish detects player and starts inflating
-  inflationCooldown: number; // Time before pufferfish can inflate again after deflating
+  baseRadius: number;         // Normal radius before inflation
+  inflatedRadius: number;     // Maximum radius when fully inflated
+  inflationDuration: number;  // Time to fully inflate in seconds
+  deflationDuration: number;  // Time to fully deflate in seconds
+  detectionRadius: number;    // Distance at which pufferfish detects player and starts inflating
+  inflationCooldown: number;  // Time before pufferfish can inflate again after deflating
+  visuals?: StandardMaterialVisuals;
+  spineVisuals?: StandardMaterialVisuals; // Optional separate visuals for spines
 }
 
 // Interface for Jellyfish obstacle configuration
 export interface JellyfishConfig {
-  bodyRadius: number; // Size of the main jellyfish body
-  tentacleCount: number; // Number of tentacles
-  tentacleLength: number; // Length of the tentacles
-  tentacleSway: number; // How much the tentacles sway (0-1)
-  driftSpeed: number; // Speed at which jellyfish drifts side to side
-  driftAmplitude: number; // How far jellyfish drifts from center position
+  bodyRadius: number;          // Size of the main jellyfish body
+  tentacleCount: number;       // Number of tentacles
+  tentacleLength: number;      // Length of the tentacles
+  tentacleSway: number;        // How much the tentacles sway (0-1)
+  driftSpeed: number;          // Speed at which jellyfish drifts side to side
+  driftAmplitude: number;      // How far jellyfish drifts from center position
   verticalBobAmplitude: number; // How much jellyfish bobs up and down
-  verticalBobSpeed: number; // Speed of vertical bobbing movement
+  verticalBobSpeed: number;     // Speed of vertical bobbing movement
+  visuals?: StandardMaterialVisuals;
+  tentacleVisuals?: StandardMaterialVisuals; // Optional separate visuals for tentacles
 }
 
 // Interface for Shark obstacle configuration
@@ -65,41 +105,55 @@ export interface SharkConfig {
   patrolSpeed: number;        // Units per second horizontally
   patrolRangeX: number;       // Max distance from spawn lane it can patrol
   baseScale: number;          // Overall size of the shark
+  finWaveSpeed?: number;      // Speed of fin movement
+  tailWaveSpeed?: number;     // Speed of tail movement
+  visuals?: StandardMaterialVisuals;
+  finVisuals?: StandardMaterialVisuals; // Optional separate visuals for fins
 }
 
 // Interface for Sea Turtle obstacle configuration
 export interface SeaTurtleConfig {
-  baseScale: number;          // Overall size of the turtle
-  forwardSpeedFactor: number; // Multiplier of player's base forward speed
+  baseScale: number;           // Overall size of the turtle
+  forwardSpeedFactor: number;  // Multiplier of player's base forward speed
   laneChangeTelegraphTime: number; // Seconds it signals before changing lane
-  laneChangeDuration: number; // Seconds to complete the lane change
-  minTimeInLane: number;      // Minimum time turtle stays in a lane
-  maxTimeInLane: number;      // Maximum time turtle stays in a lane
-  turnAngleDegrees: number;   // How much it visually turns to indicate lane change
+  laneChangeDuration: number;  // Seconds to complete the lane change
+  minTimeInLane: number;       // Minimum time turtle stays in a lane
+  maxTimeInLane: number;       // Maximum time turtle stays in a lane
+  turnAngleDegrees: number;    // How much it visually turns to indicate lane change
+  flipperWaveSpeed?: number;   // Speed of flipper movement
+  headBobSpeed?: number;       // Speed of head bobbing
+  visuals?: StandardMaterialVisuals;
+  shellVisuals?: StandardMaterialVisuals; // Optional separate visuals for shell
 }
 
 // Interface for Kelp Wall obstacle configuration
 export interface KelpWallObstacleConfig {
-  baseScaleY: number;         // Defines the height of the kelp strands
-  strandCountMin: number;     // Min number of kelp strands in a "wall" segment
-  strandCountMax: number;     // Max number of kelp strands
+  baseScaleY: number;          // Defines the height of the kelp strands
+  strandCountMin: number;      // Min number of kelp strands in a "wall" segment
+  strandCountMax: number;      // Max number of kelp strands
   segmentWidthCoverage: number; // How much of a lane or multiple lanes it covers (e.g., 1.0 for one lane, 2.0 for two)
-  swayAmplitude: number;      // How much the kelp sways
-  swaySpeed: number;          // Speed of the swaying animation
+  swayAmplitude: number;       // How much the kelp sways
+  swaySpeed: number;           // Speed of the swaying animation
+  visuals?: StandardMaterialVisuals;
 }
 
 // Interface for School of Fish obstacle configuration
 export interface SchoolOfFishObstacleConfig {
-  fishCountMin: number;       // Min number of fish in a school
-  fishCountMax: number;       // Max number of fish
-  schoolRadius: number;       // Radius defining the general spread of the school
+  fishCountMin: number;        // Min number of fish in a school
+  fishCountMax: number;        // Max number of fish
+  schoolRadius: number;        // Radius defining the general spread of the school
   individualFishScale: number; // Size of each fish
-  depthCoverage: number;      // How much vertical space the school occupies (making it hard to jump)
+  depthCoverage: number;       // How much vertical space the school occupies (making it hard to jump)
   formation: 'swarm' | 'wall'; // Swarm is more spread out, wall is a dense vertical curtain
-  baseSpeedFactor: number;    // Speed relative to player's base speed
+  baseSpeedFactor: number;     // Speed relative to player's base speed
+  flutterSpeed?: number;       // Speed of fish body/tail movement
+  visuals?: StandardMaterialVisuals;
 }
 
 export interface ObstaclesConfig {
+  coral: CoralConfig;
+  rock: RockConfig;
+  clam: ClamConfig;
   pufferfish: PufferfishConfig;
   jellyfish: JellyfishConfig;
   shark: SharkConfig;
@@ -393,30 +447,112 @@ export const defaultConfig: GameConfig = {
       }
     ],
   },
-  // New obstacle configurations
+  // Obstacle configurations with Pixar-style visual settings
   obstacles: {
+    coral: {
+      visuals: {
+        mainColor: 0xFF7F50,         // Coral orange
+        emissiveColor: 0xFF7F50,     // Same color for emissive
+        emissiveIntensity: 0.15,     // Subtle glow
+        roughness: 0.7,              // Rough surface
+        metalness: 0.05,             // Slight sheen
+        patternColor: 0xFF6B35,      // Slightly darker accent
+        animationSpeed: 0.2,         // Slow movement
+        animationAmplitude: 0.05     // Subtle animation
+      }
+    },
+    rock: {
+      visuals: {
+        mainColor: 0x787A7A,         // Stone gray
+        roughness: 0.8,              // Very rough surface
+        metalness: 0.05,             // Minimal sheen
+        patternColor: 0x505252,      // Darker pattern spots
+        textureScale: 5.0            // Scale for procedural noise texture
+      }
+    },
+    clam: {
+      openingSpeed: 0.8,            // Speed at which clam opens
+      closingSpeed: 1.2,            // Speed at which clam closes (faster than opening)
+      detectionRadius: 3.0,         // Distance at which clam detects player
+      openingAngle: 35,             // Maximum angle in degrees for open state
+      visuals: {
+        mainColor: 0xE0D1B0,        // Shell beige
+        roughness: 0.4,             // Semi-rough exterior
+        metalness: 0.15,            // Slight pearlescent look
+        clearcoat: 0.3,             // Slight wet look
+        clearcoatRoughness: 0.2     // Smooth but not mirror-like clearcoat
+      }
+    },
     pufferfish: {
-      baseRadius: 0.35, // Normal size before inflation
-      inflatedRadius: 0.85, // Size when fully inflated
-      inflationDuration: 0.5, // Time to inflate in seconds
-      deflationDuration: 0.8, // Time to deflate in seconds
-      detectionRadius: 5.0, // Distance at which pufferfish detects player
-      inflationCooldown: 1.0, // Time before pufferfish can inflate again
+      baseRadius: 0.35,             // Normal size before inflation
+      inflatedRadius: 0.85,         // Size when fully inflated
+      inflationDuration: 0.5,       // Time to inflate in seconds
+      deflationDuration: 0.8,       // Time to deflate in seconds
+      detectionRadius: 5.0,         // Distance at which pufferfish detects player
+      inflationCooldown: 1.0,       // Time before pufferfish can inflate again
+      visuals: {
+        mainColor: 0xFFA500,        // Orange body
+        emissiveColor: 0xCC8400,    // Slightly darker emissive
+        emissiveIntensity: 0.1,     // Subtle glow
+        roughness: 0.5,             // Medium rough skin
+        metalness: 0.1,             // Slight sheen
+        animationSpeed: 1.2         // Animation speed
+      },
+      spineVisuals: {
+        mainColor: 0xD2691E,        // Darker spines
+        roughness: 0.6,             // Rougher than body
+        metalness: 0.05             // Less sheen than body
+      }
     },
     jellyfish: {
-      bodyRadius: 0.4, // Size of the main jellyfish body
-      tentacleCount: 8, // Number of tentacles
-      tentacleLength: 1.2, // Length of the tentacles
-      tentacleSway: 0.7, // How much the tentacles sway (0-1)
-      driftSpeed: 0.8, // Speed of side-to-side movement
-      driftAmplitude: 0.5, // How far jellyfish moves from center
-      verticalBobAmplitude: 0.2, // How much jellyfish bobs up and down
-      verticalBobSpeed: 0.6, // Speed of vertical bobbing movement
+      bodyRadius: 0.4,              // Size of the main jellyfish body
+      tentacleCount: 8,             // Number of tentacles
+      tentacleLength: 1.2,          // Length of the tentacles
+      tentacleSway: 0.7,            // How much the tentacles sway (0-1)
+      driftSpeed: 0.8,              // Speed of side-to-side movement
+      driftAmplitude: 0.5,          // How far jellyfish moves from center
+      verticalBobAmplitude: 0.2,    // How much jellyfish bobs up and down
+      verticalBobSpeed: 0.6,        // Speed of vertical bobbing movement
+      visuals: {
+        mainColor: 0xADD8E6,        // Light blue bell
+        emissiveColor: 0xADD8E6,    // Same color emissive for glow
+        emissiveIntensity: 0.4,     // Moderate glow
+        roughness: 0.1,             // Smooth surface
+        metalness: 0.05,            // Slight sheen
+        opacity: 0.6,               // Semi-transparent
+        transmission: 0.7,          // Translucent like glass/water
+        animationSpeed: 0.5         // Gentle pulse speed
+      },
+      tentacleVisuals: {
+        mainColor: 0x88CCFF,        // Slightly different tentacle color
+        emissiveColor: 0x88CCFF,    // Same color emissive
+        emissiveIntensity: 0.3,     // Less glow than bell
+        roughness: 0.3,             // Rougher than bell
+        opacity: 0.5,               // More transparent than bell
+        animationSpeed: 0.8         // Tentacle animation speed
+      }
     },
     shark: {
-      patrolSpeed: 1.5,     // Units per second horizontally
-      patrolRangeX: 2.4,    // Patrols roughly one lane width to each side
-      baseScale: 1.0,       // Default size
+      patrolSpeed: 1.5,             // Units per second horizontally
+      patrolRangeX: 2.4,            // Patrols roughly one lane width to each side
+      baseScale: 1.0,               // Default size
+      finWaveSpeed: 0.8,            // Speed of fin movement
+      tailWaveSpeed: 1.5,           // Speed of tail movement
+      visuals: {
+        mainColor: 0x5A6A7A,        // Shark gray
+        emissiveColor: 0x3A4A5A,    // Darker emissive
+        emissiveIntensity: 0.1,     // Subtle glow
+        roughness: 0.3,             // Smooth skin
+        metalness: 0.2,             // Moderate sheen
+        patternColor: 0x8899AA,     // Lighter underbelly
+        clearcoat: 0.4,             // Wet look
+        clearcoatRoughness: 0.1     // Smooth clearcoat
+      },
+      finVisuals: {
+        mainColor: 0x4A5A6A,        // Slightly darker fins
+        roughness: 0.4,             // Rougher than body
+        metalness: 0.15             // Less sheen than body
+      }
     },
     seaTurtle: {
       baseScale: 1.3,               // Turtles are fairly large obstacles
@@ -426,23 +562,59 @@ export const defaultConfig: GameConfig = {
       minTimeInLane: 3.0,           // Minimum time turtle stays in a lane
       maxTimeInLane: 6.0,           // Maximum time turtle stays in a lane
       turnAngleDegrees: 25,         // Visually turns 25 degrees to signal
+      flipperWaveSpeed: 1.2,        // Speed of flipper movement
+      headBobSpeed: 0.3,            // Speed of head bobbing
+      visuals: {
+        mainColor: 0x556B2F,        // Olive green body
+        roughness: 0.6,             // Rough skin
+        metalness: 0.05,            // Minimal sheen
+        patternColor: 0x6B8E23      // Slightly lighter pattern
+      },
+      shellVisuals: {
+        mainColor: 0x8FBC8F,        // Sage green shell
+        roughness: 0.5,             // Medium rough
+        metalness: 0.1,             // Slight sheen
+        patternColor: 0x698B69,     // Darker pattern for shell plates
+        clearcoat: 0.3,             // Slight wet look
+        clearcoatRoughness: 0.3     // Medium rough clearcoat
+      }
     },
     kelpWall: {
-      baseScaleY: 3.5,             // Quite tall, player can't jump over
-      strandCountMin: 5,           // Minimum number of kelp strands
-      strandCountMax: 8,           // Maximum number of kelp strands
-      segmentWidthCoverage: 0.9,   // Covers most of one lane
-      swayAmplitude: 0.1,          // Subtle sway
-      swaySpeed: 0.5,              // Moderate sway speed
+      baseScaleY: 3.5,              // Quite tall, player can't jump over
+      strandCountMin: 5,            // Minimum number of kelp strands
+      strandCountMax: 8,            // Maximum number of kelp strands
+      segmentWidthCoverage: 0.9,    // Covers most of one lane
+      swayAmplitude: 0.1,           // Subtle sway
+      swaySpeed: 0.5,               // Moderate sway speed
+      visuals: {
+        mainColor: 0x3B7A57,        // Sea green
+        emissiveColor: 0x2A5A37,    // Darker emissive
+        emissiveIntensity: 0.05,    // Very subtle glow
+        roughness: 0.7,             // Rough surface
+        metalness: 0.0,             // No metallic quality
+        opacity: 0.9,               // Slightly transparent at edges
+        animationSpeed: 0.5,        // Animation speed
+        animationAmplitude: 0.1     // Animation amplitude
+      }
     },
     schoolOfFish: {
-      fishCountMin: 15,            // Minimum fish in school
-      fishCountMax: 25,            // Maximum fish in school
-      schoolRadius: 1.2,           // General area they occupy
-      individualFishScale: 0.15,   // Small individual fish
-      depthCoverage: 2.5,          // Vertical spread, making it hard to jump
-      formation: 'wall',           // Dense wall formation
-      baseSpeedFactor: 0.9,        // Slightly slower than player
+      fishCountMin: 15,             // Minimum fish in school
+      fishCountMax: 25,             // Maximum fish in school
+      schoolRadius: 1.2,            // General area they occupy
+      individualFishScale: 0.15,    // Small individual fish
+      depthCoverage: 2.5,           // Vertical spread, making it hard to jump
+      formation: 'wall',            // Dense wall formation
+      baseSpeedFactor: 0.9,         // Slightly slower than player
+      flutterSpeed: 4.0,            // Fast flutter for fish tails
+      visuals: {
+        mainColor: 0xC0C0C0,        // Silver
+        emissiveColor: 0xD0D0D0,    // Slightly brighter emissive
+        emissiveIntensity: 0.2,     // Moderate glow
+        roughness: 0.2,             // Smooth
+        metalness: 0.7,             // High metallic for fish scales shimmer
+        animationSpeed: 2.0,        // Fast animation
+        animationAmplitude: 0.2     // Moderate amplitude
+      }
     }
   },
 };

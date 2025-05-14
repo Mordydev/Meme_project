@@ -12,6 +12,7 @@ export class RenderManager {
   private _errorHandlerCalled: boolean = false; // Track if we've already called error handler
   private _lastRenderSuccess: boolean = true;   // Track if last render was successful
   private _errorDebounceTimer: any = null;      // Debounce timer for error handling
+  
 
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) {
     this.scene = scene;
@@ -70,6 +71,43 @@ export class RenderManager {
     this.postProcessingPasses.clear();
     
     console.log("RenderManager: Renderer reference updated and error tracking reset");
+  }
+
+  /**
+   * Recursively fixes NaN bounding spheres in the scene graph
+   * This prevents THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN errors
+   */
+  private fixNaNBoundingSpheres(object: THREE.Object3D): void {
+    // Process all children recursively
+    object.children.forEach(child => {
+      this.fixNaNBoundingSpheres(child);
+    });
+    
+    // Check if this is a mesh with geometry
+    if (object instanceof THREE.Mesh && object.geometry) {
+      // Fix bounding sphere if necessary
+      if (!object.geometry.boundingSphere) {
+        try {
+          object.geometry.computeBoundingSphere();
+        } catch (error) {
+          console.warn("Error computing bounding sphere:", error);
+        }
+      }
+      
+      // Check for NaN values in the bounding sphere
+      if (object.geometry.boundingSphere && 
+          (isNaN(object.geometry.boundingSphere.radius) || 
+           isNaN(object.geometry.boundingSphere.center.x) ||
+           isNaN(object.geometry.boundingSphere.center.y) ||
+           isNaN(object.geometry.boundingSphere.center.z))) {
+        
+        // Replace with a default bounding sphere
+        object.geometry.boundingSphere = new THREE.Sphere(
+          new THREE.Vector3(0, 0, 0),
+          1.0
+        );
+      }
+    }
   }
 
   /**
@@ -248,6 +286,9 @@ export class RenderManager {
         return;
       }
 
+      // Fix NaN bounding spheres in the scene before rendering
+      this.fixNaNBoundingSpheres(this.scene);
+      
       // Attempt to render with protective try/catch
       try {
         if (this.composer && this.postProcessingPasses.size > 0) {

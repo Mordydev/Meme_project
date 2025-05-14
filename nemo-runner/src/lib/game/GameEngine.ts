@@ -727,4 +727,12 @@ export class GameEngine {
   public getShaderManager(): ShaderManager {
     return this.shaderManager;
   }
+  
+  /**
+   * Get direct access to the VisualEffectsService
+   * Used for screen flash effects and other visual feedbacks
+   */
+  public getVisualEffectsService(): VisualEffectsService {
+    return this.visualEffectsService;
+  }
 }
