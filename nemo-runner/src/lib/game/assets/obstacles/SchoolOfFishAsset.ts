@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { ShaderManager } from '../../services/ShaderManager';
 import { configSystem } from '../../core/ConfigurationSystem';
 import { SchoolOfFishObstacleConfig } from '../../config/gameConfig';
+import { IObstacleAsset } from '../IObstacleAsset';
+import { AssetHelpers } from '../AssetHelpers';
 
 /**
  * Data for individual fish instances
@@ -16,14 +18,14 @@ interface FishInstanceData {
   scale: number;                    // Individual fish scale factor
 }
 
-export class SchoolOfFishAsset {
+export class SchoolOfFishAsset implements IObstacleAsset {
   private shaderManager: ShaderManager;
   private mesh!: THREE.Group;              // Main group containing all fish instances
   private instancedMesh!: THREE.InstancedMesh; // InstancedMesh for efficient fish rendering
   private collisionMesh!: THREE.Mesh;      // Collision object for the entire school
   private fishData: FishInstanceData[] = []; // Data for each fish instance
   private animationTime: number = 0;
-  private fishGeometry!: THREE.BufferGeometry; // Shared fish geometry
+  private fishGroup!: THREE.Group;        // Shared fish model as a group of meshes
   
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
@@ -45,11 +47,27 @@ export class SchoolOfFishAsset {
       baseSpeedFactor: 0.9,
       flutterSpeed: 4.0,
       visuals: {
-        mainColor: 0xC0C0C0,        // Silver
+        // Body material properties
+        mainColor: 0xC0C0C0,        // Silver base color
         emissiveColor: 0xD0D0D0,    // Slightly brighter emissive
-        emissiveIntensity: 0.2,     // Moderate glow
-        roughness: 0.2,             // Smooth
-        metalness: 0.7,             // High metallic for fish scales shimmer
+        emissiveIntensity: 0.25,    // Enhanced subtle glow (increased from 0.2)
+        roughness: 0.15,            // Lower roughness for shinier fish scales (reduced from 0.2)
+        metalness: 0.8,             // Higher metalness for better specular highlights (increased from 0.7)
+        clearcoat: 0.7,             // Strong clearcoat for wet appearance
+        clearcoatRoughness: 0.1,    // Smooth clearcoat for shiny fish
+        envMapIntensity: 1.3,       // Enhanced environment reflections
+        
+        // Fin material properties
+        finColor: 0xDDDDDD,         // Lighter color for fins
+        finRoughness: 0.25,         // Slightly rougher than body
+        finMetalness: 0.6,          // Less metallic than body
+        finEmissiveColor: 0xCCCCCC, // Subtle glow for fins
+        finEmissiveIntensity: 0.1,  // Lower emissive for fins
+        finClearcoat: 0.8,          // High clearcoat for translucent look
+        finClearcoatRoughness: 0.2, // Smoother clearcoat
+        finOpacity: 0.9,            // Slight transparency at fin edges
+        
+        // Animation properties
         animationSpeed: 2.0,        // Fast animation
         animationAmplitude: 0.2     // Moderate amplitude
       }
@@ -72,28 +90,92 @@ export class SchoolOfFishAsset {
       // Get visual properties from config with fallbacks
       const visualConfig = config.visuals || {};
       
-      // Create detailed fish geometry
-      this.fishGeometry = this.createDetailedFishGeometry(config.individualFishScale);
+      // Create detailed fish geometry - now returns a Group instead of BufferGeometry
+      this.fishGroup = this.createDetailedFishGeometry(config.individualFishScale);
       
-      // Manually compute bounding sphere to fix NaN issue
-      this.computeCorrectBoundingSphere(this.fishGeometry);
+      // Ensure no NaN bounding spheres in the fish group
+      this.fishGroup.traverse(child => {
+        if (child instanceof THREE.Mesh && child.geometry) {
+          this.computeCorrectBoundingSphere(child.geometry);
+        }
+      });
       
-      // Create fish material with StandardMaterial for Pixar-style quality
+      // Create enhanced Pixar-style fish material with sophisticated properties
       const fishMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(visualConfig.mainColor || 0xC0C0C0),
-        roughness: visualConfig.roughness || 0.2,
-        metalness: visualConfig.metalness || 0.7,
-        emissive: new THREE.Color(visualConfig.emissiveColor || 0xD0D0D0),
-        emissiveIntensity: visualConfig.emissiveIntensity || 0.2,
+        color: new THREE.Color(visualConfig.mainColor || 0xC0C0C0),        // Silver base color
+        roughness: visualConfig.roughness !== undefined ? visualConfig.roughness : 0.15,      // Reduced roughness for shinier fish scales
+        metalness: visualConfig.metalness !== undefined ? visualConfig.metalness : 0.8,       // Increased metalness for better specular highlights
+        emissive: new THREE.Color(visualConfig.emissiveColor || 0xD0D0D0),  // Subtle self-illumination
+        emissiveIntensity: visualConfig.emissiveIntensity !== undefined ? visualConfig.emissiveIntensity : 0.25, // Enhanced subtle glow
+        clearcoat: visualConfig.clearcoat !== undefined ? visualConfig.clearcoat : 0.7,       // Strong clearcoat for wet appearance
+        clearcoatRoughness: visualConfig.clearcoatRoughness !== undefined ? visualConfig.clearcoatRoughness : 0.1, // Smooth clearcoat for shiny fish
+        envMapIntensity: visualConfig.envMapIntensity !== undefined ? visualConfig.envMapIntensity : 1.3, // Enhanced environment reflections
         side: THREE.DoubleSide, // For fins and tails
-        vertexColors: true // For variety in fish coloration
+        vertexColors: true      // For variety in fish coloration
       });
       
       // Determine fish count based on config
       const numFish = THREE.MathUtils.randInt(config.fishCountMin, config.fishCountMax);
       
-      // Create instanced mesh for efficient rendering of many fish
-      this.instancedMesh = new THREE.InstancedMesh(this.fishGeometry, fishMaterial, numFish);
+      // Convert the Group to a BufferGeometry for instanced rendering
+      // First create a temporary mesh to combine all geometries
+      const tempBufferGeometry = new THREE.BufferGeometry();
+      const mergedGeometries: THREE.BufferGeometry[] = [];
+      
+      // Traverse the fish group and collect all geometries
+      this.fishGroup.traverse(child => {
+        if (child instanceof THREE.Mesh && child.geometry) {
+          // Clone the geometry to avoid modifying the original
+          const clonedGeometry = child.geometry.clone();
+          // Apply the mesh's transform to the geometry
+          clonedGeometry.applyMatrix4(child.matrixWorld);
+          mergedGeometries.push(clonedGeometry);
+        }
+      });
+      
+      // Merge all geometries into one
+      const positions: number[] = [];
+      const normals: number[] = [];
+      const uvs: number[] = [];
+      
+      mergedGeometries.forEach(geometry => {
+        const positionAttr = geometry.getAttribute('position');
+        const normalAttr = geometry.getAttribute('normal');
+        const uvAttr = geometry.getAttribute('uv');
+        
+        if (positionAttr) {
+          for (let i = 0; i < positionAttr.count; i++) {
+            positions.push(positionAttr.getX(i), positionAttr.getY(i), positionAttr.getZ(i));
+          }
+        }
+        
+        if (normalAttr) {
+          for (let i = 0; i < normalAttr.count; i++) {
+            normals.push(normalAttr.getX(i), normalAttr.getY(i), normalAttr.getZ(i));
+          }
+        }
+        
+        if (uvAttr) {
+          for (let i = 0; i < uvAttr.count; i++) {
+            uvs.push(uvAttr.getX(i), uvAttr.getY(i));
+          }
+        }
+      });
+      
+      // Set attributes for the merged geometry
+      tempBufferGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      if (normals.length > 0) {
+        tempBufferGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      }
+      if (uvs.length > 0) {
+        tempBufferGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      }
+      
+      // Compute correct bounding sphere
+      this.computeCorrectBoundingSphere(tempBufferGeometry);
+      
+      // Create instanced mesh with the merged geometry
+      this.instancedMesh = new THREE.InstancedMesh(tempBufferGeometry, fishMaterial, numFish);
       this.instancedMesh.name = "FishInstances";
       this.instancedMesh.frustumCulled = false; // Ensure instances are rendered even if parent is outside frustum
       
@@ -120,151 +202,430 @@ export class SchoolOfFishAsset {
   }
 
   /**
-   * Creates detailed fish geometry with fins and tails
+   * Creates detailed fish group with body, fins, and tail
+   * Return type is THREE.Group to fix geometry.merge issues
+   * Improved with NaN protection and error handling
    */
-  private createDetailedFishGeometry(baseScale: number): THREE.BufferGeometry {
-    // Base fish dimensions
-    const length = 0.3 * baseScale;
-    const height = 0.1 * baseScale;
-    const width = 0.07 * baseScale;
+  private createDetailedFishGeometry(baseScale: number): THREE.Group {
+    // Get visual configuration from config
+    const config = this.config;
+    const visualConfig = config.visuals || {};
     
-    // Create a more detailed fish shape
-    const points: THREE.Vector2[] = [];
+    // Create fish group first so we can return it even in error cases
+    const fishGroup = new THREE.Group();
+    fishGroup.name = "DetailedFish";
     
-    // Body shape with tapered tail
-    points.push(new THREE.Vector2(-length * 0.5, 0)); // Tail point
-    points.push(new THREE.Vector2(-length * 0.35, height * 0.35)); // Upper tail connection
-    points.push(new THREE.Vector2(-length * 0.1, height * 0.5)); // Middle upper body
-    points.push(new THREE.Vector2(length * 0.2, height * 0.4)); // Upper front body
-    points.push(new THREE.Vector2(length * 0.5, 0)); // Nose tip
-    points.push(new THREE.Vector2(length * 0.2, -height * 0.4)); // Lower front body
-    points.push(new THREE.Vector2(-length * 0.1, -height * 0.5)); // Middle lower body
-    points.push(new THREE.Vector2(-length * 0.35, -height * 0.35)); // Lower tail connection
-    points.push(new THREE.Vector2(-length * 0.5, 0)); // Back to tail point
+    try {
+      // Validate input parameter
+      if (isNaN(baseScale) || baseScale <= 0) {
+        console.warn("Invalid baseScale for fish geometry, using default");
+        baseScale = 0.15; // Use default value
+      }
+      
+      // Base fish dimensions
+      const length = 0.3 * baseScale;
+      const height = 0.1 * baseScale;
+      const width = 0.07 * baseScale;
+      
+      // Create a more detailed fish shape with NaN protection
+      const points: THREE.Vector2[] = [];
+      
+      // Function to safely add points, avoiding NaN values
+      const addPoint = (x: number, y: number) => {
+        // Skip NaN values
+        if (isNaN(x) || isNaN(y)) {
+          console.warn(`Skipping NaN point: (${x}, ${y})`);
+          return false;
+        }
+        points.push(new THREE.Vector2(x, y));
+        return true;
+      };
+      
+      // Body shape with tapered tail
+      addPoint(-length * 0.5, 0); // Tail point
+      addPoint(-length * 0.35, height * 0.35); // Upper tail connection
+      addPoint(-length * 0.1, height * 0.5); // Middle upper body
+      addPoint(length * 0.2, height * 0.4); // Upper front body
+      addPoint(length * 0.5, 0); // Nose tip
+      addPoint(length * 0.2, -height * 0.4); // Lower front body
+      addPoint(-length * 0.1, -height * 0.5); // Middle lower body
+      addPoint(-length * 0.35, -height * 0.35); // Lower tail connection
+      addPoint(-length * 0.5, 0); // Back to tail point
+      
+      // Ensure we have enough points for a valid shape
+      if (points.length < 3) {
+        throw new Error("Not enough valid points for fish shape");
+      }
+      
+      // Create shape from points
+      const fishShape = new THREE.Shape(points);
+      
+      // Create extrusion settings with slight bevel for smoother edges
+      // Use more conservative settings to avoid NaN issues
+      const extrudeSettings = {
+        steps: 1,
+        depth: width,
+        bevelEnabled: true,
+        bevelThickness: width * 0.1,
+        bevelSize: width * 0.1,
+        bevelSegments: 2
+      };
+      
+      // Create geometry for main fish body
+      const bodyGeometry = new THREE.ExtrudeGeometry(fishShape, extrudeSettings);
+      
+      // Fix any NaN issues in the body geometry
+      AssetHelpers.computeCorrectBoundingSphere(bodyGeometry);
+      
+      // Rotate to orient fish swimming along Z axis
+      bodyGeometry.rotateY(Math.PI / 2);
+      
+      // Center the geometry at origin
+      bodyGeometry.center();
+      
+      // Add vertex colors for fish variation
+      this.addVertexColors(bodyGeometry);
+      
+      // Validate the body geometry before creating the mesh
+      if (!this.validateGeometry(bodyGeometry)) {
+        throw new Error("Invalid fish body geometry");
+      }
+      
+      // Create materials
+      const bodyMaterial = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.2,
+        metalness: 0.7,
+        side: THREE.DoubleSide
+      });
+      
+      // Create enhanced Pixar-style fin material with distinctive properties for better contrast
+      const finMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(visualConfig.finColor || 0xDDDDDD),    // Lighter color for fins
+        roughness: visualConfig.finRoughness !== undefined ? visualConfig.finRoughness : 0.25,   // Slightly rougher than body
+        metalness: visualConfig.finMetalness !== undefined ? visualConfig.finMetalness : 0.6,    // Less metallic than body
+        emissive: new THREE.Color(visualConfig.finEmissiveColor || 0xCCCCCC), // Subtle glow
+        emissiveIntensity: visualConfig.finEmissiveIntensity !== undefined ? visualConfig.finEmissiveIntensity : 0.1,
+        clearcoat: visualConfig.finClearcoat !== undefined ? visualConfig.finClearcoat : 0.8,    // High clearcoat for translucent look
+        clearcoatRoughness: visualConfig.finClearcoatRoughness !== undefined ? visualConfig.finClearcoatRoughness : 0.2, // Smoother clearcoat
+        transparent: true,              // Enable transparency for fin edges
+        opacity: visualConfig.finOpacity !== undefined ? visualConfig.finOpacity : 0.9,          // Slight transparency at edges
+        side: THREE.DoubleSide           // Render both sides
+      });
+      
+      // Create body mesh
+      const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+      bodyMesh.name = "FishBody";
+      fishGroup.add(bodyMesh);
+      
+      // Try to create and add tail fin
+      try {
+        const tailGeometry = this.createTailFinGeometry(length, height, baseScale);
+        const tailMesh = new THREE.Mesh(tailGeometry, finMaterial.clone());
+        tailMesh.name = "FishTail";
+        fishGroup.add(tailMesh);
+      } catch (tailError) {
+        console.warn("Error creating fish tail:", tailError);
+        // Continue without tail - not critical
+      }
+      
+      // Try to create and add dorsal fin
+      try {
+        const dorsalGeometry = this.createDorsalFinGeometry(length, height, baseScale);
+        const dorsalMesh = new THREE.Mesh(dorsalGeometry, finMaterial.clone());
+        dorsalMesh.name = "FishDorsalFin";
+        fishGroup.add(dorsalMesh);
+      } catch (dorsalError) {
+        console.warn("Error creating fish dorsal fin:", dorsalError);
+        // Continue without dorsal fin - not critical
+      }
+      
+      // Try to create and add side fins
+      try {
+        const sideFins = this.createSideFinsGeometry(length, height, width, baseScale);
+        sideFins.forEach(fin => fishGroup.add(fin));
+      } catch (finError) {
+        console.warn("Error creating fish side fins:", finError);
+        // Continue without side fins - not critical
+      }
+      
+      // Ensure all meshes in the group are visible
+      fishGroup.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+          child.visible = true;
+        }
+      });
+      
+    } catch (error) {
+      console.error("Error in createDetailedFishGeometry:", error);
+      
+      // Create a simple fallback fish if detailed creation fails
+      try {
+        // Very simple fish shape as fallback
+        const simpleFishGeometry = new THREE.BoxGeometry(
+          baseScale * 0.3, 
+          baseScale * 0.1, 
+          baseScale * 0.07
+        );
+        
+        // Ensure valid bounding sphere
+        AssetHelpers.computeCorrectBoundingSphere(simpleFishGeometry);
+        
+        // Create enhanced Pixar-style material for fallback fish
+        const simpleMaterial = new THREE.MeshStandardMaterial({
+          color: 0xC0C0C0,          // Silver base color
+          roughness: 0.15,          // Lower roughness for shinier fish scales
+          metalness: 0.8,           // Higher metalness for better specular highlights
+          emissive: 0xD0D0D0,       // Subtle self-illumination
+          emissiveIntensity: 0.25,  // Enhanced subtle glow
+          clearcoat: 0.7,           // Strong clearcoat for wet appearance
+          clearcoatRoughness: 0.1   // Smooth clearcoat for shiny fish
+        });
+        
+        // Create mesh
+        const simpleFishMesh = new THREE.Mesh(simpleFishGeometry, simpleMaterial);
+        simpleFishMesh.name = "FishBodyFallback";
+        
+        // Add to group
+        fishGroup.add(simpleFishMesh);
+        
+        console.warn("Using fallback fish geometry");
+      } catch (fallbackError) {
+        console.error("Error creating fallback fish:", fallbackError);
+        // Leave the group empty but still return it to avoid null reference
+      }
+    }
     
-    // Create shape from points
-    const fishShape = new THREE.Shape(points);
+    // Return the fish group (may be empty in worst case)
+    return fishGroup;
+  }
+  
+  /**
+   * Validates a geometry to ensure it doesn't contain NaN values
+   * @param geometry The geometry to validate
+   * @returns true if the geometry is valid, false otherwise
+   */
+  private validateGeometry(geometry: THREE.BufferGeometry): boolean {
+    const position = geometry.getAttribute('position');
     
-    // Create extrusion settings with slight bevel for smoother edges
-    const extrudeSettings = {
-      steps: 1,
-      depth: width,
-      bevelEnabled: true,
-      bevelThickness: width * 0.1,
-      bevelSize: width * 0.1,
-      bevelSegments: 2
-    };
+    if (!position || position.count === 0) {
+      return false;
+    }
     
-    // Create geometry for main fish body
-    const bodyGeometry = new THREE.ExtrudeGeometry(fishShape, extrudeSettings);
+    // Check a sample of position values for NaN (checking every vertex would be too slow)
+    const sampleSize = Math.min(position.count, 100); // Check up to 100 vertices
+    const step = Math.max(1, Math.floor(position.count / sampleSize));
     
-    // Create a merged geometry for all fish parts
-    const fishGeometry = bodyGeometry.clone();
+    for (let i = 0; i < position.count; i += step) {
+      const x = position.getX(i);
+      const y = position.getY(i);
+      const z = position.getZ(i);
+      
+      if (isNaN(x) || isNaN(y) || isNaN(z)) {
+        return false;
+      }
+    }
     
-    // Create tail fin - use separate geometry for more detailed tail
-    const tailGeometry = this.createTailFinGeometry(length, height, baseScale);
-    
-    // Create dorsal fin
-    const dorsalGeometry = this.createDorsalFinGeometry(length, height, baseScale);
-    
-    // Create side fins
-    const sideFinGeometry = this.createSideFinsGeometry(length, height, width, baseScale);
-    
-    // Merge all geometries
-    fishGeometry.merge(tailGeometry);
-    fishGeometry.merge(dorsalGeometry);
-    fishGeometry.merge(sideFinGeometry);
-    
-    // Rotate to orient fish swimming along Z axis
-    fishGeometry.rotateY(Math.PI / 2);
-    
-    // Center the geometry at origin
-    fishGeometry.center();
-    
-    // Add vertex colors for fish variation
-    this.addVertexColors(fishGeometry);
-    
-    return fishGeometry;
+    return true;
   }
 
   /**
    * Creates the tail fin with detailed geometry
+   * with improved NaN prevention and error handling
    */
   private createTailFinGeometry(length: number, height: number, scale: number): THREE.BufferGeometry {
-    // Tail shape (forked tail)
-    const tailShape = new THREE.Shape();
-    
-    // Starting point at the base of the tail
-    tailShape.moveTo(0, 0);
-    
-    // Upper tail fork
-    tailShape.lineTo(-length * 0.25, height * 0.75);
-    
-    // Middle of fork
-    tailShape.lineTo(-length * 0.1, 0);
-    
-    // Lower tail fork
-    tailShape.lineTo(-length * 0.25, -height * 0.75);
-    
-    // Back to starting point
-    tailShape.lineTo(0, 0);
-    
-    // Create geometry
-    const tailGeometry = new THREE.ExtrudeGeometry(tailShape, {
-      steps: 1,
-      depth: 0.01 * scale,
-      bevelEnabled: false
-    });
-    
-    // Position at the tail of the fish
-    tailGeometry.translate(-length * 0.5, 0, 0);
-    
-    // Manually compute bounding sphere to fix NaN issue
-    this.computeCorrectBoundingSphere(tailGeometry);
-    
-    return tailGeometry;
+    try {
+      // Validate input parameters
+      if (isNaN(length) || isNaN(height) || isNaN(scale) || 
+          length <= 0 || height <= 0 || scale <= 0) {
+        console.warn("Invalid parameters for tail fin, using defaults");
+        length = 0.045; // 0.3 * 0.15 (default baseScale)
+        height = 0.015; // 0.1 * 0.15 (default baseScale)
+        scale = 0.15;   // default baseScale
+      }
+      
+      // Tail shape (forked tail)
+      const tailShape = new THREE.Shape();
+      
+      // Function to safely add points, avoiding NaN values
+      const addPointToPath = (x: number, y: number, isMoveTo: boolean = false) => {
+        // Validate coordinates
+        if (isNaN(x) || isNaN(y)) {
+          console.warn(`Skipping NaN point in tail fin: (${x}, ${y})`);
+          return false;
+        }
+        
+        // Add point to path
+        if (isMoveTo) {
+          tailShape.moveTo(x, y);
+        } else {
+          tailShape.lineTo(x, y);
+        }
+        return true;
+      };
+      
+      // Starting point at the base of the tail
+      addPointToPath(0, 0, true);
+      
+      // Upper tail fork
+      addPointToPath(-length * 0.25, height * 0.75);
+      
+      // Middle of fork
+      addPointToPath(-length * 0.1, 0);
+      
+      // Lower tail fork
+      addPointToPath(-length * 0.25, -height * 0.75);
+      
+      // Back to starting point
+      addPointToPath(0, 0);
+      
+      // Create geometry with conservative settings
+      const tailGeometry = new THREE.ExtrudeGeometry(tailShape, {
+        steps: 1,
+        depth: Math.max(0.005, 0.01 * scale), // Ensure minimum depth
+        bevelEnabled: false
+      });
+      
+      // Position at the tail of the fish
+      tailGeometry.translate(-length * 0.5, 0, 0);
+      
+      // Use AssetHelpers to fix NaN issue
+      AssetHelpers.computeCorrectBoundingSphere(tailGeometry);
+      
+      // Verify the geometry is valid
+      if (!this.validateGeometry(tailGeometry)) {
+        throw new Error("Invalid tail fin geometry");
+      }
+      
+      return tailGeometry;
+    } catch (error) {
+      console.error("Error creating tail fin geometry:", error);
+      
+      // Create a simpler fallback geometry
+      const fallbackGeometry = new THREE.PlaneGeometry(
+        length * 0.3,  // Width
+        height * 1.5,  // Height
+        1,             // Width segments
+        1              // Height segments
+      );
+      
+      // Position at the tail
+      fallbackGeometry.translate(-length * 0.5, 0, 0);
+      fallbackGeometry.rotateY(Math.PI / 2); // Orient correctly
+      
+      // Ensure valid bounding sphere
+      AssetHelpers.computeCorrectBoundingSphere(fallbackGeometry);
+      
+      return fallbackGeometry;
+    }
   }
 
   /**
    * Creates the dorsal fin on top of the fish
+   * with improved NaN prevention and error handling
    */
   private createDorsalFinGeometry(length: number, height: number, scale: number): THREE.BufferGeometry {
-    // Dorsal fin shape (triangular with slight curve)
-    const dorsalShape = new THREE.Shape();
-    
-    // Starting at the base of the dorsal fin
-    dorsalShape.moveTo(0, 0);
-    
-    // Curved up to peak
-    dorsalShape.quadraticCurveTo(
-      length * 0.1, height * 1.2, // Control point
-      0, height * 1.5 // Peak point
-    );
-    
-    // Back to base
-    dorsalShape.lineTo(-length * 0.15, 0);
-    dorsalShape.lineTo(0, 0);
-    
-    // Create thin extruded geometry
-    const dorsalGeometry = new THREE.ExtrudeGeometry(dorsalShape, {
-      steps: 1,
-      depth: 0.01 * scale,
-      bevelEnabled: false
-    });
-    
-    // Position on top-middle of fish
-    dorsalGeometry.translate(-length * 0.1, height * 0.5, 0);
-    
-    // Manually compute bounding sphere to fix NaN issue
-    this.computeCorrectBoundingSphere(dorsalGeometry);
-    
-    return dorsalGeometry;
+    try {
+      // Validate input parameters
+      if (isNaN(length) || isNaN(height) || isNaN(scale) || 
+          length <= 0 || height <= 0 || scale <= 0) {
+        console.warn("Invalid parameters for dorsal fin, using defaults");
+        length = 0.045; // 0.3 * 0.15 (default baseScale)
+        height = 0.015; // 0.1 * 0.15 (default baseScale)
+        scale = 0.15;   // default baseScale
+      }
+      
+      // Dorsal fin shape (triangular with slight curve)
+      const dorsalShape = new THREE.Shape();
+      
+      // Function to safely add points, avoiding NaN values
+      const addPointToPath = (x: number, y: number, isMoveTo: boolean = false) => {
+        // Validate coordinates
+        if (isNaN(x) || isNaN(y)) {
+          console.warn(`Skipping NaN point in dorsal fin: (${x}, ${y})`);
+          return false;
+        }
+        
+        // Add point to path
+        if (isMoveTo) {
+          dorsalShape.moveTo(x, y);
+        } else {
+          dorsalShape.lineTo(x, y);
+        }
+        return true;
+      };
+      
+      // Starting at the base of the dorsal fin
+      addPointToPath(0, 0, true);
+      
+      // Check control point and peak point for NaN before using quadraticCurveTo
+      const controlX = length * 0.1;
+      const controlY = height * 1.2;
+      const peakX = 0;
+      const peakY = height * 1.5;
+      
+      if (!isNaN(controlX) && !isNaN(controlY) && !isNaN(peakX) && !isNaN(peakY)) {
+        // Curved up to peak
+        dorsalShape.quadraticCurveTo(
+          controlX, controlY, // Control point
+          peakX, peakY        // Peak point
+        );
+      } else {
+        // Fallback to straight line if any values are NaN
+        console.warn("Using straight line for dorsal fin due to NaN values");
+        addPointToPath(0, height * 1.5); // Direct line to peak
+      }
+      
+      // Back to base
+      addPointToPath(-length * 0.15, 0);
+      addPointToPath(0, 0);
+      
+      // Create thin extruded geometry with minimum depth
+      const dorsalGeometry = new THREE.ExtrudeGeometry(dorsalShape, {
+        steps: 1,
+        depth: Math.max(0.005, 0.01 * scale), // Ensure minimum depth
+        bevelEnabled: false
+      });
+      
+      // Position on top-middle of fish
+      dorsalGeometry.translate(-length * 0.1, height * 0.5, 0);
+      
+      // Use AssetHelpers to fix NaN issue
+      AssetHelpers.computeCorrectBoundingSphere(dorsalGeometry);
+      
+      // Verify the geometry is valid
+      if (!this.validateGeometry(dorsalGeometry)) {
+        throw new Error("Invalid dorsal fin geometry");
+      }
+      
+      return dorsalGeometry;
+    } catch (error) {
+      console.error("Error creating dorsal fin geometry:", error);
+      
+      // Create a simpler fallback geometry - just a simple triangle
+      const fallbackGeometry = new THREE.PlaneGeometry(
+        length * 0.2,  // Width
+        height * 1.5,  // Height
+        1,             // Width segments
+        1              // Height segments
+      );
+      
+      // Position appropriately
+      fallbackGeometry.translate(-length * 0.1, height * 1.0, 0);
+      fallbackGeometry.rotateZ(Math.PI / 4); // Angle the fin
+      
+      // Ensure valid bounding sphere
+      AssetHelpers.computeCorrectBoundingSphere(fallbackGeometry);
+      
+      return fallbackGeometry;
+    }
   }
 
   /**
    * Creates the pectoral/side fins
+   * Returns an array of meshes for the left and right fins
    */
-  private createSideFinsGeometry(length: number, height: number, width: number, scale: number): THREE.BufferGeometry {
+  private createSideFinsGeometry(length: number, height: number, width: number, scale: number): THREE.Mesh[] {
     // Side fin shape (small, curved triangular)
     const sideFinShape = new THREE.Shape();
     
@@ -281,6 +642,14 @@ export class SchoolOfFishAsset {
     sideFinShape.lineTo(-length * 0.05, -height * 0.2);
     sideFinShape.lineTo(0, 0);
     
+    // Create material for fins
+    const finMaterial = new THREE.MeshStandardMaterial({
+      color: 0xA9A9A9, // Light gray for fins
+      roughness: 0.6,
+      metalness: 0.2,
+      side: THREE.DoubleSide // Render both sides
+    });
+    
     // Create thin extruded geometry
     const sideFinGeometry = new THREE.ExtrudeGeometry(sideFinShape, {
       steps: 1,
@@ -291,20 +660,23 @@ export class SchoolOfFishAsset {
     // Position on side of fish
     sideFinGeometry.translate(length * 0.1, 0, 0);
     
-    // Create a merged geometry for both side fins
-    const sideFinsGeometry = sideFinGeometry.clone();
+    // Create left fin mesh
+    const leftFinGeometry = sideFinGeometry.clone();
+    // Manually compute bounding sphere to fix NaN issue
+    this.computeCorrectBoundingSphere(leftFinGeometry);
+    const leftFinMesh = new THREE.Mesh(leftFinGeometry, finMaterial.clone());
+    leftFinMesh.name = "FishLeftFin";
     
-    // Create a copy and position on other side
+    // Create a copy and position on other side for right fin
     const rightFinGeometry = sideFinGeometry.clone();
     rightFinGeometry.translate(0, 0, width);
-    
-    // Merge right fin to left fin
-    sideFinsGeometry.merge(rightFinGeometry);
-    
     // Manually compute bounding sphere to fix NaN issue
-    this.computeCorrectBoundingSphere(sideFinsGeometry);
+    this.computeCorrectBoundingSphere(rightFinGeometry);
+    const rightFinMesh = new THREE.Mesh(rightFinGeometry, finMaterial.clone());
+    rightFinMesh.name = "FishRightFin";
     
-    return sideFinsGeometry;
+    // Return array of both fin meshes
+    return [leftFinMesh, rightFinMesh];
   }
 
   /**
@@ -495,62 +867,12 @@ export class SchoolOfFishAsset {
   }
 
   /**
-   * Manually compute a valid bounding sphere to fix NaN issues
+   * Compute a valid bounding sphere to fix NaN issues
+   * Uses the shared AssetHelpers implementation
    */
   private computeCorrectBoundingSphere(geometry: THREE.BufferGeometry): void {
-    // Get position attribute
-    const positionAttribute = geometry.getAttribute('position');
-    
-    if (!positionAttribute) {
-      // If no position attribute, add a default bounding sphere
-      geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
-      return;
-    }
-    
-    // Calculate bounds
-    let minX = Infinity, minY = Infinity, minZ = Infinity;
-    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-    
-    const positions = positionAttribute.array;
-    const itemSize = positionAttribute.itemSize;
-    
-    // Find min/max for each axis
-    for (let i = 0; i < positions.length; i += itemSize) {
-      const x = positions[i];
-      const y = positions[i + 1];
-      const z = positions[i + 2];
-      
-      // Skip NaN values
-      if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        minZ = Math.min(minZ, z);
-        
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-        maxZ = Math.max(maxZ, z);
-      }
-    }
-    
-    // Handle case where there are no valid vertices
-    if (!isFinite(minX)) {
-      geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
-      return;
-    }
-    
-    // Calculate center of bounding box
-    const center = new THREE.Vector3(
-      (minX + maxX) / 2,
-      (minY + maxY) / 2,
-      (minZ + maxZ) / 2
-    );
-    
-    // Calculate radius as distance from center to corner
-    const corner = new THREE.Vector3(maxX, maxY, maxZ);
-    const radius = center.distanceTo(corner);
-    
-    // Set bounding sphere directly
-    geometry.boundingSphere = new THREE.Sphere(center, radius);
+    // Use the shared implementation from AssetHelpers
+    AssetHelpers.computeCorrectBoundingSphere(geometry);
   }
 
   /**
@@ -578,13 +900,17 @@ export class SchoolOfFishAsset {
     // Manually compute bounding sphere to fix NaN issue
     this.computeCorrectBoundingSphere(fallbackGeom);
     
-    // Create semi-transparent material for visual representation
+    // Create enhanced Pixar-style semi-transparent material for fallback visual representation
     const fallbackMaterial = new THREE.MeshStandardMaterial({
-      color: 0xC0C0C0, // Silver
+      color: 0xC0C0C0,                    // Silver base color
       transparent: true,
-      opacity: 0.7,
-      roughness: 0.2,
-      metalness: 0.7
+      opacity: 0.8,                       // More opaque for better visibility (was 0.7)
+      roughness: 0.15,                    // Lower roughness for shinier fish scales
+      metalness: 0.8,                     // Higher metalness for better specular highlights
+      emissive: 0xD0D0D0,                 // Subtle self-illumination
+      emissiveIntensity: 0.25,            // Enhanced subtle glow
+      clearcoat: 0.7,                     // Strong clearcoat for wet appearance
+      clearcoatRoughness: 0.1             // Smooth clearcoat for shiny fish
     });
     
     // Create mesh for visuals
@@ -784,6 +1110,11 @@ export class SchoolOfFishAsset {
     try {
       this.animationTime = 0;
       
+      // Skip reset if using fallback (no instancedMesh or fishData)
+      if (!this.instancedMesh || !this.fishData || this.fishData.length === 0) {
+        return;
+      }
+      
       // Reset all fish back to their base positions
       for (let i = 0; i < this.fishData.length; i++) {
         const fish = this.fishData[i];
@@ -817,7 +1148,9 @@ export class SchoolOfFishAsset {
       }
       
       // Update instance matrix buffer
-      this.instancedMesh.instanceMatrix.needsUpdate = true;
+      if (this.instancedMesh.instanceMatrix) {
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
+      }
     } catch (error) {
       console.warn("Error in SchoolOfFishAsset reset:", error);
     }
@@ -828,9 +1161,22 @@ export class SchoolOfFishAsset {
    */
   public dispose(): void {
     try {
-      // Dispose of fish geometry
-      if (this.fishGeometry) {
-        this.fishGeometry.dispose();
+      // Dispose of fish group geometries
+      if (this.fishGroup) {
+        this.fishGroup.traverse(child => {
+          if (child instanceof THREE.Mesh) {
+            if (child.geometry) {
+              child.geometry.dispose();
+            }
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach(m => m.dispose());
+              } else {
+                (child.material as THREE.Material).dispose();
+              }
+            }
+          }
+        });
       }
       
       // Dispose of instanced mesh material
@@ -840,6 +1186,11 @@ export class SchoolOfFishAsset {
         } else {
           (this.instancedMesh.material as THREE.Material).dispose();
         }
+      }
+      
+      // Dispose of instanced mesh geometry
+      if (this.instancedMesh && this.instancedMesh.geometry) {
+        this.instancedMesh.geometry.dispose();
       }
       
       // Dispose of collision mesh geometry and material
@@ -863,14 +1214,157 @@ export class SchoolOfFishAsset {
 
   /**
    * Creates the procedural mesh for this asset
+   * Returns the created mesh for compatibility with other obstacle assets
    */
-  public createMesh(): void {
+  public createMesh(): THREE.Group {
     // Implementation already handles mesh creation in constructor
     if (!this.mesh) {
       // Only recreate if not already created
+      console.log("SchoolOfFishAsset: Recreating mesh that wasn't created in constructor");
       this.mesh = new THREE.Group();
-      this.createMesh();
+      
+      try {
+        // Call internal creation method to set up fish instances
+        this.createMesh = function() { return this.mesh; };  // Avoid infinite recursion
+        const config = this.config;
+        
+        // Get visual properties from config with fallbacks
+        const visualConfig = config.visuals || {};
+        
+        // Create detailed fish geometry - now returns a Group
+        this.fishGroup = this.createDetailedFishGeometry(config.individualFishScale);
+        
+        // Ensure no NaN bounding spheres in the fish group
+        this.fishGroup.traverse(child => {
+          if (child instanceof THREE.Mesh && child.geometry) {
+            this.computeCorrectBoundingSphere(child.geometry);
+          }
+        });
+        
+        // Create enhanced Pixar-style fish material with sophisticated properties
+        const fishMaterial = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(visualConfig.mainColor || 0xC0C0C0),        // Silver base color
+          roughness: visualConfig.roughness !== undefined ? visualConfig.roughness : 0.15,      // Reduced roughness for shinier fish scales
+          metalness: visualConfig.metalness !== undefined ? visualConfig.metalness : 0.8,       // Increased metalness for better specular highlights
+          emissive: new THREE.Color(visualConfig.emissiveColor || 0xD0D0D0),  // Subtle self-illumination
+          emissiveIntensity: visualConfig.emissiveIntensity !== undefined ? visualConfig.emissiveIntensity : 0.25, // Enhanced subtle glow
+          clearcoat: visualConfig.clearcoat !== undefined ? visualConfig.clearcoat : 0.7,       // Strong clearcoat for wet appearance
+          clearcoatRoughness: visualConfig.clearcoatRoughness !== undefined ? visualConfig.clearcoatRoughness : 0.1, // Smooth clearcoat for shiny fish
+          envMapIntensity: visualConfig.envMapIntensity !== undefined ? visualConfig.envMapIntensity : 1.3, // Enhanced environment reflections
+          side: THREE.DoubleSide, // For fins and tails
+          vertexColors: true      // For variety in fish coloration
+        });
+        
+        // Determine fish count based on config
+        const numFish = THREE.MathUtils.randInt(config.fishCountMin, config.fishCountMax);
+        
+        // Convert the Group to a BufferGeometry for instanced rendering
+        // First create a temporary mesh to combine all geometries
+        const tempBufferGeometry = new THREE.BufferGeometry();
+        const mergedGeometries: THREE.BufferGeometry[] = [];
+        
+        // Traverse the fish group and collect all geometries
+        this.fishGroup.traverse(child => {
+          if (child instanceof THREE.Mesh && child.geometry) {
+            // Clone the geometry to avoid modifying the original
+            const clonedGeometry = child.geometry.clone();
+            // Apply the mesh's transform to the geometry
+            clonedGeometry.applyMatrix4(child.matrixWorld);
+            mergedGeometries.push(clonedGeometry);
+          }
+        });
+        
+        // Merge all geometries into one
+        const positions: number[] = [];
+        const normals: number[] = [];
+        const uvs: number[] = [];
+        
+        mergedGeometries.forEach(geometry => {
+          const positionAttr = geometry.getAttribute('position');
+          const normalAttr = geometry.getAttribute('normal');
+          const uvAttr = geometry.getAttribute('uv');
+          
+          if (positionAttr) {
+            for (let i = 0; i < positionAttr.count; i++) {
+              positions.push(positionAttr.getX(i), positionAttr.getY(i), positionAttr.getZ(i));
+            }
+          }
+          
+          if (normalAttr) {
+            for (let i = 0; i < normalAttr.count; i++) {
+              normals.push(normalAttr.getX(i), normalAttr.getY(i), normalAttr.getZ(i));
+            }
+          }
+          
+          if (uvAttr) {
+            for (let i = 0; i < uvAttr.count; i++) {
+              uvs.push(uvAttr.getX(i), uvAttr.getY(i));
+            }
+          }
+        });
+        
+        // Set attributes for the merged geometry
+        tempBufferGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        if (normals.length > 0) {
+          tempBufferGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        }
+        if (uvs.length > 0) {
+          tempBufferGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        }
+        
+        // Compute correct bounding sphere
+        this.computeCorrectBoundingSphere(tempBufferGeometry);
+        
+        // Create instanced mesh with the merged geometry
+        this.instancedMesh = new THREE.InstancedMesh(tempBufferGeometry, fishMaterial, numFish);
+        this.instancedMesh.name = "FishInstances";
+        this.instancedMesh.frustumCulled = false; // Ensure instances are rendered even if parent is outside frustum
+        
+        // Add to main group
+        this.mesh.add(this.instancedMesh);
+        
+        // Create fish instances with varied positions and properties
+        this.createFishInstances(numFish, config);
+        
+        // Create collision mesh for the entire school
+        this.createCollisionMesh(config);
+      } catch (e) {
+        console.error("Error in SchoolOfFishAsset.createMesh():", e);
+        // Create a very simple fallback
+        const fallbackMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshStandardMaterial({ 
+            color: 0xC0C0C0,              // Silver base color
+            roughness: 0.15,              // Lower roughness for shinier fish scales
+            metalness: 0.8,               // Higher metalness for better specular highlights
+            emissive: 0xD0D0D0,           // Subtle self-illumination
+            emissiveIntensity: 0.25,      // Enhanced subtle glow
+            clearcoat: 0.7,               // Strong clearcoat for wet appearance
+            clearcoatRoughness: 0.1       // Smooth clearcoat for shiny fish
+          })
+        );
+        fallbackMesh.name = "FallbackSchoolOfFish";
+        this.mesh.add(fallbackMesh);
+        
+        // Add collision mesh
+        const collisionMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(1.2, 1.2, 1.2),
+          new THREE.MeshBasicMaterial({ visible: false })
+        );
+        collisionMesh.name = "FallbackSchoolOfFishCollision";
+        this.mesh.add(collisionMesh);
+        this.collisionMesh = collisionMesh;
+      }
+      
+      // Set userData
+      this.mesh.userData = { 
+        type: 'obstacle', 
+        name: 'schoolOfFish', 
+        assetInstance: this,
+        isDangerous: true
+      };
     }
-    return;
+    
+    return this.mesh;
   }
 }

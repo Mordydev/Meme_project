@@ -267,20 +267,69 @@ export class CollisionDetectionSystem {
             }
           }
           else if (obstacle.assetInstance instanceof SharkAsset) {
-            // Sharks are always dangerous
+            // Sharks are always dangerous 
             if (obstacle.assetInstance.isDangerous()) {
-              const sharkCollider = obstacle.assetInstance.getCollisionObject();
-              sharkCollider.updateMatrixWorld(true);
+              try {
+                // Get collision object with enhanced error handling
+                const sharkCollider = obstacle.assetInstance.getCollisionObject();
+                
+                // Verify that shark collider isn't undefined
+                if (!sharkCollider) {
+                  console.error("ERROR: SharkAsset.getCollisionObject() returned undefined");
+                  
+                  // Create a temporary collision sphere around the main mesh for this frame
+                  const tempBox = new THREE.Box3().setFromObject(obstacle.mesh);
+                  const tempSphere = new THREE.Sphere();
+                  tempBox.getBoundingSphere(tempSphere);
+                  
+                  // Use the temp sphere for this collision check
+                  this.obstaclePartBoundingSphere.copy(tempSphere);
+                } else {
+                  // Normal collision detection flow
+                  sharkCollider.updateMatrixWorld(true);
+                  
+                  // Check if geometry exists
+                  if (!sharkCollider.geometry) {
+                    console.error("ERROR: SharkCollider has no geometry");
+                    continue;
+                  }
 
-              if (!sharkCollider.geometry.boundingSphere) {
-                sharkCollider.geometry.computeBoundingSphere();
-              }
+                  // Compute the bounding sphere if needed
+                  if (!sharkCollider.geometry.boundingSphere) {
+                    sharkCollider.geometry.computeBoundingSphere();
+                  }
+                  
+                  // Check if bounding sphere exists and is valid
+                  if (!sharkCollider.geometry.boundingSphere ||
+                      isNaN(sharkCollider.geometry.boundingSphere.radius) ||
+                      isNaN(sharkCollider.geometry.boundingSphere.center.x)) {
+                    console.error("ERROR: Invalid bounding sphere in shark collider");
+                    
+                    // Create a temporary fallback sphere
+                    const tempSphere = new THREE.Sphere(
+                      new THREE.Vector3(
+                        obstacle.mesh.position.x,
+                        obstacle.mesh.position.y,
+                        obstacle.mesh.position.z
+                      ),
+                      0.5 // Default radius
+                    );
+                    this.obstaclePartBoundingSphere.copy(tempSphere);
+                  } else {
+                    // Normal flow with valid bounding sphere
+                    this.obstaclePartBoundingSphere.copy(sharkCollider.geometry.boundingSphere!);
+                    this.obstaclePartBoundingSphere.applyMatrix4(sharkCollider.matrixWorld);
+                  }
+                }
 
-              this.obstaclePartBoundingSphere.copy(sharkCollider.geometry.boundingSphere!);
-              this.obstaclePartBoundingSphere.applyMatrix4(sharkCollider.matrixWorld);
-
-              if (this.playerBoundingSphere.intersectsSphere(this.obstaclePartBoundingSphere)) {
-                hitDetected = true;
+                // Check for collision with the final bounding sphere
+                if (this.playerBoundingSphere.intersectsSphere(this.obstaclePartBoundingSphere)) {
+                  hitDetected = true;
+                  console.log("Shark collision detected!");
+                }
+              } catch (error) {
+                console.error("Error during shark collision detection:", error);
+                // Continue to next obstacle - don't block gameplay on collision errors
               }
             }
           }
@@ -362,9 +411,15 @@ export class CollisionDetectionSystem {
                 console.log(`KelpWall collision sphere: center=[${this.obstaclePartBoundingSphere.center.x.toFixed(2)}, ${this.obstaclePartBoundingSphere.center.y.toFixed(2)}, ${this.obstaclePartBoundingSphere.center.z.toFixed(2)}], radius=${this.obstaclePartBoundingSphere.radius.toFixed(2)}`);
                 console.log(`Player sphere: center=[${this.playerBoundingSphere.center.x.toFixed(2)}, ${this.playerBoundingSphere.center.y.toFixed(2)}, ${this.playerBoundingSphere.center.z.toFixed(2)}], radius=${this.playerBoundingSphere.radius.toFixed(2)}`);
 
+                // Calculate and log the horizontal distance between player and kelp collision center
+                const horizontalDistanceToPlayer = Math.abs(this.playerBoundingSphere.center.x - this.obstaclePartBoundingSphere.center.x);
+                const laneWidth = configSystem.get('player')?.laneWidth || 2.0;
+                
+                console.log(`Horizontal distance to KelpWall: ${horizontalDistanceToPlayer.toFixed(2)} units (${(horizontalDistanceToPlayer / laneWidth).toFixed(2)} lane widths)`);
+
                 if (this.playerBoundingSphere.intersectsSphere(this.obstaclePartBoundingSphere)) {
                   hitDetected = true;
-                  console.log("KelpWall collision detected!");
+                  console.log("KelpWall collision detected! Distance at collision: " + horizontalDistanceToPlayer.toFixed(2) + " units");
                 }
               } catch (error) {
                 console.warn("Error during KelpWall collision detection:", error);

@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import { ShaderManager } from '../../services/ShaderManager';
 import { configSystem } from '../../core/ConfigurationSystem';
 import { ClamConfig } from '../../config/gameConfig';
+import { IObstacleAsset } from '../IObstacleAsset';
+import { AssetHelpers } from '../AssetHelpers';
 
-export class ClamAsset {
+export class ClamAsset implements IObstacleAsset {
   private shaderManager: ShaderManager;
   public isOpen: boolean = false; // State for animation
   public animationTime: number = 0;
@@ -124,13 +126,16 @@ export class ClamAsset {
     // Create shell materials with pixar-style StandardMaterial
     const mainColor = new THREE.Color(visualConf.mainColor || 0xE0D1B0); // Shell beige
     
-    // Outer shell material with pixar-like qualities
+    // Enhanced Pixar-style outer shell material
     const shellMaterial = new THREE.MeshStandardMaterial({
-      color: mainColor,
-      roughness: visualConf.roughness !== undefined ? visualConf.roughness : 0.4,
-      metalness: visualConf.metalness !== undefined ? visualConf.metalness : 0.15,
-      clearcoat: visualConf.clearcoat !== undefined ? visualConf.clearcoat : 0.3,
-      clearcoatRoughness: visualConf.clearcoatRoughness !== undefined ? visualConf.clearcoatRoughness : 0.2,
+      color: mainColor,                                                                  // Shell base color
+      roughness: visualConf.roughness !== undefined ? visualConf.roughness : 0.35,       // Slightly reduced roughness for Pixar style
+      metalness: visualConf.metalness !== undefined ? visualConf.metalness : 0.2,        // Increased metalness for better highlights
+      emissive: new THREE.Color(visualConf.emissiveColor || mainColor.clone().multiplyScalar(0.2)), // Subtle self-illumination
+      emissiveIntensity: visualConf.emissiveIntensity !== undefined ? visualConf.emissiveIntensity : 0.05, // Very subtle glow
+      clearcoat: visualConf.clearcoat !== undefined ? visualConf.clearcoat : 0.5,                    // Enhanced clearcoat for wet underwater look
+      clearcoatRoughness: visualConf.clearcoatRoughness !== undefined ? visualConf.clearcoatRoughness : 0.15, // Smoother clearcoat for shinier appearance
+      envMapIntensity: visualConf.envMapIntensity !== undefined ? visualConf.envMapIntensity : 1.2,  // Enhanced environment reflections
       side: THREE.DoubleSide
     });
     
@@ -217,12 +222,18 @@ export class ClamAsset {
     // Rotate the hinge to align with the shells
     hingeGeometry.rotateZ(Math.PI / 2);
     
-    // Create hinge material with slightly darker color than shells
+    // Create enhanced Pixar-style hinge material with distinctive properties
     const shellColor = new THREE.Color(visualConf.mainColor || 0xE0D1B0);
+    const hingeColor = shellColor.clone().multiplyScalar(0.75); // Darker than shell for contrast
+    
     const hingeMaterial = new THREE.MeshStandardMaterial({
-      color: shellColor.clone().multiplyScalar(0.8), // Darker than shell
-      roughness: 0.6,
-      metalness: 0.1
+      color: hingeColor,                                                    // Darker hinge color
+      roughness: visualConf.hingeRoughness !== undefined ? visualConf.hingeRoughness : 0.7,    // Rougher than shell for contrast
+      metalness: visualConf.hingeMetalness !== undefined ? visualConf.hingeMetalness : 0.05,   // Less metallic than shell
+      emissive: new THREE.Color(visualConf.hingeEmissiveColor || hingeColor.clone()),          // Subtle self-illumination
+      emissiveIntensity: visualConf.hingeEmissiveIntensity !== undefined ? visualConf.hingeEmissiveIntensity : 0.02, // Very subtle
+      clearcoat: visualConf.hingeClearcoat !== undefined ? visualConf.hingeClearcoat : 0.3,    // Less clearcoat than shell
+      clearcoatRoughness: visualConf.hingeClearcoatRoughness !== undefined ? visualConf.hingeClearcoatRoughness : 0.6 // Rougher clearcoat
     });
     
     // Create hinge mesh
@@ -239,19 +250,29 @@ export class ClamAsset {
   private createPearl(): void {
     if (!this.clamGroup) return;
     
+    // Get visual configuration from config
+    const visualConf = this.config.visuals || {};
+    
     // Create the pearl with high detail
     const pearlGeometry = new THREE.SphereGeometry(0.2, 32, 24);
     
-    // Create pearlescent material with pixar-style StandardMaterial
+    // Create enhanced Pixar-style pearlescent material with sophisticated properties
+    const pearlBaseColor = visualConf.pearlColor || 0xFFFAF0; // Default to a very slight off-white
     const pearlMaterial = new THREE.MeshStandardMaterial({
-      color: 0xFFFFFF,
-      roughness: 0.05, // Very smooth
-      metalness: 0.7,  // High metalness for pearl look
-      emissive: 0xFFFFFF,
-      emissiveIntensity: 0.2, // Subtle glow
-      envMapIntensity: 1.2,   // Enhance reflections
-      clearcoat: 0.8,         // Strong clearcoat for wet shine
-      clearcoatRoughness: 0.1 // Smooth clearcoat
+      color: new THREE.Color(pearlBaseColor),                  // Base color with subtle warmth
+      roughness: visualConf.pearlRoughness !== undefined ? visualConf.pearlRoughness : 0.03, // Extremely smooth
+      metalness: visualConf.pearlMetalness !== undefined ? visualConf.pearlMetalness : 0.85, // Very high metalness for pearlescent look
+      emissive: new THREE.Color(visualConf.pearlEmissiveColor || 0xFFF8E8),                 // Warm subtle glow
+      emissiveIntensity: visualConf.pearlEmissiveIntensity !== undefined ? visualConf.pearlEmissiveIntensity : 0.25, // Moderate glow
+      clearcoat: visualConf.pearlClearcoat !== undefined ? visualConf.pearlClearcoat : 0.95, // Nearly maximum clearcoat for wet shine
+      clearcoatRoughness: visualConf.pearlClearcoatRoughness !== undefined ? visualConf.pearlClearcoatRoughness : 0.03, // Very smooth clearcoat
+      envMapIntensity: visualConf.pearlEnvMapIntensity !== undefined ? visualConf.pearlEnvMapIntensity : 1.5, // Strong environment reflections
+      
+      // Optional iridescent-like color shift - not fully supported in standard material,
+      // but we can approximate with slight color tinting toward warm/cool hues
+      // This is where a custom shader would be ideal, but we're sticking with StandardMaterial
+      
+      // The pearl will get a slight color shift effect through the emissive animation in updateAnimation
     });
     
     // Create pearl mesh
@@ -272,15 +293,20 @@ export class ClamAsset {
     // Create a flat disc for the inner texture of the shells
     const innerTextureGeom = new THREE.CircleGeometry(0.5, 24);
     
-    // Create material for inner shell with pearlescent quality
+    // Create enhanced Pixar-style inner shell material with mother-of-pearl quality
+    const innerBaseColor = visualConf.innerColor || 0xFAF0E6; // Lighter than outer shell
     const innerMaterial = new THREE.MeshStandardMaterial({
-      color: 0xFAF0E6, // Lighter than outer shell
-      roughness: 0.2,   // Smoother than outer shell
-      metalness: 0.3,   // More metallic for pearly look
-      emissive: 0xFFFFFF,
-      emissiveIntensity: 0.1, // Subtle glow
-      clearcoat: 0.6,   // Strong clearcoat for wet shine
-      clearcoatRoughness: 0.1 // Smooth clearcoat
+      color: new THREE.Color(innerBaseColor),                 // Light mother-of-pearl color
+      roughness: visualConf.innerRoughness !== undefined ? visualConf.innerRoughness : 0.15,  // Smoother than outer shell
+      metalness: visualConf.innerMetalness !== undefined ? visualConf.innerMetalness : 0.4,   // Higher metalness for pearly look
+      emissive: new THREE.Color(visualConf.innerEmissiveColor || 0xFFFFFA),                  // Warm slight glow
+      emissiveIntensity: visualConf.innerEmissiveIntensity !== undefined ? visualConf.innerEmissiveIntensity : 0.12, // Subtle glow
+      clearcoat: visualConf.innerClearcoat !== undefined ? visualConf.innerClearcoat : 0.8,   // Strong clearcoat for wet appearance
+      clearcoatRoughness: visualConf.innerClearcoatRoughness !== undefined ? visualConf.innerClearcoatRoughness : 0.08, // Very smooth clearcoat
+      envMapIntensity: visualConf.innerEnvMapIntensity !== undefined ? visualConf.innerEnvMapIntensity : 1.3, // Enhanced environment reflections
+      
+      // We'll apply a subtle color shift in the updateAnimation method to simulate iridescence
+      // This is a simplified approach as true iridescence would require a custom shader
     });
     
     // Create mesh for top shell interior
@@ -346,8 +372,16 @@ export class ClamAsset {
     topShellGeom.scale(1.2, 0.7, 1.2);
     bottomShellGeom.scale(1.2, 0.5, 1.2);
 
-    // Basic material for fallback
-    const material = new THREE.MeshStandardMaterial({ color: 0xE0D1B0 }); // Sandy beige
+    // Enhanced Pixar-style material for fallback - simpler but consistent with main implementation
+    const material = new THREE.MeshStandardMaterial({ 
+      color: 0xE0D1B0,         // Sandy beige 
+      roughness: 0.35,         // Matches enhanced main shell
+      metalness: 0.2,          // Matches enhanced main shell
+      emissive: 0xA08060,      // Subtle warm glow
+      emissiveIntensity: 0.05, // Very subtle
+      clearcoat: 0.5,          // Wet appearance
+      clearcoatRoughness: 0.15 // Smoother clearcoat
+    });
 
     const topShell = new THREE.Mesh(topShellGeom, material.clone());
     const bottomShell = new THREE.Mesh(bottomShellGeom, material.clone());
@@ -445,18 +479,36 @@ export class ClamAsset {
     if (pearl) {
       pearl.visible = this.isOpen;
       
-      // Add a subtle pulsing glow effect when open
+      // Add enhanced Pixar-style pearl animation effects when open
       if (this.isOpen && pearl.material instanceof THREE.MeshStandardMaterial) {
-        // Pulse the emissive intensity
-        const pulseIntensity = 0.2 + Math.sin(this.animationTime * 5) * 0.1;
+        // 1. Pulse the emissive intensity for a breathing effect
+        const pulseIntensity = 0.25 + Math.sin(this.animationTime * 5) * 0.15;
         pearl.material.emissiveIntensity = pulseIntensity;
+        
+        // 2. Simulate iridescence by subtly shifting the emissive color
+        // Calculate a hue shift based on time and viewing angle
+        // This creates a simplified iridescent-like effect without custom shaders
+        const hueShift = (Math.sin(this.animationTime * 0.7) * 0.05) + 0.5; // Small range around 0.5
+        const saturation = 0.1; // Keep saturation low for subtle effect
+        const lightness = 0.9 + Math.sin(this.animationTime * 2) * 0.05; // Subtle lightness change
+        
+        // Create subtle color shifts in HSL space
+        const emissiveColor = new THREE.Color().setHSL(hueShift, saturation, lightness);
+        pearl.material.emissive = emissiveColor;
       }
     }
     
-    // For more visual interest, also animate the scale of the pearl slightly
+    // For more visual interest, also animate the pearl with enhanced effects
     if (pearl && this.isOpen) {
+      // 1. Subtle scale pulsing for "breathing" effect
       const pulseScale = 1.0 + Math.sin(this.animationTime * 3) * 0.05;
       pearl.scale.set(pulseScale, pulseScale, pulseScale);
+      
+      // 2. Very subtle position shift to make it feel like it's floating
+      // This adds more life to the pearl animation
+      const floatY = Math.sin(this.animationTime * 2) * 0.01;
+      const floatX = Math.cos(this.animationTime * 1.5) * 0.005;
+      pearl.position.set(floatX, -0.1 + floatY, 0);
     }
 
     // Store the open state in the userData for collision system
@@ -498,19 +550,69 @@ export class ClamAsset {
     topShell.scale.copy(targetScale);
     bottomShell.scale.copy(targetScale);
     
-    // If the clam is opening, make the pearl pulse stronger briefly
+    // Enhanced Pixar-style visual effects when clam opens or closes
     if (isOpening) {
+      // Find the pearl for enhanced opening effects
       const pearl = clamGroup.getObjectByName("ClamPearl") as THREE.Mesh;
       if (pearl && pearl.material instanceof THREE.MeshStandardMaterial) {
+        // Store original properties
         const originalIntensity = pearl.material.emissiveIntensity;
-        pearl.material.emissiveIntensity = 0.6; // Stronger glow
+        const originalScale = pearl.scale.clone();
         
+        // 1. Dramatic emissive flash when pearl is revealed
+        pearl.material.emissiveIntensity = 0.8; // Stronger initial glow
+        
+        // 2. Quick scale pop effect
+        pearl.scale.set(1.2, 1.2, 1.2); // Slightly larger initial reveal
+        
+        // 3. Dramatize the reveal with inner shell material effects
+        const topInner = clamGroup.getObjectByName("TopShellInner") as THREE.Mesh;
+        const bottomInner = clamGroup.getObjectByName("BottomShellInner") as THREE.Mesh;
+        
+        // Enhance inner shell glow
+        [topInner, bottomInner].forEach(inner => {
+          if (inner && inner.material instanceof THREE.MeshStandardMaterial) {
+            const originalInnerIntensity = inner.material.emissiveIntensity;
+            inner.material.emissiveIntensity = originalInnerIntensity * 1.8;
+            
+            // Reset inner shell effects after delay
+            setTimeout(() => {
+              if (inner && inner.material instanceof THREE.MeshStandardMaterial) {
+                inner.material.emissiveIntensity = originalInnerIntensity;
+              }
+            }, 300);
+          }
+        });
+        
+        // Reset pearl effects with slight delay for better visual impact
         setTimeout(() => {
           if (pearl && pearl.material instanceof THREE.MeshStandardMaterial) {
             pearl.material.emissiveIntensity = originalIntensity;
+            pearl.scale.copy(originalScale);
           }
-        }, 200);
+        }, 250);
       }
+    } else {
+      // When closing, add subtle effects to inner parts before they're hidden
+      const topInner = clamGroup.getObjectByName("TopShellInner") as THREE.Mesh;
+      const bottomInner = clamGroup.getObjectByName("BottomShellInner") as THREE.Mesh;
+      
+      [topInner, bottomInner].forEach(inner => {
+        if (inner && inner.material instanceof THREE.MeshStandardMaterial) {
+          // Quick flash before hiding
+          const originalColor = inner.material.emissive.clone();
+          inner.material.emissive.set(0xFFFFFF);
+          inner.material.emissiveIntensity = 0.3;
+          
+          // Reset after very short delay
+          setTimeout(() => {
+            if (inner && inner.material instanceof THREE.MeshStandardMaterial) {
+              inner.material.emissive.copy(originalColor);
+              inner.material.emissiveIntensity = 0.12;
+            }
+          }, 100);
+        }
+      });
     }
   }
 

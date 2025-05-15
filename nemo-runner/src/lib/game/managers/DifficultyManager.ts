@@ -36,10 +36,11 @@ export class DifficultyManager {
     this.currentObstacleSpawnIntervalMax = baseIntervals.max;
     this.targetObstacleSpawnIntervalMax = baseIntervals.max;
     
-    this.currentComplexityFactor = this.currentTier.obstacleComplexityFactor;
-    this.targetComplexityFactor = this.currentTier.obstacleComplexityFactor;
+    // Modified: Start with a slightly higher complexity factor to enable advanced obstacles
+    this.currentComplexityFactor = Math.max(0.25, this.currentTier.obstacleComplexityFactor);
+    this.targetComplexityFactor = this.currentComplexityFactor;
     
-    console.log("DifficultyManager: Initialized with tier 1 difficulty");
+    console.log("DifficultyManager: Initialized with tier 1 difficulty and increased complexity factor:", this.currentComplexityFactor);
   }
   
   /**

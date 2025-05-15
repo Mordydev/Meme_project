@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import { ShaderManager } from '../../services/ShaderManager';
 import { configSystem } from '../../core/ConfigurationSystem';
 import { KelpWallObstacleConfig } from '../../config/gameConfig';
+import { IObstacleAsset } from '../IObstacleAsset';
+import { AssetHelpers } from '../AssetHelpers';
 
-export class KelpWallAsset {
+export class KelpWallAsset implements IObstacleAsset {
   private shaderManager: ShaderManager;
   private mesh!: THREE.Group; // Group to hold multiple kelp strands
   private collisionMesh!: THREE.Mesh; // Main collision object for the entire wall
@@ -28,14 +30,17 @@ export class KelpWallAsset {
       swayAmplitude: 0.1,
       swaySpeed: 0.5,
       visuals: {
-        mainColor: 0x3B7A57, // Sea green
-        emissiveColor: 0x2A5A37, // Darker emissive
-        emissiveIntensity: 0.05, // Very subtle glow
-        roughness: 0.7, // Rough surface
-        metalness: 0.0, // No metallic quality
-        opacity: 0.9, // Slightly transparent at edges
-        animationSpeed: 0.5, // Animation speed
-        animationAmplitude: 0.1 // Animation amplitude
+        mainColor: 0x3B7A57,          // Sea green
+        emissiveColor: 0x2A5A37,      // Darker emissive
+        emissiveIntensity: 0.07,      // Subtle glow (increased from 0.05)
+        roughness: 0.6,               // Slightly smoother for Pixar style (reduced from 0.7)
+        metalness: 0.05,              // Slight metalness for better highlights (increased from 0.0)
+        clearcoat: 0.4,               // Medium clearcoat for wet appearance
+        clearcoatRoughness: 0.3,      // Smoother clearcoat for slight shine
+        opacity: 0.92,                // Slightly more opaque for Pixar look
+        transmission: 0.1,            // Slight translucency for thin kelp edges
+        animationSpeed: 0.5,          // Animation speed
+        animationAmplitude: 0.1       // Animation amplitude
       }
     };
 
@@ -48,6 +53,7 @@ export class KelpWallAsset {
   }
 
   private createMesh(): void {
+    console.log("KelpWallAsset: createMesh() called");
     try {
       this.mesh = new THREE.Group();
       this.mesh.name = "KelpWallObstacle";
@@ -94,23 +100,30 @@ export class KelpWallAsset {
     const playerConfig = configSystem.get('player');
     const laneWidth = playerConfig?.laneWidth || 2.0;
     
-    // Use exactly 90% of a lane width for consistent obstacle sizing
-    const segmentWidthCoverage = 0.9; // Strict 90% regardless of config value
+    // Use 70% of lane width to match collision dimensions
+    // This ensures the kelp wall doesn't cause false collisions with adjacent lanes
+    const segmentWidthCoverage = 0.7; // Using 70% of lane width as specified in design document
     const totalWallWidth = laneWidth * segmentWidthCoverage;
+    
+    console.log(`KelpWall visual width: ${totalWallWidth.toFixed(2)} units (${segmentWidthCoverage * 100}% of lane width)`);
     
     // Calculate strand spacing for even distribution
     const spacing = numStrands > 1 ? totalWallWidth / (numStrands - 1) : 0;
     
-    // Create base kelp material - all strands will share this material
+    // Create enhanced Pixar-style kelp material - all strands will share this material
     const kelpMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(visualConfig.mainColor || 0x3B7A57),
-      roughness: visualConfig.roughness || 0.7,
-      metalness: visualConfig.metalness || 0.0,
+      color: new THREE.Color(visualConfig.mainColor || 0x3B7A57),      // Sea green
+      roughness: visualConfig.roughness || 0.6,                         // Slightly smoother for Pixar style
+      metalness: visualConfig.metalness || 0.05,                        // Slight metalness for better specular highlights
       emissive: new THREE.Color(visualConfig.emissiveColor || 0x2A5A37),
-      emissiveIntensity: visualConfig.emissiveIntensity || 0.05,
+      emissiveIntensity: visualConfig.emissiveIntensity || 0.07,        // Increased subtle glow
+      clearcoat: visualConfig.clearcoat || 0.4,                         // Medium clearcoat for wet appearance
+      clearcoatRoughness: visualConfig.clearcoatRoughness || 0.3,       // Smoother clearcoat for slight shine
       transparent: true,
-      opacity: visualConfig.opacity || 0.9,
-      side: THREE.DoubleSide // Render both sides for better visibility
+      opacity: visualConfig.opacity || 0.92,                            // Slightly more opaque for Pixar look
+      transmission: visualConfig.transmission || 0.1,                   // Slight translucency for thin kelp edges
+      side: THREE.DoubleSide,                                           // Render both sides for better visibility
+      visible: true                                                     // Explicitly ensure visibility
     });
     
     // Create each kelp strand
@@ -145,6 +158,9 @@ export class KelpWallAsset {
         height: thisStrandHeight
       };
       
+      // Ensure strand is visible
+      strand.visible = true;
+      
       strands.push(strand);
     }
     
@@ -153,184 +169,288 @@ export class KelpWallAsset {
 
   /**
    * Creates a single kelp strand with realistic curve-based geometry
+   * with improved NaN prevention
    */
   private createKelpStrand(height: number, material: THREE.Material): THREE.Mesh {
-    // Create a mesh group for the strand with all its parts
-    const strandGroup = new THREE.Group();
-    strandGroup.name = "KelpStrand";
-    
-    // Create main kelp blade
-    const points: THREE.Vector2[] = [];
-    const segments = 12; // Segmentation for curve smoothness
-    
-    // Create a tapered shape for the kelp blade
-    const baseWidth = 0.15; // Width at the base
-    const tipWidth = 0.08; // Width at the tip
-    
-    // Create left and right side points with a curved shape
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const y = height * t; // Height progresses linearly
+    try {
+      // Validate input parameters
+      if (isNaN(height) || height <= 0) {
+        console.warn("Invalid height for kelp strand, using default");
+        height = 3.5; // Use a reasonable default
+      }
       
-      // Width tapers from base to tip with slight curve
-      const width = baseWidth * (1 - t * 0.8) + tipWidth * (t * 0.8);
+      // Create a mesh for the strand
+      const strandMesh = new THREE.Mesh();
+      strandMesh.name = "KelpBlade";
       
-      // Add waviness to the edges
-      const xOffset = Math.sin(t * Math.PI * 3) * 0.03;
+      // Create main kelp blade
+      const points: THREE.Vector2[] = [];
+      const segments = 12; // Segmentation for curve smoothness
       
-      // Create left and right side points
-      points.push(new THREE.Vector2(-width/2 + xOffset, y));
+      // Create a tapered shape for the kelp blade
+      const baseWidth = 0.15; // Width at the base
+      const tipWidth = 0.08; // Width at the tip
+      
+      // Create left and right side points with a curved shape
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const y = height * t; // Height progresses linearly
+        
+        // Width tapers from base to tip with slight curve
+        const width = baseWidth * (1 - t * 0.8) + tipWidth * (t * 0.8);
+        
+        // Add waviness to the edges
+        const xOffset = Math.sin(t * Math.PI * 3) * 0.03;
+        
+        // Create left side point with NaN check
+        const leftX = -width/2 + xOffset;
+        if (!isNaN(leftX) && !isNaN(y)) {
+          points.push(new THREE.Vector2(leftX, y));
+        } else {
+          // Use safe values if NaN detected
+          points.push(new THREE.Vector2(-width/2, y));
+        }
+      }
+      
+      // Add tip point with NaN check
+      const tipY = height + 0.05;
+      if (!isNaN(tipY)) {
+        points.push(new THREE.Vector2(0, tipY));
+      } else {
+        points.push(new THREE.Vector2(0, height));
+      }
+      
+      // Add right side points (in reverse to complete the shape)
+      for (let i = segments; i >= 0; i--) {
+        const t = i / segments;
+        const y = height * t;
+        
+        const width = baseWidth * (1 - t * 0.8) + tipWidth * (t * 0.8);
+        const xOffset = Math.sin(t * Math.PI * 3) * 0.03;
+        
+        // Create right side point with NaN check
+        const rightX = width/2 + xOffset;
+        if (!isNaN(rightX) && !isNaN(y)) {
+          points.push(new THREE.Vector2(rightX, y));
+        } else {
+          // Use safe values if NaN detected
+          points.push(new THREE.Vector2(width/2, y));
+        }
+      }
+      
+      // Verify we have enough points to create a valid shape
+      if (points.length < 3) {
+        throw new Error("Not enough valid points to create kelp strand shape");
+      }
+      
+      // Create shape from points
+      const strandShape = new THREE.Shape(points);
+      
+      // Create extrusion settings with low-poly fallback options
+      const extrudeSettings = {
+        steps: 1,
+        depth: 0.02, // Very thin
+        bevelEnabled: false
+      };
+      
+      // Create geometry and mesh
+      const strandGeometry = new THREE.ExtrudeGeometry(strandShape, extrudeSettings);
+      
+      // Compute correct bounding sphere to avoid NaN issues
+      AssetHelpers.computeCorrectBoundingSphere(strandGeometry);
+      
+      // Verify geometry is valid
+      if (!this.validateGeometry(strandGeometry)) {
+        throw new Error("Invalid kelp strand geometry created");
+      }
+      
+      // Set the geometry and material to the mesh
+      strandMesh.geometry = strandGeometry;
+      strandMesh.material = material;
+      
+      // Add small details/veins to the kelp blade
+      this.addKelpDetails(strandMesh, height, material);
+      
+      // Ensure the mesh is visible
+      strandMesh.visible = true;
+      
+      // Return the mesh
+      return strandMesh;
+    } catch (error) {
+      console.error("Error creating kelp strand:", error);
+      
+      // Create a simple fallback geometry if the complex one fails
+      const fallbackGeometry = new THREE.PlaneGeometry(0.15, height, 1, 4);
+      fallbackGeometry.translate(0, height/2, 0);
+      
+      // Ensure the fallback has a valid bounding sphere
+      AssetHelpers.computeCorrectBoundingSphere(fallbackGeometry);
+      
+      // Create a simple mesh with the fallback geometry
+      const fallbackMesh = new THREE.Mesh(fallbackGeometry, material);
+      fallbackMesh.name = "KelpBladeFallback";
+      fallbackMesh.visible = true;
+      
+      return fallbackMesh;
+    }
+  }
+  
+  /**
+   * Validates a geometry to ensure it doesn't contain NaN values
+   * @param geometry The geometry to validate
+   * @returns true if the geometry is valid, false otherwise
+   */
+  private validateGeometry(geometry: THREE.BufferGeometry): boolean {
+    const position = geometry.getAttribute('position');
+    
+    if (!position || position.count === 0) {
+      return false;
     }
     
-    // Add tip point
-    points.push(new THREE.Vector2(0, height + 0.05));
-    
-    // Add right side points (in reverse to complete the shape)
-    for (let i = segments; i >= 0; i--) {
-      const t = i / segments;
-      const y = height * t;
+    // Check position values for NaN
+    for (let i = 0; i < position.count; i++) {
+      const x = position.getX(i);
+      const y = position.getY(i);
+      const z = position.getZ(i);
       
-      const width = baseWidth * (1 - t * 0.8) + tipWidth * (t * 0.8);
-      const xOffset = Math.sin(t * Math.PI * 3) * 0.03;
-      
-      points.push(new THREE.Vector2(width/2 + xOffset, y));
+      if (isNaN(x) || isNaN(y) || isNaN(z)) {
+        return false;
+      }
     }
     
-    // Create shape from points
-    const strandShape = new THREE.Shape(points);
-    
-    // Create extrusion settings
-    const extrudeSettings = {
-      steps: 1,
-      depth: 0.02, // Very thin
-      bevelEnabled: false
-    };
-    
-    // Create geometry and mesh
-    const strandGeometry = new THREE.ExtrudeGeometry(strandShape, extrudeSettings);
-    
-    // Manually compute bounding sphere to fix NaN issue
-    this.computeCorrectBoundingSphere(strandGeometry);
-    
-    const strandMesh = new THREE.Mesh(strandGeometry, material);
-    strandMesh.name = "KelpBlade";
-    
-    // Add small details/veins to the kelp blade
-    this.addKelpDetails(strandMesh, height, material);
-    
-    // Return the mesh
-    return strandMesh;
+    return true;
   }
 
   /**
    * Add details like veins and small features to the kelp blade
+   * with improved NaN protection
    */
   private addKelpDetails(strandMesh: THREE.Mesh, height: number, material: THREE.Material): void {
-    // Optional: Add a central vein or rib to the kelp blade
-    const veinGeometry = new THREE.BoxGeometry(0.01, height * 0.95, 0.015);
-    veinGeometry.translate(0, height * 0.45, 0.005); // Center vein on blade
-    
-    // Manually compute bounding sphere to fix NaN issue
-    this.computeCorrectBoundingSphere(veinGeometry);
-    
-    const veinMaterial = material.clone();
-    // Cast to MeshStandardMaterial to set properties
-    if (veinMaterial instanceof THREE.MeshStandardMaterial) {
-      veinMaterial.color = new THREE.Color(veinMaterial.color).multiplyScalar(0.9); // Slightly darker
-    }
-    
-    const vein = new THREE.Mesh(veinGeometry, veinMaterial);
-    vein.name = "KelpVein";
-    strandMesh.add(vein);
-    
-    // Add some small "holes" or perforations randomly distributed along the blade
-    const numHoles = Math.floor(2 + Math.random() * 4); // 2-5 holes per blade
-    
-    for (let i = 0; i < numHoles; i++) {
-      // Position holes in the upper 70% of the blade
-      const holeY = height * (0.3 + Math.random() * 0.6);
-      const holeX = (Math.random() - 0.5) * 0.08; // Offset from center
+    try {
+      // Validate input parameter
+      if (isNaN(height) || height <= 0) {
+        console.warn("Invalid height for kelp details, using default");
+        height = 3.5;
+      }
       
-      const holeSize = 0.02 + Math.random() * 0.02;
-      const holeGeometry = new THREE.CircleGeometry(holeSize, 8);
+      // Optional: Add a central vein or rib to the kelp blade
+      const veinGeometry = new THREE.BoxGeometry(0.01, height * 0.95, 0.015);
+      veinGeometry.translate(0, height * 0.45, 0.005); // Center vein on blade
       
-      // Ensure the holes go all the way through the blade
-      holeGeometry.rotateX(-Math.PI / 2);
-      holeGeometry.translate(holeX, holeY, 0.02); // Position on the kelp surface
+      // Use AssetHelpers to fix NaN issue
+      AssetHelpers.computeCorrectBoundingSphere(veinGeometry);
       
-      // Manually compute bounding sphere to fix NaN issue
-      this.computeCorrectBoundingSphere(holeGeometry);
+      // Create enhanced Pixar-style vein material
+      let veinMaterial: THREE.Material;
+      try {
+        // Clone the original material as starting point
+        veinMaterial = material.clone();
+        
+        // Cast to MeshStandardMaterial to set Pixar-style properties
+        if (veinMaterial instanceof THREE.MeshStandardMaterial) {
+          // Darker color for the vein
+          veinMaterial.color = new THREE.Color(veinMaterial.color).multiplyScalar(0.85);
+          
+          // Reduce roughness for slightly smoother appearance than the main kelp
+          veinMaterial.roughness = Math.max(0.1, (veinMaterial.roughness || 0.6) * 0.9);
+          
+          // Increase metalness for better definition
+          veinMaterial.metalness = Math.min(0.2, (veinMaterial.metalness || 0.05) * 1.5);
+          
+          // Enhance clearcoat for better visibility/contrast
+          if (veinMaterial.clearcoat !== undefined) {
+            veinMaterial.clearcoat = Math.min(0.6, (veinMaterial.clearcoat * 1.2));
+            veinMaterial.clearcoatRoughness = Math.max(0.1, (veinMaterial.clearcoatRoughness || 0.3) * 0.8);
+          } else {
+            veinMaterial.clearcoat = 0.5;
+            veinMaterial.clearcoatRoughness = 0.2;
+          }
+          
+          // Slight decrease in transmission for more defined appearance
+          if (veinMaterial.transmission !== undefined) {
+            veinMaterial.transmission = Math.max(0, (veinMaterial.transmission || 0.1) * 0.8);
+          }
+        }
+      } catch (error) {
+        // Fallback to Pixar-style standard material if clone fails
+        console.warn("Error cloning material for kelp vein:", error);
+        veinMaterial = new THREE.MeshStandardMaterial({ 
+          color: 0x2A5A37,              // Dark green
+          roughness: 0.5,               // Medium roughness
+          metalness: 0.1,               // Slight metalness
+          clearcoat: 0.5,               // Medium clearcoat for definition
+          clearcoatRoughness: 0.2       // Fairly smooth clearcoat
+        });
+      }
       
-      const holeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x000000,
-        transparent: true,
-        opacity: 0.7,
-        side: THREE.DoubleSide
-      });
+      const vein = new THREE.Mesh(veinGeometry, veinMaterial);
+      vein.name = "KelpVein";
+      strandMesh.add(vein);
       
-      const hole = new THREE.Mesh(holeGeometry, holeMaterial);
-      hole.name = "KelpHole";
-      strandMesh.add(hole);
+      // Limit the number of holes based on height to avoid overcrowding small kelp
+      const maxHoles = Math.min(Math.floor(height), 5); // Limit based on height
+      const numHoles = Math.max(0, Math.floor(1 + Math.random() * maxHoles)); // At least 0, at most maxHoles
+      
+      for (let i = 0; i < numHoles; i++) {
+        try {
+          // Position holes in the upper 70% of the blade
+          let holeY = height * (0.3 + Math.random() * 0.6);
+          let holeX = (Math.random() - 0.5) * 0.08; // Offset from center
+          
+          // Safety check for NaN values
+          if (isNaN(holeY) || isNaN(holeX)) {
+            holeY = height * 0.5; // Default to middle if NaN
+            holeX = 0;
+          }
+          
+          // Ensure hole size is reasonable
+          const holeSize = Math.max(0.01, Math.min(0.04, 0.02 + Math.random() * 0.02));
+          
+          // Use lower segment count for better performance
+          const holeGeometry = new THREE.CircleGeometry(holeSize, 6);
+          
+          // Ensure the holes go all the way through the blade
+          holeGeometry.rotateX(-Math.PI / 2);
+          holeGeometry.translate(holeX, holeY, 0.02); // Position on the kelp surface
+          
+          // Use AssetHelpers to fix NaN issue
+          AssetHelpers.computeCorrectBoundingSphere(holeGeometry);
+          
+          // Create a more sophisticated hole material for better Pixar-style appearance
+          const holeMaterial = new THREE.MeshStandardMaterial({
+            color: 0x102010,              // Very dark green, not pure black for better integration
+            roughness: 0.9,               // Very rough interior
+            metalness: 0.0,               // No metalness for interior
+            emissive: 0x050505,           // Very slight emissive for depth
+            emissiveIntensity: 0.2,       // Subtle intensity
+            transparent: true,
+            opacity: 0.8,                 // More opaque for better visibility
+            side: THREE.DoubleSide,       // Render both sides
+            depthTest: true,              // Ensure proper depth testing
+            depthWrite: true              // Ensure the holes write to depth buffer
+          });
+          
+          const hole = new THREE.Mesh(holeGeometry, holeMaterial);
+          hole.name = "KelpHole_" + i;
+          strandMesh.add(hole);
+        } catch (holeError) {
+          console.warn("Error creating kelp hole:", holeError);
+          // Continue with next hole, not critical
+        }
+      }
+    } catch (error) {
+      console.error("Error in addKelpDetails:", error);
+      // Not critical if details fail to add, main kelp blade still exists
     }
   }
 
   /**
-   * Manually compute a valid bounding sphere to fix NaN issues
+   * Compute a valid bounding sphere to fix NaN issues
+   * Uses the shared AssetHelpers implementation
    */
   private computeCorrectBoundingSphere(geometry: THREE.BufferGeometry): void {
-    // Get position attribute
-    const positionAttribute = geometry.getAttribute('position');
-    
-    if (!positionAttribute) {
-      // If no position attribute, add a default bounding sphere
-      geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
-      return;
-    }
-    
-    // Calculate bounds
-    let minX = Infinity, minY = Infinity, minZ = Infinity;
-    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-    
-    const positions = positionAttribute.array;
-    const itemSize = positionAttribute.itemSize;
-    
-    // Find min/max for each axis
-    for (let i = 0; i < positions.length; i += itemSize) {
-      const x = positions[i];
-      const y = positions[i + 1];
-      const z = positions[i + 2];
-      
-      // Skip NaN values
-      if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        minZ = Math.min(minZ, z);
-        
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-        maxZ = Math.max(maxZ, z);
-      }
-    }
-    
-    // Handle case where there are no valid vertices
-    if (!isFinite(minX)) {
-      geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
-      return;
-    }
-    
-    // Calculate center of bounding box
-    const center = new THREE.Vector3(
-      (minX + maxX) / 2,
-      (minY + maxY) / 2,
-      (minZ + maxZ) / 2
-    );
-    
-    // Calculate radius as distance from center to corner
-    const corner = new THREE.Vector3(maxX, maxY, maxZ);
-    const radius = center.distanceTo(corner);
-    
-    // Set bounding sphere directly
-    geometry.boundingSphere = new THREE.Sphere(center, radius);
+    // Use the shared implementation from AssetHelpers
+    AssetHelpers.computeCorrectBoundingSphere(geometry);
   }
 
   /**
@@ -342,15 +462,19 @@ export class KelpWallAsset {
     const playerConfig = configSystem.get('player');
     const laneWidth = playerConfig?.laneWidth || 2.0;
     
-    // Make sure collision width matches the visual width of the wall
-    const segmentWidthCoverage = Math.min(config.segmentWidthCoverage || 0.9, 0.95);
+    // Use 70% of lane width (instead of 90%) for collision to avoid hits from adjacent lanes
+    // This ensures proper lane clearance and matches the visual width used in createKelpStrands
+    const segmentWidthCoverage = 0.7; // Override config to ensure consistent collision behavior
     const collisionWidth = laneWidth * segmentWidthCoverage;
     
-    // Create collision geometry
+    // Log collision dimensions for debugging
+    console.log(`KelpWall collision width: ${collisionWidth.toFixed(2)} units (${segmentWidthCoverage * 100}% of lane width)`);
+    
+    // Create collision geometry - narrower and slightly thinner depth
     const collisionGeom = new THREE.BoxGeometry(
-      collisionWidth,    // Width covers the kelp wall
+      collisionWidth,    // Narrower width to prevent adjacent lane hits
       strandHeight,      // Height matches tallest kelp
-      0.3                // Depth gives enough thickness for collision
+      0.25               // Reduced depth for tighter collision (was 0.3)
     );
     
     // Manually compute bounding sphere to fix NaN issue
@@ -372,6 +496,26 @@ export class KelpWallAsset {
     
     // Add collision mesh to main group
     this.mesh.add(this.collisionMesh);
+    
+    // Add a debug collision mesh if needed
+    if (window.location.href.includes('debug=true')) {
+      // Create a visible debug version of the collision box
+      const debugCollisionMat = new THREE.MeshBasicMaterial({
+        visible: true,
+        wireframe: true,
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0.5
+      });
+      
+      const debugCollisionMesh = new THREE.Mesh(collisionGeom.clone(), debugCollisionMat);
+      debugCollisionMesh.name = "KelpWallCollisionBoxDebug";
+      debugCollisionMesh.position.copy(this.collisionMesh.position);
+      
+      // Add to mesh group
+      this.mesh.add(debugCollisionMesh);
+      console.log("Added visible debug collision box for KelpWall");
+    }
   }
 
   /**
@@ -386,29 +530,51 @@ export class KelpWallAsset {
     const strandHeight = config.baseScaleY;
     const playerConfig = configSystem.get('player');
     const laneWidth = playerConfig?.laneWidth || 2.0;
-    const segmentWidthCoverage = 0.9; // Strict 90% of lane width
+    
+    // Use the same narrower width as the regular collision mesh (70% instead of 90%)
+    // This ensures consistency between fallback and regular implementation
+    const segmentWidthCoverage = 0.7; // Consistent 70% width throughout the asset
     const wallWidth = laneWidth * segmentWidthCoverage;
     
-    // Simple box for the fallback kelp wall
-    const wallGeom = new THREE.BoxGeometry(wallWidth, strandHeight, 0.2);
+    console.log(`KelpWall fallback width: ${wallWidth.toFixed(2)} units (${segmentWidthCoverage * 100}% of lane width)`);
+    
+    // Simple box for the fallback kelp wall (also made slightly thicker for better visibility)
+    const wallGeom = new THREE.BoxGeometry(wallWidth, strandHeight, 0.25);
     
     // Manually compute bounding sphere to fix NaN issue
     this.computeCorrectBoundingSphere(wallGeom);
     
+    // Enhanced Pixar-style fallback material
     const wallMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x3B7A57,  // Sea green
+      color: 0x3B7A57,               // Sea green
+      roughness: 0.6,                // Slightly smoother for Pixar style
+      metalness: 0.05,               // Slight metalness for better highlights
+      emissive: 0x2A5A37,            // Darker green emissive
+      emissiveIntensity: 0.1,        // Slight glow to make it more visible
+      clearcoat: 0.4,                // Medium clearcoat for wet appearance
+      clearcoatRoughness: 0.3,       // Smoother clearcoat for slight shine
       transparent: true,
-      opacity: 0.9
+      opacity: 0.95,                 // More visible than regular
+      transmission: 0.1,             // Slight translucency for edges
+      side: THREE.DoubleSide         // Ensure both sides render
     });
     
     const wall = new THREE.Mesh(wallGeom, wallMaterial);
     wall.position.y = strandHeight / 2;
+    wall.visible = true; // Ensure visibility
     this.mesh.add(wall);
     
-    // Create collision mesh (same as visual mesh for fallback)
+    // Create collision mesh (narrower than visual mesh for better lane clearance)
+    const collisionGeom = new THREE.BoxGeometry(wallWidth * 0.9, strandHeight, 0.2);
+    this.computeCorrectBoundingSphere(collisionGeom);
+    
     this.collisionMesh = new THREE.Mesh(
-      wallGeom.clone(),
-      new THREE.MeshBasicMaterial({ visible: false })
+      collisionGeom,
+      new THREE.MeshBasicMaterial({ 
+        visible: false,
+        wireframe: true,
+        color: 0xff0000
+      })
     );
     this.collisionMesh.name = "KelpWallCollisionBoxFallback";
     this.collisionMesh.position.copy(wall.position);
@@ -422,7 +588,35 @@ export class KelpWallAsset {
       isDangerous: true
     };
     
+    // Ensure mesh and all its children are visible
+    this.mesh.visible = true;
+    this.mesh.traverse(child => {
+      if (child instanceof THREE.Mesh && !child.name.includes("Collision")) {
+        child.visible = true;
+      }
+    });
+    
     console.warn("Using fallback mesh for KelpWallAsset due to error in detailed mesh creation");
+    
+    // Add a debug collision mesh if needed
+    if (window.location.href.includes('debug=true')) {
+      // Create a visible debug version of the collision box
+      const debugCollisionMat = new THREE.MeshBasicMaterial({
+        visible: true,
+        wireframe: true,
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0.5
+      });
+      
+      const debugCollisionMesh = new THREE.Mesh(collisionGeom.clone(), debugCollisionMat);
+      debugCollisionMesh.name = "KelpWallCollisionBoxFallbackDebug";
+      debugCollisionMesh.position.copy(this.collisionMesh.position);
+      
+      // Add to mesh group
+      this.mesh.add(debugCollisionMesh);
+      console.log("Added visible debug collision box for KelpWall fallback");
+    }
   }
   
   /**

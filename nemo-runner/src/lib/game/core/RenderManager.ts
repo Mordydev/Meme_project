@@ -13,12 +13,18 @@ export class RenderManager {
   private _lastRenderSuccess: boolean = true;   // Track if last render was successful
   private _errorDebounceTimer: any = null;      // Debounce timer for error handling
   
+  // We've removed special material overrides for sharks as they're now handled
+  // directly in the SharkAsset class for better encapsulation and reliability
+  
 
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
     this.setupEffectComposer();
+    
+    // Removed shark material override as we now handle this consistently in SharkAsset
+    console.log("RenderManager: Using standardized asset visibility management");
   }
 
   private setupEffectComposer(): void {
@@ -86,9 +92,11 @@ export class RenderManager {
     // Log visibility of obstacles for debugging
     if (object.userData?.type === 'obstacle') {
       const obstacleType = object.userData?.name || 'unknown';
-      console.log(`Obstacle ${obstacleType} visibility: ${object.visible}, children count: ${object.children.length}`);
+      const meshName = object.name || 'unnamed';
+      console.log(`Obstacle ${obstacleType} (${meshName}) visibility: ${object.visible}, children count: ${object.children.length}`);
       
-      // Fix visibility if needed
+      // Simple visibility enforcement for all obstacles
+      // No special handling - each obstacle asset is now responsible for its own appearance
       if (!object.visible) {
         object.visible = true;
         console.log(`Fixed visibility for obstacle: ${obstacleType}`);

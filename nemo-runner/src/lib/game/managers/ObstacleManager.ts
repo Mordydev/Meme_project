@@ -9,6 +9,7 @@ import { SeaTurtleAsset } from '../assets/obstacles/SeaTurtleAsset';
 import { KelpWallAsset } from '../assets/obstacles/KelpWallAsset';
 import { SchoolOfFishAsset } from '../assets/obstacles/SchoolOfFishAsset';
 import { PlayerController } from './PlayerController';
+import { AssetHelpers } from '../assets/AssetHelpers';
 // import { EnvironmentManager } from './EnvironmentManager'; // To know where to spawn
 
 export type ObstacleType = AnyObstacleTypeString;
@@ -205,11 +206,134 @@ export class ObstacleManager {
     for (let i = 0; i < this.poolSize; i++) {
       const type = obstacleTypes[i];
 
-      // Use the new createObstacle method that returns both mesh and asset
-      const { mesh, asset } = this.assetFactory.createObstacle(type);
+      // Special handling for shark obstacles to ensure they're created properly
+      let mesh, asset;
+      
+      if (type === 'shark') {
+        console.log(`ObstacleManager: Creating GUARANTEED shark obstacle ${i} with completely direct mesh creation`);
+        try {
+          // Get a directly created shark mesh that bypasses SharkAsset entirely
+          // This is a completely manual mesh creation to address persistent visibility issues
+          mesh = this.assetFactory.createDirectSharkMesh ? 
+                 this.assetFactory.createDirectSharkMesh() : // Use method if available 
+                 this.createDirectSharkMesh(); // Fall back to local implementation
+          
+          // Create asset instance for animation support
+          const sharkAsset = new SharkAsset();
+          asset = sharkAsset;
+          
+          // CRITICAL: Set the mesh on the asset to connect them properly
+          if (typeof sharkAsset.setMesh === 'function') {
+            sharkAsset.setMesh(mesh);
+            console.log("ObstacleManager: Connected force-created mesh with SharkAsset instance");
+          } else {
+            console.warn("ObstacleManager: SharkAsset.setMesh not available - collision detection may fail");
+          }
+          
+          // Explicitly set asset reference in userData
+          mesh.userData = { 
+            type: 'obstacle', 
+            name: 'shark', 
+            assetInstance: sharkAsset, 
+            isDangerous: true,
+            forceCreated: true
+          };
+          
+          console.log(`ObstacleManager: Created GUARANTEED shark mesh with ${mesh.children.length} children`);
+          
+          // Double check visibility with our helper method
+          this.ensureSharkVisibility(mesh);
+        } catch (error) {
+          console.error(`ObstacleManager: ERROR even in guaranteed shark creation:`, error);
+          
+          // Create an absolute last resort fallback
+          console.log("ObstacleManager: Creating LAST RESORT emergency shark with StandardMaterial");
+          
+          // Create an emergency shark with StandardMaterial but bright colors
+          mesh = new THREE.Group();
+          mesh.name = "EMERGENCY_BACKUP_SHARK";
+          
+          // Create a bright blue body that should be unmissable
+          const body = new THREE.Mesh(
+            new THREE.CapsuleGeometry(0.4, 1.4, 8, 4),
+            new THREE.MeshStandardMaterial({ 
+              color: 0x0088FF, // Bright blue
+              emissive: 0x003366, // Light emissive for extra visibility
+              emissiveIntensity: 0.2,
+              roughness: 0.7,
+              metalness: 0.2,
+              wireframe: false
+            })
+          );
+          body.rotation.x = Math.PI / 2;
+          body.visible = true;
+          body.castShadow = true;
+          body.receiveShadow = true;
+          mesh.add(body);
+          
+          // Add a bright red fin for recognition
+          const fin = new THREE.Mesh(
+            new THREE.ConeGeometry(0.3, 0.6, 4),
+            new THREE.MeshStandardMaterial({ 
+              color: 0xFF0000, // Bright red
+              emissive: 0x660000, // Light emissive for extra visibility
+              emissiveIntensity: 0.2,
+              roughness: 0.7,
+              metalness: 0.2,
+              wireframe: false
+            })
+          );
+          fin.position.set(0, 0.4, 0);
+          fin.rotation.z = Math.PI;
+          fin.visible = true;
+          fin.castShadow = true;
+          mesh.add(fin);
+          
+          // Create asset instance
+          const sharkAsset = new SharkAsset();
+          asset = sharkAsset;
+          
+          // Connect mesh with asset
+          if (typeof sharkAsset.setMesh === 'function') {
+            sharkAsset.setMesh(mesh);
+            console.log("ObstacleManager: Connected emergency fallback mesh with SharkAsset instance");
+          } else {
+            // Create emergency collider in the asset directly
+            sharkAsset.collisionMesh = new THREE.Mesh(
+              new THREE.CapsuleGeometry(0.5, 1.5, 8, 4),
+              new THREE.MeshBasicMaterial({ visible: false })
+            );
+            mesh.add(sharkAsset.collisionMesh);
+          }
+          
+          // Set userData for identification
+          mesh.userData = { 
+            type: 'obstacle', 
+            name: 'shark', 
+            assetInstance: sharkAsset, 
+            isDangerous: true,
+            isEmergencyFallback: true
+          };
+          
+          // CRITICAL: Ensure the mesh is visible
+          mesh.visible = true;
+        }
+      } else {
+        // Use standard creation for non-shark obstacles
+        const result = this.assetFactory.createObstacle(type);
+        mesh = result.mesh;
+        asset = result.asset;
+      }
 
+      // All obstacles start invisible until spawned
       mesh.visible = false;
       this.scene.add(mesh);
+      
+      console.log(`ObstacleManager: Added ${type} obstacle ${i} to scene:`, {
+        meshName: mesh.name,
+        hasChildren: mesh instanceof THREE.Group ? mesh.children.length > 0 : false,
+        childCount: mesh instanceof THREE.Group ? mesh.children.length : 0
+      });
 
       this.obstaclePool.push({
         mesh,
@@ -223,14 +347,47 @@ export class ObstacleManager {
   }
 
   private getInactiveObstacle(preferredType?: ObstacleType): Obstacle | undefined {
+    // Debug logging for shark type
+    if (preferredType === 'shark') {
+      console.log("ObstacleManager: Looking for an inactive shark obstacle");
+      
+      // Log statistics about available obstacles
+      const totalSharks = this.obstaclePool.filter(obs => obs.type === 'shark').length;
+      const activeSharks = this.obstaclePool.filter(obs => obs.isActive && obs.type === 'shark').length;
+      const inactiveSharks = this.obstaclePool.filter(obs => !obs.isActive && obs.type === 'shark').length;
+      
+      console.log(`ObstacleManager: Shark statistics - Total: ${totalSharks}, Active: ${activeSharks}, Inactive: ${inactiveSharks}`);
+    }
+    
     if (preferredType) {
       // First try to find an inactive obstacle of the preferred type
       const typedObstacle = this.obstaclePool.find(obs => !obs.isActive && obs.type === preferredType);
-      if (typedObstacle) return typedObstacle;
+      
+      if (typedObstacle) {
+        // Debug logging for shark obstacles
+        if (preferredType === 'shark') {
+          console.log("ObstacleManager: Found inactive shark obstacle");
+          console.log("Shark mesh details:", {
+            name: typedObstacle.mesh.name,
+            childCount: typedObstacle.mesh instanceof THREE.Group ? typedObstacle.mesh.children.length : 0,
+            meshVisible: typedObstacle.mesh.visible,
+            userData: typedObstacle.mesh.userData
+          });
+        }
+        return typedObstacle;
+      } else if (preferredType === 'shark') {
+        console.log("ObstacleManager: No inactive shark found, will try any inactive obstacle");
+      }
     }
 
     // If no preferred type or none found, get any inactive obstacle
-    return this.obstaclePool.find(obs => !obs.isActive);
+    const anyObstacle = this.obstaclePool.find(obs => !obs.isActive);
+    
+    if (preferredType === 'shark' && anyObstacle) {
+      console.log(`ObstacleManager: Using inactive ${anyObstacle.type} instead of shark (fallback)`);
+    }
+    
+    return anyObstacle;
   }
 
   private resetTimeToNextSpawn(): void {
@@ -354,31 +511,32 @@ export class ObstacleManager {
       // Adjust probabilities based on complexity
       // As complexity increases, dynamic obstacles (pufferfish, jellyfish, shark, seaTurtle) become more common
 
-      // Only spawn advanced obstacles at higher complexity levels
-      const sharkChance = this.complexityFactor > 0.5 ? 0.10 * this.complexityFactor : 0; // 0-10%
-      const turtleChance = this.complexityFactor > 0.3 ? 0.10 * this.complexityFactor : 0; // 0-10%
-      const kelpWallChance = this.complexityFactor > 0.4 ? 0.10 * this.complexityFactor : 0; // 0-10%
-      const schoolFishChance = this.complexityFactor > 0.3 ? 0.10 * this.complexityFactor : 0; // 0-10%
+      // Modified complexity thresholds to ensure advanced obstacles appear earlier
+      const sharkChance = this.complexityFactor > 0.2 ? 0.15 * this.complexityFactor : 0; // 0-15%
+      const turtleChance = this.complexityFactor > 0.2 ? 0.15 * this.complexityFactor : 0; // 0-15%
+      const kelpWallChance = this.complexityFactor > 0.2 ? 0.15 * this.complexityFactor : 0; // 0-15%
+      const schoolFishChance = this.complexityFactor > 0.2 ? 0.15 * this.complexityFactor : 0; // 0-15%
       const advancedObstaclesChance = sharkChance + turtleChance + kelpWallChance + schoolFishChance;
 
-      if (rand < 0.22 - (this.complexityFactor * 0.15)) {
-        type = 'coral';    // 22% to 7% chance for coral as complexity increases
-      } else if (rand < 0.42 - (this.complexityFactor * 0.15)) {
-        type = 'rock';     // 20% to 5% chance for rock as complexity increases
-      } else if (rand < 0.6 - (this.complexityFactor * 0.1)) {
-        type = 'clam';     // 18% to 8% chance for clam as complexity increases
-      } else if (rand < 0.75 - (advancedObstaclesChance * 0.5)) {
-        type = 'pufferfish'; // 15% to ~10% chance as complexity increases
-      } else if (rand < 0.9 - (advancedObstaclesChance * 0.5)) {
-        type = 'jellyfish';  // 15% to ~10% chance as complexity increases
-      } else if (rand < 0.9 + (sharkChance * 0.5)) {
-        type = 'shark';    // 0% to ~10% chance at max complexity
-      } else if (rand < 0.9 + (sharkChance * 0.5) + (turtleChance * 0.5)) {
-        type = 'seaTurtle'; // 0% to ~10% chance at max complexity
-      } else if (rand < 0.9 + (sharkChance * 0.5) + (turtleChance * 0.5) + (kelpWallChance * 0.5)) {
-        type = 'kelpWall'; // 0% to ~10% chance at max complexity
+      // Modified obstacle selection to increase chance of advanced obstacles
+      if (rand < 0.20 - (this.complexityFactor * 0.15)) {
+        type = 'coral';    // 20% to 5% chance for coral as complexity increases
+      } else if (rand < 0.35 - (this.complexityFactor * 0.15)) {
+        type = 'rock';     // 15% to 0% chance for rock as complexity increases
+      } else if (rand < 0.5 - (this.complexityFactor * 0.1)) {
+        type = 'clam';     // 15% to 5% chance for clam as complexity increases
+      } else if (rand < 0.65 - (advancedObstaclesChance * 0.3)) {
+        type = 'pufferfish'; // 15% to ~5% chance as complexity increases
+      } else if (rand < 0.8 - (advancedObstaclesChance * 0.3)) {
+        type = 'jellyfish';  // 15% to ~5% chance as complexity increases
+      } else if (rand < 0.85 + (sharkChance * 0.5)) {
+        type = 'shark';    // 5-20% chance depending on complexity
+      } else if (rand < 0.9 + (turtleChance * 0.5)) {
+        type = 'seaTurtle'; // 5-20% chance depending on complexity
+      } else if (rand < 0.95 + (kelpWallChance * 0.5)) {
+        type = 'kelpWall'; // 5-20% chance depending on complexity
       } else {
-        type = 'schoolOfFish'; // 0% to ~10% chance at max complexity
+        type = 'schoolOfFish'; // 5-20% chance depending on complexity
       }
 
       obstacleTypes.push(type);
@@ -417,6 +575,22 @@ export class ObstacleManager {
 
       obstacle.isActive = true;
       obstacle.mesh.visible = true;
+      
+      // Ensure meshes and their children are visible
+      if (obstacle.type === 'shark' || obstacle.type === 'seaTurtle' || obstacle.type === 'kelpWall') {
+        console.log(`ObstacleManager: Setting ${obstacle.type} and its children to visible`);
+        
+        // Apply consistent visibility enforcement to all obstacles
+        // Each asset is now responsible for its own appearance
+        AssetHelpers.ensureVisibility(obstacle.mesh);
+        
+        // Special handling only for render ordering if needed
+        if (obstacle.type === 'shark') {
+          obstacle.mesh.renderOrder = 1000; // Keep high render order for sharks
+        } else if (obstacle.type === 'seaTurtle') {
+          obstacle.mesh.renderOrder = 900;  // High render order for sea turtles
+        }
+      }
 
       // Position the obstacle
       obstacle.mesh.position.x = laneIndex * laneWidth;
@@ -433,6 +607,39 @@ export class ObstacleManager {
         obstacle.mesh.position.y = -0.3; // Jellyfish float highest in the water
       } else if (obstacle.type === 'shark') {
         obstacle.mesh.position.y = -0.4; // Sharks swim at mid-water level
+        
+        // Enhanced visibility enforcement for shark
+        console.log(`ObstacleManager: Forcefully applying special shark visibility for ${obstacle.mesh.name}`);
+        this.ensureSharkVisibility(obstacle.mesh); // Apply forced materials & visibility
+        
+        // Print additional debug info about this shark mesh - avoid circular references
+        console.log("SHARK MESH DEBUG INFO:", {
+          name: obstacle.mesh.name,
+          childCount: obstacle.mesh instanceof THREE.Group ? obstacle.mesh.children.length : 0,
+          childNames: obstacle.mesh instanceof THREE.Group ? 
+            obstacle.mesh.children.map(c => c.name || 'unnamed').join(', ') : 'not a group',
+          // Extract only the relevant properties from userData to avoid circular references
+          userDataProps: {
+            type: obstacle.mesh.userData.type,
+            name: obstacle.mesh.userData.name,
+            isDangerous: obstacle.mesh.userData.isDangerous,
+            isFallback: obstacle.mesh.userData.isFallback,
+            isEmergency: obstacle.mesh.userData.isEmergency,
+            isDirectlyCreated: obstacle.mesh.userData.isDirectlyCreated,
+            forceCreated: obstacle.mesh.userData.forceCreated
+          },
+          isFallback: obstacle.mesh.name.includes("Fallback") || 
+                     obstacle.mesh.name.includes("Emergency") || 
+                     obstacle.mesh.userData.isFallback === true
+        });
+        
+        // Check if this is a fallback shark and log it
+        if (obstacle.mesh.name.includes("Fallback") || 
+            obstacle.mesh.name.includes("Emergency")) {
+          console.log("ObstacleManager: WARNING - Using fallback shark model - should be visible but simplified");
+        } else {
+          console.log("ObstacleManager: Using detailed shark model (good)");
+        }
 
         // Set up shark patrolling parameters
         obstacle.patrolDirection = Math.random() < 0.5 ? -1 : 1; // Randomly start moving left or right
@@ -467,6 +674,15 @@ export class ObstacleManager {
         // Position kelp so its base is on the seafloor
         // Mesh is already positioned based on its base being at Y=0 within the group
         obstacle.mesh.position.y = -0.95; // Base of kelp at seafloor
+        
+        // Ensure kelp wall is properly centered on the lane
+        // Lane index is rounded to ensure it's at exact lane positions (-1, 0, 1)
+        // This prevents any slight misalignments that could cause adjacent lane collisions
+        const laneIndex = Math.round(obstacle.laneIndex);
+        const laneWidth = configSystem.get('player')?.laneWidth || 2.0;
+        obstacle.mesh.position.x = laneIndex * laneWidth;
+        
+        console.log(`KelpWall positioned at lane ${laneIndex}, x=${obstacle.mesh.position.x.toFixed(2)}`);
 
         // Set random animation phase for sway
         obstacle.kelpAnimationPhase = Math.random() * Math.PI * 2;
@@ -968,5 +1184,174 @@ export class ObstacleManager {
     // Create new obstacles
     this.initializePool();
     console.log("ObstacleManager: Recreated obstacle pool with updated meshes.");
+  }
+
+  /**
+   * Helper method to ensure shark visibility for all components
+   * This now uses the AssetHelpers utility to set visibility consistently,
+   * allowing the SharkAsset to manage its own materials.
+   */
+  private ensureSharkVisibility(mesh: THREE.Object3D): void {
+    console.log("ObstacleManager: Applying standard visibility enforcement to shark");
+    
+    // Use the standard AssetHelpers for visibility enforcement
+    // This delegates visibility handling to the helper without material overrides
+    AssetHelpers.ensureVisibility(mesh);
+    
+    // Set render order for proper layering
+    mesh.renderOrder = 1000; // High render order for consistent visibility
+  }
+  
+  /**
+   * Creates a guaranteed shark mesh directly without relying on SharkAsset
+   * This is a completely direct method to bypass any potential ThreeJS issues
+   * Now uses MeshStandardMaterial for consistent appearance with the rest of the assets
+   */
+  private createDirectSharkMesh(): THREE.Group {
+    console.log("ObstacleManager: Creating MINIMAL shark mesh with MeshStandardMaterial");
+    
+    // Create the main group
+    const sharkMesh = new THREE.Group();
+    sharkMesh.name = "SIMPLIFIED_SHARK";
+    
+    // Use StandardMaterial for proper lighting and consistent appearance
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+      color: 0x5A6A7A, // Shark gray
+      roughness: 0.7,  // Slightly rough skin texture
+      metalness: 0.1,  // Low metalness for organic look
+      side: THREE.DoubleSide // Ensure both sides render
+    });
+    
+    const finMaterial = new THREE.MeshStandardMaterial({
+      color: 0x4C6A8F, // Slightly different shade for fins
+      roughness: 0.6,  // Slightly smoother than body
+      metalness: 0.1,
+      side: THREE.DoubleSide
+    });
+    
+    // Create very simple shark body
+    const bodyGeometry = new THREE.CapsuleGeometry(0.4, 1.6, 12, 6); // More segments for smoother appearance
+    bodyGeometry.rotateX(Math.PI / 2);
+    bodyGeometry.computeVertexNormals(); // Important for proper lighting
+    
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.name = "SharkBodySimple";
+    body.visible = true;
+    body.castShadow = true;
+    body.receiveShadow = true;
+    sharkMesh.add(body);
+    
+    // Add a basic dorsal fin with smoother geometry
+    const dorsalFinGeometry = new THREE.ConeGeometry(0.3, 0.6, 8); // More segments
+    dorsalFinGeometry.rotateZ(Math.PI); // Point upward
+    dorsalFinGeometry.computeVertexNormals();
+    
+    const dorsalFin = new THREE.Mesh(dorsalFinGeometry, finMaterial);
+    dorsalFin.name = "SharkDorsalFinSimple";
+    dorsalFin.position.set(0, 0.4, 0);
+    dorsalFin.visible = true;
+    dorsalFin.castShadow = true;
+    sharkMesh.add(dorsalFin);
+    
+    // Improved tail fin
+    const tailGeometry = new THREE.BoxGeometry(0.05, 0.6, 0.3, 2, 4, 2); // More segments
+    tailGeometry.computeVertexNormals();
+    const tailFin = new THREE.Mesh(tailGeometry, finMaterial);
+    tailFin.name = "SharkTailFinSimple";
+    tailFin.position.set(0, 0, 0.9);
+    tailFin.visible = true;
+    tailFin.castShadow = true;
+    sharkMesh.add(tailFin);
+    
+    // Improved side fins
+    // Left fin
+    const sideFinGeometry = new THREE.ConeGeometry(0.2, 0.4, 8);
+    sideFinGeometry.rotateZ(Math.PI / 2); // Orient sideways
+    sideFinGeometry.computeVertexNormals();
+    
+    const leftFin = new THREE.Mesh(sideFinGeometry, finMaterial);
+    leftFin.name = "SharkLeftFinSimple";
+    leftFin.position.set(-0.4, -0.1, -0.2);
+    leftFin.visible = true;
+    leftFin.castShadow = true;
+    sharkMesh.add(leftFin);
+    
+    // Right fin (mirror of left)
+    const rightFin = leftFin.clone();
+    rightFin.name = "SharkRightFinSimple";
+    rightFin.position.x = -leftFin.position.x;
+    rightFin.visible = true;
+    sharkMesh.add(rightFin);
+    
+    // Add eyes
+    const eyeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x000000,   // Black
+      roughness: 0.3,    // Glossy eyes
+      metalness: 0.2,    // Slight sheen
+    });
+    
+    const eyeGeometry = new THREE.SphereGeometry(0.06, 8, 6);
+    
+    // Left eye
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.name = "SharkLeftEye";
+    leftEye.position.set(-0.2, 0.1, -0.7);
+    sharkMesh.add(leftEye);
+    
+    // Right eye
+    const rightEye = new THREE.Mesh(eyeGeometry.clone(), eyeMaterial);
+    rightEye.name = "SharkRightEye";
+    rightEye.position.set(0.2, 0.1, -0.7);
+    sharkMesh.add(rightEye);
+    
+    // Create simple collision mesh
+    const collisionGeometry = new THREE.CapsuleGeometry(0.5, 1.6, 8, 4);
+    collisionGeometry.rotateX(Math.PI / 2);
+    
+    const collisionMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff0000,
+      wireframe: true,
+      visible: false
+    });
+    
+    const collisionMesh = new THREE.Mesh(collisionGeometry, collisionMaterial);
+    collisionMesh.name = "SharkCollisionShapeSimple";
+    sharkMesh.add(collisionMesh);
+    
+    // MANUALLY FORCE visible flag on EVERYTHING
+    sharkMesh.visible = true;
+    sharkMesh.children.forEach(child => {
+      if (child instanceof THREE.Mesh && !child.name.includes("Collision")) {
+        child.visible = true;
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(mat => {
+              mat.visible = true;
+              mat.needsUpdate = true;
+            });
+          } else {
+            child.material.visible = true;
+            child.material.needsUpdate = true;
+          }
+        }
+      }
+    });
+    
+    // Add debug information to easily identify this mesh
+    sharkMesh.userData = {
+      type: 'obstacle',
+      name: 'shark',
+      isDangerous: true,
+      isSimplified: true,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log("SIMPLIFIED_SHARK created with StandardMaterial:", {
+      childCount: sharkMesh.children.length,
+      childNames: sharkMesh.children.map(c => c.name).join(', '),
+      isVisible: sharkMesh.visible
+    });
+    
+    return sharkMesh;
   }
 }

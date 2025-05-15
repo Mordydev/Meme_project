@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import { ShaderManager } from '../../services/ShaderManager';
 import { configSystem } from '../../core/ConfigurationSystem';
 import { RockConfig } from '../../config/gameConfig';
+import { IObstacleAsset } from '../IObstacleAsset';
+import { AssetHelpers } from '../AssetHelpers';
 
-export class RockAsset {
+export class RockAsset implements IObstacleAsset {
   public mesh!: THREE.Group;
   private mainRock!: THREE.Mesh;
   private collisionSphere!: THREE.Mesh;
@@ -100,12 +102,16 @@ export class RockAsset {
       { scale: 0.05, amount: 0.03 }  // Small details
     ]);
     
-    // Create StandardMaterial with properties from config
+    // Create enhanced Pixar-style rock material with improved properties
     const rockMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(visualConf.mainColor || 0x787A7A),
-      roughness: visualConf.roughness !== undefined ? visualConf.roughness : 0.8,
-      metalness: visualConf.metalness !== undefined ? visualConf.metalness : 0.1,
-      flatShading: true // Gives a more rugged appearance with flat faces
+      color: new THREE.Color(visualConf.mainColor || 0x787A7A),   // Stone gray
+      roughness: visualConf.roughness !== undefined ? visualConf.roughness : 0.85,  // Very high roughness for rock
+      metalness: visualConf.metalness !== undefined ? visualConf.metalness : 0.05,  // Very low metalness
+      flatShading: true,                                           // Gives a more stylized, rugged appearance
+      emissive: new THREE.Color(visualConf.emissiveColor || 0x111111), // Very subtle glow
+      emissiveIntensity: visualConf.emissiveIntensity || 0.02,    // Minimal emissive for ambient effect
+      clearcoat: visualConf.clearcoat || 0.15,                    // Slight clearcoat for wet underwater look
+      clearcoatRoughness: visualConf.clearcoatRoughness || 0.8    // Very rough clearcoat 
     });
     
     // Create the mesh and position it
@@ -153,11 +159,16 @@ export class RockAsset {
       
       // Create material with slight color variation
       const smallRockColor = baseColor.clone().offsetHSL(0, 0, (Math.random() - 0.5) * 0.2);
+      // Create enhanced Pixar-style material for small rocks with improved properties and slight variation
       const smallRockMaterial = new THREE.MeshStandardMaterial({
         color: smallRockColor,
-        roughness: (visualConf.roughness || 0.8) * (0.9 + Math.random() * 0.2),
-        metalness: (visualConf.metalness || 0.1) * (0.8 + Math.random() * 0.4),
-        flatShading: true
+        roughness: Math.min(1.0, (visualConf.roughness || 0.85) * (0.9 + Math.random() * 0.2)), // Varying roughness
+        metalness: Math.max(0.01, (visualConf.metalness || 0.05) * (0.7 + Math.random() * 0.6)), // Varying metalness
+        flatShading: true,                                           // Stylized look
+        emissive: new THREE.Color(visualConf.emissiveColor || 0x111111).offsetHSL(0, 0, (Math.random() - 0.5) * 0.1), // Slight emissive variation
+        emissiveIntensity: Math.max(0.01, (visualConf.emissiveIntensity || 0.02) * (0.8 + Math.random() * 0.4)), // Varying intensity
+        clearcoat: Math.max(0.05, (visualConf.clearcoat || 0.15) * (0.8 + Math.random() * 0.4)), // Varying clearcoat
+        clearcoatRoughness: Math.min(1.0, (visualConf.clearcoatRoughness || 0.8) * (0.9 + Math.random() * 0.2)) // Varying clearcoat roughness
       });
       
       // Create the small rock
@@ -221,13 +232,17 @@ export class RockAsset {
         detailGeometry.rotateX(Math.PI / 2);
       }
       
-      // Create material slightly darker than the rock
-      const detailColor = baseColor.clone().offsetHSL(0, 0, -0.1 - Math.random() * 0.1);
+      // Create enhanced Pixar-style material for rock details (cracks, bumps, etc.)
+      const detailColor = baseColor.clone().offsetHSL(0, 0, -0.1 - Math.random() * 0.1); // Darker than main rock
       const detailMaterial = new THREE.MeshStandardMaterial({
         color: detailColor,
-        roughness: Math.min((visualConf.roughness || 0.8) * 1.2, 1.0), // Rougher than the main rock
-        metalness: (visualConf.metalness || 0.1) * 0.8, // Less metallic
-        flatShading: true
+        roughness: Math.min((visualConf.roughness || 0.85) * 1.2, 1.0), // Maximum roughness (rougher than main rock)
+        metalness: Math.max(0.01, (visualConf.metalness || 0.05) * 0.6), // Less metallic than main rock
+        flatShading: true,                                            // Stylized look
+        emissive: new THREE.Color(visualConf.emissiveColor || 0x111111).offsetHSL(0, 0, -0.1), // Darker emissive
+        emissiveIntensity: Math.max(0.01, (visualConf.emissiveIntensity || 0.02) * 0.7), // Lower emissive intensity
+        clearcoat: Math.max(0.01, (visualConf.clearcoat || 0.15) * 0.5),    // Lower clearcoat for cracks
+        clearcoatRoughness: Math.min(1.0, (visualConf.clearcoatRoughness || 0.8) * 1.1) // Maximum roughness
       });
       
       // Create detail mesh
@@ -391,7 +406,16 @@ export class RockAsset {
     
     // Create a simple rock shape
     const geometry = new THREE.BoxGeometry(0.8, 0.6, 0.8);
-    const material = new THREE.MeshBasicMaterial({ color: 0x777777 });
+    const material = new THREE.MeshStandardMaterial({ 
+      color: 0x777777,                  // Medium gray
+      roughness: 0.85,                  // Very rough
+      metalness: 0.05,                  // Very low metalness
+      flatShading: true,                // Stylized look
+      emissive: 0x111111,               // Dark gray emissive
+      emissiveIntensity: 0.02,          // Very subtle emissive
+      clearcoat: 0.15,                  // Slight clearcoat
+      clearcoatRoughness: 0.8           // Very rough clearcoat
+    });
     
     this.mainRock = new THREE.Mesh(geometry, material);
     this.mainRock.position.y = 0.3; // Half height
@@ -491,11 +515,15 @@ export class RockAsset {
     // Default configuration
     const defaultConfig: RockConfig = {
       visuals: {
-        mainColor: 0x787A7A, // Stone gray
-        roughness: 0.8, // Very rough surface
-        metalness: 0.05, // Minimal sheen
-        patternColor: 0x505252, // Darker pattern spots
-        textureScale: 5.0 // Scale for procedural noise texture
+        mainColor: 0x787A7A,            // Stone gray
+        roughness: 0.85,                // Very rough surface
+        metalness: 0.05,                // Minimal sheen
+        emissiveColor: 0x111111,        // Dark gray subtle glow
+        emissiveIntensity: 0.02,        // Very subtle emission
+        clearcoat: 0.15,                // Slight underwater clearcoat
+        clearcoatRoughness: 0.8,        // Very rough clearcoat (rocky texture)
+        patternColor: 0x505252,         // Darker color for details/patterns
+        textureScale: 5.0               // Scale for procedural noise texture
       }
     };
     
