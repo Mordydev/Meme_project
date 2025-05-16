@@ -570,7 +570,7 @@ export class PlayerController {
     
     // Fallback: create a simple collision sphere if body mesh not found
     if (!this.mesh.userData.collisionMesh) {
-      const collisionGeometry = new THREE.SphereGeometry(0.4); // Approximately the size of the fish body
+      const collisionGeometry = new THREE.SphereGeometry(0.256); // Adjusted for 0.32 scale (0.4 * 0.32/0.5 = 0.256)
       const collisionMaterial = new THREE.MeshBasicMaterial({ 
         visible: false // Invisible collision mesh
       });

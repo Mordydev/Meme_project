@@ -1,460 +1,338 @@
 import * as THREE from 'three';
-import { ShaderManager, MaterialType } from '../../services/ShaderManager';
 import { configSystem } from '../../core/ConfigurationSystem';
+import { JellyfishConfig, ObstacleStandardMaterialVisuals } from '../../config/gameConfig';
 
 export class JellyfishAsset {
-  private shaderManager: ShaderManager;
+  public config: Readonly<JellyfishConfig>;
+  public mesh!: THREE.Group;
+  private bell!: THREE.Mesh;
+  private innerGlow!: THREE.Mesh;
+  private collisionShape!: THREE.Mesh;
   
-  // Animation state
-  private driftPhase: number = 0;
-  private verticalBobPhase: number = 0;
+  private animationTime: number = 0;
+  private initialX: number = 0;
   private tentacles: THREE.Mesh[] = [];
-  private tentacleBasePositions: THREE.Vector3[] = [];
+  private originalTentacleData: { geometry: THREE.BufferGeometry, originalPositions: THREE.BufferAttribute }[] = [];
   
-  constructor(shaderManager: ShaderManager) {
-    this.shaderManager = shaderManager;
+  constructor() {
+    this.config = this._fetchConfig();
+    this.createMesh();
   }
 
-  public createMesh(): THREE.Group {
-    const jellyfishGroup = new THREE.Group();
-    jellyfishGroup.name = "JellyfishObstacle";
-
-    // Get jellyfish config
-    const config = this.config;
-    
-    // Create the bell/dome (main body)
-    const bell = this.createBell(config.bodyRadius);
-    jellyfishGroup.add(bell);
-    
-    // Create tentacles
-    this.tentacles = [];
-    this.tentacleBasePositions = [];
-    this.createTentacles(jellyfishGroup, config.bodyRadius, config.tentacleCount, config.tentacleLength);
-    
-    // Create inner glow (a smaller, brighter sphere inside the bell)
-    const innerGlow = this.createInnerGlow(config.bodyRadius * 0.7);
-    innerGlow.position.y = -config.bodyRadius * 0.2; // Position slightly below center of bell
-    jellyfishGroup.add(innerGlow);
-
-    // Create collision sphere that encompasses jellyfish body and tentacles
-    // The collision needs to account for the full extent of the tentacles
-    const collisionRadius = config.bodyRadius + config.tentacleLength * 0.8;
-    
-    const collisionSphere = new THREE.Mesh(
-      new THREE.SphereGeometry(collisionRadius, 8, 8),
-      new THREE.MeshBasicMaterial({ visible: false })
-    );
-    collisionSphere.name = "JellyfishCollisionSphere";
-    
-    // Position the collision sphere to better cover the tentacles
-    // (slightly lower than the bell to prioritize tentacle area)
-    collisionSphere.position.y = -config.tentacleLength * 0.3;
-    jellyfishGroup.add(collisionSphere);
-
-    // Set userData for type identification and asset instance reference
-    jellyfishGroup.userData = { 
-      type: 'obstacle', 
-      name: 'jellyfish',
-      assetInstance: this,
-      // Store animation params for easier access
-      driftSpeed: config.driftSpeed,
-      driftAmplitude: config.driftAmplitude,
-      verticalBobAmplitude: config.verticalBobAmplitude,
-      verticalBobSpeed: config.verticalBobSpeed
+  private _fetchConfig(): Readonly<JellyfishConfig> {
+    const defaultConfig: JellyfishConfig = {
+        bodyRadius: 0.6,
+        tentacleCount: 8,
+        tentacleLength: 1.2,
+        tentacleRadius: 0.03,
+        tentacleSway: 0.5,
+        driftSpeed: 0.1,
+        driftAmplitude: 0.3,
+        verticalBobSpeed: 0.5,
+        verticalBobAmplitude: 0.1,
+        pulseSpeed: 1.0,
+        pulseIntensityMin: 0.95,
+        pulseIntensityMax: 1.05,
+        visuals: {
+            mainColor: 0xADD8E6,
+            detailColor: 0x87CEEB,
+            emissiveColor: 0x4682B4,
+            emissiveIntensity: 0.4,
+            roughness: 0.2,
+            metalness: 0.1,
+            opacity: 0.75,
+            transmission: 0.8,
+            animationSpeed: 1.0,
+            animationAmplitude: 0.1
+        }
     };
-
-    return jellyfishGroup;
+    try {
+        const specificConfig = configSystem.getObstaclesConfig().jellyfish;
+        const mergedConfig = { 
+            ...defaultConfig, 
+            ...specificConfig,
+            visuals: { 
+                ...defaultConfig.visuals, 
+                ...(specificConfig?.visuals || {}),
+            } 
+        };
+        return mergedConfig as Readonly<JellyfishConfig>;
+    } catch (error) {
+        console.warn("JellyfishAsset: Could not get config, using defaults", error);
+        return defaultConfig as Readonly<JellyfishConfig>;
+    }
   }
 
-  private createBell(radius: number): THREE.Mesh {
-    // Create a hemisphere for the bell (top part of jellyfish)
-    const bellGeometry = new THREE.SphereGeometry(radius, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+  public createMesh(): void {
+    this.mesh = new THREE.Group();
+    this.mesh.name = "JellyfishObstacle_StdMat";
+    this.initialX = 0;
+    const visualConf = this.config.visuals as Required<ObstacleStandardMaterialVisuals>;
+
+    this.bell = this.createBell(this.config.bodyRadius, visualConf);
+    this.mesh.add(this.bell);
     
-    // Create a material with some translucency
-    let bellMaterial;
-    const customMaterial = this.shaderManager.getMaterial('obstacle_jellyfish');
+    this.createTentacles(this.mesh, this.config.bodyRadius, this.config.tentacleCount, this.config.tentacleLength, this.config.tentacleRadius ?? 0.03, visualConf);
     
-    if (customMaterial) {
-      bellMaterial = customMaterial;
-    } else {
-      // Fallback material if custom shader not available
-      bellMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0x88CCFF,          // Light blue color
-        transparent: true,
-        opacity: 0.7,
-        transmission: 0.3,        // Translucent quality
-        roughness: 0.2,
-        metalness: 0.1,
-        emissive: 0x113355,       // Subtle blue glow
-        emissiveIntensity: 0.3
-      });
+    this.innerGlow = this.createInnerGlow(this.config.bodyRadius * 0.6, visualConf);
+    this.innerGlow.position.y = -this.config.bodyRadius * 0.1;
+    this.bell.add(this.innerGlow);
+
+    const collisionRadius = this.config.bodyRadius + this.config.tentacleLength * 0.7;
+    this.collisionShape = new THREE.Mesh(
+      new THREE.SphereGeometry(collisionRadius, 12, 8),
+      new THREE.MeshBasicMaterial({ visible: false, wireframe: true })
+    );
+    this.collisionShape.name = "JellyfishCollisionSphere";
+    this.collisionShape.position.y = -this.config.tentacleLength * 0.4;
+    this.mesh.add(this.collisionShape);
+
+    this.mesh.userData = { type: 'obstacle', name: 'jellyfish', assetInstance: this, isDangerous: true };
+  }
+
+  private createBell(radius: number, visualConf: Required<ObstacleStandardMaterialVisuals>): THREE.Mesh {
+    const bellGeometry = new THREE.SphereGeometry(radius, 32, 24, 0, Math.PI * 2, 0, Math.PI / 2);
+    const bellMaterial = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(visualConf.mainColor),
+      transparent: true,
+      opacity: visualConf.opacity,
+      roughness: visualConf.roughness,
+      metalness: visualConf.metalness,
+      emissive: new THREE.Color(visualConf.emissiveColor),
+      emissiveIntensity: visualConf.emissiveIntensity,
+      transmission: visualConf.transmission ?? 0.0,
+      side: THREE.DoubleSide
+    });
+    if (visualConf.textureMapUrl) {
+      bellMaterial.map = new THREE.TextureLoader().load(visualConf.textureMapUrl);
     }
-    
     const bell = new THREE.Mesh(bellGeometry, bellMaterial);
-    
-    // Slightly bell-shaped deformation
-    bell.scale.y = 0.8; // Flatten it a bit
-    
-    // Tilt edges outward
-    const edges = this.createBellEdges(radius);
-    bell.add(edges);
-    
+    bell.scale.y = 0.7;
+
+    const edgeRadius = radius * 0.04;
+    const edgeTubeGeom = new THREE.TorusGeometry(radius * 0.98, edgeRadius, 16, 48);
+    const edgeMaterial = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(visualConf.detailColor || visualConf.mainColor),
+        transparent: true, opacity: visualConf.opacity ? visualConf.opacity * 0.8 : 0.5,
+        roughness: (visualConf.roughness || 0.2) + 0.1,
+        metalness: visualConf.metalness || 0.1,
+        emissive: new THREE.Color(visualConf.emissiveColor).multiplyScalar(1.2),
+        emissiveIntensity: (visualConf.emissiveIntensity || 0.3) * 1.2,
+        transmission: visualConf.transmission ? visualConf.transmission * 0.7 : 0.5,
+        side: THREE.DoubleSide
+    });
+    const bellRim = new THREE.Mesh(edgeTubeGeom, edgeMaterial);
+    bellRim.rotation.x = Math.PI / 2;
+    bellRim.position.y = -edgeRadius*0.5;
+    bell.add(bellRim);
+
     return bell;
   }
 
-  private createBellEdges(radius: number): THREE.Mesh {
-    // Create a torus for the bell edges
-    const edgeGeometry = new THREE.TorusGeometry(radius * 0.95, radius * 0.05, 16, 32);
-    
-    const edgeMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0x77BBFF,           // Slightly different tint
-      transparent: true,
-      opacity: 0.75,
-      roughness: 0.3,
-      metalness: 0.1
-    });
-    
-    const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
-    edge.rotation.x = Math.PI / 2; // Orient horizontally
-    edge.position.y = -radius * 0.05; // Position at the bottom rim of the bell
-    
-    return edge;
-  }
-
-  private createInnerGlow(radius: number): THREE.Mesh {
-    // Create a sphere for the inner glow
-    const glowGeometry = new THREE.SphereGeometry(radius, 16, 16);
-    
+  private createInnerGlow(radius: number, visualConf: Required<ObstacleStandardMaterialVisuals>): THREE.Mesh {
+    const glowGeometry = new THREE.SphereGeometry(radius, 16, 12);
     const glowMaterial = new THREE.MeshPhysicalMaterial({
-      color: 0xAADDFF,          // Brighter blue
+      color: new THREE.Color(visualConf.detailColor),
       transparent: true,
-      opacity: 0.6,
-      emissive: 0x4488DD,       // Stronger emissive for glow effect
-      emissiveIntensity: 0.7,
-      roughness: 0.1
+      opacity: (visualConf.opacity || 0.7) * 0.5,
+      emissive: new THREE.Color(visualConf.emissiveColor).multiplyScalar(1.5),
+      emissiveIntensity: (visualConf.emissiveIntensity || 0.3) * 2.0,
+      roughness: 0.5,
+      metalness: 0.0,
+      transmission: visualConf.transmission ? visualConf.transmission * 0.5 : 0.3,
+      blending: THREE.AdditiveBlending
     });
-    
     return new THREE.Mesh(glowGeometry, glowMaterial);
   }
 
-  private createTentacles(group: THREE.Group, bodyRadius: number, count: number, length: number): void {
-    const tentacleMaterial = new THREE.MeshPhongMaterial({
-      color: 0x77AADD,          // Blue tint
+  private createTentacles(group: THREE.Group, bodyRadius: number, count: number, length: number, tentacleRadiusBase: number, visualConf: Required<ObstacleStandardMaterialVisuals>): void {
+    this.tentacles = [];
+    this.originalTentacleData = [];
+    const tentacleMaterial = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(visualConf.detailColor),
       transparent: true,
-      opacity: 0.8,
-      emissive: 0x224477,
-      emissiveIntensity: 0.3,
-      shininess: 70
+      opacity: 0.85,
+      roughness: visualConf.roughness ?? 0.4,
+      metalness: visualConf.metalness ?? 0.05,
+      emissive: new THREE.Color(visualConf.emissiveColor).multiplyScalar(0.7),
+      emissiveIntensity: (visualConf.emissiveIntensity ?? 0.3) * 0.7,
+      transmission: (visualConf.transmission ?? 0.8) * 0.25,
+      side: THREE.DoubleSide
     });
 
-    // Create tentacles evenly distributed around the bell
+    const heightSegments = 10;
+
     for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const x = Math.cos(angle) * bodyRadius * 0.8;
-      const z = Math.sin(angle) * bodyRadius * 0.8;
+      const angle = (i / count) * Math.PI * 2 + (Math.random() -0.5) * 0.2;
+      const x = Math.cos(angle) * bodyRadius * 0.75;
+      const z = Math.sin(angle) * bodyRadius * 0.75;
+      const currentLength = length * THREE.MathUtils.randFloat(0.7, 1.1);
 
-      // Create curved path for more realistic tentacle using TubeGeometry
-      // Create a natural curve for the tentacle with slight randomization
-      const curvePoints = [];
-      const segments = 8; // More segments = smoother curve
-      const randomFactor = 0.2; // How much random variation in the curve
-
-      for (let j = 0; j <= segments; j++) {
-        const t = j / segments;
-        // Start at bell bottom and curve downward with increasing randomness
-        const segmentX = x + (Math.random() - 0.5) * bodyRadius * randomFactor * t * 2;
-        const segmentY = -bodyRadius - (length * t);
-        const segmentZ = z + (Math.random() - 0.5) * bodyRadius * randomFactor * t * 2;
-
-        curvePoints.push(new THREE.Vector3(segmentX, segmentY, segmentZ));
-      }
-
-      // Create a smooth curve from the points
-      const curve = new THREE.CatmullRomCurve3(curvePoints);
-
-      // Create tube geometry along the curve - tapered by adjusting radius
-      const tentacleGeometry = new THREE.TubeGeometry(
-        curve,               // Path curve
-        12,                  // Tube segments
-        bodyRadius * 0.05 * (1 - 0.7 * (0/segments)), // Starting radius (thicker at top)
-        8,                   // Radial segments (roundness of tube)
-        false                // Closed curve?
+      const tentacleGeom = new THREE.CylinderGeometry(
+        tentacleRadiusBase * 0.5,
+        tentacleRadiusBase,
+        currentLength,
+        8,
+        heightSegments,
+        true
       );
-
-      // To create taper effect, we need to modify the vertices directly
-      // Get all the vertices
-      const positions = tentacleGeometry.attributes.position;
-
-      // Loop through each ring of vertices
-      for (let v = 0; v < positions.count; v++) {
-        // Get the vertex position
-        const x = positions.getX(v);
-        const y = positions.getY(v);
-        const z = positions.getZ(v);
-
-        // Calculate which segment this vertex belongs to (0 = top, 1 = bottom)
-        // This is approximate - would need more complex logic for perfect tapering
-        const vPos = new THREE.Vector3(x, y, z);
-        let nearestPointOnCurve = curve.getPointAt(0);
-        let minDist = vPos.distanceTo(nearestPointOnCurve);
-        let segmentT = 0;
-
-        // Find closest point on curve to determine segment position (t)
-        const samples = 20;
-        for (let s = 0; s <= samples; s++) {
-          const t = s / samples;
-          const point = curve.getPointAt(t);
-          const dist = vPos.distanceTo(point);
-          if (dist < minDist) {
-            minDist = dist;
-            nearestPointOnCurve = point;
-            segmentT = t;
-          }
-        }
-
-        // Scale vertices based on segment position
-        // Thicker at top (t=0), thinner at bottom (t=1)
-        const scale = 1 - (segmentT * 0.7); // Taper to 30% of original size
-
-        // Apply scaling relative to the curve center
-        const direction = new THREE.Vector3(x, y, z).sub(nearestPointOnCurve).normalize();
-        const distance = vPos.distanceTo(nearestPointOnCurve);
-        const scaledDistance = distance * scale;
-
-        // Set the new position
-        const newPos = nearestPointOnCurve.clone().add(direction.multiplyScalar(scaledDistance));
-        positions.setXYZ(v, newPos.x, newPos.y, newPos.z);
-      }
-
-      // Make sure Three.js knows the geometry has been updated
-      positions.needsUpdate = true;
-      tentacleGeometry.computeVertexNormals();
-
-      const tentacle = new THREE.Mesh(tentacleGeometry, tentacleMaterial);
-
-      // Store the base position and curve for animation
-      this.tentacleBasePositions.push(new THREE.Vector3(x, -bodyRadius, z));
+      tentacleGeom.translate(0, -currentLength / 2, 0);
+      const originalPositions = tentacleGeom.attributes.position.clone();
+      tentacleGeom.userData.originalPositions = originalPositions;
+      
+      const tentacle = new THREE.Mesh(tentacleGeom, tentacleMaterial);
+      tentacle.position.set(x, -this.config.bodyRadius * 0.6, z);
+      
       this.tentacles.push(tentacle);
-
+      this.originalTentacleData.push({ geometry: tentacleGeom, originalPositions });
       group.add(tentacle);
     }
   }
 
-  /**
-   * Updates the jellyfish animation
-   * @param deltaTime Time in seconds since last update
-   * @param jellyfishMesh The jellyfish mesh to update
-   */
-  public updateAnimation(deltaTime: number, jellyfishMesh: THREE.Group): void {
-    if (!jellyfishMesh || this.tentacles.length === 0) return;
+  public updateAnimation(deltaTime: number): void {
+    this.animationTime += deltaTime;
+    const visualConf = this.config.visuals as Required<ObstacleStandardMaterialVisuals>;
+    const animSpeed = visualConf.animationSpeed || 1.0;
+    const animAmplitude = visualConf.animationAmplitude || 0.1;
 
-    const config = this.config;
-    
-    // Update drift phases
-    this.driftPhase += deltaTime * config.driftSpeed;
-    this.verticalBobPhase += deltaTime * config.verticalBobSpeed;
-    
-    // Apply horizontal drifting motion
-    const horizontalOffset = Math.sin(this.driftPhase) * config.driftAmplitude;
-    jellyfishMesh.position.x += horizontalOffset * deltaTime;
-    
-    // Apply vertical bobbing motion
-    const verticalOffset = Math.sin(this.verticalBobPhase) * config.verticalBobAmplitude;
-    jellyfishMesh.position.y += verticalOffset * deltaTime;
-    
-    // Update tentacle animations
-    this.animateTentacles(deltaTime, config.tentacleSway);
-  }
+    const pulseIntensityMin = this.config.pulseIntensityMin ?? 0.95;
+    const pulseIntensityMax = this.config.pulseIntensityMax ?? 1.05;
+    const pulseSpeedConf = this.config.pulseSpeed ?? 1.0;
+    const pulseFactor = (pulseIntensityMax - pulseIntensityMin) / 2;
+    const pulse = pulseIntensityMin + pulseFactor + Math.sin(this.animationTime * pulseSpeedConf * animSpeed) * pulseFactor;
+    this.bell.scale.y = (0.7 * pulse);
+    this.bell.scale.x = (1/pulse *0.5 +0.5);
+    this.bell.scale.z = (1/pulse *0.5 +0.5);
+    if (this.innerGlow) {
+        this.innerGlow.scale.set(pulse * 0.9, pulse * 1.1, pulse * 0.9);
+        if (this.innerGlow.material instanceof THREE.MeshPhysicalMaterial) {
+             (this.innerGlow.material).opacity = (visualConf.opacity || 0.7) * 0.5 * (1 + Math.sin(this.animationTime * pulseSpeedConf * animSpeed * 1.2) * 0.3);
+        }
+    }
 
-  /**
-   * Animates the tentacles with a swaying motion using shader-based techniques and geometry manipulation
-   */
-  private animateTentacles(deltaTime: number, swayFactor: number): void {
-    for (let i = 0; i < this.tentacles.length; i++) {
-      const tentacle = this.tentacles[i];
-      const basePos = this.tentacleBasePositions[i];
+    const verticalBobSpeedConf = this.config.verticalBobSpeed ?? 0.5;
+    const verticalBobAmplitudeConf = this.config.verticalBobAmplitude ?? 0.1;
+    this.mesh.position.y = Math.sin(this.animationTime * verticalBobSpeedConf * animSpeed) * verticalBobAmplitudeConf;
 
-      // Calculate phase offset for each tentacle for varied movement
-      const uniquePhase = this.driftPhase + i * (Math.PI / this.tentacles.length);
+    const driftSpeedConf = this.config.driftSpeed ?? 0.1;
+    const driftAmplitudeConf = this.config.driftAmplitude ?? 0.3;
+    this.mesh.position.x = this.initialX + Math.sin(this.animationTime * driftSpeedConf * animSpeed) * driftAmplitudeConf;
 
-      // Get geometry for vertex manipulation
-      const geometry = tentacle.geometry as THREE.BufferGeometry;
+    this.tentacles.forEach((tentacle, tentacleIndex) => {
+        const geom = tentacle.geometry;
+        const originalPosAttr = geom.userData.originalPositions as THREE.BufferAttribute;
+        const currentPosAttr = geom.attributes.position as THREE.BufferAttribute;
 
-      // Only proceed if this is a TubeGeometry with position attribute
-      if (geometry.attributes.position) {
-        const positions = geometry.attributes.position;
-        const originalPositions = geometry.userData.originalPositions;
-
-        // Store original positions if not already saved (only do this once)
-        if (!originalPositions) {
-          // Clone original positions to use as reference
-          const origPos = new Float32Array(positions.array.length);
-          for (let j = 0; j < positions.array.length; j++) {
-            origPos[j] = positions.array[j];
-          }
-          geometry.userData.originalPositions = origPos;
+        if (!originalPosAttr || !currentPosAttr) { 
+            return;
         }
 
-        // Get original positions reference
-        const origPos = geometry.userData.originalPositions;
+        const tentacleCylinderParams = (geom as THREE.CylinderGeometry).parameters;
+        if (!tentacleCylinderParams) {
+            return; 
+        }
+        
+        const tentacleLength = tentacleCylinderParams.height;
 
-        // Apply wave motion to vertices
-        for (let v = 0; v < positions.count; v++) {
-          // Get the original vertex position
-          const originalX = origPos[v * 3];
-          const originalY = origPos[v * 3 + 1];
-          const originalZ = origPos[v * 3 + 2];
-
-          // Calculate normalized position along tentacle (0 = top, 1 = bottom)
-          // This is an approximation - for perfect results would need curve parameterization
-          const verticalPosition = Math.abs(originalY + basePos.y) / (tentacle.geometry as any).parameters?.path.getLength();
-
-          // More effect at bottom of tentacle than at top
-          const effectStrength = Math.pow(verticalPosition, 2.0) * swayFactor;
-
-          // Calculate wave based on phase, position, and time
-          const waveX = Math.sin(uniquePhase + verticalPosition * 10) * effectStrength * 0.2;
-          const waveZ = Math.cos(uniquePhase * 0.7 + verticalPosition * 8) * effectStrength * 0.2;
-
-          // Apply wave to position
-          positions.setXYZ(
-            v,
-            originalX + waveX,
-            originalY, // Keep Y position unchanged
-            originalZ + waveZ
-          );
+        if (tentacleLength === 0) { 
+            return; 
         }
 
-        // Update the geometry
-        positions.needsUpdate = true;
-      } else {
-        // Fallback for non-TubeGeometry tentacles
-        // Apply simpler swaying motion using rotation
-        const swayX = Math.sin(uniquePhase) * swayFactor * 0.1;
-        const swayZ = Math.cos(uniquePhase * 0.7) * swayFactor * 0.1;
+        for (let i = 0; i < originalPosAttr.count; i++) {
+            const ox = originalPosAttr.getX(i);
+            const oy = originalPosAttr.getY(i);
+            const oz = originalPosAttr.getZ(i);
 
-        // Update rotation to create swaying effect
-        tentacle.rotation.x = swayX;
-        tentacle.rotation.z = swayZ;
+            const normalizedY = Math.abs(oy / tentacleLength);
+            let swayFactor = Math.pow(normalizedY, 1.5);
 
-        // Slightly adjust tentacle position for a more fluid effect
-        const posOffset = 0.03 * swayFactor;
-        tentacle.position.x = basePos.x + Math.sin(uniquePhase * 1.2) * posOffset;
-        tentacle.position.z = basePos.z + Math.cos(uniquePhase * 0.8) * posOffset;
-      }
-    }
+            if (isNaN(swayFactor) || !isFinite(swayFactor)) {
+                swayFactor = 0; 
+            }
+
+            const phaseOffset = tentacleIndex * 0.5 + (this.mesh.uuid.length % 5) * 0.1;
+            
+            const waveSpeed = animSpeed * 1.5;
+            const waveAmplitude = animAmplitude * (1 + normalizedY * 0.5);
+
+            const waveX = Math.sin(this.animationTime * waveSpeed + oy * 0.8 + phaseOffset) * waveAmplitude * swayFactor;
+            const waveZ = Math.cos(this.animationTime * waveSpeed * 0.6 + oy * 0.7 + phaseOffset * 1.3) * waveAmplitude * swayFactor * 0.7;
+            
+            if (isNaN(waveX) || isNaN(waveZ) || !isFinite(waveX) || !isFinite(waveZ)) {
+                continue; 
+            }
+            currentPosAttr.setXYZ(i, ox + waveX, oy, oz + waveZ);
+        }
+        currentPosAttr.needsUpdate = true;
+    });
   }
 
-  /**
-   * Determines if the jellyfish is dangerous
-   * All parts of the jellyfish are dangerous, especially the tentacles
-   */
-  public isDangerous(): boolean {
-    // Jellyfish are always dangerous, particularly their tentacles
-    return true;
-  }
-
-  /**
-   * Ensure the jellyfish stays within the lane and horizontal bounds
-   * @param jellyfishMesh The jellyfish mesh to check/adjust
-   * @param laneWidth Width of a game lane
-   * @param xBoundary Horizontal boundary of the game world
-   */
-  public constrainPosition(jellyfishMesh: THREE.Group, laneWidth: number, xBoundary: number): void {
-    // Get jellyfish config
-    const config = this.config;
-    
-    // Check if jellyfish is drifting too far and reverse direction if needed
-    if (Math.abs(jellyfishMesh.position.x) > xBoundary - config.bodyRadius) {
-      // Adjust position to be within bounds
-      const sign = Math.sign(jellyfishMesh.position.x);
-      jellyfishMesh.position.x = (xBoundary - config.bodyRadius) * sign;
-      
-      // Reset drift phase to move in opposite direction
-      this.driftPhase = Math.sign(jellyfishMesh.position.x) * Math.PI/2;
-    }
-  }
-
-  /**
-   * Resets the jellyfish to its initial state
-   */
   public reset(): void {
-    this.driftPhase = 0;
-    this.verticalBobPhase = 0;
-    // Reset any other animation state here
+    this.animationTime = 0;
+    this.bell.scale.set(1, 0.7, 1);
+    if(this.innerGlow) this.innerGlow.scale.set(1,1,1);
+    this.mesh.position.set(this.initialX, 0, this.mesh.position.z);
+
+    this.originalTentacleData.forEach(data => {
+        const currentPos = data.geometry.attributes.position as THREE.BufferAttribute;
+        currentPos.copy(data.originalPositions);
+        currentPos.needsUpdate = true;
+    });
   }
 
-  /**
-   * Disposes of any resources used by this asset
-   */
   public dispose(): void {
-    // Nothing to dispose of currently, as geometries and materials
-    // are managed by ObstacleManager and scene
-  }
-
-  /**
-   * Return the jellyfish configuration
-   */
-  public get config() {
-    // Provide default values in case config is not available
-    const defaultConfig = {
-      bodyRadius: 0.4,
-      tentacleCount: 8,
-      tentacleLength: 1.2,
-      tentacleSway: 0.7,
-      driftSpeed: 0.8,
-      driftAmplitude: 0.5,
-      verticalBobAmplitude: 0.2,
-      verticalBobSpeed: 0.6
-    };
-
-    try {
-      return configSystem.getObstaclesConfig().jellyfish || defaultConfig;
-    } catch (error) {
-      console.warn("JellyfishAsset: Could not get jellyfish config, using defaults", error);
-      return defaultConfig;
-    }
-  }
-
-  /**
-   * Returns the main bell collision object for this asset
-   */
-  public getBellCollisionObject(): THREE.Mesh {
-    // Get the bell part for collision - this would be the main body
-    const jellyfishGroup = this.tentacles[0]?.parent;
-    if (jellyfishGroup) {
-      // If we have a specific collision sphere, return that
-      const collisionSphere = jellyfishGroup.getObjectByName("JellyfishCollisionSphere") as THREE.Mesh;
-      if (collisionSphere) {
-        return collisionSphere;
-      }
-    }
-
-    // Fallback to the first mesh in the jellyfish group (should be the bell)
-    let bellMesh: THREE.Mesh | null = null;
-    if (jellyfishGroup) {
-      jellyfishGroup.traverse(child => {
-        if (child instanceof THREE.Mesh && !bellMesh && child.name !== "JellyfishCollisionSphere") {
-          bellMesh = child;
+    this.mesh.traverse(child => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry?.dispose();
+        if (child.material instanceof THREE.Material) {
+            const mat = child.material as THREE.MeshPhysicalMaterial; 
+            mat.map?.dispose();
+            mat.normalMap?.dispose();
+            mat.bumpMap?.dispose();
+            mat.transmissionMap?.dispose();
+            mat.dispose();
         }
-      });
+      }
+    });
+    this.mesh.clear();
+    this.tentacles = [];
+    this.originalTentacleData = [];
+  }
+  
+  public getMesh(): THREE.Group { return this.mesh; }
+  public getCollisionObject(): THREE.Mesh { return this.collisionShape; }
+  public isDangerous(): boolean { return true; }
+
+  public setInitialX(x: number): void {
+    this.initialX = x;
+    this.mesh.position.x = x; // Also update current position if needed immediately
+  }
+
+  public constrainPosition(xBoundary: number): void {
+    // This method assumes xBoundary is the positive limit (e.g., half of total playable width).
+    // The playable area is assumed to be from -xBoundary to +xBoundary.
+    const halfWidth = this.config.bodyRadius; // Approximation of jellyfish half-width
+
+    if (this.mesh.position.x - halfWidth < -xBoundary) {
+        this.mesh.position.x = -xBoundary + halfWidth;
+        // Update initialX so the drift is now centered around this new clamped edge if we want it to stick to edge
+        // However, typical sinusoidal drift will naturally pull it away from the edge on the next cycle.
+        // If the drift is purely additive or velocity-based, one might need to reverse velocity here.
+        // For sinusoidal, simple clamping is often enough.
+        // this.initialX = this.mesh.position.x - Math.sin(this.animationTime * (this.config.driftSpeed ?? 0.1) * (this.config.visuals.animationSpeed || 1.0)) * (this.config.driftAmplitude ?? 0.3);
+
     }
-
-    return bellMesh as THREE.Mesh;
+    if (this.mesh.position.x + halfWidth > xBoundary) {
+        this.mesh.position.x = xBoundary - halfWidth;
+        // this.initialX = this.mesh.position.x - Math.sin(this.animationTime * (this.config.driftSpeed ?? 0.1) * (this.config.visuals.animationSpeed || 1.0)) * (this.config.driftAmplitude ?? 0.3);
+    }
   }
 
-  /**
-   * Returns the tentacle collision objects for this asset
-   */
+  public getBellCollisionObject(): THREE.Mesh {
+    return this.bell;
+  }
+
   public getTentacleCollisionObjects(): THREE.Mesh[] {
-    // In this simple implementation, we're just returning the tentacle meshes themselves
     return this.tentacles;
-  }
-
-  /**
-   * Returns the main collision object for the whole jellyfish
-   */
-  public getCollisionObject(): THREE.Mesh {
-    return this.getBellCollisionObject();
   }
 }

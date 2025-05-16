@@ -149,7 +149,7 @@ export class ClownfishAsset {
       this.bodyMesh.add(this.rightEye);
       
       // Scale the fish to appropriate size
-      this.mesh.scale.set(0.5, 0.5, 0.5); // Reduced to 0.5 scale as requested
+      this.mesh.scale.set(0.32, 0.32, 0.32); // Reduced to 0.32 scale as requested
       
       console.log("ClownfishAsset: Successfully created enhanced clownfish");
     } catch (error) {
@@ -665,7 +665,7 @@ export class ClownfishAsset {
     this.bodyMesh.add(tail);
     
     // Scale the fish to match main implementation
-    this.mesh.scale.set(0.5, 0.5, 0.5); // Reduced to 0.5 scale
+    this.mesh.scale.set(0.32, 0.32, 0.32); // Reduced to 0.32 scale
   }
   
   /**

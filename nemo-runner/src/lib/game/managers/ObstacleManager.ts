@@ -411,8 +411,13 @@ export class ObstacleManager {
 
       const obstacle = this.getInactiveObstacle(type);
       if (!obstacle) {
-        console.warn(`ObstacleManager: No inactive obstacles in pool to spawn!`);
+        console.warn(`ObstacleManager: No inactive obstacles in pool to spawn! Attempted type: ${type || 'any'}`);
         continue;
+      }
+
+      // Log if a Pufferfish is being attempted to spawn
+      if (obstacle.type === 'pufferfish') {
+        console.log(`ObstacleManager: Attempting to spawn Pufferfish at X: ${laneIndex * laneWidth}, Z: ${targetZ}`);
       }
 
       obstacle.isActive = true;
@@ -523,7 +528,7 @@ export class ObstacleManager {
       // Handle clam animations
       if (obstacle.type === 'clam' && obstacle.assetInstance instanceof ClamAsset) {
         const clamAsset = obstacle.assetInstance;
-        clamAsset.updateAnimation(deltaTime, obstacle.mesh as THREE.Group);
+        clamAsset.updateAnimation(deltaTime, 0);
 
         // Store open state in userData for collision detection system
         if (obstacle.mesh.userData) {
@@ -536,12 +541,18 @@ export class ObstacleManager {
       else if (obstacle.type === 'pufferfish' && obstacle.assetInstance instanceof PufferfishAsset) {
         const pufferfishAsset = obstacle.assetInstance;
 
+        // DIAGNOSTIC LOG:
+        if (!(playerPosition instanceof THREE.Vector3 && typeof playerPosition.distanceTo === 'function')) {
+            console.error("ObstacleManager: playerPosition is NOT a valid Vector3 just before calling PufferfishAsset.updateAnimation! Value:", playerPosition, "Type:", typeof playerPosition);
+        } else if (isNaN(playerPosition.x) || isNaN(playerPosition.y) || isNaN(playerPosition.z)) {
+            console.warn("ObstacleManager: playerPosition has NaN components before calling PufferfishAsset.updateAnimation! Value:", playerPosition.toArray());
+        }
+
         // Pass player position for proximity-based inflation
-        const inflationState = pufferfishAsset.updateAnimation(deltaTime, obstacle.mesh as THREE.Group, playerPosition);
+        pufferfishAsset.updateAnimation(deltaTime, playerPosition);
 
         // Store inflation state in userData for collision detection system
         if (obstacle.mesh.userData) {
-          obstacle.mesh.userData.inflationState = inflationState;
           obstacle.mesh.userData.isDangerous = pufferfishAsset.isDangerous();
         }
       }
@@ -549,12 +560,11 @@ export class ObstacleManager {
       // Handle jellyfish animations (drifting and tentacle movement)
       else if (obstacle.type === 'jellyfish' && obstacle.assetInstance instanceof JellyfishAsset) {
         const jellyfishAsset = obstacle.assetInstance;
-        jellyfishAsset.updateAnimation(deltaTime, obstacle.mesh as THREE.Group);
+        jellyfishAsset.updateAnimation(deltaTime);
 
         // Constrain jellyfish to stay within lanes and world bounds
-        const laneWidth = configSystem.getPlayerLaneWidth();
         const xBoundary = configSystem.getWorldXBoundary();
-        jellyfishAsset.constrainPosition(obstacle.mesh as THREE.Group, laneWidth, xBoundary);
+        jellyfishAsset.constrainPosition(xBoundary);
 
         // Store danger state in userData for collision detection system
         if (obstacle.mesh.userData) {
@@ -609,7 +619,7 @@ export class ObstacleManager {
         const turtleActualForwardSpeed = playerBaseSpeed * this.seaTurtleConfig.forwardSpeedFactor;
 
         // Calculate slow forward movement relative to world speed
-        const worldScrollSpeed = this.playerController?.currentActualSpeed || playerBaseSpeed;
+        const worldScrollSpeed = this.playerController?.mesh.userData.currentActualSpeed || playerBaseSpeed;
         obstacle.mesh.position.z += (worldScrollSpeed - turtleActualForwardSpeed) * deltaTime;
 
         // Handle lane-changing AI if state parameters are set
@@ -709,19 +719,13 @@ export class ObstacleManager {
       // Handle school of fish animations and movement
       else if (obstacle.type === 'schoolOfFish' && obstacle.assetInstance instanceof SchoolOfFishAsset) {
         const schoolAsset = obstacle.assetInstance;
-
-        // Update fish animations (swimming/schooling)
         schoolAsset.updateAnimation(deltaTime);
 
-        // Handle school of fish's forward movement (can be slightly slower than environment)
-        if (obstacle.schoolForwardSpeed !== undefined) {
-          const playerBaseSpeed = configSystem.getDifficultyConfig().basePlayerSpeed;
-          const schoolActualForwardSpeed = playerBaseSpeed * obstacle.schoolForwardSpeed;
-
-          // Calculate slow forward movement relative to world speed
-          const worldScrollSpeed = this.playerController?.currentActualSpeed || playerBaseSpeed;
-          obstacle.mesh.position.z += (worldScrollSpeed - schoolActualForwardSpeed) * deltaTime;
-        }
+        // Handle school's forward movement (slower than environment scroll)
+        const playerBaseSpeed = configSystem.getDifficultyConfig().basePlayerSpeed;
+        const schoolActualForwardSpeed = playerBaseSpeed * (obstacle.schoolForwardSpeed ?? this.schoolOfFishConfig.baseSpeedFactor);
+        const worldScrollSpeed = this.playerController?.mesh.userData.currentActualSpeed || playerBaseSpeed;
+        obstacle.mesh.position.z += (worldScrollSpeed - schoolActualForwardSpeed) * deltaTime;
 
         // Store danger state in userData (school of fish is always dangerous)
         if (obstacle.mesh.userData) {
@@ -767,56 +771,51 @@ export class ObstacleManager {
     const activeIndex = this.activeObstacles.findIndex(obs => obs.mesh === obstacleMesh);
     if (activeIndex > -1) {
       const hitObstacle = this.activeObstacles[activeIndex];
-      console.log(`ObstacleManager: Player hit ${hitObstacle.type} obstacle`, obstacleMesh.name);
+      console.log(`ObstacleManager: Player hit ${hitObstacle.type} obstacle: ${obstacleMesh.name}. Checking if dangerous...`);
 
       // Check if the obstacle is actually dangerous based on its current state
       let isDangerous = true; // Default to dangerous if we can't determine
 
       if (hitObstacle.type === 'clam' && hitObstacle.assetInstance instanceof ClamAsset) {
         const clamAsset = hitObstacle.assetInstance;
-
-        if (!clamAsset.isOpen) {
-          console.log("ObstacleManager: Clam was closed during collision, no damage!");
-          isDangerous = false;
+        isDangerous = clamAsset.isDangerous();
+        console.log(`ObstacleManager: Clam asset found. isOpen: ${clamAsset.isOpen}, isDangerous from asset: ${isDangerous}`);
+        if (!clamAsset.isDangerous()) { 
+          console.log("ObstacleManager: Clam was not dangerous during collision!");
         }
       }
       else if (hitObstacle.type === 'pufferfish' && hitObstacle.assetInstance instanceof PufferfishAsset) {
         const pufferfishAsset = hitObstacle.assetInstance;
-
         isDangerous = pufferfishAsset.isDangerous();
+        console.log(`ObstacleManager: Pufferfish asset found. isDangerous from asset: ${isDangerous}`);
         if (!isDangerous) {
           console.log("ObstacleManager: Pufferfish is not in a dangerous state, no damage!");
         }
       }
       else if (hitObstacle.type === 'jellyfish' && hitObstacle.assetInstance instanceof JellyfishAsset) {
         const jellyfishAsset = hitObstacle.assetInstance;
-
-        // Jellyfish are always dangerous, especially the tentacles
         isDangerous = jellyfishAsset.isDangerous();
+        console.log(`ObstacleManager: Jellyfish asset found. isDangerous from asset: ${isDangerous}`);
       }
       else if (hitObstacle.type === 'shark' && hitObstacle.assetInstance instanceof SharkAsset) {
         const sharkAsset = hitObstacle.assetInstance;
-
-        // Sharks are always dangerous
         isDangerous = sharkAsset.isDangerous();
+        console.log(`ObstacleManager: Shark asset found. isDangerous from asset: ${isDangerous}`);
       }
       else if (hitObstacle.type === 'seaTurtle' && hitObstacle.assetInstance instanceof SeaTurtleAsset) {
         const turtleAsset = hitObstacle.assetInstance;
-
-        // Sea turtles are always dangerous
         isDangerous = turtleAsset.isDangerous();
+        console.log(`ObstacleManager: SeaTurtle asset found. isDangerous from asset: ${isDangerous}`);
       }
       else if (hitObstacle.type === 'kelpWall' && hitObstacle.assetInstance instanceof KelpWallAsset) {
         const kelpAsset = hitObstacle.assetInstance;
-
-        // Kelp walls are always dangerous
         isDangerous = kelpAsset.isDangerous();
+        console.log(`ObstacleManager: KelpWall asset found. isDangerous from asset: ${isDangerous}`);
       }
       else if (hitObstacle.type === 'schoolOfFish' && hitObstacle.assetInstance instanceof SchoolOfFishAsset) {
         const schoolAsset = hitObstacle.assetInstance;
-
-        // Schools of fish are always dangerous
         isDangerous = schoolAsset.isDangerous();
+        console.log(`ObstacleManager: SchoolOfFish asset found. isDangerous from asset: ${isDangerous}`);
       }
 
       // If the obstacle is not dangerous in its current state, skip player damage
