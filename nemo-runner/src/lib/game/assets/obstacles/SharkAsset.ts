@@ -200,12 +200,22 @@ export class SharkAsset {
     this.leftPectoralFin = new THREE.Mesh(pectoralGeom, finMaterial.clone());
     this.leftPectoralFin.position.set(bodyRadius * 0.9, -bodyRadius * 0.3, -bodyLength * 0.2);
     this.leftPectoralFin.rotation.set(0, -Math.PI / 5, -Math.PI / 7);
-    this.mesh.add(this.leftPectoralFin);
+    this.bodyMesh.add(this.leftPectoralFin);
 
-    this.rightPectoralFin = new THREE.Mesh(pectoralGeom.clone(), finMaterial.clone());
+    // Create mirrored right pectoral fin
+    const rightPectoralGeom = pectoralGeom.clone();
+    // Flip vertices in X direction for mirroring
+    const finPositions = rightPectoralGeom.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < finPositions.count; i++) {
+        const x = finPositions.getX(i);
+        finPositions.setX(i, -x);
+    }
+    rightPectoralGeom.computeVertexNormals();
+    
+    this.rightPectoralFin = new THREE.Mesh(rightPectoralGeom, finMaterial.clone());
     this.rightPectoralFin.position.set(-bodyRadius * 0.9, -bodyRadius * 0.3, -bodyLength * 0.2);
     this.rightPectoralFin.rotation.set(0, Math.PI / 5, -Math.PI / 7);
-    this.mesh.add(this.rightPectoralFin);
+    this.bodyMesh.add(this.rightPectoralFin);
 
     // Tail Fin (Caudal) - Heterocercal
     const tailShape = new THREE.Shape();
@@ -228,13 +238,13 @@ export class SharkAsset {
         const gillL = new THREE.Mesh(gillGeom, gillMat);
         gillL.position.set(bodyRadius*0.75, 0, -bodyLength*0.3 + i*0.08*scale);
         gillL.rotation.y = Math.PI/8;
-        this.mesh.add(gillL);
+        this.bodyMesh.add(gillL);
         this.gillMeshes.push(gillL);
 
         const gillR = gillL.clone();
         gillR.position.x *= -1;
         gillR.rotation.y *= -1;
-        this.mesh.add(gillR);
+        this.bodyMesh.add(gillR);
         this.gillMeshes.push(gillR);
     }
 

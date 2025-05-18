@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState, memo } from 'react';
 import { GameEngine, GameState, ActivePowerUpInfo, PowerUpType } from '@/lib/game/GameEngine'; // Adjust path if needed
+import { configSystem } from '@/lib/game/core/ConfigurationSystem';
 
 // Define icons and colors for power-ups
 const powerUpIcons: Record<PowerUpType, string> = {
@@ -243,7 +244,9 @@ export default function GameCanvas() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGameOver, setIsGameOver] = useState(false);
   const [score, setScore] = useState<number>(0);
-  const [lives, setLives] = useState<number>(2); // Track player lives
+  const [lives, setLives] = useState<number>(
+    configSystem.getPlayerInitialLives?.() ?? 3
+  ); // Track player lives
   const [activePowerUps, setActivePowerUps] = useState<ActivePowerUpInfo[]>([]);
   const [screenFlash, setScreenFlash] = useState<{color: string, duration: number, key: number} | null>(null);
 

@@ -137,7 +137,18 @@ export class PufferfishAsset {
     this.leftPectoralFin.position.set(bodyRadius * 0.9, bodyRadius * 0.1, -bodyRadius * 0.1);
     this.leftPectoralFin.rotation.y = Math.PI / 2; this.leftPectoralFin.rotation.z = Math.PI / 6;
     this.mesh.add(this.leftPectoralFin);
-    this.rightPectoralFin = new THREE.Mesh(pectoralGeom.clone(), finMaterial.clone());
+    
+    // Create mirrored right fin
+    const rightPectoralGeom = pectoralGeom.clone();
+    // Flip the vertices in the x direction to create a mirror
+    const rightVertices = rightPectoralGeom.getAttribute('position');
+    for (let i = 0; i < rightVertices.count; i++) {
+      const x = rightVertices.getX(i);
+      rightVertices.setX(i, -x);
+    }
+    rightPectoralGeom.computeVertexNormals(); // Recompute normals after modifying vertices
+    
+    this.rightPectoralFin = new THREE.Mesh(rightPectoralGeom, finMaterial.clone());
     this.rightPectoralFin.position.set(-bodyRadius * 0.9, bodyRadius * 0.1, -bodyRadius * 0.1);
     this.rightPectoralFin.rotation.y = -Math.PI / 2; this.rightPectoralFin.rotation.z = -Math.PI / 6;
     this.mesh.add(this.rightPectoralFin);

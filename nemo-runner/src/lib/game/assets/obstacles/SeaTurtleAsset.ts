@@ -12,10 +12,7 @@ export class SeaTurtleAsset {
   
   private animationTime: number = 0;
   private targetTurnAngle: number = 0;
-  private turnTransitionSpeed: number = Math.PI / 2;
   private currentTelegraphState: 'left' | 'right' | 'center' = 'center';
-  private turnTargetYRotation: number = 0;
-  private currentYRotation: number = 0;
 
   constructor() {
     this.config = this._fetchConfig();
@@ -103,6 +100,9 @@ export class SeaTurtleAsset {
     const baseShellRadius = 0.4 * scale; // REDUCED from 0.5 * scale
     const shellGeom = new THREE.SphereGeometry(baseShellRadius, 32, 24);
     const shellMesh = new THREE.Mesh(shellGeom, shellMaterial);
+    
+    // Name the shell mesh so dispose() can locate and clean up its textures
+    shellMesh.name = 'SeaTurtleShell';
     
     const shellScaleFactors = { x: 0.9, y: 0.6, z: 1.0 }; // Wider, flatter, longer
     shellMesh.scale.set(shellScaleFactors.x, shellScaleFactors.y, shellScaleFactors.z);

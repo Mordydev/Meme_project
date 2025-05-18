@@ -141,13 +141,16 @@ export class GameEngine {
       this.environmentManager = new EnvironmentManager(this.scene, this.assetFactory);
 
       // Player Controller
-      this.playerController = new PlayerController(this.scene, this.assetFactory);
+      this.playerController = new PlayerController(this.scene, this.assetFactory, this);
 
       // CameraManager (after playerController)
       this.cameraManager = new CameraManager(this.camera, this.playerController);
       
       // Update CameraManager link for VisualEffectsService since it was created after CameraManager
       this.visualEffectsService.linkCameraManager(this.cameraManager);
+
+      // Notify UI of initial lives count
+      this.callbacks.onLivesUpdate?.(this.playerController.lives);
 
       // Input Handler
       this.inputHandler = new InputHandler(this.playerController);
@@ -726,5 +729,33 @@ export class GameEngine {
    */
   public getShaderManager(): ShaderManager {
     return this.shaderManager;
+  }
+
+  /**
+   * Get the VisualEffectsService for external use
+   */
+  public getVisualEffectsService(): VisualEffectsService {
+    return this.visualEffectsService;
+  }
+
+  /**
+   * Get callback functions for use by PlayerController and other systems
+   */
+  public getCallbacks(): GameEngineCallbacks {
+    return this.callbacks;
+  }
+
+  /**
+   * Get PowerUpManager for use by PlayerController and other systems
+   */
+  public getPowerUpManager(): PowerUpManager {
+    return this.powerUpManager;
+  }
+
+  /**
+   * Get CameraManager for use by PlayerController reset
+   */
+  public getCameraManager(): CameraManager {
+    return this.cameraManager;
   }
 }

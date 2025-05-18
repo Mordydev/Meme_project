@@ -694,19 +694,29 @@ export class ObstacleManager {
             if (obstacle.turtleTimeInState >= obstacle.turtleTimeToNextAction!) {
               console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Time to decide next lane change.`);
               const laneCount = configSystem.getWorldLaneCount();
-              const possibleLanes = [];
+              const possibleLanes: number[] = [];
 
-              // Get all possible lanes to change to
-              for (let i = -Math.floor(laneCount/2); i <= Math.floor(laneCount/2); i++) {
-                if (i !== obstacle.turtleCurrentLane) {
-                  possibleLanes.push(i);
-                }
+              // Only consider adjacent lanes (one step left or right)
+              const minLane = -Math.floor(laneCount/2);
+              const maxLane = Math.floor(laneCount/2);
+              const leftLane = obstacle.turtleCurrentLane - 1;
+              const rightLane = obstacle.turtleCurrentLane + 1;
+              if (leftLane >= minLane) {
+                possibleLanes.push(leftLane);
+              }
+              if (rightLane <= maxLane) {
+                possibleLanes.push(rightLane);
               }
 
               if (possibleLanes.length > 0) {
                 // Pick a random lane to move to
                 const randomIndex = Math.floor(Math.random() * possibleLanes.length);
                 obstacle.turtleTargetLane = possibleLanes[randomIndex];
+
+                // Telegraph the chosen lane direction on the asset
+                const direction = obstacle.turtleTargetLane < obstacle.turtleCurrentLane ? 'left'
+                                 : 'right';
+                turtleAsset.setTelegraphTurn(direction);
 
                 // Change to telegraphing state
                 console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Transitioning to TELEGRAPHING. TargetLane: ${obstacle.turtleTargetLane}`);
