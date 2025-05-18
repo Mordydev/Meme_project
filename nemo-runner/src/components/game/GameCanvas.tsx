@@ -367,11 +367,20 @@ export default function GameCanvas() {
         });
       }
 
-      engine.initialize();
-      console.log("GameCanvas: Attempting to call engine.start()...");
-      engine.start();
-      setIsLoading(false);
-      console.log("GameCanvas: GameEngine started.");
+      engine.initialize()
+        .then(() => {
+          engine.start();
+          setIsLoading(false);
+          console.log("GameCanvas: GameEngine started.");
+        })
+        .catch((initError: unknown) => {
+          const errMsg = `GameCanvas: Failed to initialize GameEngine: ${
+            initError instanceof Error ? initError.message : 'Unknown error'
+          }`;
+          console.error(errMsg, initError);
+          setError(errMsg);
+          setIsLoading(false);
+        });
 
       const handleResize = () => {
         if (gameEngineRef.current) {
