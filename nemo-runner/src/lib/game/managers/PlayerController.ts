@@ -191,16 +191,14 @@ export class PlayerController {
    * @param multiplier The multiplier to apply to base speed
    */
   public setForwardSpeedMultiplier(multiplier: number): void {
-    this.forwardSpeedMultiplier = multiplier;
-    this.currentForwardSpeed = this.baseForwardSpeed * this.forwardSpeedMultiplier;
+    this.forwardSpeedMultiplier = Math.max(0, multiplier); // Ensure non-negative
     // console.log(`PlayerController: Forward speed multiplier set to ${multiplier.toFixed(2)}, current speed: ${this.currentForwardSpeed.toFixed(2)}`);
   }
 
   // Jump method
   public jump(): void {
     // Can only jump if in a "grounded" or neutral state
-    if ((this.state === PlayerState.IDLE || this.state === PlayerState.LANE_CHANGING) &&
-        this.state !== PlayerState.HIT && this.state !== PlayerState.DEFEATED) {
+    if (this.state === PlayerState.IDLE || this.state === PlayerState.LANE_CHANGING) {
       this.state = PlayerState.JUMPING;
       this.isJumping = true; // Redundant if using state, but can keep for clarity
       this.isDiving = false; // Ensure not diving
@@ -216,8 +214,7 @@ export class PlayerController {
   // Dive method
   public dive(): void {
     // Can dive if idle, lane changing, OR to cancel a jump
-    if ((this.state === PlayerState.IDLE || this.state === PlayerState.LANE_CHANGING || this.state === PlayerState.JUMPING) &&
-        this.state !== PlayerState.HIT && this.state !== PlayerState.DEFEATED) {
+    if (this.state === PlayerState.IDLE || this.state === PlayerState.LANE_CHANGING || this.state === PlayerState.JUMPING) {
 
       if (this.state === PlayerState.JUMPING) {
         console.log("PlayerController: Jump cancelled by dive.");
@@ -480,7 +477,7 @@ export class PlayerController {
 
     // Reset shield power-up state
     this.isPowerUpShieldActive = false;
-    this.originalPlayerMaterial = undefined;
+    this.originalPlayerMaterials = undefined;
 
     // Reset lives and state
     this.lives = this.initialLives;

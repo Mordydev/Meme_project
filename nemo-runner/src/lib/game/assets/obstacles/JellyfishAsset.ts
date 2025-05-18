@@ -125,7 +125,7 @@ export class JellyfishAsset {
     bellRim.rotation.x = Math.PI / 2;
     bellRim.position.y = -edgeRadius*0.5;
     bell.add(bellRim);
-
+    
     return bell;
   }
 
@@ -179,7 +179,7 @@ export class JellyfishAsset {
       tentacleGeom.translate(0, -currentLength / 2, 0);
       const originalPositions = tentacleGeom.attributes.position.clone();
       tentacleGeom.userData.originalPositions = originalPositions;
-      
+
       const tentacle = new THREE.Mesh(tentacleGeom, tentacleMaterial);
       tentacle.position.set(x, -this.config.bodyRadius * 0.6, z);
       
@@ -207,7 +207,7 @@ export class JellyfishAsset {
         this.innerGlow.scale.set(pulse * 0.9, pulse * 1.1, pulse * 0.9);
         if (this.innerGlow.material instanceof THREE.MeshPhysicalMaterial) {
              (this.innerGlow.material).opacity = (visualConf.opacity || 0.7) * 0.5 * (1 + Math.sin(this.animationTime * pulseSpeedConf * animSpeed * 1.2) * 0.3);
-        }
+      }
     }
 
     const verticalBobSpeedConf = this.config.verticalBobSpeed ?? 0.5;
@@ -231,7 +231,7 @@ export class JellyfishAsset {
         if (!tentacleCylinderParams) {
             return; 
         }
-        
+
         const tentacleLength = tentacleCylinderParams.height;
 
         if (tentacleLength === 0) { 
@@ -278,7 +278,7 @@ export class JellyfishAsset {
         currentPos.copy(data.originalPositions);
         currentPos.needsUpdate = true;
     });
-  }
+    }
 
   public dispose(): void {
     this.mesh.traverse(child => {
@@ -298,7 +298,7 @@ export class JellyfishAsset {
     this.tentacles = [];
     this.originalTentacleData = [];
   }
-  
+
   public getMesh(): THREE.Group { return this.mesh; }
   public getCollisionObject(): THREE.Mesh { return this.collisionShape; }
   public isDangerous(): boolean { return true; }
@@ -331,7 +331,7 @@ export class JellyfishAsset {
   public getBellCollisionObject(): THREE.Mesh {
     return this.bell;
   }
-
+  
   public getTentacleCollisionObjects(): THREE.Mesh[] {
     return this.tentacles;
   }

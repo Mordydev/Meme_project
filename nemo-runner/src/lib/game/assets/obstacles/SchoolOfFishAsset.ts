@@ -63,7 +63,7 @@ export class SchoolOfFishAsset {
     const bodyLength = 0.8 * scale * lengthHeightIncreaseFactor;
     const bodyHeight = 0.25 * scale * lengthHeightIncreaseFactor;
     const bodyWidth = 0.15 * scale; // Width is NOT scaled by lengthHeightIncreaseFactor
-
+    
     const fishShape = new THREE.Shape();
     // Body silhouette (side view) - uses bodyLength and bodyHeight
     fishShape.moveTo(-bodyLength / 2, 0); 
@@ -168,7 +168,7 @@ export class SchoolOfFishAsset {
       const baseOffset = new THREE.Vector3(x, y, z);
       const initialRotation = new THREE.Euler(0, Math.random() * Math.PI * 2, Math.random() * 0.2 - 0.1);
       matrix.compose(baseOffset, new THREE.Quaternion().setFromEuler(initialRotation), new THREE.Vector3(1,1,1));
-      
+
       this.instancedMesh.setMatrixAt(i, matrix);
       
       // Set instance color (alternating or random between base and detail)

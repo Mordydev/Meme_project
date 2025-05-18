@@ -45,6 +45,7 @@ export class ProceduralAssetFactory {
       this.coralAssetGenerator = new CoralAsset();
       this.clamAssetGenerator = new ClamAsset();
       this.jellyfishAssetGenerator = new JellyfishAsset();
+      this.pufferfishAssetGenerator = new PufferfishAsset(); // Corrected initialization
     } catch (error) {
       console.error("Error initializing updated asset generators:", error);
       // Create empty placeholders if initialization fails
@@ -53,11 +54,12 @@ export class ProceduralAssetFactory {
       this.coralAssetGenerator = null as any;
       this.clamAssetGenerator = null as any;
       this.jellyfishAssetGenerator = null as any;
+      this.pufferfishAssetGenerator = null as any; // Also ensure placeholder on error
     }
     
     // Assets still using ShaderManager
     // We use any to bypass type checking since we're in a transition period
-    this.pufferfishAssetGenerator = new PufferfishAsset(this.shaderManager as any);
+    // this.pufferfishAssetGenerator = new PufferfishAsset(this.shaderManager as any); // This line is now handled above
     this.bubbleAssetGenerator = new BubbleAsset(this.shaderManager);
     this.coinAssetGenerator = new CoinAsset(this.shaderManager);
     this.clownfishAssetGenerator = new ClownfishAsset(this.shaderManager);
@@ -116,18 +118,9 @@ export class ProceduralAssetFactory {
           }
           return this.jellyfishAssetGenerator.getMesh();
         case 'pufferfish':
-          // For pufferfish, we need to handle it differently
-          // Create a new instance and use it directly
-          const pufferfishAsset = new PufferfishAsset(this.shaderManager);
-          // We need to use any here because createMesh is not publicly accessible
-          const pufferfishMesh = (pufferfishAsset as any).createMesh();
-          if (!pufferfishMesh) {
-            // If createMesh returns void, create a fallback
-            const fallback = new THREE.Group();
-            fallback.name = 'pufferfish_fallback';
-            return fallback;
-          }
-          return pufferfishMesh;
+          // Corrected Pufferfish handling for the new minimal asset
+          const pufferfishAssetInstance = new PufferfishAsset(); // No args
+          return pufferfishAssetInstance.getMesh(); // Get the already created mesh
         case 'shark':
         case 'seaTurtle':
         case 'kelpWall':
@@ -186,37 +179,24 @@ export class ProceduralAssetFactory {
           mesh = asset.getMesh();
           break;
         case 'pufferfish':
-          // For pufferfish, we need to handle it differently
-          // Create a new instance and use it directly with type casting to bypass constructor parameter requirements
-          const pufferfishAsset = new PufferfishAsset(this.shaderManager as any);
-          // We need to use any here because createMesh is not publicly accessible
-          // This is a temporary solution until PufferfishAsset is updated
-          const pufferfishMesh = (pufferfishAsset as any).createMesh();
-          asset = pufferfishAsset;
-          mesh = pufferfishMesh || new THREE.Group(); // Fallback if createMesh returns void
+          // Corrected Pufferfish handling for the new minimal asset
+          asset = new PufferfishAsset(); // No args
+          mesh = asset.getMesh();      // Get the already created mesh
           break;
         case 'shark':
-          // These assets still require ShaderManager
-          // Use any to bypass type checking since we're in a transition period
-          asset = new SharkAsset(this.shaderManager as any);
+          asset = new SharkAsset(); // No args
           mesh = asset.getMesh();
           break;
         case 'seaTurtle':
-          // These assets still require ShaderManager
-          // Use any to bypass type checking since we're in a transition period
-          asset = new SeaTurtleAsset(this.shaderManager as any);
+          asset = new SeaTurtleAsset(); // No args
           mesh = asset.getMesh();
           break;
         case 'kelpWall':
-          // These assets still require ShaderManager
-          // Use any to bypass type checking since we're in a transition period
-          asset = new KelpWallAsset(this.shaderManager as any);
+          asset = new KelpWallAsset(); // No args
           mesh = asset.getMesh();
           break;
         case 'schoolOfFish':
-          // These assets still require ShaderManager
-          // Use any to bypass type checking since we're in a transition period
-          asset = new SchoolOfFishAsset(this.shaderManager as any);
+          asset = new SchoolOfFishAsset(); // No args
           mesh = asset.getMesh();
           break;
         default:

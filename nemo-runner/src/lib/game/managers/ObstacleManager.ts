@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ProceduralAssetFactory, ObstacleAssetType, AnyObstacleTypeString } from '../assets/ProceduralAssetFactory';
 import { configSystem } from '../core/ConfigurationSystem';
 import { ClamAsset } from '../assets/obstacles/ClamAsset';
-import { PufferfishAsset, PufferfishState } from '../assets/obstacles/PufferfishAsset';
+import { PufferfishAsset } from '../assets/obstacles/PufferfishAsset';
 import { JellyfishAsset } from '../assets/obstacles/JellyfishAsset';
 import { SharkAsset } from '../assets/obstacles/SharkAsset';
 import { SeaTurtleAsset } from '../assets/obstacles/SeaTurtleAsset';
@@ -85,7 +85,10 @@ export class ObstacleManager {
 
     this.initializePool();
     this.resetTimeToNextSpawn();
-    console.log("ObstacleManager: Initialized with new obstacle types.");
+    // Spawn initial set of obstacles immediately
+    // Assuming player starts near Z=0, or manager handles initial placement appropriately.
+    this.spawnObstaclePattern(0); 
+    // console.log("ObstacleManager: Initialized with new obstacle types and initial spawn triggered.");
   }
 
   /**
@@ -94,7 +97,7 @@ export class ObstacleManager {
    */
   public linkPlayerController(playerController: PlayerController): void {
     this.playerController = playerController;
-    console.log("ObstacleManager: PlayerController linked for proximity effects.");
+    // console.log("ObstacleManager: PlayerController linked for proximity effects.");
   }
 
   /**
@@ -168,7 +171,7 @@ export class ObstacleManager {
   }
 
   private initializePool(): void {
-    console.log("ObstacleManager: Initializing obstacle pool with size", this.poolSize);
+    // console.log("ObstacleManager: Initializing obstacle pool with size", this.poolSize);
 
     // Create a weighted distribution of obstacle types in the pool
     // Distribute among all obstacle types with more emphasis on challenging types
@@ -183,8 +186,8 @@ export class ObstacleManager {
     const sharkCount = Math.floor(this.poolSize * 0.08);
     const seaTurtleCount = Math.floor(this.poolSize * 0.08);
     const kelpWallCount = Math.floor(this.poolSize * 0.08);
-    const schoolOfFishCount = this.poolSize - coralCount - rockCount - clamCount - pufferfishCount -
-                             jellyfishCount - sharkCount - seaTurtleCount - kelpWallCount;
+    // Adjusted to sum remaining counts
+    const schoolOfFishCount = this.poolSize - coralCount - rockCount - clamCount - pufferfishCount - jellyfishCount - sharkCount - seaTurtleCount - kelpWallCount;
 
     for (let i = 0; i < coralCount; i++) obstacleTypes.push('coral');
     for (let i = 0; i < rockCount; i++) obstacleTypes.push('rock');
@@ -218,19 +221,29 @@ export class ObstacleManager {
         assetInstance: asset
       });
 
-      console.log(`ObstacleManager: Created ${type} obstacle ${i} with mesh:`, mesh);
+      if (type === 'seaTurtle') {
+        // console.log(`[ObstacleManager Pool DEBUG] Pooled 'seaTurtle'. Obstacle in pool has type: ${this.obstaclePool[this.obstaclePool.length-1].type}, Ctor: ${this.obstaclePool[this.obstaclePool.length-1].assetInstance?.constructor?.name}`);
+      }
+
+      // console.log(`ObstacleManager: Created ${type} obstacle ${i} with mesh:`, mesh);
     }
   }
 
   private getInactiveObstacle(preferredType?: ObstacleType): Obstacle | undefined {
     if (preferredType) {
-      // First try to find an inactive obstacle of the preferred type
       const typedObstacle = this.obstaclePool.find(obs => !obs.isActive && obs.type === preferredType);
-      if (typedObstacle) return typedObstacle;
+      if (typedObstacle) {
+        // console.log(`[ObstacleManager GetInactive DEBUG] Found preferred type: ${preferredType}, Returned obstacle type: ${typedObstacle.type}, Ctor: ${typedObstacle.assetInstance?.constructor?.name}`);
+        return typedObstacle;
+      }
     }
 
     // If no preferred type or none found, get any inactive obstacle
-    return this.obstaclePool.find(obs => !obs.isActive);
+    const anyObstacle = this.obstaclePool.find(obs => !obs.isActive);
+    // if (anyObstacle) {
+    //     console.log(`[ObstacleManager GetInactive DEBUG] No preferred type or none found. Returned (any) obstacle type: ${anyObstacle.type}, Ctor: ${anyObstacle.assetInstance?.constructor?.name}`);
+    // }
+    return anyObstacle;
   }
 
   private resetTimeToNextSpawn(): void {
@@ -350,40 +363,85 @@ export class ObstacleManager {
       const rand = Math.random();
       let type: ObstacleType;
 
-      // Higher complexity means more challenging obstacles
-      // Adjust probabilities based on complexity
-      // As complexity increases, dynamic obstacles (pufferfish, jellyfish, shark, seaTurtle) become more common
+      // Target base probabilities for each type when complexity allows them
+      const targetProbabilities: { [key in ObstacleType]?: number } = {
+        coral: 0.18,    
+        rock: 0.16,     
+        clam: 0.15,     
+        pufferfish: 0.15,
+        jellyfish: 0.15, 
+        shark: 0.07,       
+        seaTurtle: 0.07,   
+        kelpWall: 0.07,   
+        schoolOfFish: 0.00  // Will be adjusted to fill remaining (Restored from 0.01)
+      };
+      
+      let activeTypes: ObstacleType[] = ['coral', 'rock', 'clam', 'pufferfish', 'jellyfish'];
+      let cumulativeProbability = 0;
+      const availableProbSpace = 1.0; // Total probability space
 
-      // Only spawn advanced obstacles at higher complexity levels
-      const sharkChance = this.complexityFactor > 0.5 ? 0.10 * this.complexityFactor : 0; // 0-10%
-      const turtleChance = this.complexityFactor > 0.3 ? 0.10 * this.complexityFactor : 0; // 0-10%
-      const kelpWallChance = this.complexityFactor > 0.4 ? 0.10 * this.complexityFactor : 0; // 0-10%
-      const schoolFishChance = this.complexityFactor > 0.3 ? 0.10 * this.complexityFactor : 0; // 0-10%
-      const advancedObstaclesChance = sharkChance + turtleChance + kelpWallChance + schoolFishChance;
-
-      if (rand < 0.22 - (this.complexityFactor * 0.15)) {
-        type = 'coral';    // 22% to 7% chance for coral as complexity increases
-      } else if (rand < 0.42 - (this.complexityFactor * 0.15)) {
-        type = 'rock';     // 20% to 5% chance for rock as complexity increases
-      } else if (rand < 0.6 - (this.complexityFactor * 0.1)) {
-        type = 'clam';     // 18% to 8% chance for clam as complexity increases
-      } else if (rand < 0.75 - (advancedObstaclesChance * 0.5)) {
-        type = 'pufferfish'; // 15% to ~10% chance as complexity increases
-      } else if (rand < 0.9 - (advancedObstaclesChance * 0.5)) {
-        type = 'jellyfish';  // 15% to ~10% chance as complexity increases
-      } else if (rand < 0.9 + (sharkChance * 0.5)) {
-        type = 'shark';    // 0% to ~10% chance at max complexity
-      } else if (rand < 0.9 + (sharkChance * 0.5) + (turtleChance * 0.5)) {
-        type = 'seaTurtle'; // 0% to ~10% chance at max complexity
-      } else if (rand < 0.9 + (sharkChance * 0.5) + (turtleChance * 0.5) + (kelpWallChance * 0.5)) {
-        type = 'kelpWall'; // 0% to ~10% chance at max complexity
+      // Adjust chances for advanced types based on complexity
+      if (this.complexityFactor > 0.5) activeTypes.push('shark');
+      if (this.complexityFactor > 0.3) activeTypes.push('seaTurtle');
+      if (this.complexityFactor > 0.4) activeTypes.push('kelpWall');
+      if (this.complexityFactor > 0.3) activeTypes.push('schoolOfFish');
+      
+      if (activeTypes.includes('seaTurtle')) {
+        // console.log(`[ObstacleManager SelectTypes DEBUG] 'seaTurtle' IS in activeTypes for selection. Complexity: ${this.complexityFactor}`);
       } else {
-        type = 'schoolOfFish'; // 0% to ~10% chance at max complexity
+        // console.log(`[ObstacleManager SelectTypes DEBUG] 'seaTurtle' IS NOT in activeTypes. Complexity: ${this.complexityFactor}`);
+      }
+      
+      // Calculate total weight of active types
+      let totalWeight = 0;
+      activeTypes.forEach(t => totalWeight += (targetProbabilities[t] || 0));
+      
+      // Add a specific weight for schoolOfFish to ensure it gets some chance if active
+      // and make it fill remaining if other weights are low.
+      if (activeTypes.includes('schoolOfFish')) {
+          const schoolFishBase = 0.07;
+          totalWeight += schoolFishBase;
+          targetProbabilities['schoolOfFish'] = schoolFishBase;
       }
 
+
+      // Normalize probabilities for active types
+      let currentCumulative = 0;
+      const normalizedProbs: { type: ObstacleType, prob: number }[] = [];
+
+      activeTypes.forEach(t => {
+        const weight = targetProbabilities[t] || 0;
+        if (totalWeight > 0) {
+            normalizedProbs.push({type: t, prob: weight / totalWeight});
+        } else if (activeTypes.length === 1 && t === activeTypes[0]) { // Only one type active
+            normalizedProbs.push({type: t, prob: 1.0});
+        }
+      });
+      
+      // Sort by original target probability to keep some order, then by name for tie-breaking
+      normalizedProbs.sort((a,b) => {
+          const probDiff = (targetProbabilities[b.type] || 0) - (targetProbabilities[a.type] || 0);
+          if (probDiff !== 0) return probDiff;
+          return a.type.localeCompare(b.type);
+      });
+
+
+      let chosenType: ObstacleType = 'rock'; // Default fallback
+      if (normalizedProbs.length > 0) {
+        chosenType = normalizedProbs[normalizedProbs.length -1].type; // Fallback to last in sorted list if rand is high
+      }
+
+
+      for (const normP of normalizedProbs) {
+        currentCumulative += normP.prob;
+        if (rand < currentCumulative) {
+          chosenType = normP.type;
+          break;
+        }
+      }
+      type = chosenType;
       obstacleTypes.push(type);
     }
-
     return obstacleTypes;
   }
 
@@ -411,13 +469,17 @@ export class ObstacleManager {
 
       const obstacle = this.getInactiveObstacle(type);
       if (!obstacle) {
-        console.warn(`ObstacleManager: No inactive obstacles in pool to spawn! Attempted type: ${type || 'any'}`);
+        // console.warn(`ObstacleManager: No inactive obstacles in pool to spawn! Attempted type: ${type || 'any'}`);
         continue;
       }
 
-      // Log if a Pufferfish is being attempted to spawn
-      if (obstacle.type === 'pufferfish') {
-        console.log(`ObstacleManager: Attempting to spawn Pufferfish at X: ${laneIndex * laneWidth}, Z: ${targetZ}`);
+      // Reset the asset instance to its default state before activating
+      if (obstacle.assetInstance && typeof obstacle.assetInstance.reset === 'function') {
+        obstacle.assetInstance.reset();
+      } else {
+        // Log a warning if the asset instance or its reset method is missing, 
+        // though this should not happen with current asset types.
+        // console.warn(`ObstacleManager: Obstacle type ${obstacle.type} has no valid assetInstance or reset method.`);
       }
 
       obstacle.isActive = true;
@@ -427,17 +489,25 @@ export class ObstacleManager {
       obstacle.mesh.position.x = laneIndex * laneWidth;
       obstacle.mesh.position.z = targetZ;
 
+      // Log details for EVERY obstacle being configured here
+      // console.log('[ObstacleManager Spawn DEBUG] Configuring obstacle. Type:', obstacle.type, 'Asset Ctor:', obstacle.assetInstance?.constructor?.name);
+      // NEW DETAILED LOG BEFORE TYPE CHECKING:
+      console.log(`[ObstacleManager Spawn Pre-Check] About to configure. Raw obstacle.type: "${obstacle.type}" (length: ${obstacle.type?.length}), Ctor: ${obstacle.assetInstance?.constructor?.name}`);
+
       // Adjust Y position based on obstacle type
       if (obstacle.type === 'rock') {
         obstacle.mesh.position.y = -0.85; // Rocks sit slightly higher on the floor
       } else if (obstacle.type === 'clam') {
         obstacle.mesh.position.y = -0.9; // Clams slightly above floor
       } else if (obstacle.type === 'pufferfish') {
-        obstacle.mesh.position.y = -0.5; // Pufferfish float higher in the water
+        obstacle.mesh.position.y = -0.1; // Pufferfish float a bit higher
+        // No specific patrol logic needed here, handled by asset
       } else if (obstacle.type === 'jellyfish') {
         obstacle.mesh.position.y = -0.3; // Jellyfish float highest in the water
-      } else if (obstacle.type === 'shark') {
-        obstacle.mesh.position.y = -0.4; // Sharks swim at mid-water level
+      } else if (obstacle.type && obstacle.type.trim() === 'shark') {
+        console.log('[ObstacleManager CRITICAL DEBUG] ENTERED shark config block. Original Type: "' + obstacle.type + '", Trimmed Type: "' + obstacle.type.trim() + '"');
+        obstacle.mesh.position.y = -0.2; // Sharks swim a bit higher
+        // Rotation is handled by the shark asset itself during its patrol
 
         // Set up shark patrolling parameters
         obstacle.patrolDirection = Math.random() < 0.5 ? -1 : 1; // Randomly start moving left or right
@@ -454,7 +524,9 @@ export class ObstacleManager {
 
         // Apply initial rotation based on patrol direction
         obstacle.mesh.rotation.y = obstacle.patrolDirection === 1 ? 0 : Math.PI;
-      } else if (obstacle.type === 'seaTurtle') {
+      } else if (obstacle.type && obstacle.type.trim() === 'seaTurtle') {
+        console.log('[ObstacleManager CRITICAL DEBUG] ENTERED seaTurtle config block. Original Type: "' + obstacle.type + '", Trimmed Type: "' + obstacle.type.trim() + '"');
+        console.log('[ObstacleManager DEBUG] Attempting to configure Sea Turtle. Asset instance constructor name:', obstacle.assetInstance?.constructor?.name);
         obstacle.mesh.position.y = -0.35; // Sea turtles swim at mid-water level
 
         // Set up sea turtle lane changing parameters
@@ -466,8 +538,12 @@ export class ObstacleManager {
 
         // Ensure the turtle starts facing forward
         if (obstacle.assetInstance instanceof SeaTurtleAsset) {
+          // console.log('[ObstacleManager DEBUG] obstacle.assetInstance IS instanceof SeaTurtleAsset. Calling setTelegraphTurn("center").');
           obstacle.assetInstance.setTelegraphTurn('center');
-        }
+        } 
+        // else {
+        //   console.warn('[ObstacleManager DEBUG] obstacle.assetInstance IS NOT instanceof SeaTurtleAsset. AssetInstance:', obstacle.assetInstance);
+        // }
       } else if (obstacle.type === 'kelpWall') {
         // Position kelp so its base is on the seafloor
         // Mesh is already positioned based on its base being at Y=0 within the group
@@ -485,19 +561,10 @@ export class ObstacleManager {
         obstacle.mesh.position.y = -0.95; // Standard coral position
       }
 
-      // Reset the asset if needed (e.g., pufferfish inflation state)
-      if (typeof obstacle.assetInstance.reset === 'function') {
-        try {
-          obstacle.assetInstance.reset();
-        } catch (error) {
-          console.warn(`ObstacleManager: Error resetting ${obstacle.type} asset:`, error);
-        }
-      }
-
       // Add to active obstacles list for collision detection
       this.activeObstacles.push(obstacle);
 
-      console.log(`ObstacleManager: Spawned ${obstacle.type} at x:${obstacle.mesh.position.x.toFixed(1)}, z:${obstacle.mesh.position.z.toFixed(1)} as part of ${pattern} pattern (complexity: ${this.complexityFactor.toFixed(2)})`);
+      // console.log(`ObstacleManager: Spawned ${obstacle.type} at x:${obstacle.mesh.position.x.toFixed(1)}, z:${obstacle.mesh.position.z.toFixed(1)} as part of ${pattern} pattern (complexity: ${this.complexityFactor.toFixed(2)})`);
     }
 
     this.lastSpawnZ = targetZ;
@@ -540,15 +607,6 @@ export class ObstacleManager {
       // Handle pufferfish animations (inflation based on player proximity)
       else if (obstacle.type === 'pufferfish' && obstacle.assetInstance instanceof PufferfishAsset) {
         const pufferfishAsset = obstacle.assetInstance;
-
-        // DIAGNOSTIC LOG:
-        if (!(playerPosition instanceof THREE.Vector3 && typeof playerPosition.distanceTo === 'function')) {
-            console.error("ObstacleManager: playerPosition is NOT a valid Vector3 just before calling PufferfishAsset.updateAnimation! Value:", playerPosition, "Type:", typeof playerPosition);
-        } else if (isNaN(playerPosition.x) || isNaN(playerPosition.y) || isNaN(playerPosition.z)) {
-            console.warn("ObstacleManager: playerPosition has NaN components before calling PufferfishAsset.updateAnimation! Value:", playerPosition.toArray());
-        }
-
-        // Pass player position for proximity-based inflation
         pufferfishAsset.updateAnimation(deltaTime, playerPosition);
 
         // Store inflation state in userData for collision detection system
@@ -573,7 +631,7 @@ export class ObstacleManager {
       }
 
       // Handle shark animations and patrolling behavior
-      else if (obstacle.type === 'shark' && obstacle.assetInstance instanceof SharkAsset) {
+      else if (obstacle.type && obstacle.type.trim() === 'shark' && obstacle.assetInstance instanceof SharkAsset) {
         const sharkAsset = obstacle.assetInstance;
 
         // Update tail swing animation
@@ -608,7 +666,7 @@ export class ObstacleManager {
       }
 
       // Handle sea turtle animations and lane-changing behavior
-      else if (obstacle.type === 'seaTurtle' && obstacle.assetInstance instanceof SeaTurtleAsset) {
+      else if (obstacle.type && obstacle.type.trim() === 'seaTurtle' && obstacle.assetInstance instanceof SeaTurtleAsset) {
         const turtleAsset = obstacle.assetInstance;
 
         // Update flipper animations
@@ -632,8 +690,9 @@ export class ObstacleManager {
 
           // State machine for lane changing
           if (obstacle.turtleState === 'patrolling') {
+            console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Patrolling. TimeInState: ${obstacle.turtleTimeInState?.toFixed(2)}, TimeToNext: ${obstacle.turtleTimeToNextAction?.toFixed(2)}`);
             if (obstacle.turtleTimeInState >= obstacle.turtleTimeToNextAction!) {
-              // Time to decide next lane change
+              console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Time to decide next lane change.`);
               const laneCount = configSystem.getWorldLaneCount();
               const possibleLanes = [];
 
@@ -650,12 +709,9 @@ export class ObstacleManager {
                 obstacle.turtleTargetLane = possibleLanes[randomIndex];
 
                 // Change to telegraphing state
+                console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Transitioning to TELEGRAPHING. TargetLane: ${obstacle.turtleTargetLane}`);
                 obstacle.turtleState = 'telegraphing';
                 obstacle.turtleTimeInState = 0;
-
-                // Signal the direction visually by turning the turtle
-                const direction = obstacle.turtleTargetLane < obstacle.turtleCurrentLane ? 'left' : 'right';
-                turtleAsset.setTelegraphTurn(direction);
               } else {
                 // Should not happen with 3 lanes, but reset timer just in case
                 obstacle.turtleTimeToNextAction = this.seaTurtleConfig.minTimeInLane;
@@ -663,8 +719,10 @@ export class ObstacleManager {
             }
           }
           else if (obstacle.turtleState === 'telegraphing') {
+            console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Telegraphing. TimeInState: ${obstacle.turtleTimeInState?.toFixed(2)}`);
             if (obstacle.turtleTimeInState >= this.seaTurtleConfig.laneChangeTelegraphTime) {
               // Time to start moving to the new lane
+              console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Transitioning to CHANGING_LANE.`);
               obstacle.turtleState = 'changingLane';
               obstacle.turtleTimeInState = 0;
             }
@@ -674,6 +732,7 @@ export class ObstacleManager {
             const targetX = obstacle.turtleTargetLane! * laneWidth;
             const moveDirection = Math.sign(targetX - obstacle.mesh.position.x);
             const laneChangeSpeed = laneWidth / this.seaTurtleConfig.laneChangeDuration;
+            console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} ChangingLane. CurrentX: ${obstacle.mesh.position.x.toFixed(2)}, TargetX: ${targetX.toFixed(2)}, MoveDir: ${moveDirection}, Speed: ${laneChangeSpeed.toFixed(2)}`);
 
             // Move the turtle toward the target lane
             obstacle.mesh.position.x += moveDirection * laneChangeSpeed * deltaTime;
@@ -686,6 +745,7 @@ export class ObstacleManager {
               obstacle.turtleCurrentLane = obstacle.turtleTargetLane;
 
               // Return to patrolling state
+              console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Reached TargetLane. Transitioning to PATROLLING.`);
               obstacle.turtleState = 'patrolling';
               obstacle.turtleTimeInState = 0;
 
@@ -746,7 +806,7 @@ export class ObstacleManager {
           try {
             obstacle.assetInstance.reset();
           } catch (error) {
-            console.warn(`ObstacleManager: Error resetting ${obstacle.type} asset:`, error);
+            // console.warn(`ObstacleManager: Error resetting ${obstacle.type} asset:`, error);
           }
         }
 
@@ -756,7 +816,7 @@ export class ObstacleManager {
         // Remove from activeObstacles array
         this.activeObstacles.splice(i, 1);
 
-        console.log(`ObstacleManager: Recycled ${obstacle.type} obstacle at z:${obstacle.mesh.position.z.toFixed(1)}`);
+        // console.log(`ObstacleManager: Recycled ${obstacle.type} obstacle at z:${obstacle.mesh.position.z.toFixed(1)}`);
       }
     }
   }
@@ -771,7 +831,7 @@ export class ObstacleManager {
     const activeIndex = this.activeObstacles.findIndex(obs => obs.mesh === obstacleMesh);
     if (activeIndex > -1) {
       const hitObstacle = this.activeObstacles[activeIndex];
-      console.log(`ObstacleManager: Player hit ${hitObstacle.type} obstacle: ${obstacleMesh.name}. Checking if dangerous...`);
+      // console.log(`ObstacleManager: Player hit ${hitObstacle.type} obstacle: ${obstacleMesh.name}. Checking if dangerous...`);
 
       // Check if the obstacle is actually dangerous based on its current state
       let isDangerous = true; // Default to dangerous if we can't determine
@@ -779,48 +839,48 @@ export class ObstacleManager {
       if (hitObstacle.type === 'clam' && hitObstacle.assetInstance instanceof ClamAsset) {
         const clamAsset = hitObstacle.assetInstance;
         isDangerous = clamAsset.isDangerous();
-        console.log(`ObstacleManager: Clam asset found. isOpen: ${clamAsset.isOpen}, isDangerous from asset: ${isDangerous}`);
+        // console.log(`ObstacleManager: Clam asset found. isOpen: ${clamAsset.isOpen}, isDangerous from asset: ${isDangerous}`);
         if (!clamAsset.isDangerous()) { 
-          console.log("ObstacleManager: Clam was not dangerous during collision!");
+          // console.log("ObstacleManager: Clam was not dangerous during collision!");
         }
       }
       else if (hitObstacle.type === 'pufferfish' && hitObstacle.assetInstance instanceof PufferfishAsset) {
         const pufferfishAsset = hitObstacle.assetInstance;
         isDangerous = pufferfishAsset.isDangerous();
-        console.log(`ObstacleManager: Pufferfish asset found. isDangerous from asset: ${isDangerous}`);
+        // console.log(`ObstacleManager: Pufferfish asset found. isDangerous from asset: ${isDangerous}`);
         if (!isDangerous) {
-          console.log("ObstacleManager: Pufferfish is not in a dangerous state, no damage!");
+          // console.log("ObstacleManager: Pufferfish is not in a dangerous state, no damage!");
         }
       }
       else if (hitObstacle.type === 'jellyfish' && hitObstacle.assetInstance instanceof JellyfishAsset) {
         const jellyfishAsset = hitObstacle.assetInstance;
         isDangerous = jellyfishAsset.isDangerous();
-        console.log(`ObstacleManager: Jellyfish asset found. isDangerous from asset: ${isDangerous}`);
+        // console.log(`ObstacleManager: Jellyfish asset found. isDangerous from asset: ${isDangerous}`);
       }
-      else if (hitObstacle.type === 'shark' && hitObstacle.assetInstance instanceof SharkAsset) {
+      else if (hitObstacle.type && hitObstacle.type.trim() === 'shark' && hitObstacle.assetInstance instanceof SharkAsset) {
         const sharkAsset = hitObstacle.assetInstance;
         isDangerous = sharkAsset.isDangerous();
-        console.log(`ObstacleManager: Shark asset found. isDangerous from asset: ${isDangerous}`);
+        // console.log(`ObstacleManager: Shark asset found. isDangerous from asset: ${isDangerous}`);
       }
-      else if (hitObstacle.type === 'seaTurtle' && hitObstacle.assetInstance instanceof SeaTurtleAsset) {
+      else if (hitObstacle.type && hitObstacle.type.trim() === 'seaTurtle' && hitObstacle.assetInstance instanceof SeaTurtleAsset) {
         const turtleAsset = hitObstacle.assetInstance;
         isDangerous = turtleAsset.isDangerous();
-        console.log(`ObstacleManager: SeaTurtle asset found. isDangerous from asset: ${isDangerous}`);
+        // console.log(`ObstacleManager: SeaTurtle asset found. isDangerous from asset: ${isDangerous}`);
       }
       else if (hitObstacle.type === 'kelpWall' && hitObstacle.assetInstance instanceof KelpWallAsset) {
         const kelpAsset = hitObstacle.assetInstance;
         isDangerous = kelpAsset.isDangerous();
-        console.log(`ObstacleManager: KelpWall asset found. isDangerous from asset: ${isDangerous}`);
+        // console.log(`ObstacleManager: KelpWall asset found. isDangerous from asset: ${isDangerous}`);
       }
       else if (hitObstacle.type === 'schoolOfFish' && hitObstacle.assetInstance instanceof SchoolOfFishAsset) {
         const schoolAsset = hitObstacle.assetInstance;
         isDangerous = schoolAsset.isDangerous();
-        console.log(`ObstacleManager: SchoolOfFish asset found. isDangerous from asset: ${isDangerous}`);
+        // console.log(`ObstacleManager: SchoolOfFish asset found. isDangerous from asset: ${isDangerous}`);
       }
 
       // If the obstacle is not dangerous in its current state, skip player damage
       if (!isDangerous) {
-        console.log(`ObstacleManager: ${hitObstacle.type} obstacle hit, but not dangerous - no damage to player`);
+        // console.log(`ObstacleManager: ${hitObstacle.type} obstacle hit, but not dangerous - no damage to player`);
         return false; // Obstacle remains active, no damage to player
       }
 
@@ -829,7 +889,7 @@ export class ObstacleManager {
         try {
           hitObstacle.assetInstance.reset();
         } catch (error) {
-          console.warn(`ObstacleManager: Error resetting ${hitObstacle.type} asset:`, error);
+          // console.warn(`ObstacleManager: Error resetting ${hitObstacle.type} asset:`, error);
         }
       }
 
@@ -840,10 +900,10 @@ export class ObstacleManager {
       // Remove from activeObstacles array
       this.activeObstacles.splice(activeIndex, 1);
 
-      console.log(`ObstacleManager: ${hitObstacle.type} obstacle hit by player and caused damage`);
+      // console.log(`ObstacleManager: ${hitObstacle.type} obstacle hit by player and caused damage`);
       return true; // This was a dangerous hit
     } else {
-      console.warn("ObstacleManager: Tried to hit an obstacle that isn't in the active list!");
+      // console.warn("ObstacleManager: Tried to hit an obstacle that isn't in the active list!");
       return false; // No obstacle found, so no damage
     }
   }
@@ -876,7 +936,7 @@ export class ObstacleManager {
 
     this.obstaclePool = [];
     this.activeObstacles = [];
-    console.log("ObstacleManager: Disposed.");
+    // console.log("ObstacleManager: Disposed.");
   }
 
   public reset(): void {
@@ -886,7 +946,7 @@ export class ObstacleManager {
         try {
           obstacle.assetInstance.reset();
         } catch (error) {
-          console.warn(`ObstacleManager: Error resetting ${obstacle.type} asset:`, error);
+          // console.warn(`ObstacleManager: Error resetting ${obstacle.type} asset:`, error);
         }
       }
 
@@ -928,7 +988,7 @@ export class ObstacleManager {
     // Recreate the pool with updated obstacle meshes that have collision spheres
     this.recreatePool();
 
-    console.log("ObstacleManager: Reset with new obstacle pool.");
+    // console.log("ObstacleManager: Reset with new obstacle pool.");
   }
 
   public recreatePool(): void {
@@ -966,6 +1026,6 @@ export class ObstacleManager {
 
     // Create new obstacles
     this.initializePool();
-    console.log("ObstacleManager: Recreated obstacle pool with updated meshes.");
+    // console.log("ObstacleManager: Recreated obstacle pool with updated meshes.");
   }
 }

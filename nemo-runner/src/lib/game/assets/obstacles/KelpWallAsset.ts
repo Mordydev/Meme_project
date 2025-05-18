@@ -167,6 +167,14 @@ export class KelpWallAsset {
             const waveX = Math.sin(this.animationTime * swaySpeed * 0.7 + oy * 0.3 + phaseOffset) * swayAmplitude * swayFactor;
             const waveZ = Math.cos(this.animationTime * swaySpeed * 0.5 + oy * 0.4 + phaseOffset * 1.2) * swayAmplitude * swayFactor * 0.6;
 
+            // Validate waveX and waveZ before applying
+            if (isNaN(waveX) || isNaN(waveZ) || !isFinite(waveX) || !isFinite(waveZ)) {
+                // console.warn("KelpWallAsset: Invalid waveX or waveZ. Skipping vertex update.", {waveX, waveZ, oy, swayFactor});
+                // If problematic, just use original position for this vertex for this frame
+                currentPos.setXYZ(i, ox, oy, oz);
+                continue; 
+  }
+
             // Apply sway relative to the original X and Z, Y remains mostly for height
             currentPos.setXYZ(i, ox + waveX, oy, oz + waveZ);
         }

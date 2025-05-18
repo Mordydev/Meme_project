@@ -50,7 +50,9 @@
 ### 4. Technical Debt
 **Documentation of compromises or areas needing future refinement:**
 - **Pearlescent Interior for Clam**: `MeshPhysicalMaterial` with `sheen` (interior) and `iridescence` (pearl) properties used for approximation. Achieves a good effect, but true multi-layered pearlescence might require a custom shader if higher fidelity is ever needed.
-- **Two-tone Shark Coloring**: Achieved via procedural `CanvasTexture` applied as `map` and `bumpMap` to `MeshStandardMaterial`. If more complex shading or vertex-specific coloring is needed in the future, vertex colors or a dedicated gradient texture could be explored.
+- **Shark Body Texture & UV Mapping**: The procedural `CanvasTexture` provides a good two-tone (main/underbelly) effect with noise. The current UV mapping of the `CapsuleGeometry` might not perfectly align the vertical gradient along the body's length in all views; custom UV generation or texture coordinate adjustments could refine this if needed for higher fidelity.
+- **Shark S-Curve Animation**: The current S-curve swimming motion is achieved by rotating the main body and tail fin. For a more pronounced and physically accurate S-curve that deforms the mesh, a bone-based animation system (`THREE.SkinnedMesh`) or vertex displacement shaders/logic would be required, which is a more complex undertaking.
+- **Shark Collision Refinement**: The current collision is a `CapsuleGeometry`. While generally effective for an obstacle, its dimensions should be tested against the final animated mesh (especially jaw and fins) to ensure fair and believable collisions. Adjustments to size or a switch to `BoxGeometry` could be considered if needed.
 - **Kelp Vertex Animation Performance**: CPU-based vertex animation for kelp, while flexible, could become a bottleneck with a very large number of kelp strands or very high vertex counts per strand. If performance issues arise, consider optimizing (e.g., fewer vertices, LODs) or exploring GPU-accelerated alternatives for very dense kelp forests.
 - **School of Fish Fin Detail**: Individual fish fins are part of the main extruded body shape for instancing simplicity. Truly distinct and animated fins per fish would require more complex instancing setups or a different rendering approach.
 - **Jellyfish Tentacle Tapering**: Tentacles use `CylinderGeometry` with different top/bottom radii for tapering. More organic tapering along a curve (e.g., with `TubeGeometry` and dynamic radius) was more complex to implement with vertex animation; current approach is a good balance.
@@ -76,10 +78,14 @@
 
 ### Sub-Task 2.1: PufferfishAsset Visual Upgrade
 **Status**: Completed ✅
-- **Geometry**: [x] Enhanced sphere with procedural spikes, eyes, mouth, and fins
-- **Materials**: [x] Configured MeshStandardMaterial with config-driven properties
-- **Animation**: [x] Inflation/deflation with spike extension, plus subtle bobbing and fin movement
-- **Collision**: [x] Scalable collision shape matching visual state
+- **Geometry**: [x] Procedurally generated mesh including a main body (sphere), eyes (spheres), mouth (sphere), fins (dorsal, pectoral, caudal using `ShapeGeometry`), and spikes (cones distributed via Fibonacci sphere method on the body surface). All components are grouped under a main `THREE.Group`.
+- **Materials**: [x] `MeshStandardMaterial` for all components, with properties (colors, roughness, metalness) driven by `PufferfishConfig` in `gameConfig.ts`.
+- **Animation**: [x] CPU-driven animations:
+    - [x] Inflation/Deflation Cycle: Body, spikes, eyes, mouth, and fins scale and reposition smoothly. Spikes also extend/retract. Cycle driven by player proximity and an internal state machine (`inflationState`, `inflationProgress`).
+    - [x] Bobbing: Gentle sinusoidal vertical movement of the entire Pufferfish, with phase desynchronization for multiple instances (using UUID).
+    - [x] Fin Movement: Subtle rotational animation for pectoral and caudal fins to simulate swimming/idling.
+- **Collision**: [x] A dedicated `collisionMesh` (sphere, initially matching `baseRadius`) scales with the inflation animation. `isDangerous()` returns true when `inflationProgress > 0.5`.
+- **Configuration**: [x] Fully configurable via `PufferfishConfig` in `gameConfig.ts` (base radius, colors, spike count/length/radius, inflation/deflation speeds, cooldown, proximity trigger distance).
 
 ### Sub-Task 2.2: RockAsset Visual Upgrade
 **Status**: Completed ✅
@@ -97,17 +103,26 @@
 
 ### Sub-Task 2.4: SharkAsset Visual Upgrade
 **Status**: Completed ✅
-- **Geometry**: [x] Hydrodynamic capsule body. Fins (dorsal, pectoral, caudal) created using `ShapeGeometry` extruded for volume and detail. Detailed jaw, teeth, and gill slits.
-- **Materials**: [x] `MeshStandardMaterial` for all parts. Body uses a procedural `CanvasTexture` (gradient + noise) for `map` and `bumpMap` to simulate two-tone skin and texture. Fins, eyes, teeth, jaw, and gills use distinct material properties derived from `gameConfig.ts`.
-- **Animation**: [x] CPU-driven animations: S-curve tail sway with corresponding body undulation. Pectoral fins have subtle bobbing for stability. Jaw opens/closes. Gills have a subtle pulsing motion. All animation parameters (speed, amplitude) configurable via `gameConfig.ts`.
-- **Collision**: [x] Simplified capsule/box collider (details to be refined based on final mesh).
+- **Geometry**: [x] Hydrodynamic capsule body (deformed `CapsuleGeometry`). Fins (dorsal, pectoral, caudal) created using `ShapeGeometry` extruded for volume and detail. [x] Added detailed jaw (`BoxGeometry`) parented to the body and teeth (`ConeGeometry`) parented to jaw and body.
+- **Materials**: [x] `MeshStandardMaterial` for all parts. [x] Body uses a procedural `CanvasTexture` (linear gradient for two-tone top/bottom + noise) for `map` and `bumpMap`, with configurable `bumpScale`. [x] Jaw uses a clone of the body's textured material. [x] Fins use a solid color variant of the body material (no texture). [x] Teeth have a separate configurable material. All properties driven by `gameConfig.ts`.
+- **Animation**: [x] CPU-driven animations: S-curve tail sway (Y-axis and Z-axis rotation for flick) with corresponding body undulation (Y-axis rotation). Tail fin is now parented to the body mesh for improved animation compounding. [x] Pectoral fins have subtle bobbing for stability. [x] Jaw opens/closes in a cycle. [x] Gills (simple box geometry) have a subtle pulsing motion (Y-axis scale). All animation parameters (speed, amplitude, jaw angle, gill movement) configurable via `gameConfig.ts`.
+- **Collision**: [x] Simplified capsule collider. (Note: Further refinement of size/shape may be needed after thorough testing with final animations).
+- **Configuration**: [x] Added `teethColor`, `teethRoughness`, `teethMetalness`, `teethCountUpper`, `teethCountLower`, `jawAnimationSpeed`, `jawMaxAngleDeg`, `gillAnimationSpeed`, `gillAnimationAmplitude` to `SharkVisualsConfig` in `gameConfig.ts`.
+- **Asset Lifecycle**: [x] Implemented `dispose()` method for proper cleanup and enhanced `reset()`.
 
 ### Sub-Task 2.5: SeaTurtleAsset Visual Upgrade
-**Status**: Completed ✅
-- **Geometry**: [x] Shell: Smoothed `SphereGeometry` (hemisphere, scaled). Head: `CapsuleGeometry` with simple sphere eyes. Flippers (Front & Rear): Custom `Shape`s with `ExtrudeGeometry` for organic, paddle-like forms.
-- **Materials**: [x] All parts use `MeshStandardMaterial`. Shell features a procedural `CanvasTexture` for scute patterns, derived from `mainColor` and a darker variant. Skin material for head and flippers. All properties driven by `gameConfig.ts`.
-- **Animation**: [x] CPU-driven animations: Fluid flipper strokes (rotation on Z-axis for flapping, X-axis for scooping/twisting). Subtle head bobbing and side-to-side looking. Slight body pitch synchronized with swimming. Turn telegraphing via Y-axis rotation of the whole mesh.
+**Status**: Completed ✅ (Finalized)
+- **Geometry**: [x] Shell: Smoothed `SphereGeometry` (hemisphere, scaled). Head: `CapsuleGeometry`. [x] Eyes: Enhanced 3-part structure (iris, pupil, glint). [x] Flippers (Front & Rear): Custom `Shape`s with `ExtrudeGeometry`. [x] Tail: `ConeGeometry` tail.
+- **Materials**: [x] All parts use `MeshPhysicalMaterial` to support `clearcoat` properties from config. Shell features a procedural `CanvasTexture` (map) and derived `bumpMap`, with configurable `shellBumpScale`. Skin (head, flippers, tail) uses `skinColor`. Materials are explicitly opaque unless `opacity < 1` is configured.
+- **Animation**: [x] CPU-driven animations: 
+    - [x] Turn Indication: Enhanced with body banking (roll on Z-axis, proportional to turn, damped) and more responsive head look towards the turn direction (Y-axis, damped). Main Y-axis turn is smoothed.
+    - [x] Flippers: Differentiated movement. Front flippers for main thrust (Z-axis flap, X-axis twist). Rear flippers have gentler flap/twist and Y-axis steering oscillation. Uses `userData` for initial rotations and phase offsets.
+    - [x] Head: Subtle bobbing (X-axis) independent of turning look.
+    - [x] Tail: Gentle side-to-side wagging (Y-axis).
+    - [x] Body: Slight body pitch synchronized with swimming.
 - **Collision**: [x] Combined `Box3` of shell and head, used to create a slightly larger `BoxGeometry` collider.
+- **Configuration**: [x] Uses `skinColor`. Added `shellBumpScale` and `bankFactor` to `SeaTurtleConfig.visuals`.
+- **Asset Lifecycle**: [x] `dispose()` and `reset()` methods updated for all components and material types.
 
 ### Sub-Task 2.6: KelpWallAsset Visual Upgrade
 **Status**: Completed ✅
@@ -142,12 +157,33 @@
 
 ## Knowledge Transfer Notes
 **Non-obvious implementation details:**
+- PufferfishAsset re-implementation:
+    - The Pufferfish was re-implemented from scratch after persistent visibility issues with the initial version.
+    - Final geometry includes a main body sphere, sphere-based eyes and mouth, `ShapeGeometry` fins, and cone-shaped spikes distributed using a Fibonacci sphere algorithm.
+    - CPU-driven animations manage an inflation/deflation cycle (triggered by player proximity) which scales the body, repositions/scales eyes, mouth, and fins, and extends/retracts spikes.
+    - `isDangerous()` is tied to the `inflationProgress`.
+    - Subtle bobbing (desynchronized using UUID) and fin animations add to realism.
+    - All key parameters are configurable via `gameConfig.ts`.
 - Pufferfish spikes use fibonacci sphere distribution for even coverage. Spikes also re-orient to point away from the scaled body during inflation.
 - Pufferfish fins (dorsal, pectoral, caudal) were added as `ShapeGeometry` with `MeshStandardMaterial` and subtle CPU-driven sway animations. Bobbing animation includes a phase variation based on UUID to desynchronize multiple instances.
 - Rock displacement algorithm (vertex displacement on icosahedron) and subsequent mesh shift ensures base is near y=0 for stable seafloor placement. Procedural `CanvasTexture` used for `bumpMap` if no texture URL provided.
 - ClamAsset utilizes `MeshPhysicalMaterial` for its interior and pearl to achieve richer visual effects like sheen and iridescence. The open/close animation is time-based with cubic easing. A simple bubble particle system is triggered during opening, with bubbles fading over their lifespan.
-- SharkAsset fins are generated using `THREE.Shape` and `ExtrudeGeometry` for better organic forms. The body's two-tone appearance and subtle texture are achieved with a `CanvasTexture`. Tail and body animations are synchronized to create an S-curve swimming motion. Gill slits also have a subtle animation.
-- SeaTurtleAsset shell pattern is a hexagonal scute design generated on a `CanvasTexture`. Flipper animation combines flapping (Z-rotation) and twisting (X-rotation) for a more realistic scooping motion. Head animation includes subtle bobbing and looking movements.
+- SharkAsset Updates:
+    - Fins are generated using `THREE.Shape` and `ExtrudeGeometry`.
+    - Body uses a procedural `CanvasTexture` featuring a vertical gradient (main color to `underbellyColor`) and subtle noise for `map` and `bumpMap`.
+    - Jaw geometry (`BoxGeometry`) added and parented to the body; teeth (`ConeGeometry`) added to jaw and upper mouth area.
+    - Animations include S-curve tail sway (Y & Z rotation, parented to body), body undulation (Y-rotation), pectoral fin bobbing, cyclical jaw opening/closing, and gill pulsing (Y-axis scaling).
+    - All new visual and animation parameters are configurable in `gameConfig.ts`.
+- SeaTurtleAsset Enhancements:
+    - Correctly uses `skinColor` from `gameConfig.ts` for skin material.
+    - Added a new tail (`ConeGeometry`) with a subtle wagging animation.
+    - Eyes upgraded to a 3-part structure (iris, pupil, glint) for better expressiveness.
+    - Shell texture improved with a procedural `bumpMap` (derived from scute pattern) and configurable `shellBumpScale`.
+    - Materials switched to `MeshPhysicalMaterial` to support `clearcoat` and ensure opacity.
+    - Turn indication enhanced with body banking (roll) and more responsive head-look, driven by a new `bankFactor` config.
+    - Flipper animations refined: front flippers have stronger flap/twist for thrust; rear flippers have gentler movements and add a steering oscillation. Animations use `userData` for initial rotations and phase offsets for naturalism.
+    - Head animation clarified for X-axis bobbing and Y-axis looking (now more tied to turn).
+    - `dispose()` and `reset()` methods updated for all components.
 - KelpWallAsset vertex animation calculates sway based on vertex height and the world position of each kelp part for desynchronized, organic movement. `geometry.userData.originalPositions` is crucial for this. `transmission` property in `MeshStandardMaterial` is used for translucency.
 - SchoolOfFishAsset uses `InstancedMesh` with an `InstancedBufferAttribute` for `instanceColor` to achieve per-fish color variations. Animations combine collective school movement with individual randomized fluttering and orientation changes, using `Matrix4.decompose()` and `compose()` for updates, and slerping quaternions for smooth rotations.
 - JellyfishAsset uses `MeshPhysicalMaterial` extensively for `transmission` to achieve a glassy look. Tentacles are `CylinderGeometry` with vertex-based animation for swaying. Bell pulsing is a scale animation. `JellyfishConfig` in `gameConfig.ts` was updated to include `tentacleRadius`, `pulseSpeed`, `pulseIntensityMin`, `pulseIntensityMax`.
@@ -160,3 +196,29 @@
 - [ ] Collision shape accurately represents danger zone
 - [ ] Performance acceptable with 5-10 instances on screen
 - [ ] Config values properly drive all visual aspects
+
+### Obstacle Implementation Status & Knowledge Transfer
+
+Below is a summary of the implementation status for each obstacle, along with key knowledge transfer points, challenges, and any technical debt identified.
+
+**1. Pufferfish (MeshStandardMaterial)**
+
+*   **Status:** `✅ Completed (Re-implemented)`
+*   **Note:** This section details the initial attempt and challenges. For the final implementation details, please refer to **Sub-Task 2.1: PufferfishAsset Visual Upgrade** above.
+*   **Implemented Visuals & Animations (Initial Attempt):**
+    *   Initial implementation attempted procedural body, spikes (Fibonacci sphere distribution), eyes, mouth, and fins (ShapeGeometry).
+    *   Intended animations: inflation/deflation based on player proximity, subtle bobbing, fin movement.
+*   **Challenges Encountered (Initial Attempt):**
+    *   Persistent invisibility issues despite extensive debugging and simplification steps (isolating animations, spike creation, and even reducing the mesh to a single sphere).
+    *   Logs indicated correct spawning, visibility flags, and transformations, but the object would not render.
+*   **Decision (leading to re-implementation):** The existing `PufferfishAsset.ts` was deleted. All references in `ObstacleManager.ts` and configuration in `gameConfig.ts` were removed/commented out. A fresh, simplified implementation was then successfully created.
+*   **Knowledge Transfer (from previous attempt for future reference - some points integrated into final design):**
+    *   Spike Distribution: Fibonacci sphere (or golden ratio method) is effective for even distribution on a sphere.
+    *   Spike Orientation: Spikes need to be re-oriented (e.g., `lookAt(center)`) and then potentially re-aligned (e.g., `rotateX(PI/2)`) if their base geometry isn't aligned with the desired outward vector. Spikes also need to be repositioned as the body inflates.
+    *   Fin Geometry: `THREE.ShapeGeometry` is suitable for flat, 2D-like fin shapes. `THREE.ExtrudeGeometry` can give them depth if needed.
+    *   Animation Variation: Using `mesh.uuid.length` or a similar unique property can introduce phase variations in periodic animations (like bobbing) across multiple instances.
+*   **Technical Debt (from previous attempt):**
+    *   The root cause of the invisibility in the *initial* attempt was not pinpointed before deciding to re-implement. The re-implementation, however, is fully functional.
+
+**2. Rock (MeshStandardMaterial)**
+// ... existing code ...

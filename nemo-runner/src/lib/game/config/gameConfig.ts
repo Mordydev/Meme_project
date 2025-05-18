@@ -100,18 +100,18 @@ export interface ObstacleStandardMaterialVisuals {
   };
 }
 
-// Interface for Pufferfish obstacle configuration
+// Interface for Pufferfish obstacle configuration (RE-ADD MINIMAL)
 export interface PufferfishConfig {
-  baseRadius: number; // Normal radius before inflation
-  inflatedRadius: number; // Maximum radius when fully inflated
-  inflationDuration: number; // Time to fully inflate in seconds
-  deflationDuration: number; // Time to fully deflate in seconds
-  detectionRadius: number; // Distance at which pufferfish detects player and starts inflating
-  inflationCooldown: number; // Time before pufferfish can inflate again after deflating
-  spikeCount?: number;      // Optional: Number of spikes
-  spikeLength?: number;     // Optional: Length of spikes
-  spikeRadius?: number;     // Optional: Base radius of spikes
-  visuals: ObstacleStandardMaterialVisuals;
+  baseRadius: number; 
+  inflatedRadius: number;     // Maximum radius when fully inflated
+  inflationDuration: number;  // Time to fully inflate in seconds
+  deflationDuration: number;  // Time to fully deflate in seconds
+  detectionRadius: number;    // Distance at which pufferfish detects player and starts inflating
+  inflationCooldown: number;  // Time before pufferfish can inflate again after deflating
+  spikeCount?: number;         // Optional: Number of spikes
+  spikeLengthFactor?: number;  // Optional: Factor of baseRadius for spike length
+  spikeRadiusFactor?: number;  // Optional: Factor of baseRadius for spike base radius
+  visuals: ObstacleStandardMaterialVisuals; 
 }
 
 // Interface for Jellyfish obstacle configuration
@@ -132,11 +132,24 @@ export interface JellyfishConfig {
 }
 
 // Interface for Shark obstacle configuration
+export interface SharkVisualsConfig extends ObstacleStandardMaterialVisuals {
+  underbellyColor?: number | string;
+  teethColor?: number | string;
+  teethRoughness?: number;
+  teethMetalness?: number;
+  teethCountUpper?: number;
+  teethCountLower?: number;
+  jawAnimationSpeed?: number; // Speed of jaw opening/closing
+  jawMaxAngleDeg?: number;  // Max angle jaw opens in degrees
+  gillAnimationSpeed?: number; // Speed of gill pulsing
+  gillAnimationAmplitude?: number; // Amplitude of gill pulsing (scale factor)
+}
+
 export interface SharkConfig {
   patrolSpeed: number;        // Units per second horizontally
   patrolRangeX: number;       // Max distance from spawn lane it can patrol
   baseScale: number;          // Overall size of the shark
-  visuals: ObstacleStandardMaterialVisuals & { underbellyColor?: number | string };
+  visuals: SharkVisualsConfig;
 }
 
 // Interface for Sea Turtle obstacle configuration
@@ -148,7 +161,12 @@ export interface SeaTurtleConfig {
   minTimeInLane: number;      // Minimum time turtle stays in a lane
   maxTimeInLane: number;      // Maximum time turtle stays in a lane
   turnAngleDegrees: number;   // How much it visually turns to indicate lane change
-  visuals: ObstacleStandardMaterialVisuals & { shellPatternColor?: number | string, skinColor?: number | string };
+  visuals: ObstacleStandardMaterialVisuals & { 
+    shellPatternColor?: number | string, 
+    skinColor?: number | string,
+    shellBumpScale?: number; 
+    bankFactor?: number; // Added for turn banking intensity
+  };
 }
 
 // Interface for Kelp Wall obstacle configuration
@@ -175,7 +193,7 @@ export interface SchoolOfFishObstacleConfig {
 }
 
 export interface ObstaclesConfig {
-  pufferfish: PufferfishConfig;
+  pufferfish: PufferfishConfig; // RE-ADD
   jellyfish: JellyfishConfig;
   shark: SharkConfig;
   seaTurtle: SeaTurtleConfig;
@@ -345,7 +363,7 @@ export const defaultConfig: GameConfig = {
   },
   powerUps: {
     shield: { duration: 10, visual: { color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.5, opacity: 0.5 } },
-    magnet: { duration: 15, attractionRadius: 5, attractionSpeed: 0.1 },
+    magnet: { duration: 15, attractionRadius: 5, attractionSpeed: 15 },
     doublescore: { duration: 20 },
     spawnIntervalMin: 15, // Min seconds between power-up spawns
     spawnIntervalMax: 30, // Max seconds
@@ -353,10 +371,13 @@ export const defaultConfig: GameConfig = {
   difficulty: {
     tiers: [
       { distanceThreshold: 0, playerSpeedMultiplier: 1.0, obstacleSpawnRateMultiplier: 1.0, obstacleComplexityFactor: 0.2 },
-      { distanceThreshold: 1000, playerSpeedMultiplier: 1.1, obstacleSpawnRateMultiplier: 1.2, obstacleComplexityFactor: 0.4 },
-      { distanceThreshold: 3000, playerSpeedMultiplier: 1.2, obstacleSpawnRateMultiplier: 1.4, obstacleComplexityFactor: 0.6 },
-      { distanceThreshold: 6000, playerSpeedMultiplier: 1.3, obstacleSpawnRateMultiplier: 1.6, obstacleComplexityFactor: 0.8 },
-      { distanceThreshold: 10000, playerSpeedMultiplier: 1.4, obstacleSpawnRateMultiplier: 1.8, obstacleComplexityFactor: 1.0 },
+      { distanceThreshold: 100, playerSpeedMultiplier: 1.5, obstacleSpawnRateMultiplier: 1.3, obstacleComplexityFactor: 0.5 },
+      { distanceThreshold: 400, playerSpeedMultiplier: 2.0, obstacleSpawnRateMultiplier: 1.6, obstacleComplexityFactor: 0.8 },
+      { distanceThreshold: 800, playerSpeedMultiplier: 2.6, obstacleSpawnRateMultiplier: 1.9, obstacleComplexityFactor: 1.0 },
+      { distanceThreshold: 1250, playerSpeedMultiplier: 3.2, obstacleSpawnRateMultiplier: 2.2, obstacleComplexityFactor: 1.0 },
+      { distanceThreshold: 2000, playerSpeedMultiplier: 3.8, obstacleSpawnRateMultiplier: 2.5, obstacleComplexityFactor: 1.0 },
+      { distanceThreshold: 3000, playerSpeedMultiplier: 4.4, obstacleSpawnRateMultiplier: 2.8, obstacleComplexityFactor: 1.0 },
+      { distanceThreshold: 4000, playerSpeedMultiplier: 5.0, obstacleSpawnRateMultiplier: 3.2, obstacleComplexityFactor: 1.0 },
     ],
     basePlayerSpeed: 8, // Initial speed for tier 0, units per second
     baseObstacleSpawnIntervalMin: 2.5,
@@ -374,10 +395,10 @@ export const defaultConfig: GameConfig = {
       },
     },
     coral: {
-      baseScale: 1.2,
+      baseScale: 0.9,
       branchCount: 5,
       branchLengthMin: 0.5,
-      branchLengthMax: 1.5,
+      branchLengthMax: 1.0,
       visuals: {
         mainColor: 0xff7f50, // Coral color
         detailColor: 0xff6347, // Slightly darker coral
@@ -412,23 +433,21 @@ export const defaultConfig: GameConfig = {
     },
     pufferfish: {
       baseRadius: 0.5,
-      inflatedRadius: 1.0,
+      inflatedRadius: 0.8,
       inflationDuration: 0.5,
       deflationDuration: 1.0,
       detectionRadius: 5.0,
-      inflationCooldown: 3.0,
+      inflationCooldown: 2.0,
       spikeCount: 50,
-      spikeLength: 0.3,
-      spikeRadius: 0.02,
+      spikeLengthFactor: 0.4,
+      spikeRadiusFactor: 0.04,
       visuals: {
-        mainColor: 0xFFD700, // Golden yellow
-        detailColor: 0xFFA500, // Orange for spikes or spots
-        roughness: 0.4,
-        metalness: 0.0,
-        emissiveColor: 0xFFD700,
+        mainColor: 0xFF7700, // Orange-Yellow
+        detailColor: 0x442200, // Dark brown for spikes/eyes/mouth details
+        roughness: 0.6,
+        metalness: 0.1,
+        emissiveColor: 0xFF7700,
         emissiveIntensity: 0.1,
-        animationSpeed: 2, // For pulsing/breathing
-        animationAmplitude: 0.1,
       },
     },
     jellyfish: {
@@ -459,18 +478,30 @@ export const defaultConfig: GameConfig = {
       },
     },
     shark: {
-      patrolSpeed: 1.5, patrolRangeX: 2.4, baseScale: 1.2,
+      patrolSpeed: 1.5,
+      patrolRangeX: 3,
+      baseScale: 1.2,
       visuals: {
-        mainColor: 0x556B82, // Dusky Blue-Grey
-        underbellyColor: 0xC0C0D0, // Light Grey/Silver
-        emissiveColor: 0x334455, 
-        emissiveIntensity: 0.05,
-        roughness: 0.35, 
-        metalness: 0.15, 
-        clearcoat: 0.2, 
-        clearcoatRoughness: 0.3,
-        animationSpeed: 3.0, // Renamed from animationFrequency
-        animationAmplitude: 0.2, 
+        mainColor: 0x607D8B, // Bluish grey
+        underbellyColor: 0xB0BEC5, // Lighter grey
+        detailColor: 0x455A64, // Darker grey for potential markings or fin edges
+        emissiveColor: 0x37474F,
+        emissiveIntensity: 0.1,
+        roughness: 0.4,
+        metalness: 0.1,
+        animationSpeed: 2.5, // Tail sway speed
+        animationAmplitude: 0.25, // Tail sway amplitude
+        // New properties for jaw and teeth
+        teethColor: 0xFFFFFF, 
+        teethRoughness: 0.7,
+        teethMetalness: 0.05,
+        teethCountUpper: 10,
+        teethCountLower: 8,
+        jawAnimationSpeed: 1.5, // Speed of jaw animation cycle
+        jawMaxAngleDeg: 35,   // Max jaw open angle in degrees
+        // New properties for gill animation
+        gillAnimationSpeed: 2.0,
+        gillAnimationAmplitude: 0.1, // e.g., scales Y by +/- 10%
       },
     },
     seaTurtle: {
@@ -484,6 +515,8 @@ export const defaultConfig: GameConfig = {
         mainColor: 0x7E8A5F, // Shell - Olive Green/Brown
         shellPatternColor: 0x556B2F, // Darker Olive for pattern
         skinColor: 0xB2A27D, // Skin - Light Sandy Brown/Green
+        shellBumpScale: 0.03,
+        bankFactor: 0.2, // Default bank factor (e.g., 0.2 radians per radian of turn diff)
         emissiveColor: 0x445533, 
         emissiveIntensity: 0.05,
         roughness: 0.6, 

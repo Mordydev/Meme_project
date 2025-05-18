@@ -385,7 +385,7 @@ export class ClamAsset {
 
     const visualConf = this.config.visuals;
     const topShellPivot = this.mesh.getObjectByName("TopShellPivot") as THREE.Group;
-
+    
     // Calculate total cycle duration based on effective durations
     const cycleDuration = this.effectiveOpenCloseDuration + 
                           this.effectiveWaitOpenDuration + 
@@ -393,12 +393,12 @@ export class ClamAsset {
                           this.effectiveWaitClosedDuration;
 
     const timeInCycle = localGameTime % cycleDuration;
-    
+      
     // Simplified logic for starting animations based on state and cycle position
     if (!this.isAnimating) {
         const timeSinceOpenStart = this.isOpen ? localGameTime - this.openCloseStartTime : Infinity;
         const timeSinceCloseStart = !this.isOpen ? localGameTime - this.openCloseStartTime : Infinity;
-
+        
         // Time to start opening?
         // Clam is closed, and we have passed the full open + wait_open + close + wait_closed cycle OR specifically the wait_closed period of the current cycle.
         if (!this.isOpen && ( (localGameTime % cycleDuration) < this.effectiveOpenCloseDuration || (localGameTime % cycleDuration) >= (this.effectiveOpenCloseDuration + this.effectiveWaitOpenDuration + this.effectiveOpenCloseDuration) ) ) {
@@ -408,7 +408,7 @@ export class ClamAsset {
                 this.isOpen = true;
                 this.isAnimating = true;
                 this.openCloseStartTime = localGameTime;
-            }
+        }
         }
         // Time to start closing?
         // Clam is open, and we have passed the openDuration + waitOpenDuration.
@@ -431,8 +431,8 @@ export class ClamAsset {
         this.openingState = easedProgress;
       } else { // Closing animation
         this.openingState = 1.0 - easedProgress;
-      }
-
+        }
+        
       if (progress >= 1.0) {
         this.isAnimating = false;
         // Ensure final state is set correctly
@@ -453,7 +453,7 @@ export class ClamAsset {
     this.mesh.userData.isOpen = this.openingState > 0.05; // Considered "open" if even slightly ajar
 
     // Pearl animation: subtle bobbing or shimmering
-    if (this.pearlMesh) {
+        if (this.pearlMesh) {
       this.pearlMesh.position.y = -this.config.baseScale * 0.05 + Math.sin(this.animationTime * 1.2) * 0.02 * this.config.baseScale;
       // Optional: rotate pearl slightly for more shimmer
       this.pearlMesh.rotation.y += deltaTime * 0.3;
@@ -467,7 +467,7 @@ export class ClamAsset {
 
   private updateBubbles(deltaTime: number, gameTime: number): void {
     const shellSize = this.config.baseScale * 0.6;
-
+        
     // Emit bubbles if clam is open or opening
     if ((this.isOpen || this.isAnimating && this.openingState > 0.2) && gameTime > this.nextBubbleTime) {
       const bubble = this.bubbles.find(b => !b.visible);
@@ -589,7 +589,7 @@ export class ClamAsset {
     if (this.pearlMesh?.material instanceof THREE.Material) {
       (this.pearlMesh.material as THREE.MeshPhysicalMaterial).dispose(); // Assuming PhysicalMaterial
     }
-
+    
     // Dispose of interior meshes and materials
     this.mesh.traverse(child => {
       if (child instanceof THREE.Mesh && (child.name === "ClamInterior" || child.name === "GlowMesh" || child.parent?.name === "RidgeGroup" || child.parent?.name === "BumpGroup")) {

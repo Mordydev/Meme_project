@@ -39,7 +39,7 @@ export class DifficultyManager {
     this.currentComplexityFactor = this.currentTier.obstacleComplexityFactor;
     this.targetComplexityFactor = this.currentTier.obstacleComplexityFactor;
     
-    console.log("DifficultyManager: Initialized with tier 1 difficulty");
+    // console.log("DifficultyManager: Initialized with initial tier (Tier 0) difficulty");
   }
   
   /**
@@ -48,6 +48,9 @@ export class DifficultyManager {
    * @param currentDistance Current distance traveled by player
    */
   public update(deltaTime: number, currentDistance: number): void {
+    // Add log here
+    // console.log(`DifficultyManager.update: distance=${currentDistance.toFixed(1)}, tierIndex=${this.currentTierIndex}, currentPlayerSpeed=${this.currentPlayerSpeed.toFixed(2)}`);
+
     // Check if we need to update the tier based on distance
     this.updateTierBasedOnDistance(currentDistance);
     
@@ -77,6 +80,9 @@ export class DifficultyManager {
       this.currentTierIndex = newTierIndex;
       this.currentTier = this.difficultyConfig.tiers[this.currentTierIndex];
 
+      // Add log here
+      // console.log(`DifficultyManager: Tier changed to ${this.currentTierIndex}`);
+
       // Create a clear visual indicator of tier change with emojis and boxed message
       const tierChangeMessage = [
         "╔═════════════════════════════════════════════════╗",
@@ -86,10 +92,10 @@ export class DifficultyManager {
         "╚═════════════════════════════════════════════════╝"
       ].join('\n');
 
-      console.log(tierChangeMessage);
-      console.log(`📊 STATS: Distance ${currentDistance.toFixed(1)}m`);
-      console.log(`🏃 Speed: x${this.currentTier.playerSpeedMultiplier.toFixed(2)}, 🧨 Obstacle Rate: x${this.currentTier.obstacleSpawnRateMultiplier.toFixed(2)}, 🔄 Complexity: ${this.currentTier.obstacleComplexityFactor.toFixed(2)}`);
-      console.log(`⚠️ Tier ${this.currentTierIndex + 1}/${this.difficultyConfig.tiers.length}: ${this.getDescriptionForTier(this.currentTierIndex)}`);
+      // console.log(tierChangeMessage);
+      // console.log(`📊 STATS: Distance ${currentDistance.toFixed(1)}m`);
+      // console.log(`🏃 Speed: x${this.currentTier.playerSpeedMultiplier.toFixed(2)}, 🧨 Obstacle Rate: x${this.currentTier.obstacleSpawnRateMultiplier.toFixed(2)}, 🔄 Complexity: ${this.currentTier.obstacleComplexityFactor.toFixed(2)}`);
+      // console.log(`⚠️ Tier ${this.currentTierIndex + 1}/${this.difficultyConfig.tiers.length}: ${this.getDescriptionForTier(this.currentTierIndex)}`);
 
       // Update target parameters based on the new tier
       this.updateTargetParameters();
@@ -107,7 +113,8 @@ export class DifficultyManager {
       "Serious challenge - 2.2x starting speed",
       "Hard - dense obstacle patterns at high speed",
       "Very hard - extremely complex patterns at 3.4x speed",
-      "Expert - maximum difficulty, over 4x starting speed!"
+      "Expert - maximum difficulty, over 4x starting speed!",
+      "Ultimate Challenge - Max speed and complexity!"
     ];
 
     return descriptions[Math.min(tierIndex, descriptions.length - 1)];
@@ -119,6 +126,8 @@ export class DifficultyManager {
   private updateTargetParameters(): void {
     // Update player speed target
     this.targetPlayerSpeed = this.difficultyConfig.basePlayerSpeed * this.currentTier.playerSpeedMultiplier;
+    // Add log here
+    // console.log(`DifficultyManager.updateTargetParameters: targetPlayerSpeed=${this.targetPlayerSpeed.toFixed(2)}, tierMultiplier=${this.currentTier.playerSpeedMultiplier}`);
     
     // Update obstacle spawn rate targets
     // Higher spawn rate multiplier means shorter intervals (more frequent spawns)
@@ -143,6 +152,9 @@ export class DifficultyManager {
     const transitionSpeed = this.difficultyConfig.transitionSpeed;
     const lerpAmount = Math.min(transitionSpeed * deltaTime, 1.0);
     
+    // Log before lerp
+    // console.log(`DifficultyManager.updateParameters (before lerp): currentPlayerSpeed=${this.currentPlayerSpeed.toFixed(2)}, targetPlayerSpeed=${this.targetPlayerSpeed.toFixed(2)}, lerpAmount=${lerpAmount.toFixed(3)}`);
+    
     // Lerp current values toward target values
     this.currentPlayerSpeed = THREE.MathUtils.lerp(
       this.currentPlayerSpeed, this.targetPlayerSpeed, lerpAmount
@@ -159,6 +171,9 @@ export class DifficultyManager {
     this.currentComplexityFactor = THREE.MathUtils.lerp(
       this.currentComplexityFactor, this.targetComplexityFactor, lerpAmount
     );
+
+    // Add log here (after lerp)
+    // console.log(`DifficultyManager.updateParameters (after lerp): currentPlayerSpeed=${this.currentPlayerSpeed.toFixed(2)}`);
   }
   
   /**
@@ -171,6 +186,8 @@ export class DifficultyManager {
     if (playerController) {
       // Calculate and apply speed multiplier
       const speedMultiplier = this.currentPlayerSpeed / this.difficultyConfig.basePlayerSpeed;
+      // Add log here
+      // console.log(`DifficultyManager.applyParameters: calculatedSpeedMultiplier=${speedMultiplier.toFixed(2)}, currentPlayerSpeed=${this.currentPlayerSpeed.toFixed(2)}, baseSpeed=${this.difficultyConfig.basePlayerSpeed}`);
       playerController.setForwardSpeedMultiplier(speedMultiplier);
     }
     
@@ -209,7 +226,7 @@ export class DifficultyManager {
     // Apply initial parameters
     this.applyParameters();
     
-    console.log("DifficultyManager: Reset to tier 1 difficulty");
+    // console.log("DifficultyManager: Reset to initial tier (Tier 0) difficulty");
   }
   
   /**
@@ -230,6 +247,6 @@ export class DifficultyManager {
    * Dispose of any resources
    */
   public dispose(): void {
-    console.log("DifficultyManager: Disposed");
+    // console.log("DifficultyManager: Disposed");
   }
 }

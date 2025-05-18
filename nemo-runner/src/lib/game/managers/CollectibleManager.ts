@@ -51,13 +51,16 @@ export class CollectibleManager {
     this.assetFactory = assetFactory;
     this.initializeInstancedMeshes();
     this.resetTimeToNextSpawn();
+    // Spawn initial set of collectibles immediately
+    // Assuming player starts near Z=0 for initial pattern placement.
+    this.spawnPattern(0);
     this.debug = false; // Disable debug logging for production
 
     // Initialize attraction speed from config if available
     const powerUpConfig = configSystem.getPowerUpsConfig().magnet;
-    this.magnetAttractionSpeed = powerUpConfig.attractionSpeed || 20; // Get from config or use default
+    this.magnetAttractionSpeed = powerUpConfig.attractionSpeed !== undefined ? powerUpConfig.attractionSpeed : 20; // Keep a default if undefined
 
-    console.log("CollectibleManager: Initialized.");
+    console.log("CollectibleManager: Initialized and initial spawn triggered.");
   }
 
   private initializeInstancedMeshes(): void {
@@ -146,7 +149,7 @@ export class CollectibleManager {
     if (isActive) {
       const magnetConfig = configSystem.getPowerUpsConfig().magnet;
       this.magnetAttractionRadius = magnetConfig.attractionRadius;
-      this.magnetAttractionSpeed = magnetConfig.attractionSpeed || 20; // Ensure speed is set from config
+      this.magnetAttractionSpeed = magnetConfig.attractionSpeed !== undefined ? magnetConfig.attractionSpeed : 20; // Keep a default if undefined
       console.log("CollectibleManager: Magnet ACTIVE, radius:", this.magnetAttractionRadius, "speed:", this.magnetAttractionSpeed);
     } else {
       this.magnetAttractionRadius = 0;

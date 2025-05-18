@@ -239,7 +239,7 @@ export class CoralAsset {
       for (let i = 0; i < this.branches.length; i++) {
         const branch = this.branches[i];
         const uniquePhase = i * 0.7;
-
+        
         branch.rotation.x = Math.sin(this.animationTime * swaySpeed + uniquePhase) * swayAmount;
         branch.rotation.z = Math.cos(this.animationTime * swaySpeed * 0.7 + uniquePhase) * swayAmount;
       }
@@ -248,7 +248,7 @@ export class CoralAsset {
 
   public reset(): void {
     this.animationTime = 0;
-    for (const branch of this.branches) {
+      for (const branch of this.branches) {
       branch.rotation.x = (Math.random() - 0.5) * 0.3;
       branch.rotation.z = (Math.random() - 0.5) * 0.3;
     }
@@ -256,7 +256,7 @@ export class CoralAsset {
 
   public dispose(): void {
     this.mesh.traverse(child => {
-      if (child instanceof THREE.Mesh) {
+          if (child instanceof THREE.Mesh) {
         child.geometry?.dispose();
         if (Array.isArray(child.material)) {
           child.material.forEach(material => {
@@ -273,7 +273,7 @@ export class CoralAsset {
           mat.normalMap?.dispose();
           mat.bumpMap?.dispose();
           mat.dispose();
-        }
+    }
       }
     });
     this.mesh.clear();
