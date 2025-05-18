@@ -93,7 +93,7 @@ export class DustParticleSystem {
         color: 0xaaaaaa, 
         transparent: true, 
         opacity: 0.3 
-      }) as any;
+      }) as THREE.ShaderMaterial;
     } else {
       this.material.transparent = true;
       this.material.depthWrite = false;

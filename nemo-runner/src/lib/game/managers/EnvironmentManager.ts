@@ -82,7 +82,7 @@ export class EnvironmentManager {
 
   private initializeWaterSurface(): void {
     if (configSystem.get('visuals').waterSurface.enabled) {
-        this.waterSurface = new WaterSurfaceAsset(this.shaderManager); 
+        this.waterSurface = this.assetFactory.createWaterSurfaceAsset();
         const surfaceMesh = this.waterSurface.getMesh();
         if (surfaceMesh) {
             surfaceMesh.position.y = configSystem.get('camera').offset.y + 5; // Example: 5 units above camera's typical height relative to player
@@ -94,7 +94,7 @@ export class EnvironmentManager {
   private initializeKelpPool(): void {
     if (!configSystem.get('visuals').kelp.enabled) return;
     for (let i = 0; i < this.kelpPoolSize; i++) {
-        const kelpAsset = new KelpWallAsset(); // Uses its own config fetch initially
+        const kelpAsset = this.assetFactory.createKelpWallAsset();
         // Potentially override parts of its config for decorative purposes if KelpWallAsset allows
         // For now, we assume KelpWallAsset can be used as is, or we create a new type of KelpAsset.
         // As per step7.md, we enhance KelpWallAsset. We will create it and then scale/position.
@@ -109,7 +109,7 @@ export class EnvironmentManager {
     return this.segments.find(seg => !seg.isActive);
   }
 
-  private spawnSegmentAhead(initialSpawn = false): void {
+  private spawnSegmentAhead(/* initialSpawn = false */): void {
     const segment = this.getInactiveSegment();
     if (segment) {
       segment.isActive = true;
@@ -239,7 +239,7 @@ export class EnvironmentManager {
     console.log("EnvironmentManager: Reset.");
   }
 
-  public dispose(): void {
+  public async dispose(): Promise<void> {
     this.segments.forEach(segment => {
       segment.mesh.geometry?.dispose();
       if (segment.mesh.material instanceof THREE.Material) {

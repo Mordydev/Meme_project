@@ -143,9 +143,8 @@ export class SeafloorAsset {
             // Vertex shader modifications
             shader.vertexShader = 'varying vec3 vWorldPosition_Seafloor;\n' + shader.vertexShader;
             shader.vertexShader = shader.vertexShader.replace(
-                '#include <begin_vertex>',
-                `#include <begin_vertex>\n` +
-                'vWorldPosition_Seafloor = (modelMatrix * vec4(transformed, 1.0)).xyz;'
+                '#include <worldpos_vertex>',
+                `#include <worldpos_vertex>\n vWorldPosition_Seafloor = worldPosition.xyz;`
             );
             
             // Fragment shader modifications

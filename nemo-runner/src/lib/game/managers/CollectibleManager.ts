@@ -2,7 +2,6 @@
 import * as THREE from 'three';
 import { ProceduralAssetFactory } from '../assets/ProceduralAssetFactory';
 import { configSystem } from '../core/ConfigurationSystem';
-import { ClamAsset } from '../assets/obstacles/ClamAsset';
 import { PlayerController } from './PlayerController';
 
 interface CollectibleInstanceData {

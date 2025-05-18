@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ShaderManager, MaterialType } from '../../services/ShaderManager';
+import { ShaderManager } from '../../services/ShaderManager';
 
 export class CoinAsset {
   private shaderManager: ShaderManager;

@@ -47,7 +47,7 @@ export class ClamAsset {
     this.mesh.name = "ClamObstacle";
     
     // Get visual configuration from config
-    const visualConf = this.config.visuals;
+    // const visualConf = this.config.visuals;
     const baseScale = this.config.baseScale;
     
     // Create enhanced shell geometries
@@ -379,11 +379,11 @@ export class ClamAsset {
    * Update the clam animation
    * @param deltaTime Time in seconds since last update
    */
-  public updateAnimation(deltaTime: number, gameTime: number): void {
+  public updateAnimation(deltaTime: number, /* gameTime: number */): void {
     this.animationTime += deltaTime;
     const localGameTime = this.animationTime; // Use internal animationTime for cycles
 
-    const visualConf = this.config.visuals;
+    // const visualConf = this.config.visuals;
     const topShellPivot = this.mesh.getObjectByName("TopShellPivot") as THREE.Group;
     
     // Calculate total cycle duration based on effective durations
@@ -392,12 +392,12 @@ export class ClamAsset {
                           this.effectiveOpenCloseDuration + 
                           this.effectiveWaitClosedDuration;
 
-    const timeInCycle = localGameTime % cycleDuration;
+    // const timeInCycle = localGameTime % cycleDuration;
       
     // Simplified logic for starting animations based on state and cycle position
     if (!this.isAnimating) {
         const timeSinceOpenStart = this.isOpen ? localGameTime - this.openCloseStartTime : Infinity;
-        const timeSinceCloseStart = !this.isOpen ? localGameTime - this.openCloseStartTime : Infinity;
+        // const timeSinceCloseStart = !this.isOpen ? localGameTime - this.openCloseStartTime : Infinity;
         
         // Time to start opening?
         // Clam is closed, and we have passed the full open + wait_open + close + wait_closed cycle OR specifically the wait_closed period of the current cycle.
@@ -466,7 +466,7 @@ export class ClamAsset {
   }
 
   private updateBubbles(deltaTime: number, gameTime: number): void {
-    const shellSize = this.config.baseScale * 0.6;
+    // const shellSize = this.config.baseScale * 0.6;
         
     // Emit bubbles if clam is open or opening
     if ((this.isOpen || this.isAnimating && this.openingState > 0.2) && gameTime > this.nextBubbleTime) {

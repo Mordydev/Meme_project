@@ -84,13 +84,13 @@ export class DifficultyManager {
       // console.log(`DifficultyManager: Tier changed to ${this.currentTierIndex}`);
 
       // Create a clear visual indicator of tier change with emojis and boxed message
-      const tierChangeMessage = [
+      /* const tierChangeMessage = [
         "╔═════════════════════════════════════════════════╗",
         "║                                                 ║",
         `║  🔥🔥🔥 DIFFICULTY INCREASED TO TIER ${this.currentTierIndex + 1} 🔥🔥🔥  ║`,
         "║                                                 ║",
         "╚═════════════════════════════════════════════════╝"
-      ].join('\n');
+      ].join('\n'); */
 
       // console.log(tierChangeMessage);
       // console.log(`📊 STATS: Distance ${currentDistance.toFixed(1)}m`);

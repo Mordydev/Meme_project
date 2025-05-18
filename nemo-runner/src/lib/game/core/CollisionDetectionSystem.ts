@@ -15,7 +15,7 @@ import { KelpWallAsset } from '../assets/obstacles/KelpWallAsset';
 import { SchoolOfFishAsset } from '../assets/obstacles/SchoolOfFishAsset';
 
 declare global {
-  interface Window { __gameEngine?: any }
+  interface Window { __gameEngine?: unknown }
 }
 
 export class CollisionDetectionSystem {
@@ -412,7 +412,7 @@ export class CollisionDetectionSystem {
 
     // --- Collectible Collisions ---
     // Check bubble collectibles
-    const checkCollectibleType = (dataArray: any[], instancesMesh: THREE.InstancedMesh) => {
+    const checkCollectibleType = (dataArray: Array<CollectibleEntity>, /* instancesMesh: THREE.InstancedMesh */) => {
       for (let i = 0; i < dataArray.length; i++) {
         const instance = dataArray[i];
         if (instance.isActive) {

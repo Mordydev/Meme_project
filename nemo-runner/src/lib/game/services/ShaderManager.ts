@@ -2,9 +2,13 @@
 import * as THREE from 'three';
 import NoiseGLSL from '../shaders/common/noise.glsl'; // Import our chunks
 import UtilsGLSL from '../shaders/common/utils.glsl'; // Import our chunks
+import CausticsGLSL from '../shaders/common/caustics.glsl';
 import { vertexShaderSource as clownfishVertex } from '../shaders/character/clownfish.vert';
 import { fragmentShaderSource as clownfishFragment } from '../shaders/character/clownfish.frag';
 import { configSystem } from '../core/ConfigurationSystem';
+import { particleVertexShader } from '../vfx/shaders/particle.vert';
+import { bubbleFragmentShader } from '../vfx/shaders/bubble.frag';
+import { dustFragmentShader } from '../vfx/shaders/dust.frag';
 
 export type MaterialType = 'player_default' | 'obstacle_rock' | 'obstacle_clam' | 'collectible_bubble' | 'collectible_coin' | 'environment_water' | 'obstacle_coral' | 'powerup_shield' | 'powerup_magnet' | 'powerup_doublescore' | 'obstacle_pufferfish' | 'obstacle_jellyfish' | 'obstacle_shark' | 'obstacle_seaturtle_shell' | 'obstacle_seaturtle_skin' | 'obstacle_kelpwall' | 'obstacle_schooloffish_fish';
 
@@ -113,8 +117,6 @@ export class ShaderManager {
           transparent: false, // Changed to false for better visibility
           depthWrite: true, // Enable depth writing
           glslVersion: THREE.GLSL3, // Explicitly use GLSL 3.0
-          emissive: 0xffbb00, // Add default emissive color
-          emissiveIntensity: 0.5, // With medium intensity
           defines: {
             GLSL3: true // Define GLSL3 for the shader to adapt
           }
@@ -128,10 +130,6 @@ export class ShaderManager {
 
   private registerParticleShaders(): void {
     try {
-      // Import shader sources directly
-      const { particleVertexShader } = require('../vfx/shaders/particle.vert');
-      const { bubbleFragmentShader } = require('../vfx/shaders/bubble.frag');
-      const { dustFragmentShader } = require('../vfx/shaders/dust.frag');
       
       // Register bubble shader immediately
       this.registerShader({
@@ -327,12 +325,6 @@ export class ShaderManager {
 
   private registerCoreChunks(): void {
     try {
-      // Check if THREE.ShaderChunk exists before using it
-      if (!THREE.ShaderChunk) {
-        console.error("ShaderManager: THREE.ShaderChunk is undefined. This may cause shader compilation errors.");
-        THREE.ShaderChunk = {}; // Create empty object as fallback
-      }
-
       // Only register a chunk if it doesn't already exist to avoid the "already registered" warnings
       // Use a helper function to register only if not exists
       const registerIfNotExists = (name: string, source: string) => {
@@ -346,6 +338,9 @@ export class ShaderManager {
       registerIfNotExists('noise2D', NoiseGLSL.noise2D); // Depends on random2D
       registerIfNotExists('PI', UtilsGLSL.PI);
       registerIfNotExists('saturate', UtilsGLSL.saturate);
+      if (CausticsGLSL && (CausticsGLSL as unknown as { causticPattern?: string }).causticPattern) {
+        registerIfNotExists('causticPattern', (CausticsGLSL as unknown as { causticPattern: string }).causticPattern);
+      }
 
       console.log('ShaderManager: Registered core GLSL chunks:', Array.from(this.shaderChunks.keys()));
     } catch (error) {
@@ -371,14 +366,16 @@ export class ShaderManager {
 
       this.shaderChunks.set(name, source);
 
-      // Also register with THREE.js ShaderChunk for compatibility with THREE.js material system
-      // Make sure THREE.ShaderChunk exists
-      if (!THREE.ShaderChunk) {
-        console.warn("ShaderManager: THREE.ShaderChunk is undefined. Creating empty object.");
-        THREE.ShaderChunk = {};
-      }
+      // Optionally, try to assign to THREE.ShaderChunk for global availability (may cause warnings/errors in newer Three.js)
+      // if (THREE.ShaderChunk && typeof THREE.ShaderChunk === 'object') {
+      //   try {
+      //     (THREE.ShaderChunk as any)[name] = source;
+      //   } catch (e) {
+      //     // console.warn(`ShaderManager: Could not assign chunk "${name}" to THREE.ShaderChunk (likely read-only). Chunk is still registered internally.`);
+      //   }
+      // }
 
-      THREE.ShaderChunk[name] = source;
+      // console.log(`ShaderManager: Registered chunk "${name}"`);
     } catch (error) {
       console.error(`ShaderManager: Error registering chunk "${name}":`, error);
     }
@@ -522,7 +519,7 @@ export class ShaderManager {
 
             // Validate each uniform has a valid value property
             Object.entries(defaultUniforms).forEach(([key, uniform]) => {
-              const typedUniform = uniform as THREE.IUniform<any>;
+              const typedUniform = uniform as THREE.IUniform<unknown>;
               if (typedUniform.value === undefined || typedUniform.value === null) {
                 console.warn(`ShaderManager: Uniform "${key}" in "${shaderName}" has undefined value. Setting default.`);
                 typedUniform.value = null; // Ensure value exists, even if null
@@ -566,7 +563,7 @@ export class ShaderManager {
         finalUniforms = { ...safeDefaultUniforms };
 
         // Helper to safely merge uniform objects
-        const safelyMergeUniforms = (target: any, source: any) => {
+        const safelyMergeUniforms = (target: Record<string, THREE.IUniform>, source: Record<string, THREE.IUniform>) => {
           if (!source || typeof source !== 'object') return;
 
           Object.keys(source).forEach(key => {
@@ -650,7 +647,7 @@ export class ShaderManager {
 
       // Verify the material is valid
       if (!material.vertexShader || !material.fragmentShader) {
-        console.error(`ShaderManager: Created material for "${shaderName}" has missing shaders.`);
+        console.error(`ShaderManager: Failed to preprocess shaders for "${shaderName}". Material not created.`);
         return null;
       }
 
@@ -781,9 +778,6 @@ export class ShaderManager {
             } catch (disposeError) {
               console.warn(`ShaderManager: Error disposing material for ${key}`, disposeError);
             }
-
-            // Clear material reference
-            cached.material = null;
           }
         } catch (materialError) {
           console.warn(`ShaderManager: Error processing cached material`, materialError);
@@ -824,11 +818,11 @@ export class ShaderManager {
       try {
         // Create a global flag to indicate we're in recovery mode
         // This will signal player and other assets to use fallbacks more aggressively
-        (window as any).__shaderSystemRecoveryMode = true;
+        (window as unknown as { __shaderSystemRecoveryMode?: boolean }).__shaderSystemRecoveryMode = true;
         
         // Set a timer to clear the recovery mode after a delay
         setTimeout(() => {
-          (window as any).__shaderSystemRecoveryMode = false;
+          (window as unknown as { __shaderSystemRecoveryMode?: boolean }).__shaderSystemRecoveryMode = false;
           console.log("ShaderManager: Exited recovery mode");
         }, 5000); // 5 seconds should be enough for all assets to reinitialize
       } catch (flagError) {

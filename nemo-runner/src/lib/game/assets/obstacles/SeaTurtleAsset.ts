@@ -577,13 +577,13 @@ export class SeaTurtleAsset {
     this.flippers = []; // Clear the array of flippers
 
     // Nullify references to complex objects
-    // @ts-ignore
+    // @ts-expect-error Setting mesh to null during disposal
     this.mesh = null;
-    // @ts-ignore
+    // @ts-expect-error Setting head to null during disposal
     this.head = null;
-    // @ts-ignore
+    // @ts-expect-error Setting tailMesh to null during disposal
     this.tailMesh = null;
-    // @ts-ignore
+    // @ts-expect-error Setting collisionMesh to null during disposal
     this.collisionMesh = null;
   }
 }

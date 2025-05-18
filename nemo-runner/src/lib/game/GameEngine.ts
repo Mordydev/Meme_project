@@ -3,7 +3,7 @@ import { RenderManager } from './core/RenderManager';
 import { CameraManager } from './core/CameraManager';
 import { PlayerController } from './managers/PlayerController';
 import { InputHandler } from './core/InputHandler';
-import { ShaderManager, ShaderProgramSource } from './services/ShaderManager';
+import { ShaderManager } from './services/ShaderManager';
 import { LightingManager } from './services/LightingManager';
 import { VisualEffectsService } from './services/VisualEffectsService';
 import { ProceduralAssetFactory } from './assets/ProceduralAssetFactory';
@@ -307,7 +307,7 @@ export class GameEngine {
       }
     };
 
-    this.contextRestoredHandler = (event: WebGLContextEvent) => {
+    this.contextRestoredHandler = (/* event: WebGLContextEvent */) => {
       console.log("GameEngine: WebGL context restored, reinitializing renderer");
 
       try {
@@ -406,7 +406,7 @@ export class GameEngine {
    * @param forceShaderReset Whether to force shader program cache reset
    * @returns Promise that resolves when recreation is complete
    */
-  private recreateAfterContextLoss(forceShaderReset: boolean = false): Promise<void> {
+  private recreateAfterContextLoss(/* forceShaderReset: boolean = false */): Promise<void> {
     if (!this.mountElement) {
       console.error("GameEngine: Cannot recreate after context loss - mount element missing");
       return Promise.reject(new Error("Mount element missing"));
@@ -565,7 +565,7 @@ export class GameEngine {
     });
   }
 
-  public dispose(): void {
+  public async dispose(): Promise<void> {
     this.stop();
 
     // Remove WebGL context handlers
@@ -573,7 +573,7 @@ export class GameEngine {
 
     if (this.inputHandler) this.inputHandler.dispose();
     if (this.playerController) this.playerController.dispose();
-    if (this.environmentManager) this.environmentManager.dispose();
+    if (this.environmentManager) await this.environmentManager.dispose();
     if (this.obstacleManager) this.obstacleManager.dispose();
     if (this.collectibleManager) this.collectibleManager.dispose();
     if (this.powerUpManager) this.powerUpManager.dispose();

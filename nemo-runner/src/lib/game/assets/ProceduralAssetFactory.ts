@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { ShaderManager, MaterialType } from '../services/ShaderManager';
+import { ShaderManager } from '../services/ShaderManager';
 import { SeafloorAsset } from './environment/SeafloorAsset';
+import { WaterSurfaceAsset } from './environment/WaterSurfaceAsset';
 import { CoralAsset } from './obstacles/CoralAsset';
 import { RockAsset } from './obstacles/RockAsset';
 import { ClamAsset } from './obstacles/ClamAsset';
@@ -53,11 +54,11 @@ export class ProceduralAssetFactory {
       console.error("Error initializing updated asset generators:", error);
       // Create empty placeholders if initialization fails
       // These will be created on-demand in createObstacle
-      this.rockAssetGenerator = null as any;
-      this.coralAssetGenerator = null as any;
-      this.clamAssetGenerator = null as any;
-      this.jellyfishAssetGenerator = null as any;
-      this.pufferfishAssetGenerator = null as any; // Also ensure placeholder on error
+      this.rockAssetGenerator = null as unknown as RockAsset;
+      this.coralAssetGenerator = null as unknown as CoralAsset;
+      this.clamAssetGenerator = null as unknown as ClamAsset;
+      this.jellyfishAssetGenerator = null as unknown as JellyfishAsset;
+      this.pufferfishAssetGenerator = null as unknown as PufferfishAsset; // Also ensure placeholder on error
     }
     
     // Assets still using ShaderManager
@@ -268,6 +269,16 @@ export class ProceduralAssetFactory {
 
   public get seafloorAsset(): SeafloorAsset {
     return this.seafloorAssetGenerator;
+  }
+
+  /** Create a new decorative kelp wall asset */
+  public createKelpWallAsset(): KelpWallAsset {
+    return new KelpWallAsset();
+  }
+
+  /** Create a new water surface asset */
+  public createWaterSurfaceAsset(): WaterSurfaceAsset {
+    return new WaterSurfaceAsset(this.shaderManager);
   }
 
   // Methods for collectibles - used by CollectibleManager for instanced rendering

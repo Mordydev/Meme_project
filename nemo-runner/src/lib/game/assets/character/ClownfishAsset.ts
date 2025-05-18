@@ -1,6 +1,5 @@
 // src/lib/game/assets/character/ClownfishAsset.ts
 import * as THREE from 'three';
-import { ShaderManager } from '../../services/ShaderManager';
 import { configSystem } from '../../core/ConfigurationSystem';
 import { PlayerSettings } from '../../config/gameConfig';
 
@@ -36,7 +35,7 @@ export class ClownfishAsset {
   private finMaterial?: THREE.MeshStandardMaterial;
   private stripesTexture?: THREE.Texture;
 
-  constructor(shaderManager: ShaderManager) {
+  constructor(/* shaderManager: ShaderManager */) {
     // We still need the ShaderManager parameter for backward compatibility
     // but we don't actually use it anymore
     this.playerConfig = configSystem.get('player');
@@ -217,7 +216,7 @@ export class ClownfishAsset {
     const uvs: number[] = [];
     
     for (let i = 0; i < positions.length; i += 3) {
-      const x = positions[i];
+      // const x = positions[i];
       const y = positions[i+1];
       const z = positions[i+2];
       

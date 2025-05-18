@@ -23,7 +23,7 @@ export class PlayerController {
   public mesh!: THREE.Group; // The visual representation of the player (now a Group)
   private scene: THREE.Scene;
   private assetFactory: ProceduralAssetFactory;
-  private gameEngine?: any; // Reference to game engine for accessing VFX
+  private gameEngine?: unknown; // Reference to game engine for accessing VFX
   private clownfishAsset!: ClownfishAsset; // Store the asset instance
 
   private currentLane: number = 0; // -1 (left), 0 (center), 1 (right)
@@ -62,7 +62,7 @@ export class PlayerController {
   private forwardSpeedMultiplier: number = 1.0;
   private currentForwardSpeed: number;
 
-  constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory, gameEngine?: any) {
+  constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory, gameEngine?: unknown) {
     this.scene = scene;
     this.assetFactory = assetFactory;
     this.gameEngine = gameEngine; // Store reference to game engine
@@ -266,8 +266,8 @@ export class PlayerController {
     // Update clownfish animation with current speed and turning state
     if (this.clownfishAsset) {
       const currentSpeedNormalized = this.currentForwardSpeed / this.baseForwardSpeed; // Normalize speed
-      let isTurning = this.isTransitioningLane;
-      let turnDirection = this.isTransitioningLane ? Math.sign(this.targetLaneX - this.previousLaneX) : 0;
+      const isTurning = this.isTransitioningLane;
+      const turnDirection = this.isTransitioningLane ? Math.sign(this.targetLaneX - this.previousLaneX) : 0;
       this.clownfishAsset.updateAnimation(deltaTime, currentSpeedNormalized, isTurning, turnDirection);
     }
 

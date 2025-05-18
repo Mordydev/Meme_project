@@ -78,7 +78,7 @@ export class BubbleParticleSystem {
         color: 0x00ffff, 
         transparent: true, 
         opacity: 0.5 
-      }) as any; // Fallback
+      }) as THREE.ShaderMaterial; // Fallback
     } else {
       this.material.transparent = true;
       this.material.depthWrite = false; // Common for transparent particles

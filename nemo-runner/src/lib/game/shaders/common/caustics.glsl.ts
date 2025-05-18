@@ -4,6 +4,48 @@
 /**
  * Caustic GLSL code for creating water caustic patterns
  */
+export const getCausticColor = `
+vec3 getCausticColor(vec3 worldPosition, float time, float scale, float intensity, vec3 causticBaseColor) {
+    vec2 uv1 = worldPosition.xz / scale + time * 0.05;
+    vec2 uv2 = worldPosition.xz / (scale * 0.6) + time * 0.08;
+    vec2 uv3 = worldPosition.xz / (scale * 0.3) + time * 0.12;
+
+    float pattern1 = FBM(uv1, 3, 0.5, 2.0);
+    float pattern2 = FBM(uv2, 2, 0.5, 2.0);
+    float pattern3 = FBM(uv3, 2, 0.4, 2.5);
+
+    float combinedPattern = pattern1 * pattern2 * pattern3;
+    combinedPattern = pow(combinedPattern, 3.0);
+    combinedPattern = smoothstep(0.1, 0.6, combinedPattern);
+
+    vec2 distortUv = worldPosition.xz / (scale * 2.0) + time * 0.03;
+    float distortion = noise2D(distortUv) * 0.3 - 0.15;
+    combinedPattern *= (1.0 + distortion);
+
+    combinedPattern = clamp(combinedPattern, 0.0, 1.0);
+
+    return causticBaseColor * combinedPattern * intensity;
+}
+`;
+
+export const causticPattern = `
+float FBM(vec2 p, int octaves, float persistence, float lacunarity) {
+    float total = 0.0;
+    float frequency = 1.0;
+    float amplitude = 1.0;
+    float maxValue = 0.0;
+    for(int i = 0; i < octaves; i++) {
+        total += noise2D(p * frequency) * amplitude;
+        maxValue += amplitude;
+        amplitude *= persistence;
+        frequency *= lacunarity;
+    }
+    return total / maxValue;
+}
+
+${getCausticColor}
+`;
+
 const CausticsGLSL = {
   // Simplified caustic effect calculation function
   causticEffect: `
@@ -159,7 +201,10 @@ vec3 blendCaustics(
   // 2. Screen blending (alternative)
   // return baseColor + (causticColor * causticStrength) - (baseColor * causticColor * causticStrength);
 }
-`
+`,
+
+  causticPattern,
+  getCausticColor,
 };
 
 export default CausticsGLSL;

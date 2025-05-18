@@ -50,7 +50,7 @@ export class InputHandler {
     this.keysPressed[event.key] = false;
   }
 
-  public update(deltaTime: number): void {
+  public update(/* deltaTime: number */): void {
     // No continuous movement for lane system; handled on keydown only
   }
 

@@ -262,11 +262,11 @@ export default function GameCanvas() {
       setTimeout(() => {
         try {
           // The safest approach is to do a full renderer recreation on each Fast Refresh
-          if (window.__gameEngine && typeof (window.__gameEngine as any).resetRendererAndShaders === 'function') {
+          if (window.__gameEngine && typeof (window.__gameEngine as unknown).resetRendererAndShaders === 'function') {
             console.log("GameCanvas: Performing complete WebGL context reset after Fast Refresh");
-            (window.__gameEngine as any).resetRendererAndShaders()
+            (window.__gameEngine as unknown as { resetRendererAndShaders: () => Promise<void> }).resetRendererAndShaders()
               .then(() => console.log("GameCanvas: Fast Refresh recovery completed successfully"))
-              .catch((e: any) => console.warn("GameCanvas: Fast Refresh recovery failed:", e));
+              .catch((e: unknown) => console.warn("GameCanvas: Fast Refresh recovery failed:", e));
           } else {
             console.warn("GameCanvas: Cannot find resetRendererAndShaders method - Fast Refresh may cause WebGL errors");
           }
@@ -347,7 +347,7 @@ export default function GameCanvas() {
       });
 
       // Expose for debug helpers
-      // @ts-ignore
+      // @ts-expect-error Adding custom property to window for debugging
       window.__gameEngine = engine;
       gameEngineRef.current = engine;
 
@@ -443,13 +443,13 @@ export default function GameCanvas() {
         console.log("GameCanvas: Cleanup complete.");
         setIsGameOver(false);
       };
-    } catch (e: any) {
-      const errMsg = `GameCanvas: Failed to initialize GameEngine: ${e.message}`;
+    } catch (e: unknown) {
+      const errMsg = `GameCanvas: Failed to initialize GameEngine: ${e instanceof Error ? e.message : 'Unknown error'}`;
       console.error(errMsg, e);
       setError(errMsg);
       setIsLoading(false);
     }
-  }, []); // Empty dependency array
+  }, [error, isLoading]); // Add missing dependencies
 
   const handleRestart = () => {
     if (gameEngineRef.current && gameEngineRef.current.getCurrentState() === GameState.GAME_OVER) {

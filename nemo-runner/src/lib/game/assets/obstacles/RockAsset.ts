@@ -20,7 +20,7 @@ export class RockAsset {
     // Scale down the base radius to prevent hitting characters in adjacent lanes
     const baseRadius = THREE.MathUtils.randFloat(0.4, 0.7) * this.config.baseScale; // Reduced size range
     const detail = 2; // More detail for displacement (e.g., 2-3)
-    let rockGeom = new THREE.IcosahedronGeometry(baseRadius, detail);
+    const rockGeom = new THREE.IcosahedronGeometry(baseRadius, detail);
 
     // Displace vertices for a craggy look
     const positions = rockGeom.attributes.position;
@@ -108,7 +108,7 @@ export class RockAsset {
 
   public isDangerous(): boolean { return true; }
   public reset(): void { /* No state */ }
-  public updateAnimation(deltaTime: number): void { /* Static */ }
+  public updateAnimation(/* deltaTime: number */): void { /* Static */ }
 
   public dispose(): void {
     if (this.mesh.geometry) this.mesh.geometry.dispose();

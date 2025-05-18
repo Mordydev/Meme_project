@@ -343,21 +343,21 @@ export class SharkAsset {
     this.teethMeshes = [];
     this.gillMeshes = [];
 
-    // @ts-ignore
+    // @ts-expect-error Setting mesh to null during disposal
     this.mesh = null;
-    // @ts-ignore
+    // @ts-expect-error Setting bodyMesh to null during disposal
     this.bodyMesh = null;
-    // @ts-ignore
+    // @ts-expect-error Setting jawMesh to null during disposal
     this.jawMesh = null;
-    // @ts-ignore
+    // @ts-expect-error Setting tailFin to null during disposal
     this.tailFin = null;
-    // @ts-ignore
+    // @ts-expect-error Setting dorsalFin to null during disposal
     this.dorsalFin = null;
-    // @ts-ignore
+    // @ts-expect-error Setting leftPectoralFin to null during disposal
     this.leftPectoralFin = null;
-    // @ts-ignore
+    // @ts-expect-error Setting rightPectoralFin to null during disposal
     this.rightPectoralFin = null;
-    // @ts-ignore
+    // @ts-expect-error Setting collisionMesh to null during disposal
     this.collisionMesh = null;
   }
 }

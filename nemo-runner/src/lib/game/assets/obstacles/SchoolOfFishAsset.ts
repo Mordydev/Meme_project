@@ -82,7 +82,7 @@ export class SchoolOfFishAsset {
         bevelSize: 0.005 * scale,    // Bevel based on original detail scale
         bevelSegments: 1 
     };
-    let geom = new THREE.ExtrudeGeometry(fishShape, extrudeSettings);
+    const geom = new THREE.ExtrudeGeometry(fishShape, extrudeSettings);
     geom.center(); 
     geom.rotateX(Math.PI / 2); 
     geom.rotateY(Math.PI /2); 

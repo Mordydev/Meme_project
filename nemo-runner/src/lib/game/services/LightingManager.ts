@@ -4,7 +4,7 @@ import { configSystem } from '../core/ConfigurationSystem';
 import { ShaderManager } from './ShaderManager';
 import { LightingConfig } from '../config/gameConfig'; // Import the new LightingConfig
 import NoiseGLSL from '../shaders/common/noise.glsl'; // Assumed to exist and export .random2D, .noise2D
-import CausticsGLSL from '../shaders/common/caustics.glsl'; // Assumed to exist and export .causticPattern
+import CausticsGLSL from '../shaders/common/caustics.glsl'; // Provides GLSL for getCausticColor
 // import UtilsGLSL from '../shaders/common/utils.glsl'; // Placeholder if used for PI, saturate
 
 /**
@@ -108,10 +108,10 @@ export class LightingManager {
     // }
 
     // Register caustic pattern shader chunk
-    if (CausticsGLSL && (CausticsGLSL as any).causticPattern) {
-        this.shaderManager.registerChunk("causticPattern", (CausticsGLSL as any).causticPattern);
+    if (CausticsGLSL && (CausticsGLSL as any).getCausticColor) {
+        this.shaderManager.registerChunk("getCausticColor", (CausticsGLSL as any).getCausticColor);
     } else {
-        console.warn("LightingManager: CausticsGLSL.causticPattern not found or CausticsGLSL not imported correctly.");
+        console.warn("LightingManager: CausticsGLSL.getCausticColor not found or CausticsGLSL not imported correctly.");
     }
 
     // Example: Registering utility chunks if UtilsGLSL was imported and structured similarly
@@ -132,16 +132,16 @@ export class LightingManager {
    */
   public getCausticGLSLChunk(): string {
     let glsl = "";
-    if (NoiseGLSL && (NoiseGLSL as any).random2D) glsl += (NoiseGLSL as any).random2D + '\n';
+    if (NoiseGLSL && (NoiseGLSL as unknown as { random2D?: string }).random2D) glsl += (NoiseGLSL as unknown as { random2D: string }).random2D + '\n';
     else console.warn("getCausticGLSLChunk: NoiseGLSL.random2D is missing.");
     
-    if (NoiseGLSL && (NoiseGLSL as any).noise2D) glsl += (NoiseGLSL as any).noise2D + '\n';
+    if (NoiseGLSL && (NoiseGLSL as unknown as { noise2D?: string }).noise2D) glsl += (NoiseGLSL as unknown as { noise2D: string }).noise2D + '\n';
     else console.warn("getCausticGLSLChunk: NoiseGLSL.noise2D is missing.");
 
-    if (CausticsGLSL && (CausticsGLSL as any).causticPattern) glsl += (CausticsGLSL as any).causticPattern + '\n';
-    else console.warn("getCausticGLSLChunk: CausticsGLSL.causticPattern is missing.");
+    if (CausticsGLSL && (CausticsGLSL as unknown as { getCausticColor?: string }).getCausticColor) glsl += (CausticsGLSL as unknown as { getCausticColor: string }).getCausticColor + '\n';
+    else console.warn("getCausticGLSLChunk: CausticsGLSL.getCausticColor is missing.");
     
-    if (!glsl.trim()) console.error("LightingManager: Caustic GLSL chunk is empty! Ensure shaders (.glsl files) are imported correctly and contain the expected named exports (e.g., random2D, noise2D, causticPattern).");
+    if (!glsl.trim()) console.error("LightingManager: Caustic GLSL chunk is empty! Ensure shaders (.glsl files) are imported correctly and contain the expected named exports (e.g., random2D, noise2D, getCausticColor).");
     return glsl;
   }
   
@@ -159,7 +159,7 @@ export class LightingManager {
    * @param deltaTime Time since last frame in seconds
    * @param elapsedTime Total game time in seconds
    */
-  public update(deltaTime: number, elapsedTime: number): void {
+  public update(/* deltaTime: number, elapsedTime: number */): void {
     // ShaderManager.update() handles global uniforms like uTime.
     // Specific updates for lighting effects could go here if needed,
     // e.g., animating light properties or god ray parameters dynamically.

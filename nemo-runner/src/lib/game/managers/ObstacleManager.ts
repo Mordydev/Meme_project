@@ -45,7 +45,7 @@ export class ObstacleManager {
   private scene: THREE.Scene;
   private assetFactory: ProceduralAssetFactory;
   // private environmentManager: EnvironmentManager;
-  private gameEngine?: any; // Reference to GameEngine for player position
+  private gameEngine?: unknown; // Reference to GameEngine for player position
   private playerController?: PlayerController; // Reference to PlayerController for proximity effects
 
   public activeObstacles: Obstacle[] = []; // Public for collision detection access
@@ -73,7 +73,7 @@ export class ObstacleManager {
   private patternSequence: PatternType[] = [];
   private currentPatternIndex: number = 0;
 
-  constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory, gameEngine?: any /*, environmentManager: EnvironmentManager */) {
+  constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory, gameEngine?: unknown /*, environmentManager: EnvironmentManager */) {
     this.scene = scene;
     this.assetFactory = assetFactory;
     this.gameEngine = gameEngine;
@@ -357,7 +357,7 @@ export class ObstacleManager {
    * @param isPatternImportant Whether the pattern is a more challenging one
    * @returns Array of obstacle types
    */
-  private selectObstacleTypes(count: number, isPatternImportant: boolean): ObstacleType[] {
+  private selectObstacleTypes(count: number, /* isPatternImportant: boolean */): ObstacleType[] {
     const obstacleTypes: ObstacleType[] = [];
 
     for (let i = 0; i < count; i++) {
@@ -377,9 +377,9 @@ export class ObstacleManager {
         schoolOfFish: 0.00  // Will be adjusted to fill remaining (Restored from 0.01)
       };
       
-      let activeTypes: ObstacleType[] = ['coral', 'rock', 'clam', 'pufferfish', 'jellyfish'];
-      let cumulativeProbability = 0;
-      const availableProbSpace = 1.0; // Total probability space
+      const activeTypes: ObstacleType[] = ['coral', 'rock', 'clam', 'pufferfish', 'jellyfish'];
+      // let cumulativeProbability = 0;
+      // const availableProbSpace = 1.0; // Total probability space
 
       // Adjust chances for advanced types based on complexity
       if (this.complexityFactor > 0.5) activeTypes.push('shark');
@@ -440,8 +440,7 @@ export class ObstacleManager {
           break;
         }
       }
-      type = chosenType;
-      obstacleTypes.push(type);
+      obstacleTypes.push(chosenType);
     }
     return obstacleTypes;
   }

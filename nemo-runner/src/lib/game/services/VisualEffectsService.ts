@@ -17,7 +17,7 @@ export class VisualEffectsService {
   private cameraManager?: CameraManager;
   private shaderManager?: ShaderManager;
   private renderManager?: RenderManager;
-  private gameEngine?: any; // Reference to game engine if needed
+  private gameEngine?: unknown; // Reference to game engine if needed
   
   // For screen flash effect (callback to GameCanvas)
   private onScreenFlash?: (color: string, duration: number) => void;
@@ -119,7 +119,7 @@ export class VisualEffectsService {
       fragmentShader: underwaterPPFragmentShader,
     };
 
-    this.postProcessingPass = new ShaderPass(ppShader as any);
+    this.postProcessingPass = new ShaderPass(ppShader);
     this.renderManager.addPostProcessingPass(this.ppPassName, this.postProcessingPass);
   }
 
@@ -135,7 +135,7 @@ export class VisualEffectsService {
    * Link the game engine for any other dependencies
    * @param gameEngine The game engine instance
    */
-  public linkGameEngine(gameEngine: any): void {
+  public linkGameEngine(gameEngine: unknown): void {
     this.gameEngine = gameEngine;
   }
 

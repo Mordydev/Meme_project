@@ -7,14 +7,9 @@ float random2D(vec2 st) {
 }
 `;
 
-// Basic 2D noise function (value noise) - with the random2D function inlined
+// Basic 2D noise function (value noise) - requires random2D to be defined
 export const noise2D = `
-// Random function inlined to ensure it's available
-float random2D(vec2 st) {
-    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
-}
-
-// Value noise using the 2D random function above
+// Value noise using the 2D random function defined elsewhere
 float noise2D(vec2 st) {
     vec2 i = floor(st);
     vec2 f = fract(st);
