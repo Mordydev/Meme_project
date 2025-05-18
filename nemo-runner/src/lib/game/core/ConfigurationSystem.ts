@@ -1,7 +1,7 @@
 // src/lib/game/core/ConfigurationSystem.ts
 import { GameConfig, defaultConfig, PowerUpsGameConfig, DifficultyGameConfig } from '../config/gameConfig';
 
-class ConfigurationSystem {
+export class ConfigurationSystem {
   private config: GameConfig;
 
   constructor(initialConfig?: Partial<GameConfig>) {

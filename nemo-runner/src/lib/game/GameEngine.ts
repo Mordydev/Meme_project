@@ -77,7 +77,7 @@ export class GameEngine {
     this.callbacks = callbacks;
   }
 
-  public initialize(): void {
+  public async initialize(): Promise<void> {
     try {
       // Scene
       this.scene = new THREE.Scene();
@@ -110,7 +110,6 @@ export class GameEngine {
 
       // Visual Effects Service for particles and post-processing
       this.visualEffectsService = new VisualEffectsService();
-      this.visualEffectsService.linkCameraManager(this.cameraManager);
       this.visualEffectsService.linkGameEngine(this);
       this.visualEffectsService.initializeParticlesAndPostProcessing(
         this.scene, 
@@ -135,7 +134,7 @@ export class GameEngine {
       this.assetFactory = new ProceduralAssetFactory(this.shaderManager, this.lightingManager);
 
       // EnvironmentManager
-      this.environmentManager = new EnvironmentManager(this.scene, this.assetFactory);
+      this.environmentManager = new EnvironmentManager(this.scene, this.assetFactory, this.lightingManager, this.shaderManager);
 
       // Player Controller
       this.playerController = new PlayerController(this.scene, this.assetFactory, this);
@@ -200,6 +199,9 @@ export class GameEngine {
       // Recreate obstacle pool to ensure all obstacles have the latest updates (collision spheres)
       this.obstacleManager.recreatePool();
 
+      // After all managers are created, initialize EnvironmentManager (which might be async)
+      await this.environmentManager.initialize();
+
       this.currentState = GameState.READY;
       console.log("GameEngine: Initialized successfully. State: READY");
     } catch (error) {
@@ -231,7 +233,7 @@ export class GameEngine {
     console.log("GameEngine: Stopped.");
   }
 
-  private gameLoop(timestamp: number = performance.now()): void {
+  private async gameLoop(timestamp: number = performance.now()): Promise<void> {
     if (!this.isRunning) {
       if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = undefined;
@@ -240,48 +242,20 @@ export class GameEngine {
     const deltaTime = (timestamp - this.lastTimestamp) / 1000;
     this.lastTimestamp = timestamp;
     const dt = Math.min(deltaTime, 0.1);
+    const elapsedTime = timestamp / 1000; // Total elapsed time for shaders
+
     if (this.currentState === GameState.PLAYING) {
       this.inputHandler.update(dt);
       this.playerController.update(dt);
 
-      // Get current distance for difficulty scaling
       const currentDistance = this.scoringSystem.totalDistanceTraveled;
-
-      // Update difficulty based on player's distance
       this.difficultyManager.update(dt, currentDistance);
 
-      this.environmentManager.update(dt, this.playerController.mesh.position.z);
       this.obstacleManager.update(dt, this.playerController.mesh.position.z);
+
+      await this.environmentManager.update(dt, this.playerController.mesh.position.z, elapsedTime);
       this.collectibleManager.update(dt, this.playerController.mesh.position.z);
-
-      // Update lighting and caustic effects
-      this.lightingManager.update(dt, timestamp / 1000);
-      
-      // Update visual effects (particles and post-processing)
-      this.visualEffectsService.update(dt, timestamp / 1000, this.playerController.mesh.position);
-
-      // Update forward speed for power-ups
-      this.powerUpManager.setGameSpeed(this.playerController.getForwardSpeed());
-      // Fix: Pass player's Z position to powerUpManager.update
-      this.powerUpManager.update(dt, this.playerController.mesh.position.z);
-
-      // Update score based on distance
-      const distanceTraveled = dt * this.playerController.getForwardSpeed();
-      this.scoringSystem.update(dt, distanceTraveled);
-
-      // Update UI with active power-ups
-      if (this.callbacks.onActivePowerUpsUpdate) {
-        const activePowerUps = this.powerUpManager.getActiveEffectsForUI();
-        this.callbacks.onActivePowerUpsUpdate(activePowerUps);
-      }
-
-      // Update shader global uniforms (time, resolution)
-      this.shaderManager.update(
-        dt,                             // deltaTime
-        timestamp / 1000,               // elapsedTime in seconds
-        this.mountElement.clientWidth,  // screenWidth
-        this.mountElement.clientHeight   // screenHeight
-      );
+      this.powerUpManager.update(dt, elapsedTime);
 
       this.collisionSystem.checkCollisions();
     }
@@ -650,13 +624,16 @@ export class GameEngine {
     }
   }
 
-  public resetGame(): void {
+  public async resetGame(): Promise<void> {
     console.log("GameEngine: Resetting game...");
+    this.stop();
 
     // Reset all game managers
     this.playerController.reset();
     this.obstacleManager.reset();
-    this.environmentManager.reset(this.playerController.mesh.position.z);
+    if (this.environmentManager) {
+      await this.environmentManager.reset(this.playerController.mesh.position.z);
+    }
     this.collectibleManager.reset();
     
     // Reset the VisualEffectsService
