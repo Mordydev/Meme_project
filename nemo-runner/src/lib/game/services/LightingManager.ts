@@ -4,7 +4,7 @@ import { configSystem } from '../core/ConfigurationSystem';
 import { ShaderManager } from './ShaderManager';
 import { LightingConfig } from '../config/gameConfig'; // Import the new LightingConfig
 import NoiseGLSL from '../shaders/common/noise.glsl'; // Assumed to exist and export .random2D, .noise2D
-import CausticsGLSL from '../shaders/common/caustics.glsl'; // Provides GLSL for getCausticColor
+import CausticsGLSL from '../shaders/common/caustics.glsl'; // Provides GLSL for caustic patterns
 // import UtilsGLSL from '../shaders/common/utils.glsl'; // Placeholder if used for PI, saturate
 
 /**
@@ -107,11 +107,17 @@ export class LightingManager {
     //     console.warn("LightingManager: NoiseGLSL.noise2D not found or NoiseGLSL not imported correctly.");
     // }
 
-    // Register caustic pattern shader chunk
+    // Register caustic shader chunks
     if (CausticsGLSL && (CausticsGLSL as any).getCausticColor) {
         this.shaderManager.registerChunk("getCausticColor", (CausticsGLSL as any).getCausticColor);
     } else {
         console.warn("LightingManager: CausticsGLSL.getCausticColor not found or CausticsGLSL not imported correctly.");
+    }
+
+    if (CausticsGLSL && (CausticsGLSL as any).causticPattern) {
+        this.shaderManager.registerChunk("causticPattern", (CausticsGLSL as any).causticPattern);
+    } else {
+        console.warn("LightingManager: CausticsGLSL.causticPattern not found or CausticsGLSL not imported correctly.");
     }
 
     // Example: Registering utility chunks if UtilsGLSL was imported and structured similarly
@@ -138,8 +144,8 @@ export class LightingManager {
     if (NoiseGLSL && (NoiseGLSL as unknown as { noise2D?: string }).noise2D) glsl += (NoiseGLSL as unknown as { noise2D: string }).noise2D + '\n';
     else console.warn("getCausticGLSLChunk: NoiseGLSL.noise2D is missing.");
 
-    if (CausticsGLSL && (CausticsGLSL as unknown as { getCausticColor?: string }).getCausticColor) glsl += (CausticsGLSL as unknown as { getCausticColor: string }).getCausticColor + '\n';
-    else console.warn("getCausticGLSLChunk: CausticsGLSL.getCausticColor is missing.");
+    if (CausticsGLSL && (CausticsGLSL as unknown as { causticPattern?: string }).causticPattern) glsl += (CausticsGLSL as unknown as { causticPattern: string }).causticPattern + '\n';
+    else console.warn("getCausticGLSLChunk: CausticsGLSL.causticPattern is missing.");
     
     if (!glsl.trim()) console.error("LightingManager: Caustic GLSL chunk is empty! Ensure shaders (.glsl files) are imported correctly and contain the expected named exports (e.g., random2D, noise2D, getCausticColor).");
     return glsl;

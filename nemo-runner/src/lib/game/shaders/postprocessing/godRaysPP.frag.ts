@@ -21,9 +21,9 @@ export const godRaysFragmentShader = `
     for(int i = 0; i < MAX_SAMPLES; i++) {
       if(i == samples) break;
       coord -= delta;
-      vec4 sample = texture2D(tDiffuse, coord);
-      sample *= illuminationDecay * weight;
-      color += sample;
+      vec4 sampleColor = texture2D(tDiffuse, coord);
+      sampleColor *= illuminationDecay * weight;
+      color += sampleColor;
       illuminationDecay *= decay;
     }
 

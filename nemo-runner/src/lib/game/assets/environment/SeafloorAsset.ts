@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { configSystem } from '../../core/ConfigurationSystem';
 import { ShaderManager } from '../../services/ShaderManager';
 import { LightingManager } from '../../services/LightingManager';
+import NoiseGLSL from '../../shaders/common/noise.glsl';
+import CausticsGLSL from '../../shaders/common/caustics.glsl';
 import { SeafloorVisualConfig } from '../../config/gameConfig';
 
 export class SeafloorAsset {
@@ -144,7 +146,9 @@ export class SeafloorAsset {
             shader.vertexShader = 'varying vec3 vWorldPosition_Seafloor;\n' + shader.vertexShader;
             shader.vertexShader = shader.vertexShader.replace(
                 '#include <worldpos_vertex>',
-                `#include <worldpos_vertex>\n vWorldPosition_Seafloor = worldPosition.xyz;`
+                `#include <worldpos_vertex>
+                vec3 worldPosSeafloor = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                vWorldPosition_Seafloor = worldPosSeafloor;`
             );
             
             // Fragment shader modifications
@@ -158,7 +162,9 @@ export class SeafloorAsset {
             `;
 
             shader.fragmentShader = uniformDeclarations + '\n' +
-                                    this.lightingManager.getCausticGLSLChunk() + '\n' +
+                                    NoiseGLSL.random2D + '\n' +
+                                    NoiseGLSL.noise2D + '\n' +
+                                    CausticsGLSL.causticPattern + '\n' +
                                     shader.fragmentShader;
             
             // Remove existing varying declaration if present to avoid duplication, as we add it with other uniforms
