@@ -29,6 +29,7 @@ interface Obstacle {
   turtleState?: 'patrolling' | 'telegraphing' | 'changingLane'; // Current state in the lane change sequence
   turtleTimeInState?: number; // Time in current state
   turtleTimeToNextAction?: number; // Time until next lane change decision
+  turtleHasChangedLane?: boolean; // Flag to track if turtle has already changed lanes once
   // School of Fish movement params
   schoolForwardSpeed?: number; // Forward speed relative to player
   // Kelp Wall params
@@ -491,8 +492,7 @@ export class ObstacleManager {
 
       // Log details for EVERY obstacle being configured here
       // console.log('[ObstacleManager Spawn DEBUG] Configuring obstacle. Type:', obstacle.type, 'Asset Ctor:', obstacle.assetInstance?.constructor?.name);
-      // NEW DETAILED LOG BEFORE TYPE CHECKING:
-      console.log(`[ObstacleManager Spawn Pre-Check] About to configure. Raw obstacle.type: "${obstacle.type}" (length: ${obstacle.type?.length}), Ctor: ${obstacle.assetInstance?.constructor?.name}`);
+      // console.log(`[ObstacleManager Spawn Pre-Check] About to configure. Raw obstacle.type: "${obstacle.type}" (length: ${obstacle.type?.length}), Ctor: ${obstacle.assetInstance?.constructor?.name}`);
 
       // Adjust Y position based on obstacle type
       if (obstacle.type === 'rock') {
@@ -505,7 +505,7 @@ export class ObstacleManager {
       } else if (obstacle.type === 'jellyfish') {
         obstacle.mesh.position.y = -0.3; // Jellyfish float highest in the water
       } else if (obstacle.type && obstacle.type.trim() === 'shark') {
-        console.log('[ObstacleManager CRITICAL DEBUG] ENTERED shark config block. Original Type: "' + obstacle.type + '", Trimmed Type: "' + obstacle.type.trim() + '"');
+        // console.log('[ObstacleManager CRITICAL DEBUG] ENTERED shark config block. Original Type: "' + obstacle.type + '", Trimmed Type: "' + obstacle.type.trim() + '"');
         obstacle.mesh.position.y = -0.2; // Sharks swim a bit higher
         // Rotation is handled by the shark asset itself during its patrol
 
@@ -525,8 +525,7 @@ export class ObstacleManager {
         // Apply initial rotation based on patrol direction
         obstacle.mesh.rotation.y = obstacle.patrolDirection === 1 ? 0 : Math.PI;
       } else if (obstacle.type && obstacle.type.trim() === 'seaTurtle') {
-        console.log('[ObstacleManager CRITICAL DEBUG] ENTERED seaTurtle config block. Original Type: "' + obstacle.type + '", Trimmed Type: "' + obstacle.type.trim() + '"');
-        console.log('[ObstacleManager DEBUG] Attempting to configure Sea Turtle. Asset instance constructor name:', obstacle.assetInstance?.constructor?.name);
+        // console.log('[ObstacleManager DEBUG] Configuring Sea Turtle');
         obstacle.mesh.position.y = -0.35; // Sea turtles swim at mid-water level
 
         // Set up sea turtle lane changing parameters
@@ -535,6 +534,7 @@ export class ObstacleManager {
         obstacle.turtleTimeInState = 0;
         obstacle.turtleTimeToNextAction = this.seaTurtleConfig.minTimeInLane +
                                           Math.random() * (this.seaTurtleConfig.maxTimeInLane - this.seaTurtleConfig.minTimeInLane);
+        obstacle.turtleHasChangedLane = false;
 
         // Ensure the turtle starts facing forward
         if (obstacle.assetInstance instanceof SeaTurtleAsset) {
@@ -690,20 +690,27 @@ export class ObstacleManager {
 
           // State machine for lane changing
           if (obstacle.turtleState === 'patrolling') {
-            console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Patrolling. TimeInState: ${obstacle.turtleTimeInState?.toFixed(2)}, TimeToNext: ${obstacle.turtleTimeToNextAction?.toFixed(2)}`);
-            if (obstacle.turtleTimeInState >= obstacle.turtleTimeToNextAction!) {
-              console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Time to decide next lane change.`);
+            const distanceToPlayer = playerPosition.z - obstacle.mesh.position.z;
+            const proximityTriggered = distanceToPlayer > 0 && distanceToPlayer <= this.seaTurtleConfig.proximityTriggerDistance;
+
+            // Only consider changing lanes if the turtle hasn't already done so
+            if (!obstacle.turtleHasChangedLane && 
+                (obstacle.turtleTimeInState >= obstacle.turtleTimeToNextAction! || proximityTriggered)) {
               const laneCount = configSystem.getWorldLaneCount();
               const possibleLanes: number[] = [];
 
               // Only consider adjacent lanes (one step left or right)
               const minLane = -Math.floor(laneCount/2);
               const maxLane = Math.floor(laneCount/2);
-              const leftLane = obstacle.turtleCurrentLane - 1;
-              const rightLane = obstacle.turtleCurrentLane + 1;
+              const leftLane = obstacle.turtleCurrentLane! - 1;
+              const rightLane = obstacle.turtleCurrentLane! + 1;
+              
+              // Add left lane if valid
               if (leftLane >= minLane) {
                 possibleLanes.push(leftLane);
               }
+              
+              // Add right lane if valid
               if (rightLane <= maxLane) {
                 possibleLanes.push(rightLane);
               }
@@ -714,14 +721,19 @@ export class ObstacleManager {
                 obstacle.turtleTargetLane = possibleLanes[randomIndex];
 
                 // Telegraph the chosen lane direction on the asset
-                const direction = obstacle.turtleTargetLane < obstacle.turtleCurrentLane ? 'left'
+                const direction = obstacle.turtleTargetLane < obstacle.turtleCurrentLane! ? 'left'
                                  : 'right';
                 turtleAsset.setTelegraphTurn(direction);
 
                 // Change to telegraphing state
-                console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Transitioning to TELEGRAPHING. TargetLane: ${obstacle.turtleTargetLane}`);
                 obstacle.turtleState = 'telegraphing';
                 obstacle.turtleTimeInState = 0;
+                
+                // If proximity triggered, telegraph faster
+                if (proximityTriggered) {
+                  // Skip some of the telegraph time to react faster
+                  obstacle.turtleTimeInState = this.seaTurtleConfig.laneChangeTelegraphTime * 0.5;
+                }
               } else {
                 // Should not happen with 3 lanes, but reset timer just in case
                 obstacle.turtleTimeToNextAction = this.seaTurtleConfig.minTimeInLane;
@@ -729,10 +741,8 @@ export class ObstacleManager {
             }
           }
           else if (obstacle.turtleState === 'telegraphing') {
-            console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Telegraphing. TimeInState: ${obstacle.turtleTimeInState?.toFixed(2)}`);
             if (obstacle.turtleTimeInState >= this.seaTurtleConfig.laneChangeTelegraphTime) {
               // Time to start moving to the new lane
-              console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Transitioning to CHANGING_LANE.`);
               obstacle.turtleState = 'changingLane';
               obstacle.turtleTimeInState = 0;
             }
@@ -742,7 +752,6 @@ export class ObstacleManager {
             const targetX = obstacle.turtleTargetLane! * laneWidth;
             const moveDirection = Math.sign(targetX - obstacle.mesh.position.x);
             const laneChangeSpeed = laneWidth / this.seaTurtleConfig.laneChangeDuration;
-            console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} ChangingLane. CurrentX: ${obstacle.mesh.position.x.toFixed(2)}, TargetX: ${targetX.toFixed(2)}, MoveDir: ${moveDirection}, Speed: ${laneChangeSpeed.toFixed(2)}`);
 
             // Move the turtle toward the target lane
             obstacle.mesh.position.x += moveDirection * laneChangeSpeed * deltaTime;
@@ -755,13 +764,11 @@ export class ObstacleManager {
               obstacle.turtleCurrentLane = obstacle.turtleTargetLane;
 
               // Return to patrolling state
-              console.log(`[ObstacleManager Turtle Update] Turtle ${obstacle.mesh.uuid.slice(0,5)} Reached TargetLane. Transitioning to PATROLLING.`);
               obstacle.turtleState = 'patrolling';
               obstacle.turtleTimeInState = 0;
 
-              // Set next lane change time
-              obstacle.turtleTimeToNextAction = this.seaTurtleConfig.minTimeInLane +
-                Math.random() * (this.seaTurtleConfig.maxTimeInLane - this.seaTurtleConfig.minTimeInLane);
+              // Set the flag to indicate this turtle has already changed lanes
+              obstacle.turtleHasChangedLane = true;
 
               // Reset turtle orientation to face forward
               turtleAsset.setTelegraphTurn('center');
@@ -971,6 +978,7 @@ export class ObstacleManager {
       obstacle.turtleState = undefined;
       obstacle.turtleTimeInState = undefined;
       obstacle.turtleTimeToNextAction = undefined;
+      obstacle.turtleHasChangedLane = undefined;
 
       // Clear kelp wall data
       obstacle.kelpAnimationPhase = undefined;

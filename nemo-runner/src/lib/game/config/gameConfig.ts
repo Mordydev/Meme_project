@@ -160,8 +160,9 @@ export interface SeaTurtleConfig {
   laneChangeDuration: number; // Seconds to complete the lane change
   minTimeInLane: number;      // Minimum time turtle stays in a lane
   maxTimeInLane: number;      // Maximum time turtle stays in a lane
+  proximityTriggerDistance: number; // Distance from player that forces a lane change
   turnAngleDegrees: number;   // How much it visually turns to indicate lane change
-  visuals: ObstacleStandardMaterialVisuals & { 
+  visuals: ObstacleStandardMaterialVisuals & {
     shellPatternColor?: number | string, 
     skinColor?: number | string,
     shellBumpScale?: number; 
@@ -506,10 +507,11 @@ export const defaultConfig: GameConfig = {
     },
     seaTurtle: {
       baseScale: 1.4, forwardSpeedFactor: 0.75,
-      laneChangeTelegraphTime: 1.0,
-      laneChangeDuration: 1.5,
+      laneChangeTelegraphTime: 0.6,
+      laneChangeDuration: 1.0,
       minTimeInLane: 4.0,
       maxTimeInLane: 8.0,
+      proximityTriggerDistance: 25,
       turnAngleDegrees: 20,
       visuals: {
         mainColor: 0x7E8A5F, // Shell - Olive Green/Brown

@@ -414,7 +414,6 @@ export class SeaTurtleAsset {
   }
 
   public setTelegraphTurn(direction: 'left' | 'right' | 'center'): void {
-    console.log(`SeaTurtleAsset: setTelegraphTurn called with direction: ${direction}`);
     this.currentTelegraphState = direction;
 
     // Reset head rotation to neutral before applying new turn
@@ -434,7 +433,6 @@ export class SeaTurtleAsset {
   }
   
   public updateAnimation(deltaTime: number): void {
-    console.log(`SeaTurtleAsset: updateAnimation - state: ${this.currentTelegraphState}, targetYRot: ${this.targetTurnAngle.toFixed(2)}, currentYRot: ${this.mesh.rotation.y.toFixed(2)}, currentZRot: ${this.mesh.rotation.z.toFixed(2)}`);
     const time = this.animationTime += deltaTime;
     const visualConf = this.config.visuals as Required<{ 
       mainColor: string | number; 

@@ -25,6 +25,7 @@ export class PufferfishAsset {
   private animationTime: number = 0; // Generic timer, could be used for bobbing/fins
   private stateTime: number = 0; // Timer for current inflation/deflation state duration
   private inflationCooldownTimer: number = 0;
+  private uuidPhase: number = 0;
 
   // Store initial positions for features to scale them correctly
   private initialEyeLPos!: THREE.Vector3;
@@ -41,6 +42,18 @@ export class PufferfishAsset {
     this.createMesh();
     // Store initial positions after creation
     this.storeInitialPositions();
+    this.uuidPhase = this.calculateUuidPhase();
+  }
+
+  private calculateUuidPhase(): number {
+    let phase = 0;
+    if (this.mesh && this.mesh.uuid) {
+      for (let i = 0; i < this.mesh.uuid.length; i++) {
+        phase += this.mesh.uuid.charCodeAt(i);
+      }
+      phase = (phase % 100) / 100; // Normalize to 0-1
+    }
+    return phase;
   }
 
   private createMesh(): void {
@@ -282,32 +295,24 @@ export class PufferfishAsset {
     // --- Bobbing Animation ---
     const bobFrequency = this.config.visuals.animationSpeed || 0.5; // Use general animationSpeed from config or default
     const bobAmplitude = this.config.visuals.animationAmplitude || 0.05; // Use general animationAmplitude or default
-    // Ensure a unique seed for each pufferfish instance for desynchronized animation
-    // Taking a simple char code sum from UUID for a phase offset
-    let uuidPhase = 0;
-    if (this.mesh && this.mesh.uuid) {
-        for (let i = 0; i < this.mesh.uuid.length; i++) {
-            uuidPhase += this.mesh.uuid.charCodeAt(i);
-        }
-        uuidPhase = (uuidPhase % 100) / 100; // Normalize to 0-1
-    }
-    this.mesh.position.y = Math.sin(this.animationTime * bobFrequency + uuidPhase * Math.PI * 2) * bobAmplitude;
+    // Use cached UUID phase so each pufferfish bobs out of sync
+    this.mesh.position.y = Math.sin(this.animationTime * bobFrequency + this.uuidPhase * Math.PI * 2) * bobAmplitude;
 
     // --- Fin Animations (subtle movements) ---
     const finSpeed = (this.config.visuals.animationSpeed || 0.5) * 1.5; // Fins move a bit faster
     const finAmplitude = (this.config.visuals.animationAmplitude || 0.1) * 0.5; // Smaller amplitude for fins
 
     if (this.dorsalFin) {
-      this.dorsalFin.rotation.z = Math.sin(this.animationTime * finSpeed * 1.1 + uuidPhase * Math.PI) * finAmplitude * 0.5;
+      this.dorsalFin.rotation.z = Math.sin(this.animationTime * finSpeed * 1.1 + this.uuidPhase * Math.PI) * finAmplitude * 0.5;
     }
     if (this.tailFin) {
-      this.tailFin.rotation.y = Math.sin(this.animationTime * finSpeed * 1.2 + uuidPhase * Math.PI * 1.2) * finAmplitude;
+      this.tailFin.rotation.y = Math.sin(this.animationTime * finSpeed * 1.2 + this.uuidPhase * Math.PI * 1.2) * finAmplitude;
     }
     if (this.leftPectoralFin) {
-      this.leftPectoralFin.rotation.z = Math.PI / 6 + Math.sin(this.animationTime * finSpeed + uuidPhase * Math.PI * 1.1) * finAmplitude;
+      this.leftPectoralFin.rotation.z = Math.PI / 6 + Math.sin(this.animationTime * finSpeed + this.uuidPhase * Math.PI * 1.1) * finAmplitude;
     }
     if (this.rightPectoralFin) {
-      this.rightPectoralFin.rotation.z = -Math.PI / 6 - Math.sin(this.animationTime * finSpeed + uuidPhase * Math.PI * 1.1) * finAmplitude;
+      this.rightPectoralFin.rotation.z = -Math.PI / 6 - Math.sin(this.animationTime * finSpeed + this.uuidPhase * Math.PI * 1.1) * finAmplitude;
     }
   }
 

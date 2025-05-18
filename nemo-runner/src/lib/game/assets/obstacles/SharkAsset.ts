@@ -18,7 +18,6 @@ export class SharkAsset {
   private gillMeshes: THREE.Mesh[] = [];
 
   private animationTime: number = 0;
-  public jawOpenAngle: number = 0;
 
   constructor() {
     this.config = configSystem.getObstaclesConfig().shark;
@@ -304,7 +303,6 @@ export class SharkAsset {
 
   public reset(): void { 
     this.animationTime = 0; 
-    this.jawOpenAngle = 0;
     if (this.jawMesh) this.jawMesh.rotation.x = 0;
     if (this.tailFin) {
         this.tailFin.rotation.y = 0;

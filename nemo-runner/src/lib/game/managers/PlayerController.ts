@@ -192,7 +192,7 @@ export class PlayerController {
    */
   public setForwardSpeedMultiplier(multiplier: number): void {
     this.forwardSpeedMultiplier = Math.max(0, multiplier); // Ensure non-negative
-    // console.log(`PlayerController: Forward speed multiplier set to ${multiplier.toFixed(2)}, current speed: ${this.currentForwardSpeed.toFixed(2)}`);
+    console.log(`PlayerController: Forward speed multiplier set to ${multiplier.toFixed(2)}, new speed: ${(this.baseForwardSpeed * multiplier).toFixed(2)} (base: ${this.baseForwardSpeed.toFixed(2)})`);
   }
 
   // Jump method
@@ -236,6 +236,14 @@ export class PlayerController {
 
   public update(deltaTime: number): void {
     const playerConfig = configSystem.get('player'); // Get config once
+
+    // Update current speed from base and multiplier
+    this.currentForwardSpeed = this.baseForwardSpeed * this.forwardSpeedMultiplier;
+
+    // Log the current speed every 5 seconds for debugging
+    if (Math.round(Date.now() / 5000) % 2 === 0) { // Log every 5 seconds
+      console.log(`PlayerController: Current speed: ${this.currentForwardSpeed.toFixed(2)} (base: ${this.baseForwardSpeed.toFixed(2)}, multiplier: ${this.forwardSpeedMultiplier.toFixed(2)})`);
+    }
 
     // Forward movement - now uses the dynamic current speed
     if (this.state !== PlayerState.DEFEATED) { // Don't move if defeated
