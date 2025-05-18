@@ -16,6 +16,7 @@ import { ShieldPowerUpAsset } from './powerups/ShieldPowerUpAsset';
 import { MagnetPowerUpAsset } from './powerups/MagnetPowerUpAsset';
 import { DoubleScorePowerUpAsset } from './powerups/DoubleScorePowerUpAsset';
 import { ClownfishAsset } from './character/ClownfishAsset';
+import { LightingManager } from '../services/LightingManager';
 
 // Define a union type for all obstacle asset classes
 export type ObstacleAssetType = CoralAsset | RockAsset | ClamAsset | PufferfishAsset | JellyfishAsset | SharkAsset | SeaTurtleAsset | KelpWallAsset | SchoolOfFishAsset;
@@ -23,6 +24,7 @@ export type AnyObstacleTypeString = 'coral' | 'rock' | 'clam' | 'pufferfish' | '
 
 export class ProceduralAssetFactory {
   private shaderManager: ShaderManager;
+  private lightingManager: LightingManager;
   private seafloorAssetGenerator: SeafloorAsset;
   private coralAssetGenerator: CoralAsset;
   private rockAssetGenerator: RockAsset;
@@ -31,13 +33,14 @@ export class ProceduralAssetFactory {
   private jellyfishAssetGenerator: JellyfishAsset;
   private bubbleAssetGenerator: BubbleAsset;
   private coinAssetGenerator: CoinAsset;
-  private clownfishAssetGenerator: ClownfishAsset; // Add clownfish asset generator
+  private clownfishAssetGenerator: ClownfishAsset;
 
-  constructor(shaderManager: ShaderManager) {
+  constructor(shaderManager: ShaderManager, lightingManager: LightingManager) {
     this.shaderManager = shaderManager;
+    this.lightingManager = lightingManager;
     
     // Initialize asset generators
-    this.seafloorAssetGenerator = new SeafloorAsset(this.shaderManager);
+    this.seafloorAssetGenerator = new SeafloorAsset(this.shaderManager, this.lightingManager);
     
     // Initialize updated assets that don't need ShaderManager
     try {
@@ -81,11 +84,8 @@ export class ProceduralAssetFactory {
   }
 
   public createSeafloorSegmentMesh(): THREE.Mesh {
-    // Create a new instance of SeafloorAsset if needed to avoid potential issues
-    if (!this.seafloorAssetGenerator) {
-      this.seafloorAssetGenerator = new SeafloorAsset(this.shaderManager);
-    }
-    // Create and return the mesh
+    // SeafloorAsset is now reliably created in the constructor with LightingManager
+    // No need to check for its existence or re-create it here.
     const mesh = this.seafloorAssetGenerator.createMesh();
     return mesh;
   }

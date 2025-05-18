@@ -205,6 +205,70 @@ export interface ObstaclesConfig {
   clam: ClamConfig;
 }
 
+export interface SeafloorVisualConfig {
+  baseColor: number | string;
+  sandPatternColor1: number | string;
+  sandPatternColor2: number | string;
+  textureScale: number; // For procedural sand pattern
+  bumpScale?: number;
+  roughness?: number;
+  metalness?: number;
+}
+
+export interface KelpVisualConfig {
+  stalkColor: number | string;
+  frondColor: number | string;
+  baseHeightMin: number;
+  baseHeightMax: number;
+  stalkRadius: number;
+  frondCount: number;
+  swaySpeed: number;
+  swayAmplitude: number;
+  transmission?: number; // For translucency
+  opacity?: number;
+  roughness?: number;
+  enabled?: boolean; // Added to enable/disable kelp spawning
+}
+
+export interface WaterSurfaceVisualConfig {
+  baseColor: number | string; // Likely a sky blue or slightly darker
+  rippleColor: number | string; // For highlights on ripples
+  rippleSpeed: number;
+  rippleScale: number;
+  rippleIntensity: number;
+  opacity: number; // Controls overall visibility from below
+  fresnelPower?: number; // For edge highlighting/reflectivity
+  specularColor?: number | string;
+  shininess?: number;
+  enabled?: boolean; // Added to enable/disable water surface
+}
+
+export interface LightingConfig { // Existing, ensure caustics and godrays are detailed
+    ambientLight: { color: number; intensity: number; };
+    directionalLight: { color: number; intensity: number; position: { x: number; y: number; z: number }; castShadow?: boolean; shadowMapSize?: number; };
+    fogColor: number | string;
+    fogDensity?: number; // If using FogExp2
+    fogNear?: number;    // If using Fog
+    fogFar?: number;     // If using Fog
+
+    enableCaustics: boolean;
+    causticColor: number | string;
+    causticIntensity: number;
+    causticScale: number;
+    causticSpeed: number;
+    causticBlendMode: 'additive' | 'multiply' | 'mix'; // How caustics affect base seafloor
+    causticReceiverObjects?: string[]; // e.g., ['seafloor', 'rocks'] if specific
+
+    enableGodRays: boolean;
+    godRayColor?: number | string;
+    godRayIntensity?: number;
+    godRayDensity?: number;     // For screen-space effect
+    godRayWeight?: number;
+    godRayDecay?: number;
+    godRayExposure?: number;
+    godRaySamples?: number;
+}
+
 export interface VisualSettings {
   skyColor: number | string;
   ambientLightColor: number | string;
@@ -256,6 +320,11 @@ export interface VisualSettings {
   distortionEnabled: boolean;
   distortionIntensity: number; // Subtle water ripple effect
   distortionSpeed: number;
+
+  seafloor: SeafloorVisualConfig;
+  kelp: KelpVisualConfig;
+  waterSurface: WaterSurfaceVisualConfig;
+  testCubeColor?: number | string; // Assuming this was part of general visuals
 }
 
 export interface PlayerSettings {
@@ -311,7 +380,8 @@ export interface GameConfig {
   powerUps: PowerUpsGameConfig; // Power-up configuration
   difficulty: DifficultyGameConfig; // Difficulty configuration
   obstacles: ObstaclesConfig; // Obstacle configuration
-  visuals: VisualSettings; // Visual settings including lighting, fog, and caustics
+  visuals: VisualSettings; // General visual settings like particles, screen effects
+  lighting: LightingConfig;  // Dedicated lighting config
 }
 
 // Default configuration values
@@ -619,5 +689,66 @@ export const defaultConfig: GameConfig = {
     distortionEnabled: true, // Very subtle
     distortionIntensity: 0.005,
     distortionSpeed: 0.1,
+
+    seafloor: {
+      baseColor: 0xAD8E6E, // Sandy brown
+      sandPatternColor1: 0xC4A484, // Lighter sand
+      sandPatternColor2: 0x9A7B5A, // Darker sand spots
+      textureScale: 15.0,
+      bumpScale: 0.02,
+      roughness: 0.85,
+      metalness: 0.0,
+    },
+    kelp: {
+      stalkColor: 0x3A5F0B, // Darker green for stalk
+      frondColor: 0x556B2F, // Olive Drab for fronds
+      baseHeightMin: 1.5,
+      baseHeightMax: 3.0,
+      stalkRadius: 0.03,
+      frondCount: 5,
+      swaySpeed: 0.3,
+      swayAmplitude: 0.1,
+      transmission: 0.4, // Kelp is somewhat translucent
+      opacity: 0.9,
+      roughness: 0.7,
+      enabled: true,
+    },
+    waterSurface: {
+      baseColor: 0x87CEEB, // Sky blue, but will be viewed from below
+      rippleColor: 0xFFFFFF, // White highlights for ripples
+      rippleSpeed: 0.2,
+      rippleScale: 10.0,
+      rippleIntensity: 0.01, // Subtle ripples
+      opacity: 0.3, // Semi-transparent from below
+      fresnelPower: 2.0,
+      specularColor: 0x77ccff,
+      shininess: 80,
+      enabled: true,
+    },
+    testCubeColor: 0xff00ff, // Assuming this was part of general visuals
+  },
+  lighting: {
+    ambientLight: { color: 0x406080, intensity: 0.5 }, // Softer ambient
+    directionalLight: { 
+      color: 0xE0F0FF, intensity: 0.7, // Softer sun
+      position: { x: 1, y: 10, z: 1 }, 
+      castShadow: false 
+    },
+    fogColor: 0x102a43, // Deeper blue fog
+    fogDensity: 0.03,   // Adjusted fog density
+    enableCaustics: true,
+    causticColor: 0xA0D0FF, // Lighter blue for caustics
+    causticIntensity: 0.15, // More subtle
+    causticScale: 6.0,
+    causticSpeed: 0.08,
+    causticBlendMode: 'additive',
+    enableGodRays: true, // Let's try enabling a basic version
+    godRayColor: 0xA0D0FF,
+    godRayIntensity: 0.08,
+    godRayDensity: 0.96,
+    godRayWeight: 0.05, // Very subtle weight
+    godRayDecay: 0.96,
+    godRayExposure: 0.1,
+    godRaySamples: 20, // Fewer samples for P1
   },
 };

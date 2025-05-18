@@ -2,285 +2,235 @@
 import * as THREE from 'three';
 import { configSystem } from '../core/ConfigurationSystem';
 import { ShaderManager } from './ShaderManager';
-import CausticsGLSL from '../shaders/common/caustics.glsl';
-import { vertexShaderSource as seafloorVertexShader } from '../shaders/environment/seafloor.vert';
-import { fragmentShaderSource as seafloorFragmentShader } from '../shaders/environment/seafloor.frag';
+import { LightingConfig } from '../config/gameConfig'; // Import the new LightingConfig
+import NoiseGLSL from '../shaders/common/noise.glsl'; // Assumed to exist and export .random2D, .noise2D
+import CausticsGLSL from '../shaders/common/caustics.glsl'; // Assumed to exist and export .causticPattern
+// import UtilsGLSL from '../shaders/common/utils.glsl'; // Placeholder if used for PI, saturate
 
 /**
- * Manages the scene's lighting, fog, and underwater visual effects including caustics
+ * Manages the scene's lighting, fog, and provides mechanisms for caustics and god rays.
  */
 export class LightingManager {
   private scene: THREE.Scene;
   private shaderManager: ShaderManager;
-  
+  private lightingConfig: Readonly<LightingConfig>; // Use the new dedicated LightingConfig
+
   // Lights
-  private ambientLight: THREE.AmbientLight;
-  private directionalLight: THREE.DirectionalLight;
-  
-  // Visual effects
-  private causticTargets: THREE.Mesh[] = [];
-  private useCaustics: boolean;
-  
-  // For animating caustics
-  private elapsedTime: number = 0;
-  
+  public ambientLight!: THREE.AmbientLight; // Made public for potential external access
+  public directionalLight!: THREE.DirectionalLight; // Made public
+
+  // Caustics time uniform, linked to global time
+  public globalCausticTimeUniform: THREE.IUniform<number>;
+
   constructor(scene: THREE.Scene, shaderManager: ShaderManager) {
     this.scene = scene;
     this.shaderManager = shaderManager;
-    const visuals = configSystem.get('visuals');
-    this.useCaustics = visuals.enableCaustics;
-    
-    // Register caustic shader chunks
-    this.registerCausticChunks();
-    
-    // Initialize lights
-    this.ambientLight = this.createAmbientLight();
-    this.directionalLight = this.createDirectionalLight();
-    
-    // Initialize fog
-    this.setupFog();
-    
-    // Register seafloor shader with caustics
-    this.registerSeafloorShader();
-    
-    console.log("LightingManager: Initialized with lighting, fog, and caustic shaders.");
+    this.lightingConfig = configSystem.get('lighting'); // Get dedicated lighting config
+
+    // Link to ShaderManager's global uTime for caustics
+    this.globalCausticTimeUniform = this.shaderManager.globalUniforms.uTime;
+
+    this.initializeLights();
+    this.initializeFog();
+    this.registerShaderChunks(); // Consolidated registration
+
+    console.log("LightingManager: Initialized. Config for caustics/god rays ready.");
   }
-  
+
   /**
    * Creates and adds the ambient light to the scene based on config
    */
-  private createAmbientLight(): THREE.AmbientLight {
-    const visuals = configSystem.get('visuals');
-    const { ambientLightColor, ambientLightIntensity } = visuals;
-    
-    const light = new THREE.AmbientLight(
-      ambientLightColor,
-      ambientLightIntensity
+  private initializeLights(): void {
+    // Ambient Light
+    const ambientCfg = this.lightingConfig.ambientLight;
+    this.ambientLight = new THREE.AmbientLight(
+      new THREE.Color(ambientCfg.color),
+      ambientCfg.intensity
     );
-    
-    this.scene.add(light);
-    return light;
-  }
-  
-  /**
-   * Creates and adds the directional light to the scene based on config
-   */
-  private createDirectionalLight(): THREE.DirectionalLight {
-    const visuals = configSystem.get('visuals');
-    const { 
-      directionalLightColor, 
-      directionalLightIntensity,
-      directionalLightPosition
-    } = visuals;
-    
-    const light = new THREE.DirectionalLight(
-      directionalLightColor,
-      directionalLightIntensity
+    this.scene.add(this.ambientLight);
+
+    // Directional Light
+    const directionalCfg = this.lightingConfig.directionalLight;
+    this.directionalLight = new THREE.DirectionalLight(
+      new THREE.Color(directionalCfg.color),
+      directionalCfg.intensity
     );
-    
-    light.position.set(
-      directionalLightPosition.x,
-      directionalLightPosition.y,
-      directionalLightPosition.z
+    this.directionalLight.position.set(
+      directionalCfg.position.x,
+      directionalCfg.position.y,
+      directionalCfg.position.z
     );
+    this.directionalLight.castShadow = directionalCfg.castShadow || false;
+    if (directionalCfg.castShadow && directionalCfg.shadowMapSize) {
+      this.directionalLight.shadow.mapSize.width = directionalCfg.shadowMapSize;
+      this.directionalLight.shadow.mapSize.height = directionalCfg.shadowMapSize;
+      // Other shadow properties can be set here if needed
+    }
+    this.scene.add(this.directionalLight);
     
-    // Enable shadows for directional light (optional, can be configured)
-    light.castShadow = false; // Default off for performance, can be enabled later
-    
-    this.scene.add(light);
-    return light;
+    // If a light helper is desired for debugging:
+    // const helper = new THREE.DirectionalLightHelper(this.directionalLight, 5);
+    // this.scene.add(helper);
   }
-  
+
   /**
-   * Sets up the scene fog using the configured parameters
+   * Sets up the scene fog using the configured parameters from LightingConfig
    */
-  private setupFog(): void {
-    const visuals = configSystem.get('visuals');
-    const { fogColor, fogNearFactor, fogFarFactor } = visuals;
+  private initializeFog(): void {
+    const fogColor = new THREE.Color(this.lightingConfig.fogColor);
+    if (this.lightingConfig.fogDensity !== undefined) {
+      this.scene.fog = new THREE.FogExp2(fogColor, this.lightingConfig.fogDensity);
+    } else if (this.lightingConfig.fogNear !== undefined && this.lightingConfig.fogFar !== undefined) {
+      this.scene.fog = new THREE.Fog(fogColor, this.lightingConfig.fogNear, this.lightingConfig.fogFar);
+    }
     
-    // Base the fog distances on the camera's viewing distance
-    // These values should be adjusted based on actual gameplay testing
-    const fogNear = 20 * fogNearFactor; // Starting point of fog
-    const fogFar = 40 * fogFarFactor;   // Point where fog is completely opaque
-    
-    this.scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
-    
-    // Also set the scene background to match the fog color for seamless blending
-    this.scene.background = new THREE.Color(fogColor);
-  }
-  
-  /**
-   * Registers caustic shader chunks for use in shaders
-   */
-  private registerCausticChunks(): void {
-    // Register all the caustic chunks
-    this.shaderManager.registerChunk('causticEffect', CausticsGLSL.causticEffect);
-    this.shaderManager.registerChunk('advancedCaustics', CausticsGLSL.advancedCaustics);
-    this.shaderManager.registerChunk('blendCaustics', CausticsGLSL.blendCaustics);
-
-    // Make sure they're properly integrated with THREE.js ShaderChunk
-    THREE.ShaderChunk['causticEffect'] = CausticsGLSL.causticEffect;
-    THREE.ShaderChunk['advancedCaustics'] = CausticsGLSL.advancedCaustics;
-    THREE.ShaderChunk['blendCaustics'] = CausticsGLSL.blendCaustics;
-
-    console.log("LightingManager: Registered caustic shader chunks.");
-  }
-  
-  /**
-   * Registers the seafloor shader with caustic effects
-   */
-  private registerSeafloorShader(): void {
-    const visuals = configSystem.get('visuals');
-    
-    // Register the seafloor shader with the shader manager
-    this.shaderManager.registerShader({
-      name: 'seafloorShader',
-      vertexShaderSource: seafloorVertexShader,
-      fragmentShaderSource: seafloorFragmentShader,
-      defaultUniforms: () => ({
-        // Include the required global uniforms explicitly
-        uTime: { value: 0.0 },
-        uResolution: { value: new THREE.Vector2(1, 1) },
-        // Caustic-specific uniforms
-        uCausticColor: { value: new THREE.Color(visuals.causticColor) },
-        uCausticIntensity: { value: visuals.causticIntensity },
-        uCausticScale: { value: visuals.causticScale },
-        uCausticSpeed: { value: visuals.causticSpeed }
-      }),
-      materialParameters: {
-        transparent: false,
-        side: THREE.FrontSide,
-        lights: true // Enable THREE.js lights in the shader
-      }
-    });
-    
-    console.log("LightingManager: Registered seafloor shader with caustics.");
-  }
-  
-  /**
-   * Creates a seafloor segment with caustic effects enabled
-   * @returns A mesh with the caustic shader applied
-   */
-  public createCausticSeafloor(width: number, length: number): THREE.Mesh {
-    try {
-      // Create a simple plane geometry for the seafloor
-      const geometry = new THREE.PlaneGeometry(width, length, 32, 32);
-
-      // Rotate it to be horizontal
-      geometry.rotateX(-Math.PI / 2);
-
-      // Don't use complex shader materials at all - use built-in THREE.js materials with simpler properties
-      // This avoids the shader uniform errors that are causing the WebGL context loss
-      const visuals = configSystem.get('visuals');
-      
-      // Create a MeshPhongMaterial with underwater-like appearance
-      const material = new THREE.MeshPhongMaterial({
-        color: 0x99bbcc,                     // Base seafloor color
-        specular: 0x6688ff,                  // Slight blue specular highlights
-        shininess: 30,                       // Moderate shininess
-        emissive: new THREE.Color(visuals.causticColor).multiplyScalar(0.2), // Subtle caustic-like glow
-        side: THREE.FrontSide,               // Only render front face for performance
-        flatShading: false                   // Smooth shading
-      });
-      
-      console.log("LightingManager: Created seafloor with built-in PhongMaterial (no custom shaders)");
-
-      // Create and return the mesh
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.name = "SeafloorSegment";
-      mesh.receiveShadow = true;
-      
-      return mesh;
-    } catch (error) {
-      console.error("LightingManager: Failed to create seafloor mesh", error);
-
-      // Ultimate fallback - simple plane with basic material
-      const geometry = new THREE.PlaneGeometry(width, length, 4, 4);
-      geometry.rotateX(-Math.PI / 2);
-      const material = new THREE.MeshBasicMaterial({ 
-        color: 0x6688aa,
-        side: THREE.FrontSide 
-      });
-      return new THREE.Mesh(geometry, material);
+    // Set the scene background to match the fog color for seamless blending
+    // This might be handled by RenderManager or elsewhere, ensure consistency
+    if (this.scene.fog) { // Only set background if fog is active
+        this.scene.background = fogColor;
     }
   }
-  
+
   /**
-   * Applies caustic shader to an existing mesh
-   * Useful for adding caustic effects to various objects in the scene
-   * @param mesh The mesh to apply caustic effects to
-   * @param intensity Optional intensity multiplier for this specific object
+   * Registers common shader chunks required for environmental effects.
    */
-  public applyCausticsToObject(mesh: THREE.Mesh, intensity: number = 1.0): void {
-    if (!this.useCaustics) return;
-    
-    // Create a clone of the mesh's material to avoid affecting other objects
-    if (mesh.material instanceof THREE.Material) {
-      // You could use a custom shader here or modify the material properties
-      // For now, we're just tracking this mesh for potential updates
-      this.causticTargets.push(mesh);
+  private registerShaderChunks(): void {
+    // Ensure common noise functions are available for caustics (and potentially other effects)
+    // if (NoiseGLSL && (NoiseGLSL as any).random2D) {
+    //     this.shaderManager.registerChunk("random2D", (NoiseGLSL as any).random2D);
+    // } else {
+    //     console.warn("LightingManager: NoiseGLSL.random2D not found or NoiseGLSL not imported correctly.");
+    // }
+    // if (NoiseGLSL && (NoiseGLSL as any).noise2D) {
+    //     this.shaderManager.registerChunk("noise2D", (NoiseGLSL as any).noise2D);
+    // } else {
+    //     console.warn("LightingManager: NoiseGLSL.noise2D not found or NoiseGLSL not imported correctly.");
+    // }
+
+    // Register caustic pattern shader chunk
+    if (CausticsGLSL && (CausticsGLSL as any).causticPattern) {
+        this.shaderManager.registerChunk("causticPattern", (CausticsGLSL as any).causticPattern);
+    } else {
+        console.warn("LightingManager: CausticsGLSL.causticPattern not found or CausticsGLSL not imported correctly.");
     }
+
+    // Example: Registering utility chunks if UtilsGLSL was imported and structured similarly
+    // if (UtilsGLSL && (UtilsGLSL as any).PI) {
+    //   this.shaderManager.registerChunk("PI", (UtilsGLSL as any).PI);
+    //   (THREE.ShaderChunk as any)['PI'] = (UtilsGLSL as any).PI;
+    // }
+    // if (UtilsGLSL && (UtilsGLSL as any).saturate) {
+    //   this.shaderManager.registerChunk("saturate", (UtilsGLSL as any).saturate);
+    //   (THREE.ShaderChunk as any)['saturate'] = (UtilsGLSL as any).saturate;
+    // }
+    console.log("LightingManager: Registered common shader chunks (caustics only).");
+  }
+
+  /**
+   * Provides the GLSL code chunk for caustics, including dependencies.
+   * This is intended for use with material.onBeforeCompile.
+   */
+  public getCausticGLSLChunk(): string {
+    let glsl = "";
+    if (NoiseGLSL && (NoiseGLSL as any).random2D) glsl += (NoiseGLSL as any).random2D + '\n';
+    else console.warn("getCausticGLSLChunk: NoiseGLSL.random2D is missing.");
+    
+    if (NoiseGLSL && (NoiseGLSL as any).noise2D) glsl += (NoiseGLSL as any).noise2D + '\n';
+    else console.warn("getCausticGLSLChunk: NoiseGLSL.noise2D is missing.");
+
+    if (CausticsGLSL && (CausticsGLSL as any).causticPattern) glsl += (CausticsGLSL as any).causticPattern + '\n';
+    else console.warn("getCausticGLSLChunk: CausticsGLSL.causticPattern is missing.");
+    
+    if (!glsl.trim()) console.error("LightingManager: Caustic GLSL chunk is empty! Ensure shaders (.glsl files) are imported correctly and contain the expected named exports (e.g., random2D, noise2D, causticPattern).");
+    return glsl;
   }
   
   /**
-   * Updates the lighting and caustic effects
+   * Returns the main directional light source.
+   * Useful for effects like god rays that need light position.
+   */
+  public getDirectionalLight(): THREE.DirectionalLight {
+    return this.directionalLight;
+  }
+
+  /**
+   * Updates lighting, primarily for dynamic effects or config changes.
+   * uTime for caustics is handled globally via ShaderManager.
    * @param deltaTime Time since last frame in seconds
    * @param elapsedTime Total game time in seconds
    */
   public update(deltaTime: number, elapsedTime: number): void {
-    this.elapsedTime = elapsedTime;
-    
-    // We're no longer updating complex caustic targets since we're using simpler materials
-    // This helps prevent the WebGL context loss issues
+    // ShaderManager.update() handles global uniforms like uTime.
+    // Specific updates for lighting effects could go here if needed,
+    // e.g., animating light properties or god ray parameters dynamically.
+    // For now, most lighting is static or driven by onBeforeCompile using global uTime.
   }
-  
+
   /**
-   * Updates the lighting configuration based on current game settings
+   * Updates the lighting and fog configuration based on current game settings.
+   * Call this if lighting/fog parameters in gameConfig are changed dynamically during gameplay.
    */
   public updateConfig(): void {
-    const visuals = configSystem.get('visuals');
-    
+    this.lightingConfig = configSystem.get('lighting'); // Re-fetch the latest config
+
     // Update ambient light
-    this.ambientLight.color.set(visuals.ambientLightColor);
-    this.ambientLight.intensity = visuals.ambientLightIntensity;
-    
+    this.ambientLight.color.set(this.lightingConfig.ambientLight.color);
+    this.ambientLight.intensity = this.lightingConfig.ambientLight.intensity;
+
     // Update directional light
-    this.directionalLight.color.set(visuals.directionalLightColor);
-    this.directionalLight.intensity = visuals.directionalLightIntensity;
+    this.directionalLight.color.set(this.lightingConfig.directionalLight.color);
+    this.directionalLight.intensity = this.lightingConfig.directionalLight.intensity;
     this.directionalLight.position.set(
-      visuals.directionalLightPosition.x,
-      visuals.directionalLightPosition.y,
-      visuals.directionalLightPosition.z
+      this.lightingConfig.directionalLight.position.x,
+      this.lightingConfig.directionalLight.position.y,
+      this.lightingConfig.directionalLight.position.z
     );
-    
-    // Update fog
-    if (this.scene.fog) {
-      const fogNear = 20 * visuals.fogNearFactor;
-      const fogFar = 40 * visuals.fogFarFactor;
-      
-      (this.scene.fog as THREE.Fog).color.set(visuals.fogColor);
-      (this.scene.fog as THREE.Fog).near = fogNear;
-      (this.scene.fog as THREE.Fog).far = fogFar;
-      
-      // Update scene background to match fog
-      this.scene.background = new THREE.Color(visuals.fogColor);
+    this.directionalLight.castShadow = this.lightingConfig.directionalLight.castShadow || false;
+    if (this.directionalLight.castShadow && this.lightingConfig.directionalLight.shadowMapSize) {
+        this.directionalLight.shadow.mapSize.width = this.lightingConfig.directionalLight.shadowMapSize;
+        this.directionalLight.shadow.mapSize.height = this.lightingConfig.directionalLight.shadowMapSize;
     }
-    
-    // Update caustic settings flag
-    this.useCaustics = visuals.enableCaustics;
+
+
+    // Update fog
+    const fogColor = new THREE.Color(this.lightingConfig.fogColor);
+    if (this.scene.fog) {
+        if (this.scene.fog instanceof THREE.FogExp2) {
+            this.scene.fog.color.set(fogColor); // Use .set() for color update
+            if (this.lightingConfig.fogDensity !== undefined) {
+                this.scene.fog.density = this.lightingConfig.fogDensity;
+            }
+        } else if (this.scene.fog instanceof THREE.Fog) {
+            this.scene.fog.color.set(fogColor); // Use .set() for color update
+            if (this.lightingConfig.fogNear !== undefined) {
+                this.scene.fog.near = this.lightingConfig.fogNear;
+            }
+            if (this.lightingConfig.fogFar !== undefined) {
+                this.scene.fog.far = this.lightingConfig.fogFar;
+            }
+        }
+        if (this.scene.background instanceof THREE.Color) {
+             this.scene.background.set(fogColor); // Use .set() for color update
+        } else {
+             this.scene.background = fogColor;
+        }
+    } else { // If fog was disabled and now enabled, or type changed
+        this.initializeFog();
+    }
+
+    console.log("LightingManager: Configuration updated.");
   }
-  
+
   /**
-   * Clean up resources used by the LightingManager
+   * Disposes of lighting resources.
    */
   public dispose(): void {
-    // Remove lights from scene
-    this.scene.remove(this.ambientLight);
-    this.scene.remove(this.directionalLight);
-    
-    // Clean up caustic targets
-    this.causticTargets = [];
-    
+    // Lights are typically managed by the scene and don't need explicit disposal
+    // unless they have complex resources like shadow maps that might need cleanup,
+    // but Three.js usually handles this when the scene is disposed.
+    if (this.scene.fog) {
+      // this.scene.fog = null; // Or dispose if it has a dispose method
+    }
     console.log("LightingManager: Disposed.");
   }
 }

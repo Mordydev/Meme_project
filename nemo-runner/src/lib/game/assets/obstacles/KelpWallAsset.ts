@@ -60,9 +60,7 @@ export class KelpWallAsset {
         side: THREE.DoubleSide,
         transparent: true,
         opacity: visualConf.opacity,
-        // Attempt to use transmission; ensure your Three.js version supports it on MeshStandardMaterial
-        // or consider MeshPhysicalMaterial if this is critical and causes issues.
-        ...(visualConf.transmission && visualConf.transmission > 0 && { transmission: visualConf.transmission }),
+        transmission: visualConf.transmission, // More direct assignment
     });
 
     for (let i = 0; i < numStrands; i++) {
@@ -77,6 +75,7 @@ export class KelpWallAsset {
         stalkGeom.translate(0, stalkHeight / 2, 0); // Pivot at base
         // Store original positions for vertex animation
         stalkGeom.userData.originalPositions = stalkGeom.attributes.position.clone();
+        stalkGeom.userData.partHeight = stalkHeight; // Store part height
         
         const stalk = new THREE.Mesh(stalkGeom, kelpMaterial);
         strandGroup.add(stalk);
@@ -109,6 +108,7 @@ export class KelpWallAsset {
             const frondGeom = new THREE.ShapeGeometry(frondShape, 5);
             frondGeom.translate(0, frondLength / 2, 0); // Pivot at its attachment point
             frondGeom.userData.originalPositions = frondGeom.attributes.position.clone();
+            frondGeom.userData.partHeight = frondLength; // Store part height
 
             const frond = new THREE.Mesh(frondGeom, frondMaterial);
             const attachHeight = (j / numFronds) * stalkHeight * 0.8 + stalkHeight * 0.1; // Distribute along stalk
@@ -148,6 +148,7 @@ export class KelpWallAsset {
         const geom = kelpPart.geometry;
         const originalPos = geom.userData.originalPositions as THREE.BufferAttribute;
         const currentPos = geom.attributes.position as THREE.BufferAttribute;
+        const partHeight = geom.userData.partHeight as number || this.config.baseScaleY; // Fallback, but should be set
 
         if (!originalPos) return; // Skip if original positions not stored
 
@@ -162,7 +163,10 @@ export class KelpWallAsset {
             // Create a local reference point for sway based on original y (height along stalk/frond)
             // And add some variation based on the kelp part's world position to desynchronize strands
             const phaseOffset = (worldPos.x + worldPos.z) * 0.5 + partIndex * 0.2;
-            const swayFactor = Math.pow(oy / (this.config.baseScaleY * 0.5), 1.5); // More sway at the top, less at base
+            // Sway factor normalized by the specific part's height (stalk or frond)
+            // oy is centered around 0, so (oy / (partHeight / 2)) or ( (oy + partHeight/2) / partHeight ) for 0-1 range
+            const normalizedY = (oy + partHeight / 2) / partHeight; // Normalizes oy to be 0 at base, 1 at top
+            const swayFactor = Math.pow(normalizedY, 1.5); // More sway at the top, less at base
             
             const waveX = Math.sin(this.animationTime * swaySpeed * 0.7 + oy * 0.3 + phaseOffset) * swayAmplitude * swayFactor;
             const waveZ = Math.cos(this.animationTime * swaySpeed * 0.5 + oy * 0.4 + phaseOffset * 1.2) * swayAmplitude * swayFactor * 0.6;

@@ -44,7 +44,7 @@ export class GameEngine {
 
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
-  private renderer!: THREE.WebGLRenderer;
+  private renderer!: THREE.WebGLRenderer | null;
 
   private renderManager!: RenderManager;
   private cameraManager!: CameraManager;
@@ -132,10 +132,7 @@ export class GameEngine {
         }
       });
 
-      this.assetFactory = new ProceduralAssetFactory(this.shaderManager);
-
-      // Link the LightingManager to the SeafloorAsset for caustic effects
-      this.assetFactory.seafloorAsset.linkLightingManager(this.lightingManager);
+      this.assetFactory = new ProceduralAssetFactory(this.shaderManager, this.lightingManager);
 
       // EnvironmentManager
       this.environmentManager = new EnvironmentManager(this.scene, this.assetFactory);
@@ -355,8 +352,8 @@ export class GameEngine {
     };
 
     // Add the handlers to the canvas
-    this.renderer.domElement.addEventListener('webglcontextlost', this.contextLostHandler, false);
-    this.renderer.domElement.addEventListener('webglcontextrestored', this.contextRestoredHandler, false);
+    this.renderer.domElement.addEventListener('webglcontextlost', this.contextLostHandler as EventListener, false);
+    this.renderer.domElement.addEventListener('webglcontextrestored', this.contextRestoredHandler as EventListener, false);
 
     console.log("GameEngine: WebGL context handlers set up");
   }
@@ -367,11 +364,11 @@ export class GameEngine {
   private removeWebGLContextHandlers(): void {
     if (this.renderer && this.renderer.domElement) {
       if (this.contextLostHandler) {
-        this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLostHandler);
+        this.renderer.domElement.removeEventListener('webglcontextlost', this.contextLostHandler as EventListener);
       }
 
       if (this.contextRestoredHandler) {
-        this.renderer.domElement.removeEventListener('webglcontextrestored', this.contextRestoredHandler);
+        this.renderer.domElement.removeEventListener('webglcontextrestored', this.contextRestoredHandler as EventListener);
       }
     }
 
