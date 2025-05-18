@@ -249,14 +249,31 @@ export class GameEngine {
       this.inputHandler.update(dt);
       this.playerController.update(dt);
 
+      // Calculate distance traveled this frame based on current forward speed
+      const distanceIncrement = this.playerController.getForwardSpeed() * dt;
+
+      // Update score and total distance
+      this.scoringSystem.update(dt, distanceIncrement);
+
+      // Pass updated distance to difficulty manager
       const currentDistance = this.scoringSystem.totalDistanceTraveled;
       this.difficultyManager.update(dt, currentDistance);
+
+      // Inform PowerUpManager of the current game speed
+      this.powerUpManager.setGameSpeed(this.playerController.getForwardSpeed());
 
       this.obstacleManager.update(dt, this.playerController.mesh.position.z);
 
       await this.environmentManager.update(dt, this.playerController.mesh.position.z, elapsedTime);
       this.collectibleManager.update(dt, this.playerController.mesh.position.z);
       this.powerUpManager.update(dt, elapsedTime);
+
+      // Update UI with active power-ups if callback provided
+      if (this.callbacks.onActivePowerUpsUpdate) {
+        this.callbacks.onActivePowerUpsUpdate(
+          this.powerUpManager.getActiveEffectsForUI()
+        );
+      }
 
       this.collisionSystem.checkCollisions();
     }

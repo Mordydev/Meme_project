@@ -581,12 +581,6 @@ export class ObstacleManager {
     if (this.playerController && this.playerController.mesh) {
       // Get exact player position from the linked PlayerController
       playerPosition.copy(this.playerController.mesh.position);
-    } else if (this.gameEngine) {
-      // Fallback to gameEngine if available
-      const playerMesh = this.gameEngine.getPlayerMesh();
-      if (playerMesh) {
-        playerPosition.copy(playerMesh.position);
-      }
     }
 
     // Update animations for active obstacles
