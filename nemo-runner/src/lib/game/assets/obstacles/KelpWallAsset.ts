@@ -6,7 +6,8 @@ export class KelpWallAsset {
   public config: Readonly<KelpWallObstacleConfig>;
   public mesh!: THREE.Group;
   private collisionMesh!: THREE.Mesh;
-  private kelpStrands: THREE.Mesh[] = []; // To hold individual strand meshes for animation
+  // Holds stalk and frond meshes with their original vertex positions
+  private kelpParts: { mesh: THREE.Mesh; original: THREE.BufferAttribute; type: 'stalk' | 'frond' }[] = [];
 
   private animationTime: number = 0;
 
@@ -43,144 +44,135 @@ export class KelpWallAsset {
     }
   }
 
+  
   private createMesh(): void {
     this.mesh = new THREE.Group();
-    this.mesh.name = "KelpWallObstacle_StdMat";
+    this.mesh.name = "KelpWallObstacle_StdMat_Enhanced";
+    this.kelpParts = [];
+
     const visualConf = this.config.visuals as Required<ObstacleStandardMaterialVisuals>;
 
     const strandHeight = this.config.baseScaleY;
     const numStrands = THREE.MathUtils.randInt(this.config.strandCountMin, this.config.strandCountMax);
-    const totalWallWidth = (configSystem.get('player').laneWidth * this.config.segmentWidthCoverage);
+    const totalWallWidth = configSystem.get('player').laneWidth * this.config.segmentWidthCoverage;
     const spacing = numStrands > 1 ? totalWallWidth / (numStrands - 1) : 0;
 
     const kelpMaterial = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color(visualConf.mainColor),
-        roughness: visualConf.roughness,
-        metalness: visualConf.metalness,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: visualConf.opacity,
-        // Attempt to use transmission; ensure your Three.js version supports it on MeshStandardMaterial
-        // or consider MeshPhysicalMaterial if this is critical and causes issues.
-        ...(visualConf.transmission && visualConf.transmission > 0 && { transmission: visualConf.transmission }),
+      color: new THREE.Color(visualConf.mainColor),
+      roughness: visualConf.roughness,
+      metalness: visualConf.metalness,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: visualConf.opacity,
+      transmission: visualConf.transmission,
     });
 
     for (let i = 0; i < numStrands; i++) {
-        const strandGroup = new THREE.Group(); // Each strand is a group of stalk + fronds
+      const strandGroup = new THREE.Group();
 
-        // Stalk Geometry (tapered cylinder or box)
-        const stalkRadiusTop = 0.03;
-        const stalkRadiusBottom = 0.05;
-        const stalkHeight = strandHeight * THREE.MathUtils.randFloat(0.9, 1.1); // Slight height variation
-        const stalkSegments = 12; // More segments for smoother bending
-        const stalkGeom = new THREE.CylinderGeometry(stalkRadiusTop, stalkRadiusBottom, stalkHeight, 8, stalkSegments);
-        stalkGeom.translate(0, stalkHeight / 2, 0); // Pivot at base
-        // Store original positions for vertex animation
-        stalkGeom.userData.originalPositions = stalkGeom.attributes.position.clone();
-        
-        const stalk = new THREE.Mesh(stalkGeom, kelpMaterial);
-        strandGroup.add(stalk);
-        this.kelpStrands.push(stalk); // Add stalk for vertex animation
+      const stalkRadiusTop = (this.config.stalkRadius || 0.03) * THREE.MathUtils.randFloat(0.8, 1.2);
+      const stalkRadiusBottom = (this.config.stalkRadius || 0.05) * THREE.MathUtils.randFloat(0.9, 1.1);
+      const currentStalkHeight = strandHeight * THREE.MathUtils.randFloat(0.9, 1.1);
+      const stalkGeom = new THREE.CylinderGeometry(stalkRadiusTop, stalkRadiusBottom, currentStalkHeight, 6, 10);
+      stalkGeom.translate(0, currentStalkHeight / 2, 0);
+      stalkGeom.userData.originalPositions = stalkGeom.attributes.position.clone();
 
-        // Frond Geometry (attached to stalk)
-        const numFronds = THREE.MathUtils.randInt(3, 6);
-        const frondMaterial = kelpMaterial.clone(); // Can use same or vary color slightly
-        if (visualConf.detailColor) {
-            frondMaterial.color = new THREE.Color(visualConf.detailColor);
-            if (frondMaterial.emissive && visualConf.mainColor === visualConf.emissiveColor) {
-                 // If main color was used for emissive, update frond emissive based on detail color
-                (frondMaterial.emissive as THREE.Color).set(visualConf.detailColor).multiplyScalar(0.3);
-            }
-        }
+      const stalk = new THREE.Mesh(stalkGeom, kelpMaterial);
+      stalk.userData.baseY = 0;
+      strandGroup.add(stalk);
+      this.kelpParts.push({ mesh: stalk, original: stalkGeom.attributes.position.clone(), type: 'stalk' });
 
-        for (let j = 0; j < numFronds; j++) {
-            const frondLength = stalkHeight * THREE.MathUtils.randFloat(0.2, 0.4);
-            const frondWidth = frondLength * THREE.MathUtils.randFloat(0.15, 0.25);
-            
-            const frondShape = new THREE.Shape();
-            frondShape.moveTo(0,0);
-            frondShape.quadraticCurveTo(frondWidth * 0.3, frondLength * 0.2, frondWidth * 0.5, frondLength * 0.5);
-            frondShape.quadraticCurveTo(frondWidth * 0.4, frondLength * 0.8, 0, frondLength); // Pointed tip
-            frondShape.quadraticCurveTo(-frondWidth * 0.4, frondLength * 0.8, -frondWidth * 0.5, frondLength * 0.5);
-            frondShape.quadraticCurveTo(-frondWidth * 0.3, frondLength * 0.2, 0,0);
-            
-            // Simpler plane for fronds can also work well and be cheaper
-            // const frondGeom = new THREE.PlaneGeometry(frondWidth, frondLength, 1, 5);
-            const frondGeom = new THREE.ShapeGeometry(frondShape, 5);
-            frondGeom.translate(0, frondLength / 2, 0); // Pivot at its attachment point
-            frondGeom.userData.originalPositions = frondGeom.attributes.position.clone();
+      const numFronds = this.config.frondCount || 5;
+      const frondMaterial = kelpMaterial.clone();
+      if (visualConf.detailColor) {
+        frondMaterial.color = new THREE.Color(visualConf.detailColor);
+      }
 
-            const frond = new THREE.Mesh(frondGeom, frondMaterial);
-            const attachHeight = (j / numFronds) * stalkHeight * 0.8 + stalkHeight * 0.1; // Distribute along stalk
-            frond.position.set(0, attachHeight, stalkRadiusBottom);
-            frond.rotation.x = Math.PI / 2 + THREE.MathUtils.randFloat(-0.3, 0.3); // Angle outwards
-            frond.rotation.y = THREE.MathUtils.randFloat(-Math.PI, Math.PI); // Random orientation around stalk
-            stalk.add(frond); // Attach frond to the stalk
-            this.kelpStrands.push(frond); // Add frond for vertex animation
-        }
+      for (let j = 0; j < numFronds; j++) {
+        const frondLength = currentStalkHeight * THREE.MathUtils.randFloat(0.3, 0.6);
+        const frondWidth = frondLength * THREE.MathUtils.randFloat(0.2, 0.35);
 
-        strandGroup.position.x = (i * spacing) - (totalWallWidth / 2) + (spacing / 2);
-        if (numStrands === 1) strandGroup.position.x = 0;
-        strandGroup.position.z = (Math.random() - 0.5) * 0.3;
-        strandGroup.rotation.y = (Math.random() - 0.5) * 0.4;
-        this.mesh.add(strandGroup);
+        const frondShape = new THREE.Shape();
+        frondShape.moveTo(0, 0);
+        frondShape.quadraticCurveTo(frondWidth * 0.2, frondLength * 0.3, frondWidth * 0.1, frondLength * 0.7);
+        frondShape.quadraticCurveTo(0, frondLength, -frondWidth * 0.1, frondLength * 0.7);
+        frondShape.quadraticCurveTo(-frondWidth * 0.2, frondLength * 0.3, 0, 0);
+
+        const frondGeom = new THREE.ShapeGeometry(frondShape, 3);
+        frondGeom.translate(0, 0, 0);
+        frondGeom.rotateX(Math.PI / 2);
+        frondGeom.userData.originalPositions = frondGeom.attributes.position.clone();
+
+        const frond = new THREE.Mesh(frondGeom, frondMaterial);
+        const attachHeightRatio = (j / (numFronds - 1 || 1)) * 0.7 + 0.2;
+        const attachHeight = attachHeightRatio * currentStalkHeight;
+        frond.userData.baseY = attachHeight;
+        frond.position.set((Math.random() < 0.5 ? 1 : -1) * (stalkRadiusBottom * 0.5), attachHeight, 0);
+        frond.rotation.y = THREE.MathUtils.randFloatSpread(Math.PI * 0.5);
+        frond.rotation.x = THREE.MathUtils.randFloatSpread(Math.PI / 4);
+        stalk.add(frond);
+        this.kelpParts.push({ mesh: frond, original: frondGeom.attributes.position.clone(), type: 'frond' });
+      }
+
+      strandGroup.position.x = numStrands > 1 ? i * spacing - totalWallWidth / 2 + spacing / 2 : 0;
+      strandGroup.position.z = (Math.random() - 0.5) * 0.3;
+      strandGroup.rotation.y = (Math.random() - 0.5) * 0.2;
+      this.mesh.add(strandGroup);
     }
-    
+
     const collisionHeight = strandHeight;
-    const collisionWidth = totalWallWidth + 0.1; 
-    const collisionDepth = 0.3; 
+    const collisionWidth = totalWallWidth + (this.config.stalkRadius || 0.05) * 2;
+    const collisionDepth = Math.max(0.3, (this.config.stalkRadius || 0.05) * 2);
     const collisionGeom = new THREE.BoxGeometry(collisionWidth, collisionHeight, collisionDepth);
     this.collisionMesh = new THREE.Mesh(collisionGeom, new THREE.MeshBasicMaterial({ visible: false, wireframe: true }));
     this.collisionMesh.name = "KelpWallCollisionBox";
-    this.collisionMesh.position.y = strandHeight / 2; 
+    this.collisionMesh.position.y = strandHeight / 2;
     this.mesh.add(this.collisionMesh);
 
     this.mesh.userData = { type: 'obstacle', name: 'kelpWall', assetInstance: this, isDangerous: true };
   }
-  
+
   public updateAnimation(deltaTime: number): void {
     this.animationTime += deltaTime;
     const visualConf = this.config.visuals as Required<ObstacleStandardMaterialVisuals>;
     const swaySpeed = visualConf.animationSpeed || this.config.swaySpeed;
     const swayAmplitude = visualConf.animationAmplitude || this.config.swayAmplitude;
 
-    this.kelpStrands.forEach((kelpPart, partIndex) => {
-        const geom = kelpPart.geometry;
-        const originalPos = geom.userData.originalPositions as THREE.BufferAttribute;
-        const currentPos = geom.attributes.position as THREE.BufferAttribute;
+    this.kelpParts.forEach((item, partIndex) => {
+      const kelpPart = item.mesh;
+      const geom = kelpPart.geometry;
+      const originalAttr = item.original as THREE.BufferAttribute;
+      const currentAttr = geom.attributes.position as THREE.BufferAttribute;
+      if (!originalAttr) return;
 
-        if (!originalPos) return; // Skip if original positions not stored
+      const worldPos = new THREE.Vector3();
+      const parentObject = kelpPart.parent instanceof THREE.Group ? kelpPart.parent : kelpPart;
+      parentObject.getWorldPosition(worldPos);
 
-        const worldPos = new THREE.Vector3();
-        kelpPart.getWorldPosition(worldPos); // Get world position of the kelp part's origin
+      const partHeight = item.type === 'stalk'
+        ? (geom as THREE.CylinderGeometry).parameters.height
+        : (geom as THREE.ShapeGeometry).parameters.shapes[0].getBoundingBox().getSize(new THREE.Vector3()).y;
 
-        for (let i = 0; i < originalPos.count; i++) {
-            const ox = originalPos.getX(i);
-            const oy = originalPos.getY(i);
-            const oz = originalPos.getZ(i);
+      for (let i = 0; i < originalAttr.count; i++) {
+        const ox = originalAttr.getX(i);
+        const oy = originalAttr.getY(i);
+        const oz = originalAttr.getZ(i);
 
-            // Create a local reference point for sway based on original y (height along stalk/frond)
-            // And add some variation based on the kelp part's world position to desynchronize strands
-            const phaseOffset = (worldPos.x + worldPos.z) * 0.5 + partIndex * 0.2;
-            const swayFactor = Math.pow(oy / (this.config.baseScaleY * 0.5), 1.5); // More sway at the top, less at base
-            
-            const waveX = Math.sin(this.animationTime * swaySpeed * 0.7 + oy * 0.3 + phaseOffset) * swayAmplitude * swayFactor;
-            const waveZ = Math.cos(this.animationTime * swaySpeed * 0.5 + oy * 0.4 + phaseOffset * 1.2) * swayAmplitude * swayFactor * 0.6;
+        const normalized = Math.abs(oy / (partHeight || 0.1));
+        const swayFactor = Math.pow(normalized, 1.5);
 
-            // Validate waveX and waveZ before applying
-            if (isNaN(waveX) || isNaN(waveZ) || !isFinite(waveX) || !isFinite(waveZ)) {
-                // console.warn("KelpWallAsset: Invalid waveX or waveZ. Skipping vertex update.", {waveX, waveZ, oy, swayFactor});
-                // If problematic, just use original position for this vertex for this frame
-                currentPos.setXYZ(i, ox, oy, oz);
-                continue; 
-  }
+        const phaseOffset = (worldPos.x + worldPos.z) * 0.3 + partIndex * 0.3;
 
-            // Apply sway relative to the original X and Z, Y remains mostly for height
-            currentPos.setXYZ(i, ox + waveX, oy, oz + waveZ);
-        }
-        currentPos.needsUpdate = true;
-        geom.computeVertexNormals(); // Important if lighting is affected by deformation
+        const waveX = Math.sin(this.animationTime * swaySpeed + oy * 0.5 + phaseOffset) * swayAmplitude * swayFactor;
+        const waveZ = Math.cos(this.animationTime * swaySpeed * 0.7 + oy * 0.4 + phaseOffset * 1.3) * swayAmplitude * swayFactor * 0.5;
+
+        currentAttr.setXYZ(i, ox + waveX, oy, oz + waveZ);
+      }
+      currentAttr.needsUpdate = true;
     });
+    if (this.kelpParts.length > 0) {
+      this.kelpParts[0].mesh.geometry.computeVertexNormals();
+    }
   }
 
   public getMesh(): THREE.Group { return this.mesh; }
@@ -189,34 +181,33 @@ export class KelpWallAsset {
 
   public reset(): void {
     this.animationTime = 0;
-    this.kelpStrands.forEach(kelpPart => {
-        const geom = kelpPart.geometry;
-        const originalPos = geom.userData.originalPositions as THREE.BufferAttribute;
-        const currentPos = geom.attributes.position as THREE.BufferAttribute;
-        if (originalPos && currentPos) {
-            currentPos.copy(originalPos);
-            currentPos.needsUpdate = true;
-            geom.computeVertexNormals();
-        }
+    this.kelpParts.forEach(item => {
+      const geom = item.mesh.geometry;
+      const orig = item.original;
+      const curr = geom.attributes.position as THREE.BufferAttribute;
+      if (orig && curr) {
+        curr.copy(orig);
+        curr.needsUpdate = true;
+        geom.computeVertexNormals();
+      }
     });
   }
 
   public dispose(): void {
     this.mesh.traverse(child => {
       if (child instanceof THREE.Mesh) {
-        child.geometry?.dispose(); // originalPositions is on geometry, will be GC'd
+        child.geometry?.dispose();
         if (child.material instanceof THREE.Material) {
-            const mat = child.material as THREE.MeshStandardMaterial; // or Physical
-            mat.map?.dispose();
-            mat.normalMap?.dispose();
-            mat.bumpMap?.dispose();
-            // If using transmission, specific transmissionMap might need disposal if it's a texture
-            // mat.transmissionMap?.dispose(); 
-            mat.dispose();
+          const mat = child.material as THREE.MeshPhysicalMaterial;
+          mat.map?.dispose();
+          mat.normalMap?.dispose();
+          mat.bumpMap?.dispose();
+          (mat as any).transmissionMap?.dispose?.();
+          mat.dispose();
         }
       }
     });
     this.mesh.clear();
-    this.kelpStrands = [];
+    this.kelpParts = [];
   }
 }

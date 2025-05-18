@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { ShaderManager, MaterialType } from '../services/ShaderManager';
 import { SeafloorAsset } from './environment/SeafloorAsset';
+import { WaterSurfaceAsset } from './environment/WaterSurfaceAsset';
+import { PebbleAsset } from './environment/PebbleAsset';
+import { SmallRockAsset } from './environment/SmallRockAsset';
+import { ClamDecorAsset } from './environment/ClamDecorAsset';
 import { CoralAsset } from './obstacles/CoralAsset';
 import { RockAsset } from './obstacles/RockAsset';
 import { ClamAsset } from './obstacles/ClamAsset';
@@ -32,6 +36,10 @@ export class ProceduralAssetFactory {
   private bubbleAssetGenerator: BubbleAsset;
   private coinAssetGenerator: CoinAsset;
   private clownfishAssetGenerator: ClownfishAsset; // Add clownfish asset generator
+  private waterSurfaceAsset?: WaterSurfaceAsset;
+  private pebbleAssetGenerator?: PebbleAsset;
+  private smallRockAssetGenerator?: SmallRockAsset;
+  private clamDecorAssetGenerator?: ClamDecorAsset;
 
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
@@ -80,13 +88,13 @@ export class ProceduralAssetFactory {
     return new ClownfishAsset(this.shaderManager);
   }
 
-  public createSeafloorSegmentMesh(): THREE.Mesh {
+  public async createSeafloorSegmentMesh(): Promise<THREE.Mesh> {
     // Create a new instance of SeafloorAsset if needed to avoid potential issues
     if (!this.seafloorAssetGenerator) {
       this.seafloorAssetGenerator = new SeafloorAsset(this.shaderManager);
     }
     // Create and return the mesh
-    const mesh = this.seafloorAssetGenerator.createMesh();
+    const mesh = await this.seafloorAssetGenerator.createMesh();
     return mesh;
   }
 
@@ -270,6 +278,10 @@ export class ProceduralAssetFactory {
     return this.seafloorAssetGenerator;
   }
 
+  public getSeafloorAssetGenerator(): SeafloorAsset {
+    return this.seafloorAssetGenerator;
+  }
+
   // Methods for collectibles - used by CollectibleManager for instanced rendering
   public getCollectibleGeometry(type: 'bubble' | 'coin'): THREE.BufferGeometry {
     return type === 'bubble'
@@ -287,6 +299,41 @@ export class ProceduralAssetFactory {
     return type === 'bubble'
       ? this.bubbleAssetGenerator.scoreValue
       : this.coinAssetGenerator.scoreValue;
+  }
+
+  public getWaterSurfaceAsset(): WaterSurfaceAsset {
+    if (!this.waterSurfaceAsset) {
+      this.waterSurfaceAsset = new WaterSurfaceAsset(this.shaderManager);
+    }
+    return this.waterSurfaceAsset;
+  }
+
+  public getPebbleMesh(): THREE.Mesh {
+    if (!this.pebbleAssetGenerator) {
+      this.pebbleAssetGenerator = new PebbleAsset();
+    }
+    return this.pebbleAssetGenerator.getMesh();
+  }
+
+  public getSmallRockMesh(): THREE.Mesh {
+    if (!this.smallRockAssetGenerator) {
+      this.smallRockAssetGenerator = new SmallRockAsset();
+    }
+    return this.smallRockAssetGenerator.getMesh();
+  }
+
+  public getClamDecorMesh(): THREE.Group {
+    if (!this.clamDecorAssetGenerator) {
+      this.clamDecorAssetGenerator = new ClamDecorAsset();
+    }
+    return this.clamDecorAssetGenerator.getMesh();
+  }
+
+  /**
+   * Exposes the internal ShaderManager instance
+   */
+  public getShaderManager(): ShaderManager {
+    return this.shaderManager;
   }
 
   /**

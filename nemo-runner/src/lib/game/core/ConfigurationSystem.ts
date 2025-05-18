@@ -1,5 +1,15 @@
 // src/lib/game/core/ConfigurationSystem.ts
-import { GameConfig, defaultConfig, PowerUpsGameConfig, DifficultyGameConfig } from '../config/gameConfig';
+import {
+  GameConfig,
+  defaultConfig,
+  PowerUpsGameConfig,
+  DifficultyGameConfig,
+  LightingConfig,
+  SeafloorVisualConfig,
+  WaterSurfaceVisualConfig,
+  VisualSettings,
+  DecorationsConfig
+} from '../config/gameConfig';
 
 class ConfigurationSystem {
   private config: GameConfig;
@@ -101,6 +111,28 @@ class ConfigurationSystem {
   // Obstacles config getter
   public getObstaclesConfig(): Readonly<GameConfig['obstacles']> {
     return this.config.obstacles;
+  }
+
+  // Decorations config getter
+  public getDecorationsConfig(): Readonly<GameConfig['decorations']> {
+    return this.config.decorations;
+  }
+
+  // Typed getters for new config sections
+  public getLightingConfig(): Readonly<LightingConfig> {
+    return this.config.lighting;
+  }
+
+  public getVisualSettings(): Readonly<VisualSettings> {
+    return this.config.visuals;
+  }
+
+  public getSeafloorConfig(): Readonly<SeafloorVisualConfig> {
+    return this.config.visuals.seafloor;
+  }
+
+  public getWaterSurfaceConfig(): Readonly<WaterSurfaceVisualConfig> {
+    return this.config.visuals.waterSurface;
   }
 }
 

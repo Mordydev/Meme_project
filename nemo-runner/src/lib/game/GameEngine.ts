@@ -77,7 +77,7 @@ export class GameEngine {
     this.callbacks = callbacks;
   }
 
-  public initialize(): void {
+  public async initialize(): Promise<void> {
     try {
       // Scene
       this.scene = new THREE.Scene();
@@ -107,6 +107,7 @@ export class GameEngine {
 
       // LightingManager for scene lighting, fog, and underwater effects
       this.lightingManager = new LightingManager(this.scene, this.shaderManager);
+      this.renderManager.linkLightingManager(this.lightingManager);
 
       // Visual Effects Service for particles and post-processing
       this.visualEffectsService = new VisualEffectsService();
@@ -139,6 +140,7 @@ export class GameEngine {
 
       // EnvironmentManager
       this.environmentManager = new EnvironmentManager(this.scene, this.assetFactory);
+      await this.environmentManager.initialize();
 
       // Player Controller
       this.playerController = new PlayerController(this.scene, this.assetFactory, this);
@@ -234,7 +236,7 @@ export class GameEngine {
     console.log("GameEngine: Stopped.");
   }
 
-  private gameLoop(timestamp: number = performance.now()): void {
+  private async gameLoop(timestamp: number = performance.now()): Promise<void> {
     if (!this.isRunning) {
       if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = undefined;
@@ -253,7 +255,12 @@ export class GameEngine {
       // Update difficulty based on player's distance
       this.difficultyManager.update(dt, currentDistance);
 
-      this.environmentManager.update(dt, this.playerController.mesh.position.z);
+      const elapsedTime = timestamp / 1000;
+      await this.environmentManager.update(
+        dt,
+        this.playerController.mesh.position.z,
+        elapsedTime
+      );
       this.obstacleManager.update(dt, this.playerController.mesh.position.z);
       this.collectibleManager.update(dt, this.playerController.mesh.position.z);
 
@@ -653,13 +660,13 @@ export class GameEngine {
     }
   }
 
-  public resetGame(): void {
+  public async resetGame(): Promise<void> {
     console.log("GameEngine: Resetting game...");
 
     // Reset all game managers
     this.playerController.reset();
     this.obstacleManager.reset();
-    this.environmentManager.reset(this.playerController.mesh.position.z);
+    await this.environmentManager.reset(this.playerController.mesh.position.z);
     this.collectibleManager.reset();
     
     // Reset the VisualEffectsService

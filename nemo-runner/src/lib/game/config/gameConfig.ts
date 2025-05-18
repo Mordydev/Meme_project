@@ -178,6 +178,10 @@ export interface KelpWallObstacleConfig {
   segmentWidthCoverage: number; // How much of a lane or multiple lanes it covers (e.g., 1.0 for one lane, 2.0 for two)
   swayAmplitude: number;      // How much the kelp sways
   swaySpeed: number;          // Speed of the swaying animation
+  /** Optional radius for stalk geometry. */
+  stalkRadius?: number;
+  /** Optional number of fronds per stalk. */
+  frondCount?: number;
   visuals: ObstacleStandardMaterialVisuals;
 }
 
@@ -205,29 +209,83 @@ export interface ObstaclesConfig {
   clam: ClamConfig;
 }
 
+export interface DecorationSpawnConfig {
+  spawnCount: number;
+  scaleMin: number;
+  scaleMax: number;
+}
+
+export interface DecorationItemConfig {
+  colors: Array<number | string>;
+  scaleMin: number;
+  scaleMax: number;
+}
+
+export interface DecorationsConfig {
+  pebble: DecorationItemConfig;
+  smallRock: DecorationItemConfig;
+  clam: DecorationItemConfig;
+}
+
+export interface SeafloorVisualConfig {
+  baseColor: number | string;
+  sandPatternColor1: number | string;
+  sandPatternColor2: number | string;
+  textureScale: number;
+  bumpScale?: number;
+  roughness?: number;
+  metalness?: number;
+  decorations?: {
+    pebbles: DecorationSpawnConfig;
+    smallRocks: DecorationSpawnConfig;
+    clams: DecorationSpawnConfig;
+  };
+}
+
+export interface WaterSurfaceVisualConfig {
+  baseColor: number | string;
+  rippleColor: number | string;
+  rippleSpeed: number;
+  rippleScale: number;
+  rippleIntensity: number;
+  opacity: number;
+  fresnelPower?: number;
+  specularColor?: number | string;
+  shininess?: number;
+}
+
+export interface LightingConfig {
+  ambientLight: { color: number; intensity: number };
+  directionalLight: {
+    color: number;
+    intensity: number;
+    position: { x: number; y: number; z: number };
+    castShadow?: boolean;
+    shadowMapSize?: number;
+  };
+  fogColor: number | string;
+  fogDensity?: number;
+  fogNear?: number;
+  fogFar?: number;
+  enableCaustics: boolean;
+  causticColor: number | string;
+  causticIntensity: number;
+  causticScale: number;
+  causticSpeed: number;
+  causticBlendMode: 'additive' | 'multiply' | 'mix';
+  causticReceiverObjects?: string[];
+  enableGodRays: boolean;
+  godRayColor?: number | string;
+  godRayIntensity?: number;
+  godRayDensity?: number;
+  godRayWeight?: number;
+  godRayDecay?: number;
+  godRayExposure?: number;
+  godRaySamples?: number;
+}
+
 export interface VisualSettings {
   skyColor: number | string;
-  ambientLightColor: number | string;
-  ambientLightIntensity: number;
-  directionalLightColor: number | string;
-  directionalLightIntensity: number;
-  directionalLightPosition: { x: number; y: number; z: number };
-
-  // Fog configuration
-  fogColor: number | string;
-  fogNearFactor: number; // e.g., 2.0 (fog starts at 2x cameraFar/some_base_distance)
-  fogFarFactor: number;  // e.g., 5.0 (fog is dense at 5x cameraFar/some_base_distance)
-
-  // Caustics configuration
-  enableCaustics: boolean;
-  causticIntensity: number; // Modulates the brightness of caustics
-  causticScale: number;     // Controls the size of the caustic patterns
-  causticSpeed: number;     // Controls the animation speed of caustics
-  causticColor: number | string; // Color tint for caustics
-
-  // Groundwork for God Rays (parameters for future implementation)
-  enableGodRays: boolean;
-  godRayLightSourceOffsetY: number; // Offset Y from directional light for god ray source visual
 
   // Particle Effects
   enableParticles: boolean;
@@ -235,8 +293,8 @@ export interface VisualSettings {
   bubbleCount: number;
   bubbleBaseSpeed: number;
   bubbleSize: number;
-  bubbleSpawnAreaX: number; // Width over which bubbles spawn
-  bubbleSpawnDepth: number; // Depth below seafloor bubbles spawn from
+  bubbleSpawnAreaX: number;
+  bubbleSpawnDepth: number;
 
   dustEnabled: boolean;
   dustCount: number;
@@ -246,16 +304,19 @@ export interface VisualSettings {
   // Screen Effects (Post-Processing)
   enableScreenEffects: boolean;
   vignetteEnabled: boolean;
-  vignetteIntensity: number; // 0 to 1 typically
-  vignetteSmoothness: number; // Controls the falloff sharpness
+  vignetteIntensity: number;
+  vignetteSmoothness: number;
 
   colorGradingEnabled: boolean;
-  colorGradeIntensity: number; // How much to apply grading
-  colorGradeTargetColor: number | string; // e.g., shift towards a deeper blue
+  colorGradeIntensity: number;
+  colorGradeTargetColor: number | string;
 
   distortionEnabled: boolean;
-  distortionIntensity: number; // Subtle water ripple effect
+  distortionIntensity: number;
   distortionSpeed: number;
+
+  seafloor: SeafloorVisualConfig;
+  waterSurface: WaterSurfaceVisualConfig;
 }
 
 export interface PlayerSettings {
@@ -311,7 +372,9 @@ export interface GameConfig {
   powerUps: PowerUpsGameConfig; // Power-up configuration
   difficulty: DifficultyGameConfig; // Difficulty configuration
   obstacles: ObstaclesConfig; // Obstacle configuration
-  visuals: VisualSettings; // Visual settings including lighting, fog, and caustics
+  decorations: DecorationsConfig; // Decoration assets configuration
+  visuals: VisualSettings;
+  lighting: LightingConfig;
 }
 
 // Default configuration values
@@ -570,27 +633,25 @@ export const defaultConfig: GameConfig = {
       }
     }
   },
+  decorations: {
+    pebble: {
+      colors: [0x888888, 0x777777, 0x999999, 0x666666],
+      scaleMin: 0.1,
+      scaleMax: 0.3
+    },
+    smallRock: {
+      colors: [0x666666, 0x555555, 0x444444, 0x777777],
+      scaleMin: 0.3,
+      scaleMax: 0.6
+    },
+    clam: {
+      colors: [0xD8C0A8, 0xE0D0B0, 0xC8B090, 0xF0E0C8],
+      scaleMin: 0.4,
+      scaleMax: 0.7
+    }
+  },
   visuals: {
     skyColor: 0x1a2b3c, // Darker blue for underwater
-    ambientLightColor: 0x406080, // Bluish ambient
-    ambientLightIntensity: 0.4,
-    directionalLightColor: 0xa0c0ff, // Lighter blue/white sunlight from above
-    directionalLightIntensity: 0.8,
-    directionalLightPosition: { x: 0.5, y: 1, z: 0.3 }, // More overhead
-
-    // Fog parameters
-    fogColor: 0x1a2b3c, // Match sky/background for seamless blend
-    fogNearFactor: 1.5,  // Start fog relatively close to player camera's Z offset
-    fogFarFactor: 6.0,   // Fog becomes dense further out
-
-    enableCaustics: true,
-    causticIntensity: 0.25,
-    causticScale: 8.0, // Larger scale for broader patterns
-    causticSpeed: 0.05,
-    causticColor: 0x90c0ff, // Light blue caustics
-
-    enableGodRays: false, // Disabled for Phase 1 initial, focus on caustics
-    godRayLightSourceOffsetY: 10,
 
     // Particle Effects
     enableParticles: true,
@@ -619,5 +680,56 @@ export const defaultConfig: GameConfig = {
     distortionEnabled: true, // Very subtle
     distortionIntensity: 0.005,
     distortionSpeed: 0.1,
+
+    seafloor: {
+      baseColor: 0xAD8E6E,
+      sandPatternColor1: 0xC4A484,
+      sandPatternColor2: 0x9A7B5A,
+      textureScale: 15.0,
+      bumpScale: 0.02,
+      roughness: 0.85,
+      metalness: 0.0,
+      decorations: {
+        pebbles: { spawnCount: 20, scaleMin: 0.1, scaleMax: 0.3 },
+        smallRocks: { spawnCount: 10, scaleMin: 0.2, scaleMax: 0.5 },
+        clams: { spawnCount: 5, scaleMin: 0.3, scaleMax: 0.6 }
+      }
+    },
+    waterSurface: {
+      baseColor: 0x87CEEB,
+      rippleColor: 0xFFFFFF,
+      rippleSpeed: 0.2,
+      rippleScale: 10.0,
+      rippleIntensity: 0.01,
+      opacity: 0.3,
+      fresnelPower: 2.0,
+      specularColor: 0x77ccff,
+      shininess: 80
+    }
+  },
+  lighting: {
+    ambientLight: { color: 0x406080, intensity: 0.5 },
+    directionalLight: {
+      color: 0xE0F0FF,
+      intensity: 0.7,
+      position: { x: 1, y: 10, z: 1 },
+      castShadow: false
+    },
+    fogColor: 0x102a43,
+    fogDensity: 0.03,
+    enableCaustics: true,
+    causticColor: 0xA0D0FF,
+    causticIntensity: 0.15,
+    causticScale: 6.0,
+    causticSpeed: 0.08,
+    causticBlendMode: 'additive',
+    enableGodRays: true,
+    godRayColor: 0xA0D0FF,
+    godRayIntensity: 0.08,
+    godRayDensity: 0.96,
+    godRayWeight: 0.05,
+    godRayDecay: 0.96,
+    godRayExposure: 0.1,
+    godRaySamples: 20
   },
 };

@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { ProceduralAssetFactory } from '../assets/ProceduralAssetFactory';
 import { ConfigurationSystem, configSystem } from '../core/ConfigurationSystem';
+import { WaterSurfaceAsset } from '../assets/environment/WaterSurfaceAsset';
 // import { PlayerController } from './PlayerController'; // Will need later for player position
 
 interface EnvironmentSegment {
-  mesh: THREE.Mesh;
+  mesh: THREE.Group;
+  seafloor: THREE.Mesh;
+  decorations: THREE.Object3D[];
   isActive: boolean;
 }
 
@@ -16,10 +19,21 @@ export class EnvironmentManager {
   private segments: EnvironmentSegment[] = [];
   private segmentPoolSize = 5; // Number of segments to pool
   private segmentLength = 20; // Must match SeafloorAsset.segmentLength or get from asset
+  private segmentWidth = 10;
   private lastSegmentZ = 0; // Z position of the front edge of the furthest segment
 
   private visibleSegmentsFront = 2; // How many segments to keep ahead of player
   private visibleSegmentsBehind = 1; // How many segments to keep behind player
+
+  private waterSurface?: WaterSurfaceAsset;
+
+  private pebblePool: THREE.Mesh[] = [];
+  private rockPool: THREE.Mesh[] = [];
+  private clamPool: THREE.Group[] = [];
+
+  private pebblePoolSize = 50;
+  private rockPoolSize = 20;
+  private clamPoolSize = 10;
 
   constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory /*, playerController: PlayerController */) {
     this.scene = scene;
@@ -28,22 +42,65 @@ export class EnvironmentManager {
 
     // Get segmentLength from the assetFactory's public getter
     this.segmentLength = assetFactory.seafloorSegmentLength;
+    this.segmentWidth = assetFactory.seafloorAsset.segmentWidth;
+  }
 
-    this.initializeSegments();
+  public async initialize(): Promise<void> {
+    await this.initializeSegments();
+    this.initializeDecorationPools();
+    this.initializeWaterSurface();
     console.log("EnvironmentManager: Initialized.");
   }
 
-  private initializeSegments(): void {
+  private async initializeSegments(): Promise<void> {
     for (let i = 0; i < this.segmentPoolSize; i++) {
-      const mesh = this.assetFactory.createSeafloorSegmentMesh();
-      mesh.visible = false; // Initially hide
-      this.scene.add(mesh);
-      this.segments.push({ mesh, isActive: false });
+      const floor = await this.assetFactory.createSeafloorSegmentMesh();
+      const group = new THREE.Group();
+      group.add(floor);
+      group.visible = false; // Initially hide
+      this.scene.add(group);
+      this.segments.push({ mesh: group, seafloor: floor, decorations: [], isActive: false });
     }
     // Position initial segments
     for (let i = 0; i < this.visibleSegmentsFront + this.visibleSegmentsBehind; i++) {
         this.spawnSegmentAhead(true); // true to force spawn at specific positions
     }
+  }
+
+  private initializeDecorationPools(): void {
+    // Initialize pebbles
+    for (let i = 0; i < this.pebblePoolSize; i++) {
+      const pebble = this.assetFactory.getPebbleMesh();
+      pebble.visible = false;
+      pebble.userData.decorationType = 'pebble';
+      this.scene.add(pebble);
+      this.pebblePool.push(pebble);
+    }
+
+    // Initialize rocks
+    for (let i = 0; i < this.rockPoolSize; i++) {
+      const rock = this.assetFactory.getSmallRockMesh();
+      rock.visible = false;
+      rock.userData.decorationType = 'rock';
+      this.scene.add(rock);
+      this.rockPool.push(rock);
+    }
+
+    // Initialize clams
+    for (let i = 0; i < this.clamPoolSize; i++) {
+      const clam = this.assetFactory.getClamDecorMesh();
+      clam.visible = false;
+      clam.userData.decorationType = 'clam';
+      this.scene.add(clam);
+      this.clamPool.push(clam);
+    }
+  }
+
+  private initializeWaterSurface(): void {
+    this.waterSurface = this.assetFactory.getWaterSurfaceAsset();
+    const mesh = this.waterSurface.getMesh();
+    mesh.position.y = 10;
+    this.scene.add(mesh);
   }
   
   // Helper to get an inactive segment from the pool
@@ -75,10 +132,48 @@ export class EnvironmentManager {
 
       // Y position for the floor (can be configurable)
       segment.mesh.position.y = -1; // Example: player is at y=0, floor is below
+
+      segment.decorations = [];
+      this.spawnDecorations(segment);
+      
       console.log(`EnvironmentManager: Spawned segment at Z: ${segment.mesh.position.z}`);
     } else {
       console.warn("EnvironmentManager: No inactive segments available to spawn!");
     }
+  }
+
+  private spawnDecorations(segment: EnvironmentSegment): void {
+    // Spawn pebbles
+    const pebbleCount = THREE.MathUtils.randInt(3, 6);
+    for (let i = 0; i < pebbleCount && this.pebblePool.length > 0; i++) {
+      const pebble = this.pebblePool.pop()!;
+      this.placeDecoration(pebble, segment);
+      segment.decorations.push(pebble);
+    }
+
+    // Spawn rocks
+    const rockCount = THREE.MathUtils.randInt(1, 3);
+    for (let i = 0; i < rockCount && this.rockPool.length > 0; i++) {
+      const rock = this.rockPool.pop()!;
+      rock.scale.setScalar(0.3 + Math.random() * 0.3);
+      this.placeDecoration(rock, segment);
+      segment.decorations.push(rock);
+    }
+
+    // Spawn clams
+    if (Math.random() < 0.3 && this.clamPool.length > 0) {
+      const clam = this.clamPool.pop()!;
+      this.placeDecoration(clam, segment);
+      segment.decorations.push(clam);
+    }
+  }
+
+  private placeDecoration(obj: THREE.Object3D, segment: EnvironmentSegment): void {
+    obj.position.x = THREE.MathUtils.randFloatSpread(this.segmentWidth * 0.8);
+    obj.position.y = segment.mesh.position.y;
+    obj.position.z = segment.mesh.position.z + THREE.MathUtils.randFloatSpread(this.segmentLength);
+    obj.rotation.y = Math.random() * Math.PI * 2;
+    obj.visible = true;
   }
 
   // Recycles segments that are too far behind the player
@@ -92,6 +187,23 @@ export class EnvironmentManager {
         if (segmentFrontEdgeZ > recycleThreshold) {
           segment.isActive = false;
           segment.mesh.visible = false;
+
+          // Return decorations to pools
+          segment.decorations.forEach(obj => {
+            obj.visible = false;
+            switch (obj.userData.decorationType) {
+              case 'pebble':
+                this.pebblePool.push(obj as THREE.Mesh);
+                break;
+              case 'rock':
+                this.rockPool.push(obj as THREE.Mesh);
+                break;
+              case 'clam':
+                this.clamPool.push(obj as THREE.Group);
+                break;
+            }
+          });
+          segment.decorations = [];
           console.log(`EnvironmentManager: Recycled segment at Z: ${segment.mesh.position.z}`);
         }
       }
@@ -99,7 +211,7 @@ export class EnvironmentManager {
   }
 
 
-  public update(deltaTime: number, playerZ: number): void {
+  public async update(deltaTime: number, playerZ: number, elapsedTime: number): Promise<void> {
     // Check if we need to spawn new segments ahead
     // If the player is approaching the "end" of the visible segments
     const spawnTriggerZ = this.lastSegmentZ + (this.segmentLength * this.visibleSegmentsFront) - (this.segmentLength * 0.5) ;
@@ -109,30 +221,80 @@ export class EnvironmentManager {
 
     // Check if we need to recycle segments behind
     this.recycleSegments(playerZ);
+
+    // Update water surface
+    this.waterSurface?.update(deltaTime, elapsedTime);
   }
 
   public dispose(): void {
     this.segments.forEach(segment => {
-      segment.mesh.geometry.dispose();
-      if (Array.isArray(segment.mesh.material)) {
-        segment.mesh.material.forEach(m => m.dispose());
-      } else {
-        segment.mesh.material.dispose();
+      segment.seafloor.geometry.dispose();
+      if (segment.seafloor.material instanceof THREE.Material) {
+        segment.seafloor.material.dispose();
       }
       this.scene.remove(segment.mesh);
+
+      segment.decorations.forEach(obj => {
+        if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();
+        if ((obj as THREE.Mesh).material) {
+          const mat = (obj as THREE.Mesh).material as THREE.Material;
+          mat.dispose();
+        }
+        this.scene.remove(obj);
+      });
     });
     this.segments = [];
+
+    this.waterSurface?.dispose();
+
+    // Dispose decoration pools
+    this.pebblePool.forEach(p => { 
+      p.geometry.dispose(); 
+      (p.material as THREE.Material).dispose(); 
+      this.scene.remove(p); 
+    });
+    this.rockPool.forEach(r => { 
+      r.geometry.dispose(); 
+      (r.material as THREE.Material).dispose(); 
+      this.scene.remove(r); 
+    });
+    this.clamPool.forEach(c => { 
+      this.scene.remove(c); 
+    });
+    this.pebblePool = [];
+    this.rockPool = [];
+    this.clamPool = [];
+
     console.log("EnvironmentManager: Disposed.");
   }
 
-  public reset(initialPlayerZ: number = 0): void {
+  public async reset(initialPlayerZ: number = 0): Promise<void> {
     this.segments.forEach(segment => {
       segment.isActive = false;
       segment.mesh.visible = false;
+      
+      segment.decorations.forEach(obj => {
+        obj.visible = false;
+        switch (obj.userData.decorationType) {
+          case 'pebble':
+            this.pebblePool.push(obj as THREE.Mesh);
+            break;
+          case 'rock':
+            this.rockPool.push(obj as THREE.Mesh);
+            break;
+          case 'clam':
+            this.clamPool.push(obj as THREE.Group);
+            break;
+        }
+      });
+      segment.decorations = [];
     });
     this.lastSegmentZ = initialPlayerZ + this.segmentLength;
     for (let i = 0; i < this.visibleSegmentsFront + this.visibleSegmentsBehind; i++) {
       this.spawnSegmentAhead(true);
+    }
+    if (this.waterSurface) {
+      this.waterSurface.getMesh().position.z = initialPlayerZ - 20;
     }
     console.log("EnvironmentManager: Reset.");
   }
@@ -144,4 +306,4 @@ export class EnvironmentManager {
   public getConfigSystem(): ConfigurationSystem {
     return configSystem;
   }
-} 
+}

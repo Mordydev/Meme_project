@@ -2,12 +2,15 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { LightingManager } from '../services/LightingManager';
 
 export class RenderManager {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private composer: EffectComposer | null = null;
+  private godraysPass?: ShaderPass;
+  private lightingManager?: LightingManager;
   private postProcessingPasses: Map<string, ShaderPass> = new Map();
   private _errorHandlerCalled: boolean = false; // Track if we've already called error handler
   private _lastRenderSuccess: boolean = true;   // Track if last render was successful
@@ -18,6 +21,10 @@ export class RenderManager {
     this.camera = camera;
     this.renderer = renderer;
     this.setupEffectComposer();
+  }
+
+  public linkLightingManager(lightingManager: LightingManager): void {
+    this.lightingManager = lightingManager;
   }
 
   private setupEffectComposer(): void {
@@ -250,6 +257,7 @@ export class RenderManager {
 
       // Attempt to render with protective try/catch
       try {
+        this.updateGodRayUniforms();
         if (this.composer && this.postProcessingPasses.size > 0) {
           // Use composer to render with post-processing passes
           this.composer.render();
@@ -316,6 +324,36 @@ export class RenderManager {
    */
   public getRenderer(): THREE.WebGLRenderer {
     return this.renderer;
+  }
+
+  private getLightScreenPosition(
+    light: THREE.DirectionalLight | THREE.SpotLight | THREE.PointLight
+  ): THREE.Vector2 {
+    const lightSourceProxy = new THREE.Vector3();
+    this.camera.getWorldPosition(lightSourceProxy);
+    const viewDirection = new THREE.Vector3();
+    this.camera.getWorldDirection(viewDirection);
+    lightSourceProxy.addScaledVector(viewDirection, -50);
+    lightSourceProxy.y = 15;
+    const dirLightXZ = new THREE.Vector3(light.position.x, 0, light.position.z).normalize();
+    lightSourceProxy.addScaledVector(dirLightXZ, 5);
+    const screenPos = lightSourceProxy.clone().project(this.camera);
+    return new THREE.Vector2((screenPos.x + 1) * 0.5, (screenPos.y + 1) * 0.5);
+  }
+
+  private updateGodRayUniforms(): void {
+    if (!this.godraysPass || !this.godraysPass.enabled || !this.lightingManager) return;
+    const light = (this.lightingManager as any).getDirectionalLight?.();
+    if (!light) return;
+    const pos = this.getLightScreenPosition(light);
+    const uniform = this.godraysPass.uniforms['uLightPositionScreen'];
+    if (uniform) {
+      if (uniform.value instanceof THREE.Vector2) {
+        (uniform.value as THREE.Vector2).copy(pos);
+      } else {
+        uniform.value = pos.clone();
+      }
+    }
   }
 
   // Properly dispose resources and clear references
