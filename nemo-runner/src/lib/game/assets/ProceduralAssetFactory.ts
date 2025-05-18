@@ -18,6 +18,7 @@ import { MagnetPowerUpAsset } from './powerups/MagnetPowerUpAsset';
 import { DoubleScorePowerUpAsset } from './powerups/DoubleScorePowerUpAsset';
 import { ClownfishAsset } from './character/ClownfishAsset';
 import { LightingManager } from '../services/LightingManager';
+import { KelpWallObstacleConfig } from '../config/gameConfig';
 
 // Define a union type for all obstacle asset classes
 export type ObstacleAssetType = CoralAsset | RockAsset | ClamAsset | PufferfishAsset | JellyfishAsset | SharkAsset | SeaTurtleAsset | KelpWallAsset | SchoolOfFishAsset;
@@ -272,8 +273,8 @@ export class ProceduralAssetFactory {
   }
 
   /** Create a new decorative kelp wall asset */
-  public createKelpWallAsset(): KelpWallAsset {
-    return new KelpWallAsset();
+  public createKelpWallAsset(config?: Partial<KelpWallObstacleConfig>): KelpWallAsset {
+    return new KelpWallAsset(config);
   }
 
   /** Create a new water surface asset */

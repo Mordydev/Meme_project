@@ -10,12 +10,12 @@ export class KelpWallAsset {
 
   private animationTime: number = 0;
 
-  constructor() {
-    this.config = this._fetchConfig();
+  constructor(overrideConfig?: Partial<KelpWallObstacleConfig>) {
+    this.config = this._fetchConfig(overrideConfig);
     this.createMesh();
   }
 
-  private _fetchConfig(): Readonly<KelpWallObstacleConfig> {
+  private _fetchConfig(overrideConfig?: Partial<KelpWallObstacleConfig>): Readonly<KelpWallObstacleConfig> {
     const defaultConfig: KelpWallObstacleConfig = {
         baseScaleY: 3.5, // Overall height of the kelp wall
         segmentWidthCoverage: 1.0, // How many lane widths the kelp wall segment covers
@@ -23,6 +23,8 @@ export class KelpWallAsset {
         strandCountMax: 8,
         swayAmplitude: 0.15,
         swaySpeed: 0.8,
+        stalkRadius: 0.05,
+        frondCount: 5,
         visuals: { // Default visuals for KelpWall
             mainColor: 0x2E8B57, // SeaGreen
             detailColor: 0x20603D, // Darker green for fronds or variation
@@ -36,10 +38,10 @@ export class KelpWallAsset {
     };
     try {
         const specificConfig = configSystem.getObstaclesConfig().kelpWall;
-        return { ...defaultConfig, ...specificConfig, visuals: { ...defaultConfig.visuals, ...specificConfig?.visuals } };
+        return { ...defaultConfig, ...specificConfig, ...overrideConfig, visuals: { ...defaultConfig.visuals, ...specificConfig?.visuals, ...overrideConfig?.visuals } };
     } catch (error) {
         console.warn("KelpWallAsset: Could not get config, using defaults", error);
-        return defaultConfig;
+        return { ...defaultConfig, ...overrideConfig, visuals: { ...defaultConfig.visuals, ...overrideConfig?.visuals } };
     }
   }
 
@@ -67,8 +69,8 @@ export class KelpWallAsset {
         const strandGroup = new THREE.Group(); // Each strand is a group of stalk + fronds
 
         // Stalk Geometry (tapered cylinder or box)
-        const stalkRadiusTop = 0.03;
-        const stalkRadiusBottom = 0.05;
+        const stalkRadiusTop = (this.config.stalkRadius || 0.03) * THREE.MathUtils.randFloat(0.8, 1.2);
+        const stalkRadiusBottom = (this.config.stalkRadius || 0.05) * THREE.MathUtils.randFloat(0.9, 1.1);
         const stalkHeight = strandHeight * THREE.MathUtils.randFloat(0.9, 1.1); // Slight height variation
         const stalkSegments = 12; // More segments for smoother bending
         const stalkGeom = new THREE.CylinderGeometry(stalkRadiusTop, stalkRadiusBottom, stalkHeight, 8, stalkSegments);
@@ -82,7 +84,7 @@ export class KelpWallAsset {
         this.kelpStrands.push(stalk); // Add stalk for vertex animation
 
         // Frond Geometry (attached to stalk)
-        const numFronds = THREE.MathUtils.randInt(3, 6);
+        const numFronds = this.config.frondCount ?? THREE.MathUtils.randInt(3, 6);
         const frondMaterial = kelpMaterial.clone(); // Can use same or vary color slightly
         if (visualConf.detailColor) {
             frondMaterial.color = new THREE.Color(visualConf.detailColor);

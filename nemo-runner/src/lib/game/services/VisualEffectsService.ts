@@ -7,6 +7,8 @@ import { RenderManager } from '../core/RenderManager';
 import { BubbleParticleSystem } from '../vfx/particleSystems/BubbleParticleSystem';
 import { DustParticleSystem } from '../vfx/particleSystems/DustParticleSystem';
 import { underwaterPPFragmentShader } from '../shaders/postprocessing/underwaterPP.frag';
+import { godRaysFragmentShader } from '../shaders/postprocessing/godRaysPP.frag';
+import { LightingManager } from './LightingManager';
 
 /**
  * Enhanced service for managing all visual effects including particles, post-processing,
@@ -36,6 +38,10 @@ export class VisualEffectsService {
   // Post-processing
   private postProcessingPass?: ShaderPass;
   private ppPassName = 'underwaterPostProcessing';
+  private godRaysPass?: ShaderPass;
+  private godRaysPassName = 'godRays';
+
+  private lightingManager?: LightingManager;
 
   constructor() {
     console.log("VisualEffectsService: Initialized base service");
@@ -46,15 +52,18 @@ export class VisualEffectsService {
    * @param scene The scene where particles will be added
    * @param shaderManager The shader manager for creating materials
    * @param renderManager The render manager for post-processing
+   * @param lightingManager The lighting manager for god rays
    */
   public initializeParticlesAndPostProcessing(
     scene: THREE.Scene, 
     shaderManager: ShaderManager, 
-    renderManager: RenderManager
+    renderManager: RenderManager,
+    lightingManager?: LightingManager
   ): void {
     this.scene = scene;
     this.shaderManager = shaderManager;
     this.renderManager = renderManager;
+    this.lightingManager = lightingManager;
     
     const config = configSystem.get('visuals');
 
@@ -71,6 +80,11 @@ export class VisualEffectsService {
     // Initialize Screen Effects (Post-Processing)
     if (config.enableScreenEffects) {
       this.setupPostProcessingPass();
+    }
+    
+    const lightingCfg = configSystem.get('lighting');
+    if (lightingCfg.enableGodRays) {
+      this.setupGodRaysPass();
     }
     
     console.log('VisualEffectsService: Initialized particles and post-processing effects');
@@ -121,6 +135,39 @@ export class VisualEffectsService {
 
     this.postProcessingPass = new ShaderPass(ppShader);
     this.renderManager.addPostProcessingPass(this.ppPassName, this.postProcessingPass);
+  }
+
+  /**
+   * Set up the god rays post-processing pass
+   */
+  private setupGodRaysPass(): void {
+    if (!this.renderManager || !this.lightingManager) return;
+
+    const lightingCfg = configSystem.get('lighting');
+
+    const godRaysShader = {
+      uniforms: {
+        'tDiffuse': { value: null },
+        'lightPosition': { value: new THREE.Vector2(0.5, 0.5) },
+        'godRayColor': { value: new THREE.Color(lightingCfg.godRayColor || 0xffffff) },
+        'density': { value: lightingCfg.godRayDensity ?? 0.96 },
+        'weight': { value: lightingCfg.godRayWeight ?? 0.4 },
+        'decay': { value: lightingCfg.godRayDecay ?? 0.93 },
+        'exposure': { value: lightingCfg.godRayExposure ?? 0.6 },
+        'samples': { value: lightingCfg.godRaySamples ?? 60 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: godRaysFragmentShader,
+    };
+
+    this.godRaysPass = new ShaderPass(godRaysShader);
+    this.renderManager.addPostProcessingPass(this.godRaysPassName, this.godRaysPass);
   }
 
   /**
@@ -267,6 +314,29 @@ export class VisualEffectsService {
       // If pass wasn't created initially but is now enabled, create it
       this.setupPostProcessingPass();
     }
+
+    // Update God Rays pass
+    if (this.godRaysPass && this.renderManager && this.lightingManager && this.cameraManager) {
+      const lConfig = configSystem.get('lighting');
+      this.godRaysPass.enabled = lConfig.enableGodRays;
+      if (lConfig.enableGodRays) {
+        const light = this.lightingManager.getDirectionalLight();
+        const screenPos = light.position.clone();
+        screenPos.project(this.cameraManager.camera);
+        this.godRaysPass.uniforms['lightPosition'].value.set(
+          0.5 + screenPos.x * 0.5,
+          0.5 + screenPos.y * 0.5
+        );
+        this.godRaysPass.uniforms['godRayColor'].value.set(lConfig.godRayColor || 0xffffff);
+        this.godRaysPass.uniforms['density'].value = lConfig.godRayDensity ?? 0.96;
+        this.godRaysPass.uniforms['weight'].value = lConfig.godRayWeight ?? 0.4;
+        this.godRaysPass.uniforms['decay'].value = lConfig.godRayDecay ?? 0.93;
+        this.godRaysPass.uniforms['exposure'].value = lConfig.godRayExposure ?? 0.6;
+        this.godRaysPass.uniforms['samples'].value = lConfig.godRaySamples ?? 60;
+      }
+    } else if (configSystem.get('lighting').enableGodRays && this.renderManager && this.lightingManager) {
+      this.setupGodRaysPass();
+    }
   }
   
   /**
@@ -321,6 +391,11 @@ export class VisualEffectsService {
     if (this.postProcessingPass && this.renderManager) {
       this.renderManager.removePostProcessingPass(this.ppPassName);
       this.postProcessingPass = undefined;
+    }
+    
+    if (this.godRaysPass && this.renderManager) {
+      this.renderManager.removePostProcessingPass(this.godRaysPassName);
+      this.godRaysPass = undefined;
     }
     
     console.log("VisualEffectsService: Disposed all resources");

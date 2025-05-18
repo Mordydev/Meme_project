@@ -112,9 +112,10 @@ export class GameEngine {
       this.visualEffectsService = new VisualEffectsService();
       this.visualEffectsService.linkGameEngine(this);
       this.visualEffectsService.initializeParticlesAndPostProcessing(
-        this.scene, 
-        this.shaderManager, 
-        this.renderManager
+        this.scene,
+        this.shaderManager,
+        this.renderManager,
+        this.lightingManager
       );
 
       // Register the test pattern shader

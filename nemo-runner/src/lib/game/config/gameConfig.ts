@@ -178,6 +178,8 @@ export interface KelpWallObstacleConfig {
   segmentWidthCoverage: number; // How much of a lane or multiple lanes it covers (e.g., 1.0 for one lane, 2.0 for two)
   swayAmplitude: number;      // How much the kelp sways
   swaySpeed: number;          // Speed of the swaying animation
+  stalkRadius?: number;       // Base radius for each kelp stalk
+  frondCount?: number;        // Number of fronds per stalk
   visuals: ObstacleStandardMaterialVisuals;
 }
 
@@ -607,7 +609,9 @@ export const defaultConfig: GameConfig = {
       segmentWidthCoverage: 0.7,   // Covers less width, reduced from 0.9
       swayAmplitude: 0.1,          // Subtle sway
       swaySpeed: 0.5,              // Moderate sway speed
-      visuals: { 
+      stalkRadius: 0.05,           // Base radius for stalks
+      frondCount: 5,               // Default number of fronds per stalk
+      visuals: {
         mainColor: 0x3A5F0B, 
         detailColor: 0x2A4F0A, 
         emissiveColor: 0x1A3F0A, 

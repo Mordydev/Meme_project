@@ -90,6 +90,39 @@
             - Commented out direct assignment to `THREE.ShaderChunk` in `registerChunk` method to prevent read-only errors.
             - Removed direct assignment to `THREE.ShaderChunk` in `registerCoreChunks` fallback.
             - Removed `cached.material = null;` line in `resetProgramCache` to fix `Type 'null' is not assignable` error, as cache is cleared immediately after.
+    - **`ClamAsset.ts` Refined:**
+        - Imported `ObstacleStandardMaterialVisuals` from `gameConfig.ts`.
+        - Created a typed `visualConf` constant within `createMesh` using `ObstacleStandardMaterialVisuals` for clearer access to visual configuration options.
+    - **Kelp Visuals & Configuration Enhanced:**
+        - **`gameConfig.ts`:**
+            - Added optional `stalkRadius` and `frondCount` to `KelpWallObstacleConfig`.
+            - Updated `defaultConfig` for `kelpWall` to include default values for these new parameters.
+        - **`KelpWallAsset.ts`:**
+            - Constructor now accepts an optional `overrideConfig` (Partial<KelpWallObstacleConfig>).
+            - `_fetchConfig` method now merges `defaultConfig`, `specificConfig` (from global config), and `overrideConfig` to allow per-instance customization of kelp walls.
+            - `createMesh` updated to use `this.config.stalkRadius` and `this.config.frondCount`.
+        - **`ProceduralAssetFactory.ts`:**
+            - `createKelpWallAsset` method now accepts an optional `config?: Partial<KelpWallObstacleConfig>` and passes it to the `KelpWallAsset` constructor.
+        - **`EnvironmentManager.ts`:**
+            - `decorativeKelpConfig` type changed to `KelpVisualConfig` (obtained from `configSystem.get('visuals').kelp`).
+            - In `initializeKelpPool`, an `override` object is created using `decorativeKelpConfig` and random values for height, then passed to `assetFactory.createKelpWallAsset(override)` to create varied decorative kelp.
+    - **God Rays Implemented (Sub-Task 2.5 Partial):**
+        - **`godRaysPP.frag.ts` Created:**
+            - New shader file added at `src/lib/game/shaders/postprocessing/godRaysPP.frag.ts`.
+            - Implements a radial blur effect for god rays with uniforms for `lightPosition`, `godRayColor`, `density`, `weight`, `decay`, `exposure`, and `samples`.
+        - **`VisualEffectsService.ts` Updated:**
+            - Imports `godRaysFragmentShader` and `LightingManager`.
+            - Added `godRaysPass` (ShaderPass) and `godRaysPassName` properties.
+            - Added `lightingManager` property.
+            - `initializeParticlesAndPostProcessing` now accepts an optional `lightingManager` and stores it. It calls `setupGodRaysPass` if `enableGodRays` is true in `lightingConfig`.
+            - `setupGodRaysPass` method added: Creates a `ShaderPass` with `godRaysFragmentShader` and uniforms linked to `lightingConfig` values. Adds this pass to `RenderManager`.
+            - `update` method now updates `godRaysPass` uniforms:
+                - Enables/disables pass based on `lightingConfig.enableGodRays`.
+                - Calculates `lightPosition` in screen space based on the directional light's world position.
+                - Updates color and effect parameters from `lightingConfig`.
+            - `dispose` method now removes the `godRaysPass` from `RenderManager`.
+        - **`GameEngine.ts` Updated:**
+            - Passes `this.lightingManager` to `this.visualEffectsService.initializeParticlesAndPostProcessing`.
 
 #### Technical Decisions:
 - **Procedural Texturing (Canvas API):** Adopted for seafloor color and bump details to avoid external texture dependencies and allow dynamic generation based on config.

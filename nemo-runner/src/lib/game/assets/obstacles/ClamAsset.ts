@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { configSystem } from '../../core/ConfigurationSystem';
-import { ClamConfig } from '../../config/gameConfig';
+import { ClamConfig, ObstacleStandardMaterialVisuals } from '../../config/gameConfig';
 
 export class ClamAsset {
   public config: Readonly<ClamConfig>;
@@ -47,7 +47,7 @@ export class ClamAsset {
     this.mesh.name = "ClamObstacle";
     
     // Get visual configuration from config
-    // const visualConf = this.config.visuals;
+    const visualConf = this.config.visuals as Required<ObstacleStandardMaterialVisuals>;
     const baseScale = this.config.baseScale;
     
     // Create enhanced shell geometries

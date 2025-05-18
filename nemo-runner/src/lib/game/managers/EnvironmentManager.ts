@@ -5,7 +5,7 @@ import { LightingManager } from '../services/LightingManager';
 import { WaterSurfaceAsset } from '../assets/environment/WaterSurfaceAsset';
 import { KelpWallAsset } from '../assets/obstacles/KelpWallAsset'; // Used for decorative kelp
 import { ShaderManager } from '../services/ShaderManager';
-import { KelpWallObstacleConfig } from '../config/gameConfig';
+import { KelpWallObstacleConfig, KelpVisualConfig } from '../config/gameConfig';
 
 interface EnvironmentSegment {
   mesh: THREE.Mesh; // Seafloor mesh
@@ -31,7 +31,7 @@ export class EnvironmentManager {
   private waterSurface?: WaterSurfaceAsset;
   private kelpPool: { asset: KelpWallAsset, mesh: THREE.Group }[] = [];
   private kelpPoolSize = 20; // Max kelp clusters in the pool
-  private decorativeKelpConfig: Partial<KelpWallObstacleConfig>; // For less dense kelp
+  private decorativeKelpConfig: KelpVisualConfig; // Visual settings for decorative kelp
 
   constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory, lightingManager: LightingManager, shaderManager: ShaderManager) {
     this.scene = scene;
@@ -43,18 +43,8 @@ export class EnvironmentManager {
     this.segmentLength = seafloorAsset.segmentLength;
     this.segmentWidth = seafloorAsset.segmentWidth;
 
-    // Config for less dense, decorative kelp clusters
-    this.decorativeKelpConfig = {
-        strandCountMin: 1,
-        strandCountMax: 3,
-        segmentWidthCoverage: 0.3, // Smaller footprint
-        baseScaleY: THREE.MathUtils.randFloat(1.5, 3.0), // Varied height for decoration
-        visuals: {
-            ...configSystem.getObstaclesConfig().kelpWall.visuals, // Base visuals
-            opacity: 0.7,
-            transmission: 0.6,
-        }
-    };
+    // Visual config for decorative kelp
+    this.decorativeKelpConfig = configSystem.get('visuals').kelp;
     // initialize() is now async and called from GameEngine
   }
 
@@ -93,11 +83,26 @@ export class EnvironmentManager {
   
   private initializeKelpPool(): void {
     if (!configSystem.get('visuals').kelp.enabled) return;
+    const visConf = this.decorativeKelpConfig;
     for (let i = 0; i < this.kelpPoolSize; i++) {
-        const kelpAsset = this.assetFactory.createKelpWallAsset();
-        // Potentially override parts of its config for decorative purposes if KelpWallAsset allows
-        // For now, we assume KelpWallAsset can be used as is, or we create a new type of KelpAsset.
-        // As per step7.md, we enhance KelpWallAsset. We will create it and then scale/position.
+        const override: Partial<KelpWallObstacleConfig> = {
+            baseScaleY: THREE.MathUtils.randFloat(visConf.baseHeightMin, visConf.baseHeightMax),
+            strandCountMin: 1,
+            strandCountMax: 2,
+            segmentWidthCoverage: 0.3,
+            swayAmplitude: visConf.swayAmplitude,
+            swaySpeed: visConf.swaySpeed,
+            stalkRadius: visConf.stalkRadius,
+            frondCount: visConf.frondCount,
+            visuals: {
+                mainColor: visConf.stalkColor,
+                detailColor: visConf.frondColor,
+                roughness: visConf.roughness,
+                opacity: visConf.opacity,
+                transmission: visConf.transmission,
+            }
+        };
+        const kelpAsset = this.assetFactory.createKelpWallAsset(override);
         const kelpMesh = kelpAsset.getMesh();
         kelpMesh.visible = false;
         this.scene.add(kelpMesh);
@@ -142,7 +147,7 @@ export class EnvironmentManager {
   private spawnKelpOnSegment(segment: EnvironmentSegment): void {
     if (!configSystem.get('visuals').kelp.enabled || this.kelpPool.length === 0) return;
 
-    const numClusters = THREE.MathUtils.randInt(this.decorativeKelpConfig.strandCountMin || 1, this.decorativeKelpConfig.strandCountMax || 3);
+    const numClusters = THREE.MathUtils.randInt(1, 3);
 
     for (let i = 0; i < numClusters; i++) {
         if (this.kelpPool.length === 0) break; 
