@@ -16,33 +16,11 @@ export class KelpWallAsset {
   }
 
   private _fetchConfig(overrideConfig?: Partial<KelpWallObstacleConfig>): Readonly<KelpWallObstacleConfig> {
-    const defaultConfig: KelpWallObstacleConfig = {
-        baseScaleY: 3.5, // Overall height of the kelp wall
-        segmentWidthCoverage: 1.0, // How many lane widths the kelp wall segment covers
-        strandCountMin: 5,
-        strandCountMax: 8,
-        swayAmplitude: 0.15,
-        swaySpeed: 0.8,
-        stalkRadius: 0.05,
-        frondCount: 5,
-        visuals: { // Default visuals for KelpWall
-            mainColor: 0x2E8B57, // SeaGreen
-            detailColor: 0x20603D, // Darker green for fronds or variation
-            roughness: 0.8,
-            metalness: 0.05,
-            opacity: 0.85,
-            transmission: 0.3, // For light passing through
-            animationSpeed: 0.8, // Overrides general swaySpeed for vertex anim
-            animationAmplitude: 0.15, // Overrides general swayAmplitude for vertex anim
-        }
-    };
-    try {
-        const specificConfig = configSystem.getObstaclesConfig().kelpWall;
-        return { ...defaultConfig, ...specificConfig, ...overrideConfig, visuals: { ...defaultConfig.visuals, ...specificConfig?.visuals, ...overrideConfig?.visuals } };
-    } catch (error) {
-        console.warn("KelpWallAsset: Could not get config, using defaults", error);
-        return { ...defaultConfig, ...overrideConfig, visuals: { ...defaultConfig.visuals, ...overrideConfig?.visuals } };
-    }
+    // Get the base default obstacle configuration for kelp walls
+    const baseDefaultConfig = configSystem.getObstaclesConfig().kelpWall;
+
+    // Merge the base default with any instance-specific overrides
+    return { ...baseDefaultConfig, ...overrideConfig };
   }
 
   private createMesh(): void {

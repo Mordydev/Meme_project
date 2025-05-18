@@ -197,6 +197,33 @@ export class SeafloorAsset {
     const geometry = new THREE.PlaneGeometry(this.segmentWidth, this.segmentLength, 20, 20);
     geometry.rotateX(-Math.PI / 2);
 
+    // Apply subtle random displacement so the seafloor isn't perfectly flat
+    const positions = geometry.attributes.position as THREE.BufferAttribute;
+    const amplitude = 0.2; // Max displacement, keep bumps small for gameplay
+    const halfWidth = this.segmentWidth / 2;
+    const halfLength = this.segmentLength / 2;
+    const tempVector = new THREE.Vector3(); // To avoid creating vectors in loop
+
+    for (let i = 0; i < positions.count; i++) {
+      tempVector.fromBufferAttribute(positions, i);
+
+      // Taper displacement at the edges so segments align smoothly
+      // Calculate normalized distance from center for X and Z
+      const normX = tempVector.x / halfWidth;
+      const normZ = tempVector.z / halfLength;
+
+      // Use Math.abs and clamp to create a falloff effect (1 at center, 0 at edge)
+      const edgeWeightX = Math.max(0, 1 - Math.abs(normX));
+      const edgeWeightZ = Math.max(0, 1 - Math.abs(normZ));
+      // Combine weights (min ensures it falls off if close to any edge)
+      const edgeWeight = Math.min(edgeWeightX, edgeWeightZ);
+
+      const disp = THREE.MathUtils.randFloatSpread(amplitude) * edgeWeight;
+      positions.setY(i, tempVector.y + disp);
+    }
+    positions.needsUpdate = true;
+    geometry.computeVertexNormals(); // Recalculate normals after displacement
+
     const mesh = new THREE.Mesh(geometry, this.material);
     mesh.name = "SeafloorSegment_Styled";
     mesh.position.y = -1.0;

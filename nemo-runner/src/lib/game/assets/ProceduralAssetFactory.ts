@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { ShaderManager } from '../services/ShaderManager';
 import { SeafloorAsset } from './environment/SeafloorAsset';
 import { WaterSurfaceAsset } from './environment/WaterSurfaceAsset';
+import { ShellAsset } from './environment/ShellAsset';
+import { PebbleAsset } from './environment/PebbleAsset';
 import { CoralAsset } from './obstacles/CoralAsset';
 import { RockAsset } from './obstacles/RockAsset';
 import { ClamAsset } from './obstacles/ClamAsset';
@@ -282,6 +284,11 @@ export class ProceduralAssetFactory {
     return new WaterSurfaceAsset(this.shaderManager);
   }
 
+  /** Create a new pebble cluster asset */
+  public createPebbleAsset(): PebbleAsset {
+    return new PebbleAsset();
+  }
+
   // Methods for collectibles - used by CollectibleManager for instanced rendering
   public getCollectibleGeometry(type: 'bubble' | 'coin'): THREE.BufferGeometry {
     return type === 'bubble'
@@ -337,5 +344,10 @@ export class ProceduralAssetFactory {
     }
 
     return powerUpAsset;
+  }
+
+  /** Create a simple decorative shell asset */
+  public createShellAsset(size?: number): ShellAsset {
+    return new ShellAsset(size);
   }
 } 

@@ -3,14 +3,16 @@ import { ProceduralAssetFactory } from '../assets/ProceduralAssetFactory';
 import { configSystem, ConfigurationSystem } from '../core/ConfigurationSystem';
 import { LightingManager } from '../services/LightingManager';
 import { WaterSurfaceAsset } from '../assets/environment/WaterSurfaceAsset';
-import { KelpWallAsset } from '../assets/obstacles/KelpWallAsset'; // Used for decorative kelp
+import { ShellAsset } from '../assets/environment/ShellAsset';
+import { PebbleAsset } from '../assets/environment/PebbleAsset';
 import { ShaderManager } from '../services/ShaderManager';
-import { KelpWallObstacleConfig, KelpVisualConfig } from '../config/gameConfig';
+import { PebbleVisualConfig, ShellsVisualConfig } from '../config/gameConfig';
 
 interface EnvironmentSegment {
   mesh: THREE.Mesh; // Seafloor mesh
   isActive: boolean;
-  kelpClusters: THREE.Group[]; // Kelp associated with this segment
+  pebbleClusters: THREE.Group[]; // Pebbles associated with this segment
+  shells: THREE.Mesh[]; // Shells on this segment
 }
 
 export class EnvironmentManager {
@@ -29,9 +31,12 @@ export class EnvironmentManager {
   private visibleSegmentsBehind = 1;
 
   private waterSurface?: WaterSurfaceAsset;
-  private kelpPool: { asset: KelpWallAsset, mesh: THREE.Group }[] = [];
-  private kelpPoolSize = 20; // Max kelp clusters in the pool
-  private decorativeKelpConfig: KelpVisualConfig; // Visual settings for decorative kelp
+  private pebblePool: { asset: PebbleAsset, mesh: THREE.Group }[] = [];
+  private pebblePoolSize = 30; // Max pebble clusters (adjust as needed)
+  private pebbleConfig: PebbleVisualConfig;
+  private shellPool: { asset: ShellAsset, mesh: THREE.Mesh }[] = [];
+  private shellPoolSize = 30; // Adjust based on typical countPerSegment * segmentPoolSize
+  private shellConfig: ShellsVisualConfig;
 
   constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory, lightingManager: LightingManager, shaderManager: ShaderManager) {
     this.scene = scene;
@@ -43,16 +48,18 @@ export class EnvironmentManager {
     this.segmentLength = seafloorAsset.segmentLength;
     this.segmentWidth = seafloorAsset.segmentWidth;
 
-    // Visual config for decorative kelp
-    this.decorativeKelpConfig = configSystem.get('visuals').kelp;
+    this.pebbleConfig = configSystem.get('visuals').pebbles;
+    this.shellConfig = configSystem.get('visuals').shells;
+    this.shellPoolSize = (this.shellConfig.countPerSegment || 3) * this.segmentPoolSize * 2; // Pre-allocate enough for a couple of cycles
     // initialize() is now async and called from GameEngine
   }
 
   public async initialize(): Promise<void> {
     this.initializeSegments();
     this.initializeWaterSurface();
-    this.initializeKelpPool();
-    console.log("EnvironmentManager: Initialized with seafloor, water surface, and kelp pool.");
+    this.initializePebblePool();
+    this.initializeShellPool();
+    console.log("EnvironmentManager: Initialized with seafloor, water surface, pebble pool, and shell pool.");
   }
 
   private initializeSegments(): void {
@@ -60,7 +67,7 @@ export class EnvironmentManager {
       const mesh = this.assetFactory.createSeafloorSegmentMesh();
       mesh.visible = false;
       this.scene.add(mesh);
-      this.segments.push({ mesh, isActive: false, kelpClusters: [] });
+      this.segments.push({ mesh, isActive: false, pebbleClusters: [], shells: [] });
     }
     // Initial spawn relative to Z=0, player likely starts at Z=0 or slightly ahead.
     // lastSegmentZ should be set up so the first spawnSegmentAhead places segment 0 correctly.
@@ -81,32 +88,25 @@ export class EnvironmentManager {
     }
   }
   
-  private initializeKelpPool(): void {
-    if (!configSystem.get('visuals').kelp.enabled) return;
-    const visConf = this.decorativeKelpConfig;
-    for (let i = 0; i < this.kelpPoolSize; i++) {
-        const override: Partial<KelpWallObstacleConfig> = {
-            baseScaleY: THREE.MathUtils.randFloat(visConf.baseHeightMin, visConf.baseHeightMax),
-            strandCountMin: 1,
-            strandCountMax: 2,
-            segmentWidthCoverage: 0.3,
-            swayAmplitude: visConf.swayAmplitude,
-            swaySpeed: visConf.swaySpeed,
-            stalkRadius: visConf.stalkRadius,
-            frondCount: visConf.frondCount,
-            visuals: {
-                mainColor: visConf.stalkColor,
-                detailColor: visConf.frondColor,
-                roughness: visConf.roughness,
-                opacity: visConf.opacity,
-                transmission: visConf.transmission,
-            }
-        };
-        const kelpAsset = this.assetFactory.createKelpWallAsset(override);
-        const kelpMesh = kelpAsset.getMesh();
-        kelpMesh.visible = false;
-        this.scene.add(kelpMesh);
-        this.kelpPool.push({ asset: kelpAsset, mesh: kelpMesh });
+  private initializePebblePool(): void {
+    if (!this.pebbleConfig.enabled) return;
+    for (let i = 0; i < this.pebblePoolSize; i++) {
+        const pebbleAsset = this.assetFactory.createPebbleAsset();
+        const pebbleMesh = pebbleAsset.getMesh();
+        pebbleMesh.visible = false;
+        this.scene.add(pebbleMesh);
+        this.pebblePool.push({ asset: pebbleAsset, mesh: pebbleMesh });
+    }
+  }
+
+  private initializeShellPool(): void {
+    if (!this.shellConfig.enabled) return;
+    for (let i = 0; i < this.shellPoolSize; i++) {
+        const shellAsset = this.assetFactory.createShellAsset(); // Uses default size from config initially
+        const shellMesh = shellAsset.getMesh();
+        shellMesh.visible = false;
+        this.scene.add(shellMesh);
+        this.shellPool.push({ asset: shellAsset, mesh: shellMesh });
     }
   }
 
@@ -127,47 +127,60 @@ export class EnvironmentManager {
       segment.mesh.position.y = -1.0; // Configurable floor Y
       // console.log(`EnvironmentManager: Spawned segment at Z: ${segment.mesh.position.z}`);
 
-      // Clean up old kelp from this reused segment
-      segment.kelpClusters.forEach(clusterMesh => {
-        const pooledItem = this.kelpPool.find(p => p.mesh === clusterMesh);
-        if (!pooledItem) { // If somehow not in pool, find its asset and add back
-             const assetInstance = clusterMesh.userData.assetInstance as KelpWallAsset;
-             if (assetInstance) this.kelpPool.push({asset: assetInstance, mesh: clusterMesh });
-        }
-        clusterMesh.visible = false;
-      });
-      segment.kelpClusters = [];
-      this.spawnKelpOnSegment(segment);
+      this.spawnPebblesOnSegment(segment);
+      this.spawnShellsOnSegment(segment);
 
     } else {
       console.warn("EnvironmentManager: No inactive segments available to spawn!");
     }
   }
 
-  private spawnKelpOnSegment(segment: EnvironmentSegment): void {
-    if (!configSystem.get('visuals').kelp.enabled || this.kelpPool.length === 0) return;
+  private spawnPebblesOnSegment(segment: EnvironmentSegment): void {
+    if (!this.pebbleConfig.enabled || this.pebblePool.length === 0) return;
 
-    const numClusters = THREE.MathUtils.randInt(1, 3);
+    const numPebbleClusters = THREE.MathUtils.randInt(1, this.pebbleConfig.countMax > 0 ? 3 : 0); // Spawn 1-3 clusters per segment if enabled
 
-    for (let i = 0; i < numClusters; i++) {
-        if (this.kelpPool.length === 0) break; 
-        const kelpItem = this.kelpPool.pop()!;
-        const kelpClusterMesh = kelpItem.mesh;
-        const kelpAssetInstance = kelpItem.asset;
-        
-        kelpClusterMesh.position.x = segment.mesh.position.x + THREE.MathUtils.randFloatSpread(this.segmentWidth * 0.9);
-        kelpClusterMesh.position.y = segment.mesh.position.y; 
-        kelpClusterMesh.position.z = segment.mesh.position.z + THREE.MathUtils.randFloatSpread(this.segmentLength * 0.9);
-        kelpClusterMesh.rotation.y = Math.random() * Math.PI * 2;
-        
-        // Apply decorative scaling if needed - this assumes KelpWallAsset mesh is a Group
-        const scaleFactor = THREE.MathUtils.randFloat(0.5, 1.0); // Make decorative kelp smaller
-        kelpClusterMesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
+    for (let i = 0; i < numPebbleClusters; i++) {
+        if (this.pebblePool.length === 0) break; // No more pebbles in pool
+        const pebbleItem = this.pebblePool.pop()!;
+        const pebbleMesh = pebbleItem.mesh;
 
-        kelpClusterMesh.visible = true;
-        
-        kelpAssetInstance.reset?.(); 
-        segment.kelpClusters.push(kelpClusterMesh);
+        pebbleMesh.position.x = segment.mesh.position.x + THREE.MathUtils.randFloatSpread(this.segmentWidth * 0.9);
+        pebbleMesh.position.y = segment.mesh.position.y + 0.02; // Slightly above seafloor base
+        pebbleMesh.position.z = segment.mesh.position.z + THREE.MathUtils.randFloatSpread(this.segmentLength * 0.9);
+        pebbleMesh.rotation.y = Math.random() * Math.PI * 2;
+
+        pebbleMesh.visible = true;
+
+        segment.pebbleClusters.push(pebbleMesh);
+    }
+  }
+
+  private spawnShellsOnSegment(segment: EnvironmentSegment): void {
+    if (!this.shellConfig.enabled || this.shellPool.length === 0) return;
+
+    const numToSpawn = this.shellConfig.countPerSegment || 0;
+
+    for (let i = 0; i < numToSpawn; i++) {
+        if (this.shellPool.length === 0) break; // No more shells in pool
+        const shellItem = this.shellPool.pop()!;
+        const shellMesh = shellItem.mesh;
+
+        shellMesh.position.x = segment.mesh.position.x + THREE.MathUtils.randFloatSpread(this.segmentWidth * 0.9);
+        shellMesh.position.y = segment.mesh.position.y + 0.05; // Slightly above seafloor base, ensure visible
+        shellMesh.position.z = segment.mesh.position.z + THREE.MathUtils.randFloatSpread(this.segmentLength * 0.9);
+        shellMesh.rotation.y = Math.random() * Math.PI * 2; // Random orientation
+        shellMesh.rotation.x = THREE.MathUtils.randFloatSpread(0.2); // Slight tilt
+        shellMesh.rotation.z = THREE.MathUtils.randFloatSpread(0.2); // Slight tilt
+
+        let scale = this.shellConfig.size;
+        if (this.shellConfig.sizeVariation) {
+            scale *= (1 + THREE.MathUtils.randFloatSpread(this.shellConfig.sizeVariation));
+        }
+        shellMesh.scale.set(scale, scale, scale);
+
+        shellMesh.visible = true;
+        segment.shells.push(shellMesh);
     }
   }
 
@@ -181,15 +194,23 @@ export class EnvironmentManager {
           segment.isActive = false;
           segment.mesh.visible = false;
           // console.log(`EnvironmentManager: Recycled segment at Z: ${segment.mesh.position.z}`);
-          segment.kelpClusters.forEach(clusterMesh => {
-            clusterMesh.visible = false;
-            // Add back to pool if not already there by some mistake
-            if (!this.kelpPool.find(p => p.mesh === clusterMesh)) {
-                const assetInstance = clusterMesh.userData.assetInstance as KelpWallAsset;
-                if (assetInstance) this.kelpPool.push({asset: assetInstance, mesh: clusterMesh});
+          segment.pebbleClusters.forEach(mesh => {
+            mesh.visible = false;
+            if (!this.pebblePool.find(p => p.mesh === mesh)) {
+                const assetInstance = mesh.userData.assetInstance as PebbleAsset;
+                if (assetInstance) this.pebblePool.push({ asset: assetInstance, mesh });
             }
           });
-          segment.kelpClusters = []; 
+          segment.pebbleClusters = [];
+          segment.shells.forEach(shellMesh => {
+            shellMesh.visible = false;
+            // Add back to pool if not already there
+            if (!this.shellPool.find(p => p.mesh === shellMesh)) {
+                const assetInstance = shellMesh.userData.assetInstance as ShellAsset;
+                if (assetInstance) this.shellPool.push({ asset: assetInstance, mesh: shellMesh });
+            }
+          });
+          segment.shells = [];
         }
       }
     });
@@ -207,31 +228,19 @@ export class EnvironmentManager {
         // Keep water surface Z aligned with player, but far ahead
         this.waterSurface.getMesh()!.position.z = playerZ - 100; // Example: 100 units ahead of player
     }
-
-    this.segments.forEach(seg => {
-        if (seg.isActive) {
-            seg.kelpClusters.forEach(clusterMesh => {
-                const assetInstance = clusterMesh.userData.assetInstance as KelpWallAsset; // KelpWallAsset stores itself in mesh.userData.assetInstance
-                if (assetInstance) {
-                    assetInstance.updateAnimation?.(deltaTime);
-                }
-            });
-        }
-    });
   }
 
   public async reset(initialPlayerZ: number = 0): Promise<void> {
     this.segments.forEach(segment => {
       segment.isActive = false;
       segment.mesh.visible = false;
-      segment.kelpClusters.forEach(clusterMesh => {
-        clusterMesh.visible = false;
-        if (!this.kelpPool.find(p => p.mesh === clusterMesh)) {
-            const assetInstance = clusterMesh.userData.assetInstance as KelpWallAsset;
-            if (assetInstance) this.kelpPool.push({asset: assetInstance, mesh: clusterMesh});
-        }
+      segment.pebbleClusters.forEach(p => {
+         this.scene.remove(p);
       });
-      segment.kelpClusters = [];
+      segment.pebbleClusters = [];
+      segment.shells.forEach(shellMesh => {
+         this.scene.remove(shellMesh);
+      });
     });
     
     this.lastSegmentZ = initialPlayerZ + (this.visibleSegmentsBehind +1) * this.segmentLength; 
@@ -253,9 +262,11 @@ export class EnvironmentManager {
         segment.mesh.material.forEach(m => m.dispose());
       }
       this.scene.remove(segment.mesh);
-      segment.kelpClusters.forEach(clusterMesh => {
-         // Kelp assets are disposed when the pool is cleared
-         this.scene.remove(clusterMesh);
+      segment.pebbleClusters.forEach(p => {
+         this.scene.remove(p);
+      });
+      segment.shells.forEach(shellMesh => {
+         this.scene.remove(shellMesh);
       });
     });
     this.segments = [];
@@ -263,11 +274,16 @@ export class EnvironmentManager {
     this.waterSurface?.dispose();
     this.scene.remove(this.waterSurface?.getMesh() as THREE.Mesh); // Ensure mesh is removed
 
-    this.kelpPool.forEach(kelpItem => {
-        kelpItem.asset.dispose(); 
-        this.scene.remove(kelpItem.mesh);
+    this.pebblePool.forEach(item => {
+        item.asset.dispose();
+        this.scene.remove(item.mesh);
     });
-    this.kelpPool = [];
+    this.pebblePool = [];
+    this.shellPool.forEach(item => {
+        item.asset.dispose();
+        this.scene.remove(item.mesh);
+    });
+    this.shellPool = [];
     console.log("EnvironmentManager: Disposed.");
   }
 

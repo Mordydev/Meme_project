@@ -217,19 +217,20 @@ export interface SeafloorVisualConfig {
   metalness?: number;
 }
 
-export interface KelpVisualConfig {
-  stalkColor: number | string;
-  frondColor: number | string;
-  baseHeightMin: number;
-  baseHeightMax: number;
-  stalkRadius: number;
-  frondCount: number;
-  swaySpeed: number;
-  swayAmplitude: number;
-  transmission?: number; // For translucency
-  opacity?: number;
-  roughness?: number;
-  enabled?: boolean; // Added to enable/disable kelp spawning
+export interface PebbleVisualConfig {
+  countMin: number;
+  countMax: number;
+  sizeMin: number;
+  sizeMax: number;
+  color: number | string;
+  enabled?: boolean;
+}
+
+export interface ShellsVisualConfig {
+  enabled?: boolean;
+  countPerSegment: number; // Number of shells to attempt to spawn per seafloor segment
+  size: number; // Base size of the shells
+  sizeVariation?: number; // e.g., 0.2 means size can vary by +/- 20%
 }
 
 export interface WaterSurfaceVisualConfig {
@@ -324,8 +325,9 @@ export interface VisualSettings {
   distortionSpeed: number;
 
   seafloor: SeafloorVisualConfig;
-  kelp: KelpVisualConfig;
+  pebbles: PebbleVisualConfig;
   waterSurface: WaterSurfaceVisualConfig;
+  shells: ShellsVisualConfig;
   testCubeColor?: number | string; // Assuming this was part of general visuals
 }
 
@@ -703,19 +705,19 @@ export const defaultConfig: GameConfig = {
       roughness: 0.85,
       metalness: 0.0,
     },
-    kelp: {
-      stalkColor: 0x3A5F0B, // Darker green for stalk
-      frondColor: 0x556B2F, // Olive Drab for fronds
-      baseHeightMin: 1.5,
-      baseHeightMax: 3.0,
-      stalkRadius: 0.03,
-      frondCount: 5,
-      swaySpeed: 0.3,
-      swayAmplitude: 0.1,
-      transmission: 0.4, // Kelp is somewhat translucent
-      opacity: 0.9,
-      roughness: 0.7,
+    pebbles: {
+      countMin: 2,
+      countMax: 5,
+      sizeMin: 0.05,
+      sizeMax: 0.15,
+      color: 0x555555, // Dark grey
       enabled: true,
+    },
+    shells: {
+      enabled: true,
+      countPerSegment: 3, // Try to spawn a few shells per segment
+      size: 0.3,          // Base size of shells
+      sizeVariation: 0.2, // Allow some size differences
     },
     waterSurface: {
       baseColor: 0x87CEEB, // Sky blue, but will be viewed from below

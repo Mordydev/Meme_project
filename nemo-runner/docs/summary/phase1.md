@@ -123,6 +123,34 @@
             - `dispose` method now removes the `godRaysPass` from `RenderManager`.
         - **`GameEngine.ts` Updated:**
             - Passes `this.lightingManager` to `this.visualEffectsService.initializeParticlesAndPostProcessing`.
+    - **Seafloor Vertex Displacement:**
+        - **`SeafloorAsset.ts`:** Modified `createMesh` to apply subtle random vertical displacement to seafloor plane vertices, tapered at edges for smooth segment alignment. Normals are recomputed.
+    - **Decorative Pebbles Added:**
+        - **`PebbleAsset.ts`:** Created new asset for small, procedurally deformed pebble clusters.
+        - **`ProceduralAssetFactory.ts`:** Added `createPebbleAsset()` method.
+        - **`gameConfig.ts`:** Introduced `PebbleVisualConfig`, added `pebbles` to `VisualSettings` and `defaultConfig`.
+        - **`EnvironmentManager.ts`:** Integrated pebble pooling, spawning, recycling, and disposal.
+    - **Decorative Shells Added:**
+        - **`ShellAsset.ts`:** Created new asset for simple starfish-shaped shells.
+        - **`ProceduralAssetFactory.ts`:** Added `createShellAsset()` method.
+        - **`gameConfig.ts`:** Introduced `ShellsVisualConfig`, added `shells` to `VisualSettings` and `defaultConfig`.
+        - **`EnvironmentManager.ts`:** Integrated shell pooling, spawning (with count/size variation), recycling, and disposal.
+    - **Kelp Refactoring (Obstacle Only):**
+        - **`gameConfig.ts`:**
+            - Removed `KelpVisualConfig` interface.
+            - Removed `kelp: KelpVisualConfig` from `VisualSettings` interface.
+            - Removed `kelp` block from `defaultConfig.visuals`.
+            - `KelpWallObstacleConfig` (under `ObstaclesConfig`) and `defaultConfig.obstacles.kelpWall` are now the sole configuration sources for kelp.
+        - **`KelpWallAsset.ts`:**
+            - Adjusted `_fetchConfig` method to use `configSystem.getObstaclesConfig().kelpWall` as its base default configuration, ensuring it aligns with its role as a pure obstacle.
+        - **`EnvironmentManager.ts`:**
+            - Removed all logic related to decorative kelp, including:
+                - `kelpPool`, `kelpPoolSize`, `decorativeKelpConfig` properties.
+                - `initializeKelpPool` and `spawnKelpOnSegment` methods.
+                - Kelp-related properties from the `EnvironmentSegment` interface and segment initialization.
+                - Kelp-related logic in `recycleSegments`, `reset`, `update` (animation calls), and `dispose`.
+                - Imports for `KelpWallAsset` and `KelpVisualConfig`.
+            - `KelpWallAsset` is no longer managed or spawned by `EnvironmentManager`. It's to be handled exclusively by an obstacle management system.
 
 #### Technical Decisions:
 - **Procedural Texturing (Canvas API):** Adopted for seafloor color and bump details to avoid external texture dependencies and allow dynamic generation based on config.

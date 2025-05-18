@@ -262,9 +262,10 @@ export default function GameCanvas() {
       setTimeout(() => {
         try {
           // The safest approach is to do a full renderer recreation on each Fast Refresh
-          if (window.__gameEngine && typeof (window.__gameEngine as unknown).resetRendererAndShaders === 'function') {
+          const debugEngine = window.__gameEngine as (GameEngine & { resetRendererAndShaders?: () => Promise<void> }) | undefined;
+          if (debugEngine && typeof debugEngine.resetRendererAndShaders === 'function') {
             console.log("GameCanvas: Performing complete WebGL context reset after Fast Refresh");
-            (window.__gameEngine as unknown as { resetRendererAndShaders: () => Promise<void> }).resetRendererAndShaders()
+            debugEngine.resetRendererAndShaders()
               .then(() => console.log("GameCanvas: Fast Refresh recovery completed successfully"))
               .catch((e: unknown) => console.warn("GameCanvas: Fast Refresh recovery failed:", e));
           } else {
@@ -347,7 +348,6 @@ export default function GameCanvas() {
       });
 
       // Expose for debug helpers
-      // @ts-expect-error Adding custom property to window for debugging
       window.__gameEngine = engine;
       gameEngineRef.current = engine;
 
@@ -368,6 +368,7 @@ export default function GameCanvas() {
       }
 
       engine.initialize();
+      console.log("GameCanvas: Attempting to call engine.start()...");
       engine.start();
       setIsLoading(false);
       console.log("GameCanvas: GameEngine started.");
@@ -449,7 +450,7 @@ export default function GameCanvas() {
       setError(errMsg);
       setIsLoading(false);
     }
-  }, [error, isLoading]); // Add missing dependencies
+  }, []); // CHANGE: Empty dependency array to run once on mount
 
   const handleRestart = () => {
     if (gameEngineRef.current && gameEngineRef.current.getCurrentState() === GameState.GAME_OVER) {
@@ -503,45 +504,6 @@ export default function GameCanvas() {
           onRestart={handleRestart}
           lives={lives} // Pass lives to overlay
         />
-      )}
-
-      {/* Start Game UI */}
-      {gameEngineRef.current && gameEngineRef.current.getCurrentState() === GameState.READY && !isGameOver && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 10,
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          padding: '30px',
-          borderRadius: '20px',
-          boxShadow: '0 0 30px rgba(0,0,0,0.5)',
-          border: '2px solid rgba(255,255,255,0.3)'
-        }}>
-          <h2 style={{ color: 'white', marginTop: 0, textAlign: 'center' }}>Nemo Runner</h2>
-          <button
-            onClick={handleRestart}
-            style={{
-              padding: '15px 30px',
-              fontSize: '22px',
-              cursor: 'pointer',
-              backgroundColor: '#4169E1', // Royal Blue
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
-              transition: '0.3s'
-            }}
-          >
-            Start Game
-          </button>
-          <div style={{ color: 'white', textAlign: 'center', marginTop: '15px' }}>
-            <p style={{ marginBottom: '5px' }}>Collect bubbles and coins for points!</p>
-            <p style={{ marginBottom: '0px' }}>Look for power-ups: 🛡️ Shield, 🧲 Magnet, 2✖️ Double Score</p>
-          </div>
-        </div>
       )}
     </div>
   );
