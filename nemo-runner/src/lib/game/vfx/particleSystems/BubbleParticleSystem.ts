@@ -7,10 +7,12 @@ interface BubbleParticle {
   velocity: THREE.Vector3;
   lifetime: number; // Time remaining
   maxLifetime: number;
-  scale: number;
+  baseScale: number;
+  currentScale: number;
   alpha: number;
   rotation: number; // Optional
   color: THREE.Color;
+  wobbleOffset: number;
 }
 
 export class BubbleParticleSystem {
@@ -28,6 +30,7 @@ export class BubbleParticleSystem {
   private alphas!: Float32Array;
   private colors!: Float32Array;
   private rotations!: Float32Array;
+  private emissionAccumulator: number = 0;
 
   constructor(scene: THREE.Scene, shaderManager: ShaderManager, poolSize: number) {
     this.scene = scene;
@@ -104,27 +107,36 @@ export class BubbleParticleSystem {
 
     if (targetIndex >= this.poolSize) return; // Should not happen if pool logic is correct
 
-    const config = configSystem.get('visuals');
-    const lifetime = THREE.MathUtils.randFloat(2.0, 5.0); // Random lifetime
+    const visuals = configSystem.get('visuals') as any;
+    const cfg = visuals.playerTrailBubbles ?? {};
+    const sizeMin = cfg.particleSizeMin ?? visuals.bubbleSize * 0.6;
+    const sizeMax = cfg.particleSizeMax ?? visuals.bubbleSize * 1.2;
+    const lifetime = THREE.MathUtils.randFloat(cfg.lifetimeMin ?? 0.8, cfg.lifetimeMax ?? 2.0);
+    const speedMin = cfg.speedMin ?? visuals.bubbleBaseSpeed;
+    const speedMax = cfg.speedMax ?? visuals.bubbleBaseSpeed + 0.1;
     const particle: BubbleParticle = {
       position: origin.clone().add(new THREE.Vector3(
-        THREE.MathUtils.randFloatSpread(0.1), // Slight horizontal spread at spawn
+        THREE.MathUtils.randFloatSpread(0.1),
         0,
         THREE.MathUtils.randFloatSpread(0.1)
       )),
-      // Velocity: upward with slight horizontal drift/wobble
       velocity: new THREE.Vector3(
         THREE.MathUtils.randFloatSpread(0.05),
-        config.bubbleBaseSpeed + THREE.MathUtils.randFloat(0, 0.1),
+        THREE.MathUtils.randFloat(speedMin, speedMax),
         THREE.MathUtils.randFloatSpread(0.05)
       ),
       lifetime: lifetime,
       maxLifetime: lifetime,
-      scale: THREE.MathUtils.randFloat(0.7, 1.3), // Random size variation
-      alpha: 1.0,
+      baseScale: THREE.MathUtils.randFloat(sizeMin, sizeMax),
+      currentScale: 1,
+      alpha: 0.0,
       rotation: THREE.MathUtils.randFloat(0, Math.PI * 2),
-      color: new THREE.Color(1, 1, 1), // Base white, tinted by material uniform
+      color: new THREE.Color(1, 1, 1),
+      wobbleOffset: Math.random() * Math.PI * 2,
     };
+    // Set initial visible scale and alpha
+    particle.currentScale = particle.baseScale;
+    particle.alpha = 0;
     this.particles[targetIndex] = particle;
 
     // Immediately update buffer for the spawned particle
@@ -135,7 +147,7 @@ export class BubbleParticleSystem {
     this.positions[index * 3] = particle.position.x;
     this.positions[index * 3 + 1] = particle.position.y;
     this.positions[index * 3 + 2] = particle.position.z;
-    this.scales[index] = particle.scale;
+    this.scales[index] = particle.currentScale;
     this.alphas[index] = particle.alpha;
     this.colors[index * 3] = particle.color.r;
     this.colors[index * 3 + 1] = particle.color.g;
@@ -143,13 +155,25 @@ export class BubbleParticleSystem {
     this.rotations[index] = particle.rotation;
   }
 
+  /** Emit one or more particles at the given origin */
+  public emit(origin: THREE.Vector3, count: number = 1): void {
+    for (let i = 0; i < count; i++) {
+      this.spawnParticle(origin);
+    }
+  }
+
   public update(deltaTime: number, playerPosition?: THREE.Vector3): void {
-    const config = configSystem.get('visuals');
-    if (!config.bubblesEnabled) {
+    const visuals = configSystem.get('visuals') as any;
+    const cfg = visuals.playerTrailBubbles ?? {};
+    if (cfg.enabled === false || visuals.enableParticles === false || !visuals.bubblesEnabled) {
       if (this.points.visible) this.points.visible = false;
       return;
     }
     if (!this.points.visible) this.points.visible = true;
+
+    const gravity = cfg.gravity ?? -0.08;
+    const wobbleSpeed = cfg.wobbleSpeed ?? 5.0;
+    const wobbleAmplitude = cfg.wobbleAmplitude ?? 0.02;
 
     // Update existing particles
     for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -169,27 +193,46 @@ export class BubbleParticleSystem {
         continue; // Skip further updates for dead particles
       }
 
+      // Update velocity (gravity upward)
+      p.velocity.y += gravity * -1 * deltaTime;
+
       // Update position
       p.position.addScaledVector(p.velocity, deltaTime);
 
-      // Simple wobble
-      p.position.x += Math.sin(p.lifetime * 5.0 + i) * 0.01;
+      // Horizontal wobble
+      const lifeElapsed = p.maxLifetime - p.lifetime;
+      p.position.x += Math.sin(lifeElapsed * wobbleSpeed + p.wobbleOffset) * wobbleAmplitude * deltaTime;
 
-      // Update alpha (fade out near end of life)
-      p.alpha = THREE.MathUtils.smoothstep(p.lifetime, 0.0, 0.5); // Fade out in last 0.5s
-      p.alpha = Math.min(p.alpha, THREE.MathUtils.smoothstep(p.lifetime, p.maxLifetime, p.maxLifetime - 0.3)); // Fade in
+      // Scale growth then shrink
+      const lifeRatio = THREE.MathUtils.clamp(1 - p.lifetime / p.maxLifetime, 0, 1);
+      p.currentScale = p.baseScale * (0.5 + 0.5 * Math.sin(lifeRatio * Math.PI));
+
+      // Alpha fade in then out
+      if (lifeRatio < 0.2) {
+        p.alpha = THREE.MathUtils.lerp(0, 1, lifeRatio / 0.2);
+      } else if (lifeRatio > 0.8) {
+        p.alpha = THREE.MathUtils.lerp(1, 0, (lifeRatio - 0.8) / 0.2);
+      } else {
+        p.alpha = 1;
+      }
 
       // Update buffer attributes
       this.updateBufferAttributes(i, p);
     }
 
-    // Spawn new particles periodically based on player position
-    if (playerPosition && Math.random() < 0.2) { // Adjust spawn rate
-      const spawnX = playerPosition.x + THREE.MathUtils.randFloatSpread(config.bubbleSpawnAreaX);
-      // Approximate seafloor height (would be better to query from environment manager)
-      const seafloorY = -1.0; 
-      const spawnPos = new THREE.Vector3(spawnX, seafloorY - config.bubbleSpawnDepth, playerPosition.z);
-      this.spawnParticle(spawnPos);
+    // Spawn new particles based on emissionRate
+    if (playerPosition) {
+      const emissionRate = cfg.emissionRate ?? 10;
+      this.emissionAccumulator += emissionRate * deltaTime;
+      const spawnXSpread = visuals.bubbleSpawnAreaX ?? 10;
+      const spawnDepth = visuals.bubbleSpawnDepth ?? 0.1;
+      while (this.emissionAccumulator >= 1) {
+        this.emissionAccumulator -= 1;
+        const spawnX = playerPosition.x + THREE.MathUtils.randFloatSpread(spawnXSpread);
+        const seafloorY = -1.0;
+        const spawnPos = new THREE.Vector3(spawnX, seafloorY - spawnDepth, playerPosition.z);
+        this.spawnParticle(spawnPos);
+      }
     }
 
     // Mark geometry attributes for GPU update
@@ -202,10 +245,10 @@ export class BubbleParticleSystem {
     // Update material uniforms if using ShaderMaterial and not fallback material
     if (this.material.type === 'ShaderMaterial' && this.material.uniforms) {
       if (this.material.uniforms.uBaseSize) {
-        this.material.uniforms.uBaseSize.value = config.bubbleSize;
+        this.material.uniforms.uBaseSize.value = visuals.bubbleSize;
       }
       if (this.material.uniforms.uPixelRatio) {
-        this.material.uniforms.uPixelRatio.value = 
+        this.material.uniforms.uPixelRatio.value =
           typeof window !== 'undefined' ? window.devicePixelRatio : 1;
       }
     }

@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { configSystem } from '../../core/ConfigurationSystem';
 import { ShaderManager } from '../../services/ShaderManager';
-import { randomPointInSphere } from '../../utils/mathUtils';
 
 interface DustParticle {
   position: THREE.Vector3;
   velocity: THREE.Vector3; // Used for wandering
   lifetime: number; // Can be infinite or fade in/out
   maxLifetime: number;
-  scale: number;
+  baseScale: number;
+  currentScale: number;
+  baseAlpha: number;
   alpha: number;
   color: THREE.Color;
   wanderTarget: THREE.Vector3;
@@ -24,7 +25,8 @@ export class DustParticleSystem {
   private shaderManager: ShaderManager;
   private scene: THREE.Scene;
   private centerPosition: THREE.Vector3 = new THREE.Vector3(); // Center around which dust appears
-  private spawnRadius: number = 15; // Radius around center
+  private spawnAreaSize: THREE.Vector3 = new THREE.Vector3(30, 10, 40);
+  private spawnAreaHalf: THREE.Vector3 = this.spawnAreaSize.clone().multiplyScalar(0.5);
 
   // Attribute buffers
   private positions!: Float32Array;
@@ -40,20 +42,33 @@ export class DustParticleSystem {
   }
 
   private initialize(): void {
+    const visuals = configSystem.get('visuals') as any;
+    const cfg = visuals.ambientDust ?? {};
+    if (cfg.spawnAreaSize) {
+      this.spawnAreaSize.set(cfg.spawnAreaSize.x, cfg.spawnAreaSize.y, cfg.spawnAreaSize.z);
+      this.spawnAreaHalf.copy(this.spawnAreaSize).multiplyScalar(0.5);
+    }
+
     this.geometry = new THREE.BufferGeometry();
     this.positions = new Float32Array(this.poolSize * 3);
     this.scales = new Float32Array(this.poolSize);
     this.alphas = new Float32Array(this.poolSize);
     this.colors = new Float32Array(this.poolSize * 3);
 
-    // Initialize particles randomly within a sphere
+    // Initialize particles randomly within the spawn volume
     for (let i = 0; i < this.poolSize; i++) {
-      const pos = randomPointInSphere(this.spawnRadius).add(this.centerPosition);
+      const pos = new THREE.Vector3(
+        THREE.MathUtils.randFloatSpread(this.spawnAreaSize.x),
+        THREE.MathUtils.randFloatSpread(this.spawnAreaSize.y),
+        THREE.MathUtils.randFloatSpread(this.spawnAreaSize.z)
+      ).add(this.centerPosition);
       this.positions[i * 3] = pos.x;
       this.positions[i * 3 + 1] = pos.y;
       this.positions[i * 3 + 2] = pos.z;
-      this.scales[i] = THREE.MathUtils.randFloat(0.5, 1.5);
-      this.alphas[i] = THREE.MathUtils.randFloat(0.1, 0.5); // Dust is subtle
+      const scale = THREE.MathUtils.randFloat(0.5, 1.5);
+      const alpha = THREE.MathUtils.randFloat(0.1, 0.5); // Dust is subtle
+      this.scales[i] = scale;
+      this.alphas[i] = alpha;
       const greyValue = THREE.MathUtils.randFloat(0.6, 0.9);
       this.colors[i * 3] = greyValue;
       this.colors[i * 3 + 1] = greyValue;
@@ -65,8 +80,10 @@ export class DustParticleSystem {
         velocity: new THREE.Vector3(),
         lifetime: Infinity, // Dust persists
         maxLifetime: Infinity,
-        scale: this.scales[i],
-        alpha: this.alphas[i],
+        baseScale: scale,
+        currentScale: scale,
+        baseAlpha: alpha,
+        alpha: alpha,
         color: new THREE.Color(greyValue, greyValue, greyValue),
         wanderTarget: new THREE.Vector3(),
         wanderTheta: Math.random() * Math.PI * 2
@@ -81,7 +98,7 @@ export class DustParticleSystem {
     // Use ShaderManager to get the material
     this.material = this.shaderManager.createShaderMaterial('dustShader', {
       uBaseColor: { value: new THREE.Color(0xffffff) },
-      uBaseSize: { value: configSystem.get('visuals').dustSize },
+      uBaseSize: { value: visuals.dustSize },
       uPixelRatio: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 },
       uOpacity: { value: 0.7 }, // Overall opacity for dust cloud
     });
@@ -109,17 +126,28 @@ export class DustParticleSystem {
   private updateWander(particle: DustParticle, dt: number, speed: number): void {
     particle.wanderTheta += THREE.MathUtils.randFloatSpread(0.5) * dt; // Change direction slowly
     const wanderForce = new THREE.Vector3(
-      Math.cos(particle.wanderTheta), 
-      Math.sin(particle.wanderTheta), 
+      Math.cos(particle.wanderTheta),
+      Math.sin(particle.wanderTheta),
       Math.cos(particle.wanderTheta * 0.5)
     ); // Simple 3D wander
     wanderForce.multiplyScalar(speed * dt);
     particle.position.add(wanderForce);
 
-    // Keep particles within bounds (wrap around or clamp)
-    if (particle.position.distanceTo(this.centerPosition) > this.spawnRadius * 1.2) {
-      // Simple wrap around
-      particle.position.sub(this.centerPosition).multiplyScalar(-0.9).add(this.centerPosition);
+    // Wrap particles when leaving volume
+    if (particle.position.x > this.centerPosition.x + this.spawnAreaHalf.x) {
+      particle.position.x -= this.spawnAreaSize.x;
+    } else if (particle.position.x < this.centerPosition.x - this.spawnAreaHalf.x) {
+      particle.position.x += this.spawnAreaSize.x;
+    }
+    if (particle.position.y > this.centerPosition.y + this.spawnAreaHalf.y) {
+      particle.position.y -= this.spawnAreaSize.y;
+    } else if (particle.position.y < this.centerPosition.y - this.spawnAreaHalf.y) {
+      particle.position.y += this.spawnAreaSize.y;
+    }
+    if (particle.position.z > this.centerPosition.z + this.spawnAreaHalf.z) {
+      particle.position.z -= this.spawnAreaSize.z;
+    } else if (particle.position.z < this.centerPosition.z - this.spawnAreaHalf.z) {
+      particle.position.z += this.spawnAreaSize.z;
     }
   }
 
@@ -127,14 +155,15 @@ export class DustParticleSystem {
     this.positions[index * 3] = particle.position.x;
     this.positions[index * 3 + 1] = particle.position.y;
     this.positions[index * 3 + 2] = particle.position.z;
-    this.scales[index] = particle.scale;
+    this.scales[index] = particle.currentScale;
     this.alphas[index] = particle.alpha;
     // Color doesn't change per frame for dust typically
   }
 
   public update(deltaTime: number, playerPosition?: THREE.Vector3): void {
-    const config = configSystem.get('visuals');
-    if (!config.dustEnabled) {
+    const visuals = configSystem.get('visuals') as any;
+    const cfg = visuals.ambientDust ?? {};
+    if (cfg.enabled === false || visuals.enableParticles === false || !visuals.dustEnabled) {
       if (this.points.visible) this.points.visible = false;
       return;
     }
@@ -143,16 +172,18 @@ export class DustParticleSystem {
     if (playerPosition) {
       // Keep the dust cloud generally around the player
       this.centerPosition.copy(playerPosition);
-      this.points.position.copy(this.centerPosition); // Move the whole Points object
-      // Individual particle positions are relative to this center now
+      this.points.position.copy(this.centerPosition);
     }
 
     for (let i = 0; i < this.particles.length; i++) {
       const p = this.particles[i];
-      // Dust particles wander slowly
-      this.updateWander(p, deltaTime, config.dustWanderSpeed);
+      const speed = THREE.MathUtils.randFloat(cfg.speedMin ?? visuals.dustWanderSpeed, cfg.speedMax ?? visuals.dustWanderSpeed);
+      this.updateWander(p, deltaTime, speed);
 
-      // Update buffer attributes (only position changes frequently)
+      // Subtle twinkle
+      p.alpha = p.baseAlpha * (0.7 + 0.3 * Math.sin(p.wanderTheta * 0.5));
+      p.currentScale = p.baseScale * (0.8 + 0.2 * Math.sin(p.wanderTheta * 0.5));
+
       this.updateBufferAttributes(i, p);
     }
 
@@ -165,10 +196,10 @@ export class DustParticleSystem {
     // Update material uniforms if using ShaderMaterial and not fallback material
     if (this.material.type === 'ShaderMaterial' && this.material.uniforms) {
       if (this.material.uniforms.uBaseSize) {
-        this.material.uniforms.uBaseSize.value = config.dustSize;
+        this.material.uniforms.uBaseSize.value = visuals.dustSize;
       }
       if (this.material.uniforms.uPixelRatio) {
-        this.material.uniforms.uPixelRatio.value = 
+        this.material.uniforms.uPixelRatio.value =
           typeof window !== 'undefined' ? window.devicePixelRatio : 1;
       }
     }
