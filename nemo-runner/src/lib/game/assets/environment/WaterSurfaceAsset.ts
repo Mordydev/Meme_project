@@ -1,16 +1,28 @@
 import * as THREE from 'three';
 import { configSystem } from '../../core/ConfigurationSystem';
 import { ShaderManager } from '../../services/ShaderManager';
+import { LightingManager } from '../../services/LightingManager';
 import { WaterSurfaceVisualConfig } from '../../config/gameConfig';
 
 export class WaterSurfaceAsset {
   public mesh!: THREE.Mesh;
   private config: Readonly<WaterSurfaceVisualConfig>;
   private material!: THREE.MeshPhysicalMaterial;
+  private lightingManager: LightingManager | null = null;
+  private directionalLight: THREE.DirectionalLight | null = null;
+  private _tmpLightDir: THREE.Vector3 = new THREE.Vector3();
 
   constructor(_shaderManager: ShaderManager) {
     this.config = configSystem.get('visuals').waterSurface;
     this.createMesh();
+  }
+
+  /**
+   * Links the LightingManager to allow lighting-reactive highlights
+   */
+  public linkLightingManager(lightingManager: LightingManager): void {
+    this.lightingManager = lightingManager;
+    this.directionalLight = lightingManager.getDirectionalLight();
   }
 
   private createMesh(): void {
@@ -34,6 +46,14 @@ export class WaterSurfaceAsset {
       shader.uniforms.uRippleSpeed = { value: this.config.rippleSpeed };
       shader.uniforms.uRippleScale = { value: this.config.rippleScale };
       shader.uniforms.uRippleIntensity = { value: this.config.rippleIntensity };
+      shader.uniforms.uFresnelPower = {
+        value: this.config.fresnelPower ?? 2.0
+      };
+      shader.uniforms.uSpecularColor = {
+        value: new THREE.Color(this.config.specularColor)
+      };
+      shader.uniforms.uLightDirection = { value: new THREE.Vector3(0, -1, 0) };
+      shader.uniforms.uLightIntensity = { value: 1.0 };
 
       // Make sure vUv is available - add it to the vertex shader
       shader.vertexShader = 
@@ -48,12 +68,16 @@ export class WaterSurfaceAsset {
         `uniform float uRippleSpeed;\n` +
         `uniform float uRippleScale;\n` +
         `uniform float uRippleIntensity;\n` +
+        `uniform float uFresnelPower;\n` +
+        `uniform vec3 uSpecularColor;\n` +
+        `uniform vec3 uLightDirection;\n` +
+        `uniform float uLightIntensity;\n` +
         `varying vec2 vUv;\n` +
         shader.fragmentShader;
 
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <color_fragment>',
-        `#include <color_fragment>\n  float ripple = sin((vUv.x + uTime * uRippleSpeed) * uRippleScale) *\n                      sin((vUv.y + uTime * uRippleSpeed) * uRippleScale);\n  diffuseColor.rgb += ripple * uRippleIntensity;`
+        `#include <color_fragment>\n  float ripple = sin((vUv.x + uTime * uRippleSpeed) * uRippleScale) *\n                      sin((vUv.y + uTime * uRippleSpeed) * uRippleScale);\n  vec3 lightDir = normalize(uLightDirection);\n  float lightFactor = max(dot(normalize(normal), lightDir), 0.0) * uLightIntensity;\n  float fresnel = pow(1.0 - dot(normalize(normal), normalize(vViewPosition)), uFresnelPower);\n  vec3 fresnelSpec = uSpecularColor * fresnel * lightFactor;\n  diffuseColor.rgb += ripple * uRippleIntensity * lightFactor + fresnelSpec;`
       );
 
       (this.material as any).userData.shader = shader;
@@ -66,8 +90,16 @@ export class WaterSurfaceAsset {
 
   public update(_delta: number, elapsed: number): void {
     const shader = (this.material as any).userData?.shader;
-    if (shader && shader.uniforms.uTime) {
+    if (!shader) return;
+
+    if (shader.uniforms.uTime) {
       shader.uniforms.uTime.value = elapsed;
+    }
+
+    if (this.directionalLight) {
+      this.directionalLight.getWorldDirection(this._tmpLightDir);
+      shader.uniforms.uLightDirection.value.copy(this._tmpLightDir);
+      shader.uniforms.uLightIntensity.value = this.directionalLight.intensity;
     }
   }
 
@@ -77,6 +109,8 @@ export class WaterSurfaceAsset {
 
   public dispose(): void {
     this.mesh.geometry.dispose();
+    this.material.map?.dispose();
+    this.material.normalMap?.dispose();
     this.material.dispose();
   }
 }

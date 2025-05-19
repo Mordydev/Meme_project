@@ -30,10 +30,12 @@ export class EnvironmentManager {
   private pebblePool: THREE.Mesh[] = [];
   private rockPool: THREE.Mesh[] = [];
   private clamPool: THREE.Group[] = [];
+  private kelpPool: THREE.Group[] = [];
 
   private pebblePoolSize = 50;
   private rockPoolSize = 20;
   private clamPoolSize = 10;
+  private kelpPoolSize = 20;
 
   constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory /*, playerController: PlayerController */) {
     this.scene = scene;
@@ -93,6 +95,15 @@ export class EnvironmentManager {
       clam.userData.decorationType = 'clam';
       this.scene.add(clam);
       this.clamPool.push(clam);
+    }
+
+    // Initialize kelp decorations
+    for (let i = 0; i < this.kelpPoolSize; i++) {
+      const kelp = this.assetFactory.getKelpMesh();
+      kelp.visible = false;
+      kelp.userData.decorationType = 'kelp';
+      this.scene.add(kelp);
+      this.kelpPool.push(kelp);
     }
   }
 
@@ -166,6 +177,14 @@ export class EnvironmentManager {
       this.placeDecoration(clam, segment);
       segment.decorations.push(clam);
     }
+
+    // Spawn kelp
+    const kelpCount = THREE.MathUtils.randInt(1, 2);
+    for (let i = 0; i < kelpCount && this.kelpPool.length > 0; i++) {
+      const kelp = this.kelpPool.pop()!;
+      this.placeDecoration(kelp, segment);
+      segment.decorations.push(kelp);
+    }
   }
 
   private placeDecoration(obj: THREE.Object3D, segment: EnvironmentSegment): void {
@@ -200,6 +219,9 @@ export class EnvironmentManager {
                 break;
               case 'clam':
                 this.clamPool.push(obj as THREE.Group);
+                break;
+              case 'kelp':
+                this.kelpPool.push(obj as THREE.Group);
                 break;
             }
           });
@@ -261,9 +283,13 @@ export class EnvironmentManager {
     this.clamPool.forEach(c => { 
       this.scene.remove(c); 
     });
+    this.kelpPool.forEach(k => {
+      this.scene.remove(k);
+    });
     this.pebblePool = [];
     this.rockPool = [];
     this.clamPool = [];
+    this.kelpPool = [];
 
     console.log("EnvironmentManager: Disposed.");
   }
@@ -284,6 +310,9 @@ export class EnvironmentManager {
             break;
           case 'clam':
             this.clamPool.push(obj as THREE.Group);
+            break;
+          case 'kelp':
+            this.kelpPool.push(obj as THREE.Group);
             break;
         }
       });

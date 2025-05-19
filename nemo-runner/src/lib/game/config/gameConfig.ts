@@ -225,6 +225,7 @@ export interface DecorationsConfig {
   pebble: DecorationItemConfig;
   smallRock: DecorationItemConfig;
   clam: DecorationItemConfig;
+  kelp: DecorationItemConfig;
 }
 
 export interface SeafloorVisualConfig {
@@ -239,6 +240,7 @@ export interface SeafloorVisualConfig {
     pebbles: DecorationSpawnConfig;
     smallRocks: DecorationSpawnConfig;
     clams: DecorationSpawnConfig;
+    kelp: DecorationSpawnConfig;
   };
 }
 
@@ -648,10 +650,15 @@ export const defaultConfig: GameConfig = {
       colors: [0xD8C0A8, 0xE0D0B0, 0xC8B090, 0xF0E0C8],
       scaleMin: 0.4,
       scaleMax: 0.7
+    },
+    kelp: {
+      colors: [0x2e8b57, 0x3a5f0b, 0x20603d],
+      scaleMin: 0.8,
+      scaleMax: 1.2
     }
   },
   visuals: {
-    skyColor: 0x1a2b3c, // Darker blue for underwater
+    skyColor: 0x144c55, // Turquoise-tinted background
 
     // Particle Effects
     enableParticles: true,
@@ -686,13 +693,14 @@ export const defaultConfig: GameConfig = {
       sandPatternColor1: 0xC4A484,
       sandPatternColor2: 0x9A7B5A,
       textureScale: 15.0,
-      bumpScale: 0.02,
+      bumpScale: 0.04,
       roughness: 0.85,
       metalness: 0.0,
       decorations: {
         pebbles: { spawnCount: 20, scaleMin: 0.1, scaleMax: 0.3 },
         smallRocks: { spawnCount: 10, scaleMin: 0.2, scaleMax: 0.5 },
-        clams: { spawnCount: 5, scaleMin: 0.3, scaleMax: 0.6 }
+        clams: { spawnCount: 5, scaleMin: 0.3, scaleMax: 0.6 },
+        kelp: { spawnCount: 3, scaleMin: 0.8, scaleMax: 1.2 }
       }
     },
     waterSurface: {
@@ -708,15 +716,16 @@ export const defaultConfig: GameConfig = {
     }
   },
   lighting: {
-    ambientLight: { color: 0x406080, intensity: 0.5 },
+    ambientLight: { color: 0x80d0d0, intensity: 0.6 },
     directionalLight: {
-      color: 0xE0F0FF,
-      intensity: 0.7,
+      color: 0xc8ffff,
+      intensity: 0.8,
       position: { x: 1, y: 10, z: 1 },
       castShadow: false
     },
-    fogColor: 0x102a43,
-    fogDensity: 0.03,
+    fogColor: 0x0d5660,
+    fogNear: 10,
+    fogFar: 60,
     enableCaustics: true,
     causticColor: 0xA0D0FF,
     causticIntensity: 0.15,

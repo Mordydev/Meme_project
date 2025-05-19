@@ -3,6 +3,107 @@ import { configSystem } from '../../core/ConfigurationSystem';
 import { ShaderManager } from '../../services/ShaderManager';
 import { LightingManager } from '../../services/LightingManager';
 
+// Minimal simplex noise implementation (2D) adapted from the
+// three.js SimplexNoise class. This keeps the dependency footprint
+// small and avoids importing from the examples directory.
+class SimplexNoise {
+  private perm: Uint8Array;
+  private permMod12: Uint8Array;
+  private grad3: number[][] = [
+    [1, 1],
+    [-1, 1],
+    [1, -1],
+    [-1, -1],
+    [1, 0],
+    [-1, 0],
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+    [0, 1],
+    [0, -1]
+  ];
+
+  constructor(randomFn: () => number = Math.random) {
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+      p[i] = i;
+    }
+    // Shuffle using Fisher–Yates algorithm
+    for (let i = 255; i > 0; i--) {
+      const r = Math.floor(randomFn() * (i + 1));
+      const tmp = p[i];
+      p[i] = p[r];
+      p[r] = tmp;
+    }
+
+    this.perm = new Uint8Array(512);
+    this.permMod12 = new Uint8Array(512);
+    for (let i = 0; i < 512; i++) {
+      this.perm[i] = p[i & 255];
+      this.permMod12[i] = this.perm[i] % 12;
+    }
+  }
+
+  public noise2D(xin: number, yin: number): number {
+    const F2 = 0.5 * (Math.sqrt(3) - 1);
+    const G2 = (3 - Math.sqrt(3)) / 6;
+
+    let n0 = 0;
+    let n1 = 0;
+    let n2 = 0;
+
+    const s = (xin + yin) * F2;
+    const i = Math.floor(xin + s);
+    const j = Math.floor(yin + s);
+    const t = (i + j) * G2;
+    const X0 = i - t;
+    const Y0 = j - t;
+    const x0 = xin - X0;
+    const y0 = yin - Y0;
+
+    let i1: number, j1: number;
+    if (x0 > y0) {
+      i1 = 1;
+      j1 = 0;
+    } else {
+      i1 = 0;
+      j1 = 1;
+    }
+
+    const x1 = x0 - i1 + G2;
+    const y1 = y0 - j1 + G2;
+    const x2 = x0 - 1 + 2 * G2;
+    const y2 = y0 - 1 + 2 * G2;
+
+    const ii = i & 255;
+    const jj = j & 255;
+    const gi0 = this.permMod12[ii + this.perm[jj]];
+    const gi1 = this.permMod12[ii + i1 + this.perm[jj + j1]];
+    const gi2 = this.permMod12[ii + 1 + this.perm[jj + 1]];
+
+    let t0 = 0.5 - x0 * x0 - y0 * y0;
+    if (t0 >= 0) {
+      t0 *= t0;
+      n0 = t0 * t0 * (this.grad3[gi0][0] * x0 + this.grad3[gi0][1] * y0);
+    }
+
+    let t1 = 0.5 - x1 * x1 - y1 * y1;
+    if (t1 >= 0) {
+      t1 *= t1;
+      n1 = t1 * t1 * (this.grad3[gi1][0] * x1 + this.grad3[gi1][1] * y1);
+    }
+
+    let t2 = 0.5 - x2 * x2 - y2 * y2;
+    if (t2 >= 0) {
+      t2 *= t2;
+      n2 = t2 * t2 * (this.grad3[gi2][0] * x2 + this.grad3[gi2][1] * y2);
+    }
+
+    return 70 * (n0 + n1 + n2);
+  }
+}
+
 // Minimal interface mirroring Step 7 documentation
 interface SeafloorVisualConfig {
   baseColor: number | string;
@@ -41,7 +142,7 @@ export class SeafloorAsset {
       sandPatternColor1: 0xc4a484,
       sandPatternColor2: 0x9a7b5a,
       textureScale: 15,
-      bumpScale: 0.02,
+      bumpScale: 0.04,
       roughness: 0.85,
       metalness: 0.0
     };
@@ -65,28 +166,42 @@ export class SeafloorAsset {
     const color1 = new THREE.Color(this.config.sandPatternColor1);
     const color2 = new THREE.Color(this.config.sandPatternColor2);
 
+    const simplex = new SimplexNoise();
+
+    const fbm = (x: number, y: number): number => {
+      let value = 0;
+      let amplitude = 0.5;
+      let frequency = 1;
+      for (let o = 0; o < 4; o++) {
+        // Tileable simplex noise
+        const n00 = simplex.noise2D((x * frequency) / size, (y * frequency) / size);
+        const n10 = simplex.noise2D(((x - size) * frequency) / size, (y * frequency) / size);
+        const n01 = simplex.noise2D((x * frequency) / size, ((y - size) * frequency) / size);
+        const n11 = simplex.noise2D(((x - size) * frequency) / size, ((y - size) * frequency) / size);
+        const sx = x / size;
+        const sy = y / size;
+        const ix0 = THREE.MathUtils.lerp(n00, n10, sx);
+        const ix1 = THREE.MathUtils.lerp(n01, n11, sx);
+        const n = THREE.MathUtils.lerp(ix0, ix1, sy);
+
+        value += n * amplitude;
+        frequency *= 2;
+        amplitude *= 0.5;
+      }
+      return value;
+    };
+
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        const randomFactor = Math.random() * 0.1 - 0.05;
-        const varied = baseColor.clone().offsetHSL(0, 0, randomFactor);
-        ctx.fillStyle = varied.getStyle();
+        const n = fbm(x, y) * 0.5 + 0.5; // Map to 0-1
+        // Slight brightness gradient - darker for lower noise values
+        const brightness = THREE.MathUtils.lerp(0.85, 1.0, n);
+        const patternColor = color1.clone().lerp(color2, n);
+        const finalColor = baseColor.clone().lerp(patternColor, 0.5);
+        finalColor.multiplyScalar(brightness);
+        ctx.fillStyle = `#${finalColor.getHexString()}`;
         ctx.fillRect(x, y, 1, 1);
       }
-    }
-
-    const numSplotches = 80;
-    for (let i = 0; i < numSplotches; i++) {
-      const splotchColor = Math.random() < 0.5 ? color1 : color2;
-      ctx.fillStyle = splotchColor
-        .clone()
-        .offsetHSL(0, 0, Math.random() * 0.2 - 0.1)
-        .getStyle();
-      const x = Math.random() * size;
-      const y = Math.random() * size;
-      const r = Math.random() * (size / 15) + size / 30;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -106,18 +221,38 @@ export class SeafloorAsset {
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = 'rgb(128,128,128)';
-    ctx.fillRect(0, 0, size, size);
 
-    for (let i = 0; i < 2000; i++) {
-      const x = Math.random() * size;
-      const y = Math.random() * size;
-      const radius = Math.random() * 3 + 1;
-      const intensity = Math.floor(Math.random() * 50) + 100;
-      ctx.fillStyle = `rgb(${intensity},${intensity},${intensity})`;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
+    const simplex = new SimplexNoise();
+
+    const fbm = (x: number, y: number): number => {
+      let value = 0;
+      let amplitude = 0.5;
+      let frequency = 1;
+      for (let o = 0; o < 5; o++) {
+        const n00 = simplex.noise2D((x * frequency) / size, (y * frequency) / size);
+        const n10 = simplex.noise2D(((x - size) * frequency) / size, (y * frequency) / size);
+        const n01 = simplex.noise2D((x * frequency) / size, ((y - size) * frequency) / size);
+        const n11 = simplex.noise2D(((x - size) * frequency) / size, ((y - size) * frequency) / size);
+        const sx = x / size;
+        const sy = y / size;
+        const ix0 = THREE.MathUtils.lerp(n00, n10, sx);
+        const ix1 = THREE.MathUtils.lerp(n01, n11, sx);
+        const n = THREE.MathUtils.lerp(ix0, ix1, sy);
+
+        value += n * amplitude;
+        frequency *= 2;
+        amplitude *= 0.5;
+      }
+      return value;
+    };
+
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const n = fbm(x, y) * 0.5 + 0.5; // 0-1
+        const value = Math.floor(n * 255);
+        ctx.fillStyle = `rgb(${value},${value},${value})`;
+        ctx.fillRect(x, y, 1, 1);
+      }
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -138,7 +273,7 @@ export class SeafloorAsset {
     this.material = new THREE.MeshStandardMaterial({
       map: this.sandTexture,
       bumpMap: this.sandBumpMap,
-      bumpScale: this.config.bumpScale ?? 0.02,
+      bumpScale: this.config.bumpScale ?? 0.04,
       color: 0xffffff,
       roughness: this.config.roughness ?? 0.8,
       metalness: this.config.metalness ?? 0.05,

@@ -5,6 +5,7 @@ import { WaterSurfaceAsset } from './environment/WaterSurfaceAsset';
 import { PebbleAsset } from './environment/PebbleAsset';
 import { SmallRockAsset } from './environment/SmallRockAsset';
 import { ClamDecorAsset } from './environment/ClamDecorAsset';
+import { KelpAsset } from './environment/KelpAsset';
 import { CoralAsset } from './obstacles/CoralAsset';
 import { RockAsset } from './obstacles/RockAsset';
 import { ClamAsset } from './obstacles/ClamAsset';
@@ -40,6 +41,7 @@ export class ProceduralAssetFactory {
   private pebbleAssetGenerator?: PebbleAsset;
   private smallRockAssetGenerator?: SmallRockAsset;
   private clamDecorAssetGenerator?: ClamDecorAsset;
+  private kelpAssetGenerator?: KelpAsset;
 
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
@@ -327,6 +329,17 @@ export class ProceduralAssetFactory {
       this.clamDecorAssetGenerator = new ClamDecorAsset();
     }
     return this.clamDecorAssetGenerator.getMesh();
+  }
+
+  public getKelpMesh(): THREE.Group {
+    if (!this.kelpAssetGenerator) {
+      this.kelpAssetGenerator = new KelpAsset();
+    }
+    return this.kelpAssetGenerator.getMesh();
+  }
+
+  public createKelpAsset(): KelpAsset {
+    return new KelpAsset();
   }
 
   /**

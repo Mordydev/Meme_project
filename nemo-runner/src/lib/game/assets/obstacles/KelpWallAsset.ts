@@ -102,6 +102,8 @@ export class KelpWallAsset {
         frondGeom.translate(0, 0, 0);
         frondGeom.rotateX(Math.PI / 2);
         frondGeom.userData.originalPositions = frondGeom.attributes.position.clone();
+        // Ensure bounding information exists for later calculations
+        frondGeom.computeBoundingBox();
 
         const frond = new THREE.Mesh(frondGeom, frondMaterial);
         const attachHeightRatio = (j / (numFronds - 1 || 1)) * 0.7 + 0.2;
@@ -151,7 +153,12 @@ export class KelpWallAsset {
 
       const partHeight = item.type === 'stalk'
         ? (geom as THREE.CylinderGeometry).parameters.height
-        : (geom as THREE.ShapeGeometry).parameters.shapes[0].getBoundingBox().getSize(new THREE.Vector3()).y;
+        : (() => {
+            const shapeGeom = geom as THREE.ShapeGeometry;
+            shapeGeom.computeBoundingBox();
+            const bbox = shapeGeom.boundingBox!;
+            return bbox.max.y - bbox.min.y;
+          })();
 
       for (let i = 0; i < originalAttr.count; i++) {
         const ox = originalAttr.getX(i);

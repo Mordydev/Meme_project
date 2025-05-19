@@ -141,6 +141,9 @@ export class GameEngine {
       // EnvironmentManager
       this.environmentManager = new EnvironmentManager(this.scene, this.assetFactory);
       await this.environmentManager.initialize();
+      this.assetFactory
+        .getWaterSurfaceAsset()
+        .linkLightingManager(this.lightingManager);
 
       // Player Controller
       this.playerController = new PlayerController(this.scene, this.assetFactory, this);
