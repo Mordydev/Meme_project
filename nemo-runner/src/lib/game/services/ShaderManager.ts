@@ -880,6 +880,259 @@ export class ShaderManager {
     }
   }
 
+  public createBubbleParticleMaterial(): THREE.ShaderMaterial {
+    // Create shader for bubbles with simple fallback if import fails
+    try {
+      // Simple fallback vertex shader inline
+      const particleVertexShader = `
+        attribute float aScale;
+        attribute vec3 aColor;
+        attribute float aAlpha;
+        attribute float aRotation;
+        
+        varying vec3 vColor;
+        varying float vAlpha;
+        varying float vRotation;
+        varying vec2 vUv;
+        
+        uniform float uBaseSize;
+        uniform float uPixelRatio;
+        
+        void main() {
+          vColor = aColor;
+          vAlpha = aAlpha;
+          vRotation = aRotation;
+          vUv = uv;
+          
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = uBaseSize * aScale * (100.0 / -mvPosition.z) * uPixelRatio;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `;
+      
+      // Simple fallback fragment shader inline
+      const bubbleFragmentShader = `
+        varying vec3 vColor;
+        varying float vAlpha;
+        
+        void main() {
+          vec2 uv = gl_PointCoord - vec2(0.5);
+          float dist = length(uv);
+          float bubble = 1.0 - smoothstep(0.35, 0.5, dist);
+          if (bubble < 0.01) discard;
+          gl_FragColor = vec4(vColor, bubble * vAlpha);
+        }
+      `;
+      
+      return new THREE.ShaderMaterial({
+        uniforms: {
+          ...this.globalUniforms,
+          uBaseSize: { value: 0.5 },
+          uBaseColor: { value: new THREE.Color(0xffffff) },
+          uPixelRatio: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 }
+        },
+        vertexShader: particleVertexShader,
+        fragmentShader: bubbleFragmentShader || `
+          varying vec3 vColor;
+          varying float vAlpha;
+          
+          void main() {
+            vec2 uv = gl_PointCoord - vec2(0.5);
+            float dist = length(uv);
+            float circle = 1.0 - smoothstep(0.4, 0.5, dist);
+            if (circle < 0.01) discard;
+            gl_FragColor = vec4(vColor, circle * vAlpha);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+    } catch (error) {
+      console.error('ShaderManager: Failed to create bubble particle material', error);
+      // Fallback to simple material
+      const material = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.1,
+        transparent: true,
+        blending: THREE.AdditiveBlending
+      });
+      return material as any;
+    }
+  }
+
+  public createSparkleParticleMaterial(): THREE.ShaderMaterial {
+    try {
+      // Reuse same vertex shader
+      const particleVertexShader = `
+        attribute float aScale;
+        attribute vec3 aColor;
+        attribute float aAlpha;
+        attribute float aRotation;
+        
+        varying vec3 vColor;
+        varying float vAlpha;
+        varying float vRotation;
+        varying vec2 vUv;
+        
+        uniform float uBaseSize;
+        uniform float uPixelRatio;
+        
+        void main() {
+          vColor = aColor;
+          vAlpha = aAlpha;
+          vRotation = aRotation;
+          vUv = uv;
+          
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = uBaseSize * aScale * (100.0 / -mvPosition.z) * uPixelRatio;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `;
+      
+      // Custom sparkle shader with star shape
+      const sparkleFragmentShader = `
+        varying vec3 vColor;
+        varying float vAlpha;
+        
+        void main() {
+          vec2 uv = gl_PointCoord - vec2(0.5);
+          float dist = length(uv) * 2.0;
+          float spike = max(1.0 - abs(uv.x * 2.0), 1.0 - abs(uv.y * 2.0));
+          float mask = max(1.0 - dist, spike);
+          if (mask < 0.01) discard;
+          gl_FragColor = vec4(vColor, mask * vAlpha);
+        }
+      `;
+      
+      return new THREE.ShaderMaterial({
+        uniforms: {
+          ...this.globalUniforms,
+          uBaseSize: { value: 0.5 },
+          uBaseColor: { value: new THREE.Color(0xffffff) },
+          uPixelRatio: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 }
+        },
+        vertexShader: particleVertexShader,
+        fragmentShader: sparkleFragmentShader || `
+          varying vec3 vColor;
+          varying float vAlpha;
+          
+          void main() {
+            vec2 uv = gl_PointCoord - vec2(0.5);
+            float dist = length(uv) * 2.0;
+            float spike = max(1.0 - abs(uv.x * 2.0), 1.0 - abs(uv.y * 2.0));
+            float mask = max(1.0 - dist, spike);
+            if (mask < 0.01) discard;
+            gl_FragColor = vec4(vColor, mask * vAlpha);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+    } catch (error) {
+      console.error('ShaderManager: Failed to create sparkle particle material', error);
+      // Fallback to simple material
+      const material = new THREE.PointsMaterial({
+        color: 0xffff00,
+        size: 0.1,
+        transparent: true,
+        blending: THREE.AdditiveBlending
+      });
+      return material as any;
+    }
+  }
+
+  public createDebrisParticleMaterial(): THREE.ShaderMaterial {
+    try {
+      // Reuse same vertex shader
+      const particleVertexShader = `
+        attribute float aScale;
+        attribute vec3 aColor;
+        attribute float aAlpha;
+        attribute float aRotation;
+        
+        varying vec3 vColor;
+        varying float vAlpha;
+        varying float vRotation;
+        varying vec2 vUv;
+        
+        uniform float uBaseSize;
+        uniform float uPixelRatio;
+        
+        void main() {
+          vColor = aColor;
+          vAlpha = aAlpha;
+          vRotation = aRotation;
+          vUv = uv;
+          
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = uBaseSize * aScale * (100.0 / -mvPosition.z) * uPixelRatio;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `;
+      
+      // Custom debris shader with rough shape
+      const impactDebrisShader = `
+        varying vec3 vColor;
+        varying float vAlpha;
+        varying float vRotation;
+        
+        uniform vec3 uBaseColor;
+        uniform float uTime;
+        
+        void main() {
+          vec2 uv = gl_PointCoord;
+          vec2 centered = uv - vec2(0.5);
+          float dist = length(centered);
+          
+          float angle = atan(centered.y, centered.x);
+          float roughness = sin(angle * 5.0) * 0.1 + cos(angle * 7.0) * 0.05;
+          float shape = 1.0 - smoothstep(0.35 + roughness, 0.5, dist);
+          
+          if (shape * vAlpha < 0.01) discard;
+          
+          vec3 color = vColor * uBaseColor;
+          gl_FragColor = vec4(color, shape * vAlpha);
+        }
+      `;
+      
+      return new THREE.ShaderMaterial({
+        uniforms: {
+          ...this.globalUniforms,
+          uBaseSize: { value: 0.5 },
+          uBaseColor: { value: new THREE.Color(0xaaaaaa) },
+          uPixelRatio: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 }
+        },
+        vertexShader: particleVertexShader,
+        fragmentShader: impactDebrisShader || `
+          varying vec3 vColor;
+          varying float vAlpha;
+          
+          void main() {
+            vec2 uv = gl_PointCoord - vec2(0.5);
+            float dist = length(uv);
+            float roughShape = 1.0 - smoothstep(0.35, 0.5, dist);
+            if (roughShape < 0.01) discard;
+            gl_FragColor = vec4(vColor, roughShape * vAlpha);
+          }
+        `,
+        transparent: true,
+        blending: THREE.NormalBlending,
+        depthWrite: false
+      });
+    } catch (error) {
+      console.error('ShaderManager: Failed to create debris particle material', error);
+      // Fallback to simple material
+      const material = new THREE.PointsMaterial({
+        color: 0xaaaaaa,
+        size: 0.1,
+        transparent: true
+      });
+      return material as any;
+    }
+  }
+
   public dispose(): void {
     // Dispose all materials in both systems
     this.materials.forEach(material => material.dispose());

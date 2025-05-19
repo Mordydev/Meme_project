@@ -198,25 +198,43 @@ export class VisualEffectsService {
   }
 
   /** Trigger a small bubble trail at the player's position */
-  public triggerPlayerTrail(position: THREE.Vector3): void {
-    this.bubbleSystem?.emit(position, 1);
+  public triggerPlayerTrail(position: THREE.Vector3, velocity?: THREE.Vector3): void {
+    this.bubbleSystem?.emit(position, 1, velocity);
   }
 
   /** Emit sparkles when a collectible or power-up is picked up */
-  public triggerCollectiblePickup(position: THREE.Vector3): void {
-    this.collectiblePickupSystem?.emit(position, 10);
+  public triggerCollectiblePickup(position: THREE.Vector3, type?: string): void {
+    const colors: Record<string, THREE.Color> = {
+      bubble: new THREE.Color(0xb0e0e6),
+      coin: new THREE.Color(0xffd700),
+      shield: new THREE.Color(0x00aaff),
+      magnet: new THREE.Color(0xff0066),
+      doublescore: new THREE.Color(0xffd700)
+    };
+    const color = type && colors[type] ? colors[type] : new THREE.Color(0xffffff);
+    this.collectiblePickupSystem?.emit(position, undefined, color);
   }
 
   /** Emit debris when the player hits an obstacle */
-  public triggerObstacleImpact(position: THREE.Vector3): void {
-    this.obstacleImpactSystem?.emit(position, 15);
+  public triggerObstacleImpact(position: THREE.Vector3, type?: string): void {
+    const colors: Record<string, THREE.Color> = {
+      rock: new THREE.Color(0x4a4a4a),
+      kelp: new THREE.Color(0x1a5429),
+      coral: new THREE.Color(0xff6b6b),
+      clam: new THREE.Color(0x8b8680),
+      pufferfish: new THREE.Color(0xffd93d),
+      jellyfish: new THREE.Color(0xe8b4ff),
+      shark: new THREE.Color(0x3a4a5c)
+    };
+    const color = type && colors[type] ? colors[type] : new THREE.Color(0x888888);
+    this.obstacleImpactSystem?.emit(position, undefined, color);
   }
 
   /** Trigger a special effect when shield absorbs a hit */
   public triggerShieldHitEffect(position: THREE.Vector3): void {
     if (!configSystem.get('visuals').enableParticles) return;
-    const blue = new THREE.Color(0x55ccff);
-    this.obstacleImpactSystem?.emit(position, undefined, blue);
+    // Use default parameters for shield hit
+    this.obstacleImpactSystem?.emit(position);
   }
 
   /** Trigger power-up collection effect */
@@ -229,7 +247,8 @@ export class VisualEffectsService {
       doublescore: new THREE.Color(0xffd700)
     };
     const color = colors[type] || new THREE.Color(0xffffff);
-    this.collectiblePickupSystem?.emit(position, type as any, color);
+    // Use type-specific color
+    this.collectiblePickupSystem?.emit(position, undefined, color);
   }
 
   /**

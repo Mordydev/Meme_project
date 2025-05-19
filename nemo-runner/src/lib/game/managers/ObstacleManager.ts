@@ -921,7 +921,7 @@ export class ObstacleManager {
       hitObstacle.mesh.visible = false;
 
       if (this.vfxService) {
-        this.vfxService.triggerObstacleImpact(hitObstacle.mesh.position.clone());
+        this.vfxService.triggerObstacleImpact(hitObstacle.mesh.position.clone(), hitObstacle.type);
       }
 
       // Remove from activeObstacles array

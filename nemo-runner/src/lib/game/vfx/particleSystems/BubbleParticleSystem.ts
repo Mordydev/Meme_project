@@ -90,7 +90,7 @@ export class BubbleParticleSystem {
     this.scene.add(this.points);
   }
 
-  private spawnParticle(origin: THREE.Vector3): void {
+  private spawnParticle(origin: THREE.Vector3, playerVelocity?: THREE.Vector3): void {
     // Find a "dead" particle (or overwrite oldest)
     let targetIndex = this.particles.findIndex(p => p.lifetime <= 0);
     if (targetIndex === -1 && this.particles.length < this.poolSize) {
@@ -107,18 +107,26 @@ export class BubbleParticleSystem {
     const config = configSystem.get('visuals');
     const bubbleConfig = config.playerTrailBubbles;
     const lifetime = THREE.MathUtils.randFloat(bubbleConfig.lifetimeMin, bubbleConfig.lifetimeMax);
+    
+    // Base velocity with upward bias
+    const baseVelocity = new THREE.Vector3(
+      THREE.MathUtils.randFloatSpread(0.05),
+      THREE.MathUtils.randFloat(bubbleConfig.speedMin, bubbleConfig.speedMax),
+      THREE.MathUtils.randFloatSpread(0.05)
+    );
+    
+    // If player velocity is provided, inherit some of it
+    if (playerVelocity) {
+      baseVelocity.add(playerVelocity.clone().multiplyScalar(0.25));
+    }
+    
     const particle: BubbleParticle = {
       position: origin.clone().add(new THREE.Vector3(
         THREE.MathUtils.randFloatSpread(0.1), // Slight horizontal spread at spawn
         0,
         THREE.MathUtils.randFloatSpread(0.1)
       )),
-      // Velocity: upward with slight horizontal drift/wobble
-      velocity: new THREE.Vector3(
-        THREE.MathUtils.randFloatSpread(0.05),
-        THREE.MathUtils.randFloat(bubbleConfig.speedMin, bubbleConfig.speedMax),
-        THREE.MathUtils.randFloatSpread(0.05)
-      ),
+      velocity: baseVelocity,
       lifetime: lifetime,
       maxLifetime: lifetime,
       scale: THREE.MathUtils.randFloat(bubbleConfig.particleSizeMin, bubbleConfig.particleSizeMax),
@@ -132,16 +140,6 @@ export class BubbleParticleSystem {
     this.updateBufferAttributes(targetIndex, particle);
   }
 
-  /**
-   * Emit a burst of bubbles at the provided origin.
-   * @param origin Position to spawn bubbles around
-   * @param count Number of bubbles to emit
-   */
-  public emit(origin: THREE.Vector3, count: number = 1): void {
-    for (let i = 0; i < count; i++) {
-      this.spawnParticle(origin);
-    }
-  }
 
   private updateBufferAttributes(index: number, particle: BubbleParticle): void {
     this.positions[index * 3] = particle.position.x;
@@ -200,22 +198,17 @@ export class BubbleParticleSystem {
         bubbleConfig.opacityStart || 1,
         lifetimeRatio
       );
+      
+      // Update rotation based on config
+      if (bubbleConfig.rotationSpeed) {
+        p.rotation += bubbleConfig.rotationSpeed * deltaTime;
+      }
 
       // Update buffer attributes
       this.updateBufferAttributes(i, p);
     }
 
-    // Spawn new particles periodically based on player position
-    if (playerPosition && bubbleConfig.emissionRate) {
-      const emissionChance = bubbleConfig.emissionRate * deltaTime / 60; // Convert rate to chance per frame
-      if (Math.random() < emissionChance) {
-        const spawnX = playerPosition.x + THREE.MathUtils.randFloatSpread(config.bubbleSpawnAreaX);
-        // Approximate seafloor height (would be better to query from environment manager)
-        const seafloorY = -1.0; 
-        const spawnPos = new THREE.Vector3(spawnX, seafloorY - config.bubbleSpawnDepth, playerPosition.z);
-        this.spawnParticle(spawnPos);
-      }
-    }
+    // Disabled automatic bubble spawning - now only triggered by player movement
 
     // Mark geometry attributes for GPU update
     this.geometry.attributes.position.needsUpdate = true;
@@ -227,7 +220,7 @@ export class BubbleParticleSystem {
     // Update material uniforms if using ShaderMaterial and not fallback material
     if (this.material.type === 'ShaderMaterial' && this.material.uniforms) {
       if (this.material.uniforms.uBaseSize) {
-        this.material.uniforms.uBaseSize.value = bubbleConfig.particleSizeMax;
+        this.material.uniforms.uBaseSize.value = bubbleConfig.particleSizeMax || 0.5;
       }
       if (this.material.uniforms.uPixelRatio) {
         this.material.uniforms.uPixelRatio.value = 
@@ -240,10 +233,15 @@ export class BubbleParticleSystem {
    * Emit bubbles at a specific position (used for VFX triggers)
    * @param position The position to emit bubbles from
    * @param count Number of bubbles to emit
+   * @param velocity Optional velocity to inherit
    */
-  public emit(position: THREE.Vector3, count: number = 5): void {
+  public emit(
+    position: THREE.Vector3,
+    count: number = (configSystem.get('visuals') as any).playerTrailBubbles.burstCount ?? 5,
+    velocity?: THREE.Vector3
+  ): void {
     for (let i = 0; i < count; i++) {
-      this.spawnParticle(position);
+      this.spawnParticle(position, velocity);
     }
   }
 

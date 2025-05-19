@@ -261,7 +261,11 @@ export class PlayerController {
       this.trailTimer += deltaTime;
       if (this.trailTimer >= interval) {
         this.trailTimer = 0;
-        vfxService.triggerPlayerTrail(this.mesh.position.clone());
+        const trailPosition = this.mesh.position
+          .clone()
+          .add(new THREE.Vector3(0, 0.2, -0.3));
+        const playerVelocity = new THREE.Vector3(0, 0, -this.currentForwardSpeed);
+        vfxService.triggerPlayerTrail(trailPosition, playerVelocity);
       }
     }
 

@@ -255,7 +255,7 @@ export class PowerUpManager {
     this.returnPowerUpToPool(collectedAsset);
 
     if (this.vfxService) {
-      this.vfxService.triggerCollectiblePickup(collectedAsset.getMesh().position.clone());
+      this.vfxService.triggerCollectiblePickup(collectedAsset.getMesh().position.clone(), type);
     }
 
     // Remove any existing effect of the same type to reset duration

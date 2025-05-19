@@ -477,7 +477,7 @@ export class CollectibleManager {
     findAndDeactivate(this.coinData, this.coinInstances, 'coin');
 
     if (worldPos && hitType && this.vfxService) {
-      this.vfxService.triggerCollectiblePickup(worldPos);
+      this.vfxService.triggerCollectiblePickup(worldPos, hitType);
     }
 
     return scoreValue;
