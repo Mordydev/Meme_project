@@ -82,7 +82,9 @@ export class GameEngine {
     try {
       // Scene
       this.scene = new THREE.Scene();
-      this.scene.background = new THREE.Color(0x1a2b3c);
+      // Use fog color from config to avoid flash of default background
+      const initialFogColor = configSystem.getLightingConfig().fogColor;
+      this.scene.background = new THREE.Color(initialFogColor);
 
       // Camera
       const aspectRatio = this.mountElement.clientWidth / this.mountElement.clientHeight;
