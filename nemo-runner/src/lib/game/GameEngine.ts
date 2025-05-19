@@ -16,6 +16,7 @@ import { PowerUpManager } from './managers/PowerUpManager';
 import { DifficultyManager } from './managers/DifficultyManager';
 import { vertexShaderSource as testPatternVertex } from './shaders/test/testPattern.vert';
 import { fragmentShaderSource as testPatternFragment } from './shaders/test/testPattern.frag';
+import { configSystem } from './core/ConfigurationSystem';
 
 // Import the types from PowerUpManager
 import { ActivePowerUpInfo, PowerUpType } from './managers/PowerUpManager';
@@ -91,8 +92,13 @@ export class GameEngine {
       this.renderer = new THREE.WebGLRenderer({
         antialias: true,
         powerPreference: "high-performance", // Prefer higher performance
-        preserveDrawingBuffer: false // Better performance
+        preserveDrawingBuffer: false, // Better performance
+        alpha: true
       });
+      
+      // Use a default fog color until the LightingManager is initialized
+      const defaultFogColor = 0x0C6B9C; // Default blue color
+      this.renderer.setClearColor(defaultFogColor);
       this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
       this.renderer.setPixelRatio(window.devicePixelRatio);
       this.mountElement.appendChild(this.renderer.domElement);
@@ -108,6 +114,10 @@ export class GameEngine {
       // LightingManager for scene lighting, fog, and underwater effects
       this.lightingManager = new LightingManager(this.scene, this.shaderManager);
       this.renderManager.linkLightingManager(this.lightingManager);
+      
+      // Now that LightingManager is initialized, set the renderer's clear color to the fog color
+      const fogColor = this.lightingManager.getFogColor();
+      this.renderer.setClearColor(fogColor);
 
       // Visual Effects Service for particles and post-processing
       this.visualEffectsService = new VisualEffectsService();
@@ -517,15 +527,20 @@ export class GameEngine {
             // Append to mount element
             this.mountElement?.appendChild(freshCanvas);
             
+            // Store reference to this to avoid context issues in setTimeout
+            const self = this;
+            // Cache a default fog color to use in the closure
+            const defaultFogColor = 0x0C6B9C; // Default blue color
+            
             // Wait a bit more before creating the renderer
             // This ensures browser has fully initialized the new canvas
-            setTimeout(() => {
+            setTimeout(function() {
               try {
                 // Now create a new renderer with the fresh canvas
                 console.log("GameEngine: Creating new WebGLRenderer with fresh canvas");
                 
                 // Use safest initialization options for compatibility
-                this.renderer = new THREE.WebGLRenderer({
+                self.renderer = new THREE.WebGLRenderer({
                   canvas: freshCanvas,
                   antialias: true,
                   powerPreference: "default", // Less aggressive than "high-performance"
@@ -533,33 +548,47 @@ export class GameEngine {
                   preserveDrawingBuffer: false
                 });
                 
+                // Just use the default color first
+                self.renderer.setClearColor(defaultFogColor);
+                
                 // Configure the new renderer
-                if (this.mountElement) {
-                  this.renderer.setSize(this.mountElement.clientWidth, this.mountElement.clientHeight);
-                  this.renderer.setPixelRatio(window.devicePixelRatio);
+                if (self.mountElement) {
+                  self.renderer.setSize(self.mountElement.clientWidth, self.mountElement.clientHeight);
+                  self.renderer.setPixelRatio(window.devicePixelRatio);
                 }
                 
                 // Always reset shader cache when recreating renderer
-                if (this.shaderManager) {
+                if (self.shaderManager) {
                   console.log("GameEngine: Resetting shader program cache");
                   try {
-                    this.shaderManager.resetProgramCache();
+                    self.shaderManager.resetProgramCache();
                   } catch (shaderError) {
                     console.warn("GameEngine: Error resetting shader cache:", shaderError);
                   }
                 }
                 
                 // Update RenderManager with new renderer
-                if (this.renderManager) {
-                  this.renderManager.updateRenderer(this.renderer);
+                if (self.renderManager) {
+                  self.renderManager.updateRenderer(self.renderer);
+                }
+                
+                // Update fog color from LightingManager if available
+                if (self.lightingManager) {
+                  try {
+                    const fogColor = self.lightingManager.getFogColor();
+                    self.renderer.setClearColor(fogColor);
+                  } catch (e) {
+                    console.warn("GameEngine: Could not update fog color from LightingManager:", e);
+                    // Keep using the default color
+                  }
                 }
                 
                 // Reinitialize WebGL context handlers
-                this.setupWebGLContextHandlers();
+                self.setupWebGLContextHandlers();
                 
                 // Force a redraw of all objects with new shaders
-                if (this.scene) {
-                  this.scene.traverse((object) => {
+                if (self.scene) {
+                  self.scene.traverse((object) => {
                     if (object instanceof THREE.Mesh && object.material) {
                       if (Array.isArray(object.material)) {
                         object.material.forEach(mat => {
@@ -573,23 +602,23 @@ export class GameEngine {
                 }
                 
                 // Wait a bit more for everything to stabilize before resuming
-                setTimeout(() => {
+                setTimeout(function() {
                   // Resume game loop if it was running before
                   if (wasRunning) {
                     console.log("GameEngine: Resuming game loop");
-                    this.isRunning = true;
-                    if (!this.animationFrameId) {
-                      this.gameLoop();
+                    self.isRunning = true;
+                    if (!self.animationFrameId) {
+                      self.gameLoop();
                     }
                   }
                   
                   console.log("GameEngine: Successfully recovered from WebGL context loss");
-                  this._isRecovering = false;
+                  self._isRecovering = false;
                   resolve();
                 }, 150);
               } catch (error) {
                 console.error("GameEngine: Failed to create new renderer:", error);
-                this._isRecovering = false;
+                self._isRecovering = false;
                 reject(error);
               }
             }, 150); // Wait before creating renderer

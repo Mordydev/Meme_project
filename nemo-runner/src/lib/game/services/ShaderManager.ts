@@ -28,6 +28,7 @@ export class ShaderManager {
   private shaderSources: Map<string, ShaderProgramSource> = new Map();
   private shaderChunks: Map<string, string> = new Map();
   private materialCache: Map<string, CachedMaterial> = new Map();
+  private coreChunksRegistered = false;
 
   public globalUniforms: {
     uTime: THREE.IUniform<number>;
@@ -365,6 +366,7 @@ export class ShaderManager {
   }
 
   private registerCoreChunks(): void {
+    if (this.coreChunksRegistered) return;
     try {
       // Check if THREE.ShaderChunk exists before using it
       if (!THREE.ShaderChunk) {
@@ -385,7 +387,7 @@ export class ShaderManager {
       registerIfNotExists('noise2D', NoiseGLSL.noise2D); // Depends on random2D
       registerIfNotExists('PI', UtilsGLSL.PI);
       registerIfNotExists('saturate', UtilsGLSL.saturate);
-
+      this.coreChunksRegistered = true;
       console.log('ShaderManager: Registered core GLSL chunks:', Array.from(this.shaderChunks.keys()));
     } catch (error) {
       console.error("ShaderManager: Error registering core chunks:", error);
@@ -405,6 +407,11 @@ export class ShaderManager {
       }
 
       if (this.shaderChunks.has(name)) {
+        const existing = this.shaderChunks.get(name);
+        if (existing === source) {
+          console.log(`ShaderManager: Chunk "${name}" already registered, skipping.`);
+          return;
+        }
         console.warn(`ShaderManager: Chunk "${name}" is already registered. Overwriting.`);
       }
 
@@ -854,6 +861,7 @@ export class ShaderManager {
       // Force THREE.ShaderChunk to refresh in case any chunks were tainted
       try {
         // Re-register core chunks to ensure they're fresh
+        this.coreChunksRegistered = false;
         this.registerCoreChunks();
       } catch (chunkError) {
         console.warn("ShaderManager: Error re-registering chunks:", chunkError);

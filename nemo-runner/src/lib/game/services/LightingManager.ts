@@ -319,6 +319,13 @@ export class LightingManager {
   }
   
   /**
+   * Returns the current fog color from config
+   */
+  public getFogColor(): number {
+    return configSystem.getLightingConfig().fogColor;
+  }
+
+  /**
    * Clean up resources used by the LightingManager
    */
   public dispose(): void {
