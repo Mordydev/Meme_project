@@ -367,6 +367,8 @@ export class VisualEffectsService {
       if (this.dustSystem && !this.dustSystem.points.visible) {
         this.dustSystem.points.visible = true;
       }
+      this.bubbleSystem?.reset();
+      this.dustSystem?.reset();
       this.collectiblePickupSystem?.reset();
       this.obstacleImpactSystem?.reset();
     }

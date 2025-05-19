@@ -59,7 +59,7 @@ export class ObstacleImpactParticleSystem {
     this.geometry.setAttribute('position', new THREE.BufferAttribute(this.arrays.positions, 3));
     this.geometry.setAttribute('aVelocity', new THREE.BufferAttribute(this.arrays.velocities, 3));
     this.geometry.setAttribute('aLifetime', new THREE.BufferAttribute(this.arrays.lifetimes, 1));
-    this.geometry.setAttribute('aSize', new THREE.BufferAttribute(this.arrays.sizes, 1));
+    this.geometry.setAttribute('aScale', new THREE.BufferAttribute(this.arrays.sizes, 1));
     this.geometry.setAttribute('aColor', new THREE.BufferAttribute(this.arrays.colors, 3));
     this.geometry.setAttribute('aAlpha', new THREE.BufferAttribute(this.arrays.alphas, 1));
     this.geometry.setAttribute('aRotation', new THREE.BufferAttribute(this.arrays.rotations, 1));
@@ -242,7 +242,7 @@ export class ObstacleImpactParticleSystem {
     this.geometry.attributes.position.needsUpdate = true;
     this.geometry.attributes.aVelocity.needsUpdate = true;
     this.geometry.attributes.aLifetime.needsUpdate = true;
-    this.geometry.attributes.aSize.needsUpdate = true;
+    this.geometry.attributes.aScale.needsUpdate = true;
     this.geometry.attributes.aColor.needsUpdate = true;
     this.geometry.attributes.aAlpha.needsUpdate = true;
     this.geometry.attributes.aRotation.needsUpdate = true;

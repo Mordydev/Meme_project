@@ -245,6 +245,26 @@ export class BubbleParticleSystem {
     }
   }
 
+  public reset(): void {
+    this.particles = [];
+    for (let i = 0; i < this.poolSize; i++) {
+      this.positions[i * 3] = 0;
+      this.positions[i * 3 + 1] = -9999;
+      this.positions[i * 3 + 2] = 0;
+      this.scales[i] = 0;
+      this.alphas[i] = 0;
+      this.colors[i * 3] = 1;
+      this.colors[i * 3 + 1] = 1;
+      this.colors[i * 3 + 2] = 1;
+      this.rotations[i] = 0;
+    }
+    this.geometry.attributes.position.needsUpdate = true;
+    this.geometry.attributes.aScale.needsUpdate = true;
+    this.geometry.attributes.aAlpha.needsUpdate = true;
+    this.geometry.attributes.aColor.needsUpdate = true;
+    this.geometry.attributes.aRotation.needsUpdate = true;
+  }
+
   public dispose(): void {
     this.scene.remove(this.points);
     this.geometry.dispose();
