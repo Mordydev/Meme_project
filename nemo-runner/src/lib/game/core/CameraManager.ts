@@ -59,6 +59,7 @@ export class CameraManager {
    * @param offset The shake offset vector
    */
   public applyShakeOffset(offset: THREE.Vector3): void {
+    // Directly copy the offset each frame; smoothing handled by CameraManager.update
     this.shakeOffset.copy(offset);
   }
 
@@ -66,6 +67,7 @@ export class CameraManager {
    * Clear any camera shake effect
    */
   public clearShakeOffset(): void {
+    // Reset to zero so subsequent updates smoothly ease back to normal
     this.shakeOffset.set(0, 0, 0);
   }
 

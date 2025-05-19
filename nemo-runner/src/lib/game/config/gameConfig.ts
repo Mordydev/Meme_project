@@ -334,6 +334,20 @@ export interface VisualSettings {
   distortionIntensity: number;
   distortionSpeed: number;
 
+  // Screen Flash & Camera Shake
+  screenFlash: {
+    flashColorMinor: string;
+    flashDurationMinor: number;
+    flashColorMajor: string;
+    flashDurationMajor: number;
+  };
+  cameraShake: {
+    shakeIntensityMinor: number;
+    shakeDurationMinor: number;
+    shakeIntensityMajor: number;
+    shakeDurationMajor: number;
+  };
+
   seafloor: SeafloorVisualConfig;
   waterSurface: WaterSurfaceVisualConfig;
 }
@@ -710,6 +724,19 @@ export const defaultConfig: GameConfig = {
     distortionEnabled: true, // Very subtle
     distortionIntensity: 0.005,
     distortionSpeed: 0.1,
+
+    screenFlash: {
+      flashColorMinor: 'rgba(255, 80, 80, 0.25)',
+      flashDurationMinor: 120,
+      flashColorMajor: 'rgba(255, 50, 50, 0.45)',
+      flashDurationMajor: 250,
+    },
+    cameraShake: {
+      shakeIntensityMinor: 0.06,
+      shakeDurationMinor: 0.18,
+      shakeIntensityMajor: 0.12,
+      shakeDurationMajor: 0.35,
+    },
 
     seafloor: {
       baseColor: 0xAD8E6E,

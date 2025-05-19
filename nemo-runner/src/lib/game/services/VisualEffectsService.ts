@@ -153,15 +153,19 @@ export class VisualEffectsService {
    */
   public triggerHitEffect(intensity: 'minor' | 'major' = 'minor'): void {
     console.log("VisualEffectsService: Triggering hit effect -", intensity);
-    
+
     // Screen flash effect via callback to GameCanvas
     if (this.onScreenFlash) {
-      // Minor: Light red, 150ms
-      // Major: Stronger red, 300ms
-      this.onScreenFlash(
-        intensity === 'minor' ? 'rgba(255,0,0,0.3)' : 'rgba(255,0,0,0.5)', 
-        intensity === 'minor' ? 150 : 300
-      );
+      const flashConfig = configSystem.get('visuals').screenFlash;
+      const color =
+        intensity === 'minor'
+          ? flashConfig.flashColorMinor
+          : flashConfig.flashColorMajor;
+      const duration =
+        intensity === 'minor'
+          ? flashConfig.flashDurationMinor
+          : flashConfig.flashDurationMajor;
+      this.onScreenFlash(color, duration);
     }
 
     // Camera shake effect
@@ -170,10 +174,17 @@ export class VisualEffectsService {
       if (!this.isShaking) {
         this.originalCameraPosition.copy(this.cameraManager.camera.position);
       }
-      
+
       this.isShaking = true;
-      this.shakeDuration = intensity === 'minor' ? 0.2 : 0.4; // seconds
-      this.shakeIntensity = intensity === 'minor' ? 0.08 : 0.15; // units
+      const shakeConfig = configSystem.get('visuals').cameraShake;
+      this.shakeDuration =
+        intensity === 'minor'
+          ? shakeConfig.shakeDurationMinor
+          : shakeConfig.shakeDurationMajor;
+      this.shakeIntensity =
+        intensity === 'minor'
+          ? shakeConfig.shakeIntensityMinor
+          : shakeConfig.shakeIntensityMajor;
     }
   }
 
