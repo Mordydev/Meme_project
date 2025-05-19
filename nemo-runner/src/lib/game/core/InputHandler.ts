@@ -3,6 +3,7 @@ import { PlayerController } from '../managers/PlayerController';
 export class InputHandler {
   private playerController: PlayerController;
   private keysPressed: { [key: string]: boolean } = {};
+  private gameCanvasElement: HTMLElement | null = null;
   private boundHandleKeyDown: (event: KeyboardEvent) => void;
   private boundHandleKeyUp: (event: KeyboardEvent) => void;
 
@@ -11,6 +12,10 @@ export class InputHandler {
     // Bind methods to ensure 'this' context is correct in event handlers
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
     this.boundHandleKeyUp = this.handleKeyUp.bind(this);
+  }
+
+  public setGameCanvasElement(element: HTMLElement): void {
+    this.gameCanvasElement = element;
   }
 
   public initialize(): void {
