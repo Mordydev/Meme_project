@@ -178,6 +178,41 @@ export class DustParticleSystem {
     }
   }
 
+  public reset(): void {
+    for (let i = 0; i < this.poolSize; i++) {
+      const pos = randomPointInSphere(this.spawnRadius).add(this.centerPosition);
+      this.positions[i * 3] = pos.x;
+      this.positions[i * 3 + 1] = pos.y;
+      this.positions[i * 3 + 2] = pos.z;
+
+      const scale = THREE.MathUtils.randFloat(0.5, 1.5);
+      this.scales[i] = scale;
+      const alpha = THREE.MathUtils.randFloat(0.1, 0.5);
+      this.alphas[i] = alpha;
+
+      const greyValue = THREE.MathUtils.randFloat(0.6, 0.9);
+      this.colors[i * 3] = greyValue;
+      this.colors[i * 3 + 1] = greyValue;
+      this.colors[i * 3 + 2] = greyValue;
+
+      this.particles[i] = {
+        position: pos.clone(),
+        velocity: new THREE.Vector3(),
+        lifetime: Infinity,
+        maxLifetime: Infinity,
+        scale,
+        alpha,
+        color: new THREE.Color(greyValue, greyValue, greyValue),
+        wanderTarget: new THREE.Vector3(),
+        wanderTheta: Math.random() * Math.PI * 2,
+      };
+    }
+    this.geometry.attributes.position.needsUpdate = true;
+    this.geometry.attributes.aScale.needsUpdate = true;
+    this.geometry.attributes.aAlpha.needsUpdate = true;
+    this.geometry.attributes.aColor.needsUpdate = true;
+  }
+
   public dispose(): void {
     this.scene.remove(this.points);
     this.geometry.dispose();
