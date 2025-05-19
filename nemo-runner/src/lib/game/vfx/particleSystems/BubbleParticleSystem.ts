@@ -7,7 +7,8 @@ interface BubbleParticle {
   velocity: THREE.Vector3;
   lifetime: number; // Time remaining
   maxLifetime: number;
-  scale: number;
+  baseSize: number;
+  currentSize: number;
   alpha: number;
   rotation: number; // Optional
   color: THREE.Color;
@@ -120,6 +121,11 @@ export class BubbleParticleSystem {
       baseVelocity.add(playerVelocity.clone().multiplyScalar(0.25));
     }
     
+    const baseSize = THREE.MathUtils.randFloat(
+      bubbleConfig.particleSizeMin,
+      bubbleConfig.particleSizeMax
+    );
+
     const particle: BubbleParticle = {
       position: origin.clone().add(new THREE.Vector3(
         THREE.MathUtils.randFloatSpread(0.1), // Slight horizontal spread at spawn
@@ -129,8 +135,9 @@ export class BubbleParticleSystem {
       velocity: baseVelocity,
       lifetime: lifetime,
       maxLifetime: lifetime,
-      scale: THREE.MathUtils.randFloat(bubbleConfig.particleSizeMin, bubbleConfig.particleSizeMax),
-      alpha: bubbleConfig.opacityStart || 1.0,
+      baseSize: baseSize,
+      currentSize: baseSize,
+      alpha: bubbleConfig.opacityEnd ?? 0,
       rotation: THREE.MathUtils.randFloat(0, Math.PI * 2),
       color: new THREE.Color(bubbleConfig.color1 || 0xffffff),
     };
@@ -145,7 +152,7 @@ export class BubbleParticleSystem {
     this.positions[index * 3] = particle.position.x;
     this.positions[index * 3 + 1] = particle.position.y;
     this.positions[index * 3 + 2] = particle.position.z;
-    this.scales[index] = particle.scale;
+    this.scales[index] = particle.currentSize;
     this.alphas[index] = particle.alpha;
     this.colors[index * 3] = particle.color.r;
     this.colors[index * 3 + 1] = particle.color.g;
@@ -187,17 +194,18 @@ export class BubbleParticleSystem {
       p.position.x += Math.sin(p.lifetime * 5.0 + i) * 0.01;
 
       // Apply gravity (negative makes bubbles rise)
-      if (bubbleConfig.gravity) {
-        p.velocity.y += bubbleConfig.gravity * deltaTime;
-      }
+      p.velocity.y += (bubbleConfig.gravity ?? -0.08) * -1 * deltaTime;
 
-      // Update alpha (fade out near end of life)
       const lifetimeRatio = p.lifetime / p.maxLifetime;
-      p.alpha = THREE.MathUtils.lerp(
-        bubbleConfig.opacityEnd || 0,
-        bubbleConfig.opacityStart || 1,
-        lifetimeRatio
-      );
+
+      // Alpha fades in then out using sine curve
+      const fade = Math.sin(lifetimeRatio * Math.PI);
+      p.alpha = (bubbleConfig.opacityEnd ?? 0) +
+        (bubbleConfig.opacityStart ?? 1 - (bubbleConfig.opacityEnd ?? 0)) * fade;
+
+      // Scale grows slightly then shrinks based on life
+      p.currentSize =
+        p.baseSize * (0.5 + 0.5 * Math.sin((1 - lifetimeRatio) * Math.PI));
       
       // Update rotation based on config
       if (bubbleConfig.rotationSpeed) {
