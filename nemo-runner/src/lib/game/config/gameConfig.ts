@@ -716,14 +716,14 @@ export const defaultConfig: GameConfig = {
       roughness: 0.85,
       metalness: 0.0,
       pebbleColors: [0x8e7b65, 0x9c8b76, 0x7b6a55],
-      pebbleDensity: 60,
-      pebbleSizeRange: [1, 3],
+      pebbleDensity: 90,
+      pebbleSizeRange: [1.5, 3.5],
         decorations: {
-          pebbles: { spawnCount: 20, scaleMin: 0.08, scaleMax: 0.25 },
-          smallRocks: { spawnCount: 10, scaleMin: 0.15, scaleMax: 0.4 },
-          clams: { spawnCount: 5, scaleMin: 0.25, scaleMax: 0.55 },
-          kelp: { spawnCount: 3, scaleMin: 0.8, scaleMax: 1.2 },
-          starfish: { spawnCount: 4, scaleMin: 0.4, scaleMax: 0.7 }
+          pebbles: { spawnCount: 30, scaleMin: 0.08, scaleMax: 0.25 },
+          smallRocks: { spawnCount: 15, scaleMin: 0.15, scaleMax: 0.4 },
+          clams: { spawnCount: 8, scaleMin: 0.25, scaleMax: 0.55 },
+          kelp: { spawnCount: 5, scaleMin: 0.8, scaleMax: 1.2 },
+          starfish: { spawnCount: 6, scaleMin: 0.4, scaleMax: 0.7 }
         }
     },
     waterSurface: {
