@@ -21,6 +21,13 @@ export interface PowerUpsGameConfig {
   spawnIntervalMax: number;
 }
 
+// Define a new interface for touch control settings
+export interface TouchControlsConfig {
+  swipeMinDistance: number; // Minimum pixel distance for a swipe
+  swipeMaxDuration: number; // Maximum duration (ms) for a valid swipe
+  swipeAngleThreshold: number; // Radians: tolerance for differentiating H/V swipes
+}
+
 // Interface for difficulty tier configuration
 export interface DifficultyTierConfig {
   distanceThreshold: number; // Distance at which this tier becomes active
@@ -447,6 +454,7 @@ export interface GameConfig {
   obstacles: ObstaclesConfig; // Obstacle configuration
   decorations: DecorationsConfig; // Decoration assets configuration
   visuals: VisualSettings;
+  touchControls: TouchControlsConfig;
   lighting: LightingConfig;
 }
 
@@ -879,6 +887,11 @@ export const defaultConfig: GameConfig = {
       specularColor: 0x77ccff,
       shininess: 80
     }
+  },
+  touchControls: {
+    swipeMinDistance: 40,
+    swipeMaxDuration: 500,
+    swipeAngleThreshold: Math.PI / 5,
   },
   lighting: {
     // Ambient light provides overall illumination for the scene. A slightly
