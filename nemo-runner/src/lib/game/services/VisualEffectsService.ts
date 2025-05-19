@@ -198,8 +198,8 @@ export class VisualEffectsService {
   }
 
   /** Trigger a small bubble trail at the player's position */
-  public triggerPlayerTrail(position: THREE.Vector3): void {
-    this.bubbleSystem?.emit(position, 1);
+  public triggerPlayerTrail(position: THREE.Vector3, velocity?: THREE.Vector3): void {
+    this.bubbleSystem?.emit(position, 1, velocity);
   }
 
   /** Emit sparkles when a collectible or power-up is picked up */
@@ -277,7 +277,7 @@ export class VisualEffectsService {
 
     // Update Particle Systems
     if (config.enableParticles) {
-      this.bubbleSystem?.update(deltaTime, playerPosition);
+      this.bubbleSystem?.update(deltaTime);
       this.dustSystem?.update(deltaTime, playerPosition);
       this.collectiblePickupSystem?.update(deltaTime);
       this.obstacleImpactSystem?.update(deltaTime);

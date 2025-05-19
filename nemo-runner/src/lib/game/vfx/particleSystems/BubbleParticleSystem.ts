@@ -90,7 +90,7 @@ export class BubbleParticleSystem {
     this.scene.add(this.points);
   }
 
-  private spawnParticle(origin: THREE.Vector3): void {
+  private spawnParticle(origin: THREE.Vector3, playerVelocity?: THREE.Vector3): void {
     // Find a "dead" particle (or overwrite oldest)
     let targetIndex = this.particles.findIndex(p => p.lifetime <= 0);
     if (targetIndex === -1 && this.particles.length < this.poolSize) {
@@ -107,17 +107,25 @@ export class BubbleParticleSystem {
     const config = configSystem.get('visuals');
     const bubbleConfig = config.playerTrailBubbles;
     const lifetime = THREE.MathUtils.randFloat(bubbleConfig.lifetimeMin, bubbleConfig.lifetimeMax);
+    const upwardSpeed = THREE.MathUtils.randFloat(
+      bubbleConfig.speedMin,
+      bubbleConfig.speedMax
+    );
+    const inheritedZ = playerVelocity ? playerVelocity.z * 0.25 : 0;
+
     const particle: BubbleParticle = {
-      position: origin.clone().add(new THREE.Vector3(
-        THREE.MathUtils.randFloatSpread(0.1), // Slight horizontal spread at spawn
-        0,
-        THREE.MathUtils.randFloatSpread(0.1)
-      )),
-      // Velocity: upward with slight horizontal drift/wobble
+      position: origin.clone().add(
+        new THREE.Vector3(
+          THREE.MathUtils.randFloatSpread(0.1),
+          0,
+          THREE.MathUtils.randFloatSpread(0.1)
+        )
+      ),
+      // Start with slight inherited backward velocity then rise upward
       velocity: new THREE.Vector3(
         THREE.MathUtils.randFloatSpread(0.05),
-        THREE.MathUtils.randFloat(bubbleConfig.speedMin, bubbleConfig.speedMax),
-        THREE.MathUtils.randFloatSpread(0.05)
+        upwardSpeed,
+        inheritedZ + THREE.MathUtils.randFloatSpread(0.05)
       ),
       lifetime: lifetime,
       maxLifetime: lifetime,
@@ -132,16 +140,6 @@ export class BubbleParticleSystem {
     this.updateBufferAttributes(targetIndex, particle);
   }
 
-  /**
-   * Emit a burst of bubbles at the provided origin.
-   * @param origin Position to spawn bubbles around
-   * @param count Number of bubbles to emit
-   */
-  public emit(origin: THREE.Vector3, count: number = 1): void {
-    for (let i = 0; i < count; i++) {
-      this.spawnParticle(origin);
-    }
-  }
 
   private updateBufferAttributes(index: number, particle: BubbleParticle): void {
     this.positions[index * 3] = particle.position.x;
@@ -155,7 +153,7 @@ export class BubbleParticleSystem {
     this.rotations[index] = particle.rotation;
   }
 
-  public update(deltaTime: number, playerPosition?: THREE.Vector3): void {
+  public update(deltaTime: number): void {
     const config = configSystem.get('visuals');
     const bubbleConfig = config.playerTrailBubbles;
     if (!config.enableParticles || !bubbleConfig.enabled) {
@@ -205,17 +203,6 @@ export class BubbleParticleSystem {
       this.updateBufferAttributes(i, p);
     }
 
-    // Spawn new particles periodically based on player position
-    if (playerPosition && bubbleConfig.emissionRate) {
-      const emissionChance = bubbleConfig.emissionRate * deltaTime / 60; // Convert rate to chance per frame
-      if (Math.random() < emissionChance) {
-        const spawnX = playerPosition.x + THREE.MathUtils.randFloatSpread(config.bubbleSpawnAreaX);
-        // Approximate seafloor height (would be better to query from environment manager)
-        const seafloorY = -1.0; 
-        const spawnPos = new THREE.Vector3(spawnX, seafloorY - config.bubbleSpawnDepth, playerPosition.z);
-        this.spawnParticle(spawnPos);
-      }
-    }
 
     // Mark geometry attributes for GPU update
     this.geometry.attributes.position.needsUpdate = true;
@@ -241,9 +228,9 @@ export class BubbleParticleSystem {
    * @param position The position to emit bubbles from
    * @param count Number of bubbles to emit
    */
-  public emit(position: THREE.Vector3, count: number = 5): void {
+  public emit(position: THREE.Vector3, count: number = 5, playerVelocity?: THREE.Vector3): void {
     for (let i = 0; i < count; i++) {
-      this.spawnParticle(position);
+      this.spawnParticle(position, playerVelocity);
     }
   }
 
