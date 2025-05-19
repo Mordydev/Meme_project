@@ -921,7 +921,17 @@ export class ObstacleManager {
       hitObstacle.mesh.visible = false;
 
       if (this.vfxService) {
-        this.vfxService.triggerObstacleImpact(hitObstacle.mesh.position.clone());
+        const normal = this.playerController
+          ? hitObstacle.mesh.position
+              .clone()
+              .sub(this.playerController.mesh.position)
+              .normalize()
+          : undefined;
+        this.vfxService.triggerObstacleImpact(
+          hitObstacle.mesh.position.clone(),
+          normal,
+          hitObstacle.type
+        );
       }
 
       // Remove from activeObstacles array

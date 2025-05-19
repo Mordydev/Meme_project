@@ -203,13 +203,40 @@ export class VisualEffectsService {
   }
 
   /** Emit sparkles when a collectible or power-up is picked up */
-  public triggerCollectiblePickup(position: THREE.Vector3): void {
-    this.collectiblePickupSystem?.emit(position, 10);
+  public triggerCollectiblePickup(
+    position: THREE.Vector3,
+    type: 'bubble' | 'coin' | 'shield' | 'magnet' | 'doublescore' = 'bubble'
+  ): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    const colors: Record<string, THREE.Color> = {
+      bubble: new THREE.Color(0xb0e0e6),
+      coin: new THREE.Color(0xffd700),
+      shield: new THREE.Color(0x00aaff),
+      magnet: new THREE.Color(0xff0066),
+      doublescore: new THREE.Color(0xffd700)
+    };
+    const color = colors[type] || new THREE.Color(0xffffff);
+    this.collectiblePickupSystem?.emit(position, color, 10);
   }
 
   /** Emit debris when the player hits an obstacle */
-  public triggerObstacleImpact(position: THREE.Vector3): void {
-    this.obstacleImpactSystem?.emit(position, 15);
+  public triggerObstacleImpact(
+    position: THREE.Vector3,
+    normal?: THREE.Vector3,
+    obstacleType?: string
+  ): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    const colors: Record<string, THREE.Color> = {
+      clam: new THREE.Color(0xffaa88),
+      pufferfish: new THREE.Color(0xffdd55),
+      jellyfish: new THREE.Color(0xaa88ff),
+      shark: new THREE.Color(0x999999),
+      seaTurtle: new THREE.Color(0x00ffaa),
+      kelpWall: new THREE.Color(0x66aa44),
+      schoolOfFish: new THREE.Color(0xaaaaff)
+    };
+    const color = obstacleType ? colors[obstacleType] || new THREE.Color(0xffffff) : new THREE.Color(0xffffff);
+    this.obstacleImpactSystem?.emit(position, normal, color);
   }
 
   /** Trigger a special effect when shield absorbs a hit */
@@ -229,7 +256,7 @@ export class VisualEffectsService {
       doublescore: new THREE.Color(0xffd700)
     };
     const color = colors[type] || new THREE.Color(0xffffff);
-    this.collectiblePickupSystem?.emit(position, type as any, color);
+    this.collectiblePickupSystem?.emit(position, color, 10);
   }
 
   /**

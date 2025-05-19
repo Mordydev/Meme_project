@@ -33,8 +33,11 @@ export class CollectiblePickupParticleSystem {
     }
   }
 
-  public emit(origin: THREE.Vector3, count: number = 10): void {
+  public emit(origin: THREE.Vector3, color?: THREE.Color, count: number = 10): void {
     if (!this.points || !this.positions) return;
+    if (color && this.material instanceof THREE.PointsMaterial) {
+      (this.material as THREE.PointsMaterial).color.copy(color);
+    }
     for (let c = 0; c < count; c++) {
       const index = c % this.poolSize;
       this.particles[index].copy(origin);
