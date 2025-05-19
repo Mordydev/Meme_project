@@ -453,10 +453,10 @@ export default function GameCanvas() {
     }
   }, []); // Empty dependency array
 
-  const handleRestart = () => {
+  const handleRestart = async () => {
     if (gameEngineRef.current && gameEngineRef.current.getCurrentState() === GameState.GAME_OVER) {
       console.log("GameCanvas: Restarting game...");
-      gameEngineRef.current.resetGame();
+      await gameEngineRef.current.resetGame();
       gameEngineRef.current.start();
       setIsGameOver(false);
       setActivePowerUps([]); // Clear power-ups on restart
