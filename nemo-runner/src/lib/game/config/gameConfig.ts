@@ -303,25 +303,61 @@ export interface LightingConfig {
   godRaySamples?: number;
 }
 
+export interface ParticleEffectConfig {
+  enabled: boolean;
+  poolSize: number;
+  particleSizeMin: number;
+  particleSizeMax: number;
+  color1: number | string;
+  color2?: number | string;
+  opacityStart?: number;
+  opacityEnd?: number;
+  textureUrl?: string;
+  lifetimeMin: number;
+  lifetimeMax: number;
+  speedMin: number;
+  speedMax: number;
+  gravity?: number;
+  spreadAngle?: number;
+  emissionRate?: number;
+  burstCount?: number;
+  initialRotation?: boolean;
+  rotationSpeed?: number;
+}
+
+export interface ScreenEffectConfig {
+  flashColorMinor: string;
+  flashDurationMinor: number;
+  flashColorMajor: string;
+  flashDurationMajor: number;
+  shakeIntensityMinor: number;
+  shakeDurationMinor: number;
+  shakeIntensityMajor: number;
+  shakeDurationMajor: number;
+}
+
 export interface VisualSettings {
   skyColor: number | string;
 
   // Particle Effects
   enableParticles: boolean;
-  bubblesEnabled: boolean;
-  bubbleCount: number;
+  playerTrailBubbles: ParticleEffectConfig;
+  collectibleSparks: ParticleEffectConfig;
+  obstacleImpactDebris: ParticleEffectConfig;
+  ambientDust: ParticleEffectConfig;
+
   bubbleBaseSpeed: number;
   bubbleSize: number;
   bubbleSpawnAreaX: number;
   bubbleSpawnDepth: number;
 
-  dustEnabled: boolean;
-  dustCount: number;
   dustSize: number;
   dustWanderSpeed: number;
 
   // Screen Effects (Post-Processing)
   enableScreenEffects: boolean;
+  screenFlash: ScreenEffectConfig;
+  cameraShake: ScreenEffectConfig;
   vignetteEnabled: boolean;
   vignetteIntensity: number;
   vignetteSmoothness: number;
@@ -685,20 +721,101 @@ export const defaultConfig: GameConfig = {
 
     // Particle Effects
     enableParticles: true,
-    bubblesEnabled: true,
-    bubbleCount: 150,
+    playerTrailBubbles: {
+      enabled: true,
+      poolSize: 60,
+      particleSizeMin: 0.03,
+      particleSizeMax: 0.09,
+      color1: 0xB0E0E6,
+      color2: 0xFFFFFF,
+      opacityStart: 0.7,
+      opacityEnd: 0.0,
+      lifetimeMin: 0.8,
+      lifetimeMax: 2.0,
+      speedMin: 0.15,
+      speedMax: 0.4,
+      gravity: -0.08,
+      emissionRate: 15,
+    },
+    collectibleSparks: {
+      enabled: true,
+      poolSize: 50,
+      particleSizeMin: 0.04,
+      particleSizeMax: 0.12,
+      lifetimeMin: 0.2,
+      lifetimeMax: 0.6,
+      speedMin: 0.8,
+      speedMax: 2.2,
+      spreadAngle: 360,
+      color1: 0xFFF0A0,
+      color2: 0xFFD700,
+      opacityStart: 0.9,
+      opacityEnd: 0.0,
+      burstCount: 12,
+      initialRotation: true,
+      rotationSpeed: 2.0,
+    },
+    obstacleImpactDebris: {
+      enabled: true,
+      poolSize: 70,
+      particleSizeMin: 0.05,
+      particleSizeMax: 0.15,
+      lifetimeMin: 0.4,
+      lifetimeMax: 1.0,
+      speedMin: 1.0,
+      speedMax: 2.8,
+      spreadAngle: 150,
+      color1: 0xAAAAAA,
+      color2: 0x777777,
+      opacityStart: 0.8,
+      opacityEnd: 0.0,
+      gravity: 0.6,
+      burstCount: 18,
+    },
+    ambientDust: {
+      enabled: true,
+      poolSize: 150,
+      particleSizeMin: 0.01,
+      particleSizeMax: 0.04,
+      lifetimeMin: 5.0,
+      lifetimeMax: 15.0,
+      speedMin: 0.01,
+      speedMax: 0.03,
+      color1: 0xFFFFFF,
+      opacityStart: 0.05,
+      opacityEnd: 0.2,
+    },
+
     bubbleBaseSpeed: 0.2, // Units per second
     bubbleSize: 0.05,
     bubbleSpawnAreaX: 10, // Spawn across a 10 unit width
     bubbleSpawnDepth: 0.1, // Spawn slightly below surface
 
-    dustEnabled: true,
-    dustCount: 300,
     dustSize: 0.03,
     dustWanderSpeed: 0.02,
 
     // Screen Effects
     enableScreenEffects: true,
+    screenFlash: {
+      flashColorMinor: 'rgba(255, 80, 80, 0.25)',
+      flashDurationMinor: 120,
+      flashColorMajor: 'rgba(255, 50, 50, 0.45)',
+      flashDurationMajor: 250,
+      shakeIntensityMinor: 0,
+      shakeDurationMinor: 0,
+      shakeIntensityMajor: 0,
+      shakeDurationMajor: 0,
+    },
+    cameraShake: {
+      flashColorMinor: '',
+      flashDurationMinor: 0,
+      flashColorMajor: '',
+      flashDurationMajor: 0,
+      shakeIntensityMinor: 0.06,
+      shakeDurationMinor: 0.18,
+      shakeIntensityMajor: 0.12,
+      shakeDurationMajor: 0.35,
+    },
     vignetteEnabled: true,
     vignetteIntensity: 0.4,
     vignetteSmoothness: 0.5,

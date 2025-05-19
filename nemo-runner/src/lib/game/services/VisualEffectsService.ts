@@ -60,11 +60,19 @@ export class VisualEffectsService {
 
     // Initialize Particle Systems
     if (config.enableParticles) {
-      if (config.bubblesEnabled) {
-        this.bubbleSystem = new BubbleParticleSystem(scene, shaderManager, config.bubbleCount);
+      if (config.playerTrailBubbles.enabled) {
+        this.bubbleSystem = new BubbleParticleSystem(
+          scene,
+          shaderManager,
+          config.playerTrailBubbles.poolSize
+        );
       }
-      if (config.dustEnabled) {
-        this.dustSystem = new DustParticleSystem(scene, shaderManager, config.dustCount);
+      if (config.ambientDust.enabled) {
+        this.dustSystem = new DustParticleSystem(
+          scene,
+          shaderManager,
+          config.ambientDust.poolSize
+        );
       }
     }
 
@@ -153,14 +161,18 @@ export class VisualEffectsService {
    */
   public triggerHitEffect(intensity: 'minor' | 'major' = 'minor'): void {
     console.log("VisualEffectsService: Triggering hit effect -", intensity);
-    
+
+    const config = configSystem.get('visuals');
+
     // Screen flash effect via callback to GameCanvas
     if (this.onScreenFlash) {
-      // Minor: Light red, 150ms
-      // Major: Stronger red, 300ms
       this.onScreenFlash(
-        intensity === 'minor' ? 'rgba(255,0,0,0.3)' : 'rgba(255,0,0,0.5)', 
-        intensity === 'minor' ? 150 : 300
+        intensity === 'minor'
+          ? config.screenFlash.flashColorMinor
+          : config.screenFlash.flashColorMajor,
+        intensity === 'minor'
+          ? config.screenFlash.flashDurationMinor
+          : config.screenFlash.flashDurationMajor
       );
     }
 
@@ -170,10 +182,16 @@ export class VisualEffectsService {
       if (!this.isShaking) {
         this.originalCameraPosition.copy(this.cameraManager.camera.position);
       }
-      
+
       this.isShaking = true;
-      this.shakeDuration = intensity === 'minor' ? 0.2 : 0.4; // seconds
-      this.shakeIntensity = intensity === 'minor' ? 0.08 : 0.15; // units
+      this.shakeDuration =
+        intensity === 'minor'
+          ? config.cameraShake.shakeDurationMinor
+          : config.cameraShake.shakeDurationMajor;
+      this.shakeIntensity =
+        intensity === 'minor'
+          ? config.cameraShake.shakeIntensityMinor
+          : config.cameraShake.shakeIntensityMajor;
     }
   }
 

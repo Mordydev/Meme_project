@@ -145,7 +145,7 @@ export class BubbleParticleSystem {
 
   public update(deltaTime: number, playerPosition?: THREE.Vector3): void {
     const config = configSystem.get('visuals');
-    if (!config.bubblesEnabled) {
+    if (!config.playerTrailBubbles.enabled) {
       if (this.points.visible) this.points.visible = false;
       return;
     }

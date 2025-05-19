@@ -134,7 +134,7 @@ export class DustParticleSystem {
 
   public update(deltaTime: number, playerPosition?: THREE.Vector3): void {
     const config = configSystem.get('visuals');
-    if (!config.dustEnabled) {
+    if (!config.ambientDust.enabled) {
       if (this.points.visible) this.points.visible = false;
       return;
     }
