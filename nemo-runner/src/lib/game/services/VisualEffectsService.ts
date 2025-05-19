@@ -6,6 +6,8 @@ import { ShaderManager } from './ShaderManager';
 import { RenderManager } from '../core/RenderManager';
 import { BubbleParticleSystem } from '../vfx/particleSystems/BubbleParticleSystem';
 import { DustParticleSystem } from '../vfx/particleSystems/DustParticleSystem';
+import { CollectiblePickupParticleSystem } from '../vfx/particleSystems/CollectiblePickupParticleSystem';
+import { ObstacleImpactParticleSystem } from '../vfx/particleSystems/ObstacleImpactParticleSystem';
 import { underwaterPPFragmentShader } from '../shaders/postprocessing/underwaterPP.frag';
 
 /**
@@ -32,6 +34,8 @@ export class VisualEffectsService {
   // Particle Systems
   private bubbleSystem?: BubbleParticleSystem;
   private dustSystem?: DustParticleSystem;
+  private collectiblePickupSystem?: CollectiblePickupParticleSystem;
+  private obstacleImpactSystem?: ObstacleImpactParticleSystem;
   
   // Post-processing
   private postProcessingPass?: ShaderPass;
@@ -66,6 +70,9 @@ export class VisualEffectsService {
       if (config.dustEnabled) {
         this.dustSystem = new DustParticleSystem(scene, shaderManager, config.dustCount);
       }
+      // Additional particle systems introduced in later steps
+      this.collectiblePickupSystem = new CollectiblePickupParticleSystem(scene, shaderManager);
+      this.obstacleImpactSystem = new ObstacleImpactParticleSystem(scene, shaderManager);
     }
 
     // Initialize Screen Effects (Post-Processing)
@@ -154,14 +161,19 @@ export class VisualEffectsService {
   public triggerHitEffect(intensity: 'minor' | 'major' = 'minor'): void {
     console.log("VisualEffectsService: Triggering hit effect -", intensity);
     
+    const visuals = configSystem.get('visuals');
+    const flashCfg = (visuals as any).screenFlash || {};
+    const shakeCfg = (visuals as any).cameraShake || {};
+
     // Screen flash effect via callback to GameCanvas
     if (this.onScreenFlash) {
-      // Minor: Light red, 150ms
-      // Major: Stronger red, 300ms
-      this.onScreenFlash(
-        intensity === 'minor' ? 'rgba(255,0,0,0.3)' : 'rgba(255,0,0,0.5)', 
-        intensity === 'minor' ? 150 : 300
-      );
+      const color = intensity === 'minor'
+        ? flashCfg.flashColorMinor ?? 'rgba(255,0,0,0.3)'
+        : flashCfg.flashColorMajor ?? 'rgba(255,0,0,0.5)';
+      const duration = intensity === 'minor'
+        ? flashCfg.flashDurationMinor ?? 150
+        : flashCfg.flashDurationMajor ?? 300;
+      this.onScreenFlash(color, duration);
     }
 
     // Camera shake effect
@@ -172,9 +184,38 @@ export class VisualEffectsService {
       }
       
       this.isShaking = true;
-      this.shakeDuration = intensity === 'minor' ? 0.2 : 0.4; // seconds
-      this.shakeIntensity = intensity === 'minor' ? 0.08 : 0.15; // units
+      this.shakeDuration = intensity === 'minor'
+        ? shakeCfg.shakeDurationMinor ?? 0.2
+        : shakeCfg.shakeDurationMajor ?? 0.4;
+      this.shakeIntensity = intensity === 'minor'
+        ? shakeCfg.shakeIntensityMinor ?? 0.08
+        : shakeCfg.shakeIntensityMajor ?? 0.15;
     }
+  }
+
+  /** Trigger a short burst of bubbles behind the player */
+  public triggerPlayerTrail(position: THREE.Vector3): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    this.bubbleSystem?.update(0, position);
+  }
+
+  /** Trigger collectible pickup particles */
+  public triggerCollectiblePickup(position: THREE.Vector3, type: 'bubble' | 'coin' = 'bubble'): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    this.collectiblePickupSystem?.emit(position);
+  }
+
+  /** Trigger obstacle impact debris */
+  public triggerObstacleImpact(position: THREE.Vector3, normal?: THREE.Vector3, obstacleType?: string): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    this.obstacleImpactSystem?.emit(position, normal);
+  }
+
+  /** Trigger a special effect when shield absorbs a hit */
+  public triggerShieldHitEffect(position: THREE.Vector3): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    const blue = new THREE.Color(0x55ccff);
+    this.obstacleImpactSystem?.emit(position, undefined, blue);
   }
 
   /**
@@ -222,16 +263,16 @@ export class VisualEffectsService {
 
     // Update Particle Systems
     if (config.enableParticles) {
-      if (this.bubbleSystem) {
-        this.bubbleSystem.update(deltaTime, playerPosition);
-      }
-      if (this.dustSystem) {
-        this.dustSystem.update(deltaTime, playerPosition);
-      }
+      this.bubbleSystem?.update(deltaTime, playerPosition);
+      this.dustSystem?.update(deltaTime, playerPosition);
+      this.collectiblePickupSystem?.update(deltaTime);
+      this.obstacleImpactSystem?.update(deltaTime);
     } else {
       // Hide particles if disabled globally
       if (this.bubbleSystem?.points.visible) this.bubbleSystem.points.visible = false;
       if (this.dustSystem?.points.visible) this.dustSystem.points.visible = false;
+      if (this.collectiblePickupSystem?.points.visible) this.collectiblePickupSystem.points.visible = false;
+      if (this.obstacleImpactSystem?.points.visible) this.obstacleImpactSystem.points.visible = false;
     }
 
     // Update Post-Processing Uniforms based on config
@@ -293,6 +334,12 @@ export class VisualEffectsService {
       if (this.dustSystem && !this.dustSystem.points.visible) {
         this.dustSystem.points.visible = true;
       }
+      if (this.collectiblePickupSystem && !this.collectiblePickupSystem.points.visible) {
+        this.collectiblePickupSystem.points.visible = true;
+      }
+      if (this.obstacleImpactSystem && !this.obstacleImpactSystem.points.visible) {
+        this.obstacleImpactSystem.points.visible = true;
+      }
     }
   }
 
@@ -315,6 +362,16 @@ export class VisualEffectsService {
     if (this.dustSystem) {
       this.dustSystem.dispose();
       this.dustSystem = undefined;
+    }
+
+    if (this.collectiblePickupSystem) {
+      this.collectiblePickupSystem.dispose();
+      this.collectiblePickupSystem = undefined;
+    }
+
+    if (this.obstacleImpactSystem) {
+      this.obstacleImpactSystem.dispose();
+      this.obstacleImpactSystem = undefined;
     }
     
     // Remove post-processing pass
