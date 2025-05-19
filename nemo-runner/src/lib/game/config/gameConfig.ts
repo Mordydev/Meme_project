@@ -228,6 +228,7 @@ export interface DecorationsConfig {
   smallRock: DecorationItemConfig;
   clam: DecorationItemConfig;
   kelp: DecorationItemConfig;
+  starfish: DecorationItemConfig;
 }
 
 export interface SeafloorVisualConfig {
@@ -235,6 +236,11 @@ export interface SeafloorVisualConfig {
   sandPatternColor1: number | string;
   sandPatternColor2: number | string;
   textureScale: number;
+  /**
+   * Resolution of the procedurally generated sand texture.
+   * Higher values yield finer detail at the cost of generation time.
+   */
+  textureResolution?: number;
   bumpScale?: number;
   roughness?: number;
   metalness?: number;
@@ -246,6 +252,7 @@ export interface SeafloorVisualConfig {
     smallRocks: DecorationSpawnConfig;
     clams: DecorationSpawnConfig;
     kelp: DecorationSpawnConfig;
+    starfish: DecorationSpawnConfig;
   };
 }
 
@@ -644,23 +651,28 @@ export const defaultConfig: GameConfig = {
   decorations: {
     pebble: {
       colors: [0x888888, 0x777777, 0x999999, 0x666666],
-      scaleMin: 0.1,
-      scaleMax: 0.3
+      scaleMin: 0.08,
+      scaleMax: 0.25
     },
     smallRock: {
       colors: [0x666666, 0x555555, 0x444444, 0x777777],
-      scaleMin: 0.3,
-      scaleMax: 0.6
+      scaleMin: 0.15,
+      scaleMax: 0.4
     },
     clam: {
       colors: [0xD8C0A8, 0xE0D0B0, 0xC8B090, 0xF0E0C8],
-      scaleMin: 0.4,
-      scaleMax: 0.7
+      scaleMin: 0.25,
+      scaleMax: 0.55
     },
     kelp: {
       colors: [0x2e8b57, 0x3a5f0b, 0x20603d],
       scaleMin: 0.8,
       scaleMax: 1.2
+    },
+    starfish: {
+      colors: [0xffa07a, 0xff6347, 0xffc1a1, 0xffd1b3],
+      scaleMin: 0.4,
+      scaleMax: 0.7
     }
   },
   visuals: {
@@ -699,18 +711,20 @@ export const defaultConfig: GameConfig = {
       sandPatternColor1: 0xC4A484,
       sandPatternColor2: 0x9A7B5A,
       textureScale: 15.0,
+      textureResolution: 512,
       bumpScale: 0.04,
       roughness: 0.85,
       metalness: 0.0,
       pebbleColors: [0x8e7b65, 0x9c8b76, 0x7b6a55],
-      pebbleDensity: 40,
+      pebbleDensity: 60,
       pebbleSizeRange: [1, 3],
-      decorations: {
-        pebbles: { spawnCount: 20, scaleMin: 0.1, scaleMax: 0.3 },
-        smallRocks: { spawnCount: 10, scaleMin: 0.2, scaleMax: 0.5 },
-        clams: { spawnCount: 5, scaleMin: 0.3, scaleMax: 0.6 },
-        kelp: { spawnCount: 3, scaleMin: 0.8, scaleMax: 1.2 }
-      }
+        decorations: {
+          pebbles: { spawnCount: 20, scaleMin: 0.08, scaleMax: 0.25 },
+          smallRocks: { spawnCount: 10, scaleMin: 0.15, scaleMax: 0.4 },
+          clams: { spawnCount: 5, scaleMin: 0.25, scaleMax: 0.55 },
+          kelp: { spawnCount: 3, scaleMin: 0.8, scaleMax: 1.2 },
+          starfish: { spawnCount: 4, scaleMin: 0.4, scaleMax: 0.7 }
+        }
     },
     waterSurface: {
       baseColor: 0x87CEEB,
@@ -725,16 +739,22 @@ export const defaultConfig: GameConfig = {
     }
   },
   lighting: {
-    ambientLight: { color: 0x6699aa, intensity: 0.55 },
+    // Ambient light provides overall illumination for the scene. A slightly
+    // brighter turquoise tone enhances underwater visibility.
+    ambientLight: { color: 0x80d0d0, intensity: 0.6 },
+    // Directional light acts as the main light source. A cool light colour and
+    // slightly reduced intensity keeps the scene moody while still readable.
     directionalLight: {
-      color: 0xb3ecff,
-      intensity: 0.85,
+      color: 0xc8ffff,
+      intensity: 0.8,
       position: { x: 1, y: 10, z: 1 },
       castShadow: false
     },
-    fogColor: 0x083848,
-    fogNear: 8,
-    fogFar: 70,
+    // Fog parameters tuned to create a subtle turquoise atmosphere without
+    // overwhelming the player.
+    fogColor: 0x0d5660,
+    fogNear: 10,
+    fogFar: 60,
     enableCaustics: true,
     causticColor: 0x9cdfff,
     causticIntensity: 0.12,

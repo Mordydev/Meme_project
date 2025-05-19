@@ -110,6 +110,8 @@ interface SeafloorVisualConfig {
   sandPatternColor1: number | string;
   sandPatternColor2: number | string;
   textureScale: number;
+  /** Resolution of generated textures. */
+  textureResolution?: number;
   bumpScale?: number;
   roughness?: number;
   metalness?: number;
@@ -145,6 +147,7 @@ export class SeafloorAsset {
       sandPatternColor1: 0xc4a484,
       sandPatternColor2: 0x9a7b5a,
       textureScale: 15,
+      textureResolution: 256,
       bumpScale: 0.04,
       roughness: 0.85,
       metalness: 0.0,
@@ -156,14 +159,16 @@ export class SeafloorAsset {
       const visuals: any = configSystem.get('visuals');
       return { ...defaultConfig, ...(visuals?.seafloor || {}) };
     } catch (error) {
-      console.warn('SeafloorAsset: Could not fetch config, using defaults', error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('SeafloorAsset: Could not fetch config, using defaults', error);
+      }
       return defaultConfig;
     }
   }
 
   private createSandTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
-    const size = 256;
+    const size = this.config.textureResolution ?? 256;
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
@@ -259,7 +264,7 @@ export class SeafloorAsset {
 
   private createSandBumpMap(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
-    const size = 256;
+    const size = this.config.textureResolution ?? 256;
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
@@ -395,7 +400,9 @@ export class SeafloorAsset {
       this.dispose();
       this.createMaterial();
     }
-    console.log('SeafloorAsset: Linked with LightingManager for caustic effects');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('SeafloorAsset: Linked with LightingManager for caustic effects');
+    }
   }
 
   /**

@@ -1,13 +1,25 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ProceduralAssetFactory } from '../assets/ProceduralAssetFactory';
 import { ConfigurationSystem, configSystem } from '../core/ConfigurationSystem';
 import { WaterSurfaceAsset } from '../assets/environment/WaterSurfaceAsset';
 // import { PlayerController } from './PlayerController'; // Will need later for player position
 
+interface DecorationRef {
+  type: 'pebble' | 'rock' | 'clam' | 'kelp' | 'starfish';
+  index: number;
+}
+
+interface DecorationInstanceData {
+  id: number;
+  matrix: THREE.Matrix4;
+  isActive: boolean;
+}
+
 interface EnvironmentSegment {
   mesh: THREE.Group;
   seafloor: THREE.Mesh;
-  decorations: THREE.Object3D[];
+  decorations: DecorationRef[];
   isActive: boolean;
 }
 
@@ -27,15 +39,25 @@ export class EnvironmentManager {
 
   private waterSurface?: WaterSurfaceAsset;
 
-  private pebblePool: THREE.Mesh[] = [];
-  private rockPool: THREE.Mesh[] = [];
-  private clamPool: THREE.Group[] = [];
-  private kelpPool: THREE.Group[] = [];
+  private pebbleInstances!: THREE.InstancedMesh;
+  private rockInstances!: THREE.InstancedMesh;
+  private clamInstances!: THREE.InstancedMesh;
+  private kelpInstances!: THREE.InstancedMesh;
+  private starfishInstances!: THREE.InstancedMesh;
+
+  private pebbleData: DecorationInstanceData[] = [];
+  private rockData: DecorationInstanceData[] = [];
+  private clamData: DecorationInstanceData[] = [];
+  private kelpData: DecorationInstanceData[] = [];
+  private starfishData: DecorationInstanceData[] = [];
 
   private pebblePoolSize = 50;
   private rockPoolSize = 20;
   private clamPoolSize = 10;
   private kelpPoolSize = 20;
+  private starfishPoolSize = 15;
+
+  private nextInstanceId = 0;
 
   constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory /*, playerController: PlayerController */) {
     this.scene = scene;
@@ -51,7 +73,9 @@ export class EnvironmentManager {
     await this.initializeSegments();
     this.initializeDecorationPools();
     this.initializeWaterSurface();
-    console.log("EnvironmentManager: Initialized.");
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("EnvironmentManager: Initialized.");
+    }
   }
 
   private async initializeSegments(): Promise<void> {
@@ -70,41 +94,90 @@ export class EnvironmentManager {
   }
 
   private initializeDecorationPools(): void {
-    // Initialize pebbles
+    // Helper to convert complex groups to a single geometry with material array
+    const mergeGroup = (group: THREE.Group): { geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[] } => {
+      const geometries: THREE.BufferGeometry[] = [];
+      const materials: THREE.Material[] = [];
+      group.updateMatrixWorld(true);
+      group.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+          const geom = child.geometry.clone();
+          geom.applyMatrix4(child.matrix);
+          geometries.push(geom);
+          materials.push(child.material as THREE.Material);
+        }
+      });
+      const geometry = mergeGeometries(geometries, true) as THREE.BufferGeometry;
+      return { geometry, material: materials };
+    };
+
+    // Pebbles
+    const pebbleMesh = this.assetFactory.getPebbleMesh();
+    const pebbleGeom = pebbleMesh.geometry.clone();
+    const pebbleMat = (pebbleMesh.material as THREE.Material).clone();
+    this.pebbleInstances = new THREE.InstancedMesh(pebbleGeom, pebbleMat, this.pebblePoolSize);
+    this.pebbleInstances.frustumCulled = false;
+    this.scene.add(this.pebbleInstances);
     for (let i = 0; i < this.pebblePoolSize; i++) {
-      const pebble = this.assetFactory.getPebbleMesh();
-      pebble.visible = false;
-      pebble.userData.decorationType = 'pebble';
-      this.scene.add(pebble);
-      this.pebblePool.push(pebble);
+      const matrix = new THREE.Matrix4().setPosition(0, -1000, 0);
+      this.pebbleInstances.setMatrixAt(i, matrix);
+      this.pebbleData.push({ id: this.nextInstanceId++, matrix, isActive: false });
     }
+    this.pebbleInstances.instanceMatrix.needsUpdate = true;
 
-    // Initialize rocks
+    // Rocks
+    const rockMesh = this.assetFactory.getSmallRockMesh();
+    const rockGeom = rockMesh.geometry.clone();
+    const rockMat = (rockMesh.material as THREE.Material).clone();
+    this.rockInstances = new THREE.InstancedMesh(rockGeom, rockMat, this.rockPoolSize);
+    this.rockInstances.frustumCulled = false;
+    this.scene.add(this.rockInstances);
     for (let i = 0; i < this.rockPoolSize; i++) {
-      const rock = this.assetFactory.getSmallRockMesh();
-      rock.visible = false;
-      rock.userData.decorationType = 'rock';
-      this.scene.add(rock);
-      this.rockPool.push(rock);
+      const matrix = new THREE.Matrix4().setPosition(0, -1000, 0);
+      this.rockInstances.setMatrixAt(i, matrix);
+      this.rockData.push({ id: this.nextInstanceId++, matrix, isActive: false });
     }
+    this.rockInstances.instanceMatrix.needsUpdate = true;
 
-    // Initialize clams
+    // Clams
+    const clamGroup = this.assetFactory.getClamDecorMesh();
+    const clamMerged = mergeGroup(clamGroup);
+    this.clamInstances = new THREE.InstancedMesh(clamMerged.geometry, clamMerged.material, this.clamPoolSize);
+    this.clamInstances.frustumCulled = false;
+    this.scene.add(this.clamInstances);
     for (let i = 0; i < this.clamPoolSize; i++) {
-      const clam = this.assetFactory.getClamDecorMesh();
-      clam.visible = false;
-      clam.userData.decorationType = 'clam';
-      this.scene.add(clam);
-      this.clamPool.push(clam);
+      const matrix = new THREE.Matrix4().setPosition(0, -1000, 0);
+      this.clamInstances.setMatrixAt(i, matrix);
+      this.clamData.push({ id: this.nextInstanceId++, matrix, isActive: false });
     }
+    this.clamInstances.instanceMatrix.needsUpdate = true;
 
-    // Initialize kelp decorations
+    // Kelp
+    const kelpGroup = this.assetFactory.getKelpMesh();
+    const kelpMerged = mergeGroup(kelpGroup);
+    this.kelpInstances = new THREE.InstancedMesh(kelpMerged.geometry, kelpMerged.material, this.kelpPoolSize);
+    this.kelpInstances.frustumCulled = false;
+    this.scene.add(this.kelpInstances);
     for (let i = 0; i < this.kelpPoolSize; i++) {
-      const kelp = this.assetFactory.getKelpMesh();
-      kelp.visible = false;
-      kelp.userData.decorationType = 'kelp';
-      this.scene.add(kelp);
-      this.kelpPool.push(kelp);
+      const matrix = new THREE.Matrix4().setPosition(0, -1000, 0);
+      this.kelpInstances.setMatrixAt(i, matrix);
+      this.kelpData.push({ id: this.nextInstanceId++, matrix, isActive: false });
     }
+    this.kelpInstances.instanceMatrix.needsUpdate = true;
+
+    // Starfish
+    const starfishMesh = this.assetFactory.getStarfishMesh();
+    const starfishGeom = starfishMesh.geometry.clone();
+    const starfishMat = (starfishMesh.material as THREE.Material).clone();
+    this.starfishInstances = new THREE.InstancedMesh(starfishGeom, starfishMat, this.starfishPoolSize);
+    this.starfishInstances.frustumCulled = false;
+    this.scene.add(this.starfishInstances);
+    for (let i = 0; i < this.starfishPoolSize; i++) {
+      const matrix = new THREE.Matrix4().setPosition(0, -1000, 0);
+      this.starfishInstances.setMatrixAt(i, matrix);
+      this.starfishData.push({ id: this.nextInstanceId++, matrix, isActive: false });
+    }
+    this.starfishInstances.instanceMatrix.needsUpdate = true;
   }
 
   private initializeWaterSurface(): void {
@@ -143,23 +216,73 @@ export class EnvironmentManager {
   }
 
   /**
-   * Dispose all decoration objects currently stored in pools and empty them
-   */
+  * Dispose all decoration objects currently stored in pools and empty them
+  */
   private clearDecorationPools(): void {
-    this.pebblePool.forEach(p => this.disposeObject(p));
-    this.rockPool.forEach(r => this.disposeObject(r));
-    this.clamPool.forEach(c => this.disposeObject(c));
-    this.kelpPool.forEach(k => this.disposeObject(k));
+    if (this.pebbleInstances) {
+      this.pebbleInstances.geometry.dispose();
+      const mat = this.pebbleInstances.material as THREE.Material | THREE.Material[];
+      if (Array.isArray(mat)) mat.forEach(m => m.dispose()); else mat.dispose();
+      this.scene.remove(this.pebbleInstances);
+    }
+    if (this.rockInstances) {
+      this.rockInstances.geometry.dispose();
+      const mat = this.rockInstances.material as THREE.Material | THREE.Material[];
+      if (Array.isArray(mat)) mat.forEach(m => m.dispose()); else mat.dispose();
+      this.scene.remove(this.rockInstances);
+    }
+    if (this.clamInstances) {
+      this.clamInstances.geometry.dispose();
+      const mat = this.clamInstances.material as THREE.Material | THREE.Material[];
+      if (Array.isArray(mat)) mat.forEach(m => m.dispose()); else mat.dispose();
+      this.scene.remove(this.clamInstances);
+    }
+    if (this.kelpInstances) {
+      this.kelpInstances.geometry.dispose();
+      const mat = this.kelpInstances.material as THREE.Material | THREE.Material[];
+      if (Array.isArray(mat)) mat.forEach(m => m.dispose()); else mat.dispose();
+      this.scene.remove(this.kelpInstances);
+    }
+    if (this.starfishInstances) {
+      this.starfishInstances.geometry.dispose();
+      const mat = this.starfishInstances.material as THREE.Material | THREE.Material[];
+      if (Array.isArray(mat)) mat.forEach(m => m.dispose()); else mat.dispose();
+      this.scene.remove(this.starfishInstances);
+    }
 
-    this.pebblePool = [];
-    this.rockPool = [];
-    this.clamPool = [];
-    this.kelpPool = [];
+    this.pebbleData = [];
+    this.rockData = [];
+    this.clamData = [];
+    this.kelpData = [];
+    this.starfishData = [];
   }
   
   // Helper to get an inactive segment from the pool
   private getInactiveSegment(): EnvironmentSegment | undefined {
     return this.segments.find(seg => !seg.isActive);
+  }
+
+  private getInactiveInstance(dataArray: DecorationInstanceData[]): [DecorationInstanceData | undefined, number] {
+    for (let i = 0; i < dataArray.length; i++) {
+      if (!dataArray[i].isActive) return [dataArray[i], i];
+    }
+    return [undefined, -1];
+  }
+
+  private getDataAndMesh(type: DecorationRef['type']): [DecorationInstanceData[], THREE.InstancedMesh | null] {
+    switch (type) {
+      case 'pebble':
+        return [this.pebbleData, this.pebbleInstances || null];
+      case 'rock':
+        return [this.rockData, this.rockInstances || null];
+      case 'clam':
+        return [this.clamData, this.clamInstances || null];
+      case 'kelp':
+        return [this.kelpData, this.kelpInstances || null];
+      case 'starfish':
+      default:
+        return [this.starfishData, this.starfishInstances || null];
+    }
   }
 
   // Spawns a segment at the front of the current environment path
@@ -190,9 +313,13 @@ export class EnvironmentManager {
       segment.decorations = [];
       this.spawnDecorations(segment);
       
-      console.log(`EnvironmentManager: Spawned segment at Z: ${segment.mesh.position.z}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`EnvironmentManager: Spawned segment at Z: ${segment.mesh.position.z}`);
+      }
     } else {
-      console.warn("EnvironmentManager: No inactive segments available to spawn!");
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn("EnvironmentManager: No inactive segments available to spawn!");
+      }
     }
   }
 
@@ -203,58 +330,44 @@ export class EnvironmentManager {
       return;
     }
 
-    // Spawn pebbles
-    const pebbleSettings = decoConfig.pebbles;
-    const pebbleCount = pebbleSettings.spawnCount;
-    for (let i = 0; i < pebbleCount && this.pebblePool.length > 0; i++) {
-      const pebble = this.pebblePool.pop()!;
-      const scale = THREE.MathUtils.randFloat(pebbleSettings.scaleMin, pebbleSettings.scaleMax);
-      pebble.scale.setScalar(scale);
-      this.placeDecoration(pebble, segment);
-      segment.decorations.push(pebble);
-    }
+    const place = (settings: { scaleMin: number; scaleMax: number; spawnCount: number },
+                   dataArray: DecorationInstanceData[],
+                   mesh: THREE.InstancedMesh,
+                   type: DecorationRef['type']) => {
+      if (!mesh || !mesh.instanceMatrix) {
+        console.warn(`InstancedMesh for ${type} not properly initialized`);
+        return;
+      }
+      
+      for (let i = 0; i < settings.spawnCount; i++) {
+        const [inst, index] = this.getInactiveInstance(dataArray);
+        if (!inst) break;
+        inst.isActive = true;
 
-    // Spawn rocks
-    const rockSettings = decoConfig.smallRocks;
-    const rockCount = rockSettings.spawnCount;
-    for (let i = 0; i < rockCount && this.rockPool.length > 0; i++) {
-      const rock = this.rockPool.pop()!;
-      const scale = THREE.MathUtils.randFloat(rockSettings.scaleMin, rockSettings.scaleMax);
-      rock.scale.setScalar(scale);
-      this.placeDecoration(rock, segment);
-      segment.decorations.push(rock);
-    }
+        const scaleVal = THREE.MathUtils.randFloat(settings.scaleMin, settings.scaleMax);
+        const pos = new THREE.Vector3(
+          THREE.MathUtils.randFloatSpread(this.segmentWidth * 0.8),
+          segment.mesh.position.y,
+          segment.mesh.position.z + THREE.MathUtils.randFloatSpread(this.segmentLength)
+        );
+        const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
+        const scale = new THREE.Vector3(scaleVal, scaleVal, scaleVal);
+        inst.matrix.compose(pos, quat, scale);
+        mesh.setMatrixAt(index, inst.matrix);
+        segment.decorations.push({ type, index });
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    };
 
-    // Spawn clams
-    const clamSettings = decoConfig.clams;
-    const clamCount = clamSettings.spawnCount;
-    for (let i = 0; i < clamCount && this.clamPool.length > 0; i++) {
-      const clam = this.clamPool.pop()!;
-      const scale = THREE.MathUtils.randFloat(clamSettings.scaleMin, clamSettings.scaleMax);
-      clam.scale.setScalar(scale);
-      this.placeDecoration(clam, segment);
-      segment.decorations.push(clam);
-    }
-
-    // Spawn kelp
-    const kelpSettings = decoConfig.kelp;
-    const kelpCount = kelpSettings.spawnCount;
-    for (let i = 0; i < kelpCount && this.kelpPool.length > 0; i++) {
-      const kelp = this.kelpPool.pop()!;
-      const scale = THREE.MathUtils.randFloat(kelpSettings.scaleMin, kelpSettings.scaleMax);
-      kelp.scale.setScalar(scale);
-      this.placeDecoration(kelp, segment);
-      segment.decorations.push(kelp);
-    }
+    // Only place decorations if instance meshes are initialized
+    if (this.pebbleInstances && decoConfig.pebbles) place(decoConfig.pebbles, this.pebbleData, this.pebbleInstances, 'pebble');
+    if (this.rockInstances && decoConfig.smallRocks) place(decoConfig.smallRocks, this.rockData, this.rockInstances, 'rock');
+    if (this.clamInstances && decoConfig.clams) place(decoConfig.clams, this.clamData, this.clamInstances, 'clam');
+    if (this.kelpInstances && decoConfig.kelp) place(decoConfig.kelp, this.kelpData, this.kelpInstances, 'kelp');
+    if (this.starfishInstances && decoConfig.starfish) place(decoConfig.starfish, this.starfishData, this.starfishInstances, 'starfish');
   }
 
-  private placeDecoration(obj: THREE.Object3D, segment: EnvironmentSegment): void {
-    obj.position.x = THREE.MathUtils.randFloatSpread(this.segmentWidth * 0.8);
-    obj.position.y = segment.mesh.position.y;
-    obj.position.z = segment.mesh.position.z + THREE.MathUtils.randFloatSpread(this.segmentLength);
-    obj.rotation.y = Math.random() * Math.PI * 2;
-    obj.visible = true;
-  }
+
 
   // Recycles segments that are too far behind the player
   private recycleSegments(playerZ: number): void {
@@ -262,33 +375,34 @@ export class EnvironmentManager {
 
     this.segments.forEach(segment => {
       if (segment.isActive) {
-        // A segment's far edge (farthest from the player when behind)
-        // is its position.z + segmentLength/2
         const segmentFarEdgeZ = segment.mesh.position.z + this.segmentLength / 2;
         if (segmentFarEdgeZ > recycleThreshold) {
           segment.isActive = false;
           segment.mesh.visible = false;
 
-          // Return decorations to pools
-          segment.decorations.forEach(obj => {
-            obj.visible = false;
-            switch (obj.userData.decorationType) {
-              case 'pebble':
-                this.pebblePool.push(obj as THREE.Mesh);
-                break;
-              case 'rock':
-                this.rockPool.push(obj as THREE.Mesh);
-                break;
-              case 'clam':
-                this.clamPool.push(obj as THREE.Group);
-                break;
-              case 'kelp':
-                this.kelpPool.push(obj as THREE.Group);
-                break;
+          const updateNeeded: Record<DecorationRef['type'], boolean> = { pebble: false, rock: false, clam: false, kelp: false, starfish: false };
+
+          segment.decorations.forEach(ref => {
+            const [dataArray, mesh] = this.getDataAndMesh(ref.type);
+            if (mesh && dataArray[ref.index]) {
+              const inst = dataArray[ref.index];
+              inst.isActive = false;
+              inst.matrix.setPosition(0, -1000, 0);
+              mesh.setMatrixAt(ref.index, inst.matrix);
+              updateNeeded[ref.type] = true;
             }
           });
+
+          if (updateNeeded.pebble && this.pebbleInstances) this.pebbleInstances.instanceMatrix.needsUpdate = true;
+          if (updateNeeded.rock && this.rockInstances) this.rockInstances.instanceMatrix.needsUpdate = true;
+          if (updateNeeded.clam && this.clamInstances) this.clamInstances.instanceMatrix.needsUpdate = true;
+          if (updateNeeded.kelp && this.kelpInstances) this.kelpInstances.instanceMatrix.needsUpdate = true;
+          if (updateNeeded.starfish && this.starfishInstances) this.starfishInstances.instanceMatrix.needsUpdate = true;
+
           segment.decorations = [];
-          console.log(`EnvironmentManager: Recycled segment at Z: ${segment.mesh.position.z}`);
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`EnvironmentManager: Recycled segment at Z: ${segment.mesh.position.z}`);
+          }
         }
       }
     });
@@ -314,7 +428,6 @@ export class EnvironmentManager {
     this.segments.forEach(segment => {
       this.disposeObject(segment.seafloor);
       this.scene.remove(segment.mesh);
-      segment.decorations.forEach(obj => this.disposeObject(obj));
     });
     this.segments = [];
 
@@ -323,7 +436,9 @@ export class EnvironmentManager {
     // Dispose decoration pools
     this.clearDecorationPools();
 
-    console.log("EnvironmentManager: Disposed.");
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("EnvironmentManager: Disposed.");
+    }
   }
 
   public async reset(initialPlayerZ: number = 0): Promise<void> {
@@ -331,12 +446,23 @@ export class EnvironmentManager {
     this.segments.forEach(segment => {
       segment.isActive = false;
       segment.mesh.visible = false;
-
-      segment.decorations.forEach(obj => {
-        this.disposeObject(obj);
+      segment.decorations.forEach(ref => {
+        const [dataArray, mesh] = this.getDataAndMesh(ref.type);
+        if (mesh && dataArray[ref.index]) {
+          const inst = dataArray[ref.index];
+          inst.isActive = false;
+          inst.matrix.setPosition(0, -1000, 0);
+          mesh.setMatrixAt(ref.index, inst.matrix);
+        }
       });
       segment.decorations = [];
     });
+
+    if (this.pebbleInstances) this.pebbleInstances.instanceMatrix.needsUpdate = true;
+    if (this.rockInstances) this.rockInstances.instanceMatrix.needsUpdate = true;
+    if (this.clamInstances) this.clamInstances.instanceMatrix.needsUpdate = true;
+    if (this.kelpInstances) this.kelpInstances.instanceMatrix.needsUpdate = true;
+    if (this.starfishInstances) this.starfishInstances.instanceMatrix.needsUpdate = true;
 
     // Clear existing pooled decorations and recreate them
     this.clearDecorationPools();
@@ -348,7 +474,9 @@ export class EnvironmentManager {
     if (this.waterSurface) {
       this.waterSurface.getMesh().position.z = initialPlayerZ - 20;
     }
-    console.log("EnvironmentManager: Reset.");
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("EnvironmentManager: Reset.");
+    }
   }
 
   /**
