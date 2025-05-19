@@ -105,7 +105,8 @@ export class BubbleParticleSystem {
     if (targetIndex >= this.poolSize) return; // Should not happen if pool logic is correct
 
     const config = configSystem.get('visuals');
-    const lifetime = THREE.MathUtils.randFloat(2.0, 5.0); // Random lifetime
+    const bubbleConfig = config.playerTrailBubbles;
+    const lifetime = THREE.MathUtils.randFloat(bubbleConfig.lifetimeMin, bubbleConfig.lifetimeMax);
     const particle: BubbleParticle = {
       position: origin.clone().add(new THREE.Vector3(
         THREE.MathUtils.randFloatSpread(0.1), // Slight horizontal spread at spawn
@@ -115,15 +116,15 @@ export class BubbleParticleSystem {
       // Velocity: upward with slight horizontal drift/wobble
       velocity: new THREE.Vector3(
         THREE.MathUtils.randFloatSpread(0.05),
-        config.bubbleBaseSpeed + THREE.MathUtils.randFloat(0, 0.1),
+        THREE.MathUtils.randFloat(bubbleConfig.speedMin, bubbleConfig.speedMax),
         THREE.MathUtils.randFloatSpread(0.05)
       ),
       lifetime: lifetime,
       maxLifetime: lifetime,
-      scale: THREE.MathUtils.randFloat(0.7, 1.3), // Random size variation
-      alpha: 1.0,
+      scale: THREE.MathUtils.randFloat(bubbleConfig.particleSizeMin, bubbleConfig.particleSizeMax),
+      alpha: bubbleConfig.opacityStart || 1.0,
       rotation: THREE.MathUtils.randFloat(0, Math.PI * 2),
-      color: new THREE.Color(1, 1, 1), // Base white, tinted by material uniform
+      color: new THREE.Color(bubbleConfig.color1 || 0xffffff),
     };
     this.particles[targetIndex] = particle;
 
@@ -145,7 +146,8 @@ export class BubbleParticleSystem {
 
   public update(deltaTime: number, playerPosition?: THREE.Vector3): void {
     const config = configSystem.get('visuals');
-    if (!config.bubblesEnabled) {
+    const bubbleConfig = config.playerTrailBubbles;
+    if (!config.enableParticles || !bubbleConfig.enabled) {
       if (this.points.visible) this.points.visible = false;
       return;
     }
@@ -175,21 +177,33 @@ export class BubbleParticleSystem {
       // Simple wobble
       p.position.x += Math.sin(p.lifetime * 5.0 + i) * 0.01;
 
+      // Apply gravity (negative makes bubbles rise)
+      if (bubbleConfig.gravity) {
+        p.velocity.y += bubbleConfig.gravity * deltaTime;
+      }
+
       // Update alpha (fade out near end of life)
-      p.alpha = THREE.MathUtils.smoothstep(p.lifetime, 0.0, 0.5); // Fade out in last 0.5s
-      p.alpha = Math.min(p.alpha, THREE.MathUtils.smoothstep(p.lifetime, p.maxLifetime, p.maxLifetime - 0.3)); // Fade in
+      const lifetimeRatio = p.lifetime / p.maxLifetime;
+      p.alpha = THREE.MathUtils.lerp(
+        bubbleConfig.opacityEnd || 0,
+        bubbleConfig.opacityStart || 1,
+        lifetimeRatio
+      );
 
       // Update buffer attributes
       this.updateBufferAttributes(i, p);
     }
 
     // Spawn new particles periodically based on player position
-    if (playerPosition && Math.random() < 0.2) { // Adjust spawn rate
-      const spawnX = playerPosition.x + THREE.MathUtils.randFloatSpread(config.bubbleSpawnAreaX);
-      // Approximate seafloor height (would be better to query from environment manager)
-      const seafloorY = -1.0; 
-      const spawnPos = new THREE.Vector3(spawnX, seafloorY - config.bubbleSpawnDepth, playerPosition.z);
-      this.spawnParticle(spawnPos);
+    if (playerPosition && bubbleConfig.emissionRate) {
+      const emissionChance = bubbleConfig.emissionRate * deltaTime / 60; // Convert rate to chance per frame
+      if (Math.random() < emissionChance) {
+        const spawnX = playerPosition.x + THREE.MathUtils.randFloatSpread(config.bubbleSpawnAreaX);
+        // Approximate seafloor height (would be better to query from environment manager)
+        const seafloorY = -1.0; 
+        const spawnPos = new THREE.Vector3(spawnX, seafloorY - config.bubbleSpawnDepth, playerPosition.z);
+        this.spawnParticle(spawnPos);
+      }
     }
 
     // Mark geometry attributes for GPU update
@@ -202,7 +216,7 @@ export class BubbleParticleSystem {
     // Update material uniforms if using ShaderMaterial and not fallback material
     if (this.material.type === 'ShaderMaterial' && this.material.uniforms) {
       if (this.material.uniforms.uBaseSize) {
-        this.material.uniforms.uBaseSize.value = config.bubbleSize;
+        this.material.uniforms.uBaseSize.value = bubbleConfig.particleSizeMax;
       }
       if (this.material.uniforms.uPixelRatio) {
         this.material.uniforms.uPixelRatio.value = 

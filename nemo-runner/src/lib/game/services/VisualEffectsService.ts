@@ -6,6 +6,8 @@ import { ShaderManager } from './ShaderManager';
 import { RenderManager } from '../core/RenderManager';
 import { BubbleParticleSystem } from '../vfx/particleSystems/BubbleParticleSystem';
 import { DustParticleSystem } from '../vfx/particleSystems/DustParticleSystem';
+import { CollectiblePickupParticleSystem } from '../vfx/particleSystems/CollectiblePickupParticleSystem';
+import { ObstacleImpactParticleSystem } from '../vfx/particleSystems/ObstacleImpactParticleSystem';
 import { underwaterPPFragmentShader } from '../shaders/postprocessing/underwaterPP.frag';
 
 /**
@@ -32,6 +34,8 @@ export class VisualEffectsService {
   // Particle Systems
   private bubbleSystem?: BubbleParticleSystem;
   private dustSystem?: DustParticleSystem;
+  private collectiblePickupSystem?: CollectiblePickupParticleSystem;
+  private obstacleImpactSystem?: ObstacleImpactParticleSystem;
   
   // Post-processing
   private postProcessingPass?: ShaderPass;
@@ -60,11 +64,34 @@ export class VisualEffectsService {
 
     // Initialize Particle Systems
     if (config.enableParticles) {
-      if (config.bubblesEnabled) {
-        this.bubbleSystem = new BubbleParticleSystem(scene, shaderManager, config.bubbleCount);
+      if (config.playerTrailBubbles.enabled) {
+        this.bubbleSystem = new BubbleParticleSystem(
+          scene,
+          shaderManager,
+          config.playerTrailBubbles.poolSize
+        );
       }
-      if (config.dustEnabled) {
-        this.dustSystem = new DustParticleSystem(scene, shaderManager, config.dustCount);
+      if (config.ambientDust.enabled) {
+        this.dustSystem = new DustParticleSystem(
+          scene,
+          shaderManager,
+          config.ambientDust.poolSize
+        );
+      }
+      // Additional particle systems introduced in later steps
+      if (config.collectibleSparks.enabled) {
+        this.collectiblePickupSystem = new CollectiblePickupParticleSystem(
+          scene,
+          shaderManager,
+          config.collectibleSparks.poolSize
+        );
+      }
+      if (config.obstacleImpactDebris.enabled) {
+        this.obstacleImpactSystem = new ObstacleImpactParticleSystem(
+          scene,
+          shaderManager,
+          config.obstacleImpactDebris.poolSize
+        );
       }
     }
 
@@ -154,13 +181,13 @@ export class VisualEffectsService {
   public triggerHitEffect(intensity: 'minor' | 'major' = 'minor'): void {
     console.log("VisualEffectsService: Triggering hit effect -", intensity);
     
+    const config = configSystem.get('visuals');
+
     // Screen flash effect via callback to GameCanvas
     if (this.onScreenFlash) {
-      // Minor: Light red, 150ms
-      // Major: Stronger red, 300ms
       this.onScreenFlash(
-        intensity === 'minor' ? 'rgba(255,0,0,0.3)' : 'rgba(255,0,0,0.5)', 
-        intensity === 'minor' ? 150 : 300
+        intensity === 'minor' ? config.screenFlash.flashColorMinor : config.screenFlash.flashColorMajor,
+        intensity === 'minor' ? config.screenFlash.flashDurationMinor : config.screenFlash.flashDurationMajor
       );
     }
 
@@ -170,11 +197,43 @@ export class VisualEffectsService {
       if (!this.isShaking) {
         this.originalCameraPosition.copy(this.cameraManager.camera.position);
       }
-      
+
       this.isShaking = true;
-      this.shakeDuration = intensity === 'minor' ? 0.2 : 0.4; // seconds
-      this.shakeIntensity = intensity === 'minor' ? 0.08 : 0.15; // units
+      this.shakeDuration =
+        intensity === 'minor'
+          ? config.cameraShake.shakeDurationMinor
+          : config.cameraShake.shakeDurationMajor;
+      this.shakeIntensity =
+        intensity === 'minor'
+          ? config.cameraShake.shakeIntensityMinor
+          : config.cameraShake.shakeIntensityMajor;
     }
+  }
+
+  /** Trigger a short burst of bubbles behind the player */
+  public triggerPlayerTrail(position: THREE.Vector3): void {
+    // No-op - bubble trail is already handled automatically in the update method
+    // The BubbleParticleSystem spawns bubbles automatically based on player position
+    // during its regular update cycle
+  }
+
+  /** Trigger collectible pickup particles */
+  public triggerCollectiblePickup(position: THREE.Vector3, type: 'bubble' | 'coin' = 'bubble'): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    this.collectiblePickupSystem?.emit(position, type);
+  }
+
+  /** Trigger obstacle impact debris */
+  public triggerObstacleImpact(position: THREE.Vector3, normal?: THREE.Vector3, obstacleType?: string): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    this.obstacleImpactSystem?.emit(position, normal);
+  }
+
+  /** Trigger a special effect when shield absorbs a hit */
+  public triggerShieldHitEffect(position: THREE.Vector3): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    const blue = new THREE.Color(0x55ccff);
+    this.obstacleImpactSystem?.emit(position, undefined, blue);
   }
 
   /**
@@ -222,16 +281,16 @@ export class VisualEffectsService {
 
     // Update Particle Systems
     if (config.enableParticles) {
-      if (this.bubbleSystem) {
-        this.bubbleSystem.update(deltaTime, playerPosition);
-      }
-      if (this.dustSystem) {
-        this.dustSystem.update(deltaTime, playerPosition);
-      }
+      this.bubbleSystem?.update(deltaTime, playerPosition);
+      this.dustSystem?.update(deltaTime, playerPosition);
+      this.collectiblePickupSystem?.update(deltaTime);
+      this.obstacleImpactSystem?.update(deltaTime);
     } else {
       // Hide particles if disabled globally
       if (this.bubbleSystem?.points.visible) this.bubbleSystem.points.visible = false;
       if (this.dustSystem?.points.visible) this.dustSystem.points.visible = false;
+      if (this.collectiblePickupSystem?.points.visible) this.collectiblePickupSystem.points.visible = false;
+      if (this.obstacleImpactSystem?.points.visible) this.obstacleImpactSystem.points.visible = false;
     }
 
     // Update Post-Processing Uniforms based on config
@@ -293,6 +352,12 @@ export class VisualEffectsService {
       if (this.dustSystem && !this.dustSystem.points.visible) {
         this.dustSystem.points.visible = true;
       }
+      if (this.collectiblePickupSystem && !this.collectiblePickupSystem.points.visible) {
+        this.collectiblePickupSystem.points.visible = true;
+      }
+      if (this.obstacleImpactSystem && !this.obstacleImpactSystem.points.visible) {
+        this.obstacleImpactSystem.points.visible = true;
+      }
     }
   }
 
@@ -315,6 +380,16 @@ export class VisualEffectsService {
     if (this.dustSystem) {
       this.dustSystem.dispose();
       this.dustSystem = undefined;
+    }
+
+    if (this.collectiblePickupSystem) {
+      this.collectiblePickupSystem.dispose();
+      this.collectiblePickupSystem = undefined;
+    }
+
+    if (this.obstacleImpactSystem) {
+      this.obstacleImpactSystem.dispose();
+      this.obstacleImpactSystem = undefined;
     }
     
     // Remove post-processing pass

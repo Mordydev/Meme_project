@@ -107,13 +107,16 @@ export class DustParticleSystem {
 
   // Simple wander behavior
   private updateWander(particle: DustParticle, dt: number, speed: number): void {
+    const dustConfig = configSystem.get('visuals').ambientDust;
+    const actualSpeed = THREE.MathUtils.randFloat(dustConfig.speedMin, dustConfig.speedMax);
+    
     particle.wanderTheta += THREE.MathUtils.randFloatSpread(0.5) * dt; // Change direction slowly
     const wanderForce = new THREE.Vector3(
       Math.cos(particle.wanderTheta), 
       Math.sin(particle.wanderTheta), 
       Math.cos(particle.wanderTheta * 0.5)
     ); // Simple 3D wander
-    wanderForce.multiplyScalar(speed * dt);
+    wanderForce.multiplyScalar(actualSpeed * dt);
     particle.position.add(wanderForce);
 
     // Keep particles within bounds (wrap around or clamp)
@@ -134,7 +137,7 @@ export class DustParticleSystem {
 
   public update(deltaTime: number, playerPosition?: THREE.Vector3): void {
     const config = configSystem.get('visuals');
-    if (!config.dustEnabled) {
+    if (!config.ambientDust.enabled) {
       if (this.points.visible) this.points.visible = false;
       return;
     }
@@ -163,9 +166,10 @@ export class DustParticleSystem {
     // this.geometry.attributes.aAlpha.needsUpdate = true;
 
     // Update material uniforms if using ShaderMaterial and not fallback material
+    const dustConfig = config.ambientDust;
     if (this.material.type === 'ShaderMaterial' && this.material.uniforms) {
       if (this.material.uniforms.uBaseSize) {
-        this.material.uniforms.uBaseSize.value = config.dustSize;
+        this.material.uniforms.uBaseSize.value = dustConfig.particleSizeMax;
       }
       if (this.material.uniforms.uPixelRatio) {
         this.material.uniforms.uPixelRatio.value = 

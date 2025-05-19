@@ -47,6 +47,7 @@ export class ObstacleManager {
   // private environmentManager: EnvironmentManager;
   private gameEngine?: any; // Reference to GameEngine for player position
   private playerController?: PlayerController; // Reference to PlayerController for proximity effects
+  private visualEffectsService?: any; // Reference to VisualEffectsService for VFX
 
   public activeObstacles: Obstacle[] = []; // Public for collision detection access
   public obstaclePool: Obstacle[] = [];
@@ -100,6 +101,14 @@ export class ObstacleManager {
   public linkPlayerController(playerController: PlayerController): void {
     this.playerController = playerController;
     // console.log("ObstacleManager: PlayerController linked for proximity effects.");
+  }
+  
+  /**
+   * Links the VisualEffectsService to trigger particle effects
+   * @param vfxService The visual effects service to link
+   */
+  public linkVisualEffectsService(vfxService: any): void {
+    this.visualEffectsService = vfxService;
   }
 
   /**
@@ -900,6 +909,12 @@ export class ObstacleManager {
       if (!isDangerous) {
         // console.log(`ObstacleManager: ${hitObstacle.type} obstacle hit, but not dangerous - no damage to player`);
         return false; // Obstacle remains active, no damage to player
+      }
+      
+      // Trigger VFX for obstacle impact if dangerous
+      if (this.visualEffectsService) {
+        const position = hitObstacle.mesh.position.clone();
+        this.visualEffectsService.triggerObstacleImpact(position, undefined, hitObstacle.type);
       }
 
       // Reset the asset to its initial state

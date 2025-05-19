@@ -166,6 +166,8 @@ export class GameEngine {
 
       // Link PlayerController to ObstacleManager for proximity-based behaviors
       this.obstacleManager.linkPlayerController(this.playerController);
+      // Link VisualEffectsService to ObstacleManager for particle effects
+      this.obstacleManager.linkVisualEffectsService(this.visualEffectsService);
 
       // ScoringSystem and CollectibleManager
       this.scoringSystem = new ScoringSystem();
@@ -179,6 +181,8 @@ export class GameEngine {
 
       // Link PlayerController to CollectibleManager (for magnet effect)
       this.collectibleManager.linkPlayerController(this.playerController);
+      // Link GameEngine to CollectibleManager (for VFX)
+      this.collectibleManager.linkGameEngine(this);
 
       // PowerUpManager (after config system and asset factory)
       // Fix: Remove the third parameter - PowerUpManager only takes scene and assetFactory
@@ -727,6 +731,10 @@ export class GameEngine {
 
   public getObstacleManager(): ObstacleManager {
     return this.obstacleManager;
+  }
+  
+  public getCollectibleManager(): CollectibleManager {
+    return this.collectibleManager;
   }
 
   public getDifficultyManager(): DifficultyManager {

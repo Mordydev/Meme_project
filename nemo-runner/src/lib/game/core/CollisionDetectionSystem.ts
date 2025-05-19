@@ -462,6 +462,15 @@ export class CollisionDetectionSystem {
               // Log the type from the mesh userData
               const powerUpType = powerUpHit.getMesh().userData.subtype;
               console.log(`CollisionDetectionSystem: Player collected ${powerUpType} power-up.`);
+              
+              // Trigger VFX for power-up collection if VFX service is available
+              const vfxService = this.gameEngine?.getVisualEffectsService?.();
+              if (vfxService) {
+                // Get position of the power-up for VFX
+                const position = powerUpMesh.position.clone();
+                // Use shield hit effect for power-up collection
+                vfxService.triggerShieldHitEffect(position);
+              }
             }
           }
         }

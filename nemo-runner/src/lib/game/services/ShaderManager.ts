@@ -132,6 +132,8 @@ export class ShaderManager {
       const { particleVertexShader } = require('../vfx/shaders/particle.vert');
       const { bubbleFragmentShader } = require('../vfx/shaders/bubble.frag');
       const { dustFragmentShader } = require('../vfx/shaders/dust.frag');
+      const { sparkleFragmentShader } = require('../vfx/shaders/sparkle.frag');
+      const { impactDebrisFragmentShader } = require('../vfx/shaders/impact_debris.frag');
       
       // Register bubble shader immediately
       this.registerShader({
@@ -172,6 +174,43 @@ export class ShaderManager {
         }
       });
       console.log("ShaderManager: Registered dustShader");
+      
+      // Register sparkle shader for collectible particles
+      this.registerShader({
+        name: 'sparkleShader',
+        vertexShaderSource: particleVertexShader,
+        fragmentShaderSource: sparkleFragmentShader,
+        defaultUniforms: () => ({
+          uBaseColor: { value: new THREE.Color(0xffffff) },
+          uBaseSize: { value: 0.08 },
+          uPixelRatio: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 },
+        }),
+        materialParameters: {
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        }
+      });
+      console.log("ShaderManager: Registered sparkleShader");
+      
+      // Register impact debris shader
+      this.registerShader({
+        name: 'impactDebrisShader',
+        vertexShaderSource: particleVertexShader,
+        fragmentShaderSource: impactDebrisFragmentShader,
+        defaultUniforms: () => ({
+          uBaseColor: { value: new THREE.Color(0xaaaaaa) },
+          uBaseSize: { value: 0.1 },
+          uPixelRatio: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 },
+          uTime: { value: 0.0 },
+        }),
+        materialParameters: {
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.NormalBlending,
+        }
+      });
+      console.log("ShaderManager: Registered impactDebrisShader");
       
     } catch (error) {
       console.error("ShaderManager: Error registering particle shaders:", error);

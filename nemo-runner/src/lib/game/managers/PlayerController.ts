@@ -248,6 +248,14 @@ export class PlayerController {
     // Forward movement - now uses the dynamic current speed
     if (this.state !== PlayerState.DEFEATED) { // Don't move if defeated
       this.mesh.position.z -= this.currentForwardSpeed * deltaTime;
+      
+      // Trigger VFX trail when moving forward
+      if (this.gameEngine?.getVisualEffectsService) {
+        const vfxService = this.gameEngine.getVisualEffectsService();
+        if (vfxService) {
+          vfxService.triggerPlayerTrail(this.mesh.position.clone());
+        }
+      }
     }
 
     // Lane transition logic (only if not defeated)
