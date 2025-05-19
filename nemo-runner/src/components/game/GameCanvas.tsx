@@ -465,8 +465,13 @@ export default function GameCanvas() {
     }
   };
 
+  const fogHex = `#${configSystem
+    .getLightingConfig()
+    .fogColor.toString(16)
+    .padStart(6, '0')}`;
+
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative', backgroundColor: '#0C6B9C' }}>
+    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative', backgroundColor: fogHex }}>
       {isLoading && (
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'white', fontSize: '20px' }}>
           Loading 3D Scene...

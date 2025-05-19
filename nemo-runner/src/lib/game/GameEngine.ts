@@ -16,6 +16,7 @@ import { PowerUpManager } from './managers/PowerUpManager';
 import { DifficultyManager } from './managers/DifficultyManager';
 import { vertexShaderSource as testPatternVertex } from './shaders/test/testPattern.vert';
 import { fragmentShaderSource as testPatternFragment } from './shaders/test/testPattern.frag';
+import { configSystem } from './core/ConfigurationSystem';
 
 // Import the types from PowerUpManager
 import { ActivePowerUpInfo, PowerUpType } from './managers/PowerUpManager';
@@ -81,7 +82,9 @@ export class GameEngine {
     try {
       // Scene
       this.scene = new THREE.Scene();
-      this.scene.background = new THREE.Color(0x1a2b3c);
+      // Use fog color from config to avoid flash of default background
+      const initialFogColor = configSystem.getLightingConfig().fogColor;
+      this.scene.background = new THREE.Color(initialFogColor);
 
       // Camera
       const aspectRatio = this.mountElement.clientWidth / this.mountElement.clientHeight;

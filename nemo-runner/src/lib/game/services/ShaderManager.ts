@@ -405,6 +405,11 @@ export class ShaderManager {
       }
 
       if (this.shaderChunks.has(name)) {
+        const existing = this.shaderChunks.get(name);
+        if (existing === source) {
+          console.log(`ShaderManager: Chunk "${name}" already registered, skipping.`);
+          return;
+        }
         console.warn(`ShaderManager: Chunk "${name}" is already registered. Overwriting.`);
       }
 
