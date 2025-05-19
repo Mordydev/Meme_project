@@ -7,7 +7,7 @@ interface ParticleArrays {
   positions: Float32Array;
   velocities: Float32Array;
   lifetimes: Float32Array;
-  sizes: Float32Array;
+  scales: Float32Array;
   colors: Float32Array;
   alphas: Float32Array;
   rotations: Float32Array;
@@ -41,7 +41,7 @@ export class ObstacleImpactParticleSystem {
       positions: new Float32Array(this.poolSize * 3),
       velocities: new Float32Array(this.poolSize * 3),
       lifetimes: new Float32Array(this.poolSize),
-      sizes: new Float32Array(this.poolSize),
+      scales: new Float32Array(this.poolSize),
       colors: new Float32Array(this.poolSize * 3),
       alphas: new Float32Array(this.poolSize),
       rotations: new Float32Array(this.poolSize)
@@ -59,7 +59,7 @@ export class ObstacleImpactParticleSystem {
     this.geometry.setAttribute('position', new THREE.BufferAttribute(this.arrays.positions, 3));
     this.geometry.setAttribute('aVelocity', new THREE.BufferAttribute(this.arrays.velocities, 3));
     this.geometry.setAttribute('aLifetime', new THREE.BufferAttribute(this.arrays.lifetimes, 1));
-    this.geometry.setAttribute('aSize', new THREE.BufferAttribute(this.arrays.sizes, 1));
+    this.geometry.setAttribute('aScale', new THREE.BufferAttribute(this.arrays.scales, 1));
     this.geometry.setAttribute('aColor', new THREE.BufferAttribute(this.arrays.colors, 3));
     this.geometry.setAttribute('aAlpha', new THREE.BufferAttribute(this.arrays.alphas, 1));
     this.geometry.setAttribute('aRotation', new THREE.BufferAttribute(this.arrays.rotations, 1));
@@ -110,7 +110,7 @@ export class ObstacleImpactParticleSystem {
     this.particles[index].active = false;
     this.arrays.positions[index * 3 + 1] = -9999;
     this.arrays.alphas[index] = 0;
-    this.arrays.sizes[index] = 0;
+    this.arrays.scales[index] = 0;
   }
 
   public emit(origin: THREE.Vector3, count?: number, color?: THREE.Color): void {
@@ -147,7 +147,7 @@ export class ObstacleImpactParticleSystem {
       
       // Size
       particle.size = THREE.MathUtils.randFloat(cfg.particleSizeMin || 0.02, cfg.particleSizeMax || 0.08);
-      this.arrays.sizes[index] = particle.size;
+      this.arrays.scales[index] = particle.size;
       
       // Color - use provided color or default gray/brown debris
       if (color) {
@@ -223,7 +223,7 @@ export class ObstacleImpactParticleSystem {
       this.arrays.alphas[i] = lifetimeRatio * (cfg.opacityStart || 0.8);
       
       // Update size (shrink slightly)
-      this.arrays.sizes[i] = particle.size * (0.5 + 0.5 * lifetimeRatio);
+      this.arrays.scales[i] = particle.size * (0.5 + 0.5 * lifetimeRatio);
       
       // Update lifetime buffer
       this.arrays.lifetimes[i] = lifetimeRatio;
@@ -242,7 +242,7 @@ export class ObstacleImpactParticleSystem {
     this.geometry.attributes.position.needsUpdate = true;
     this.geometry.attributes.aVelocity.needsUpdate = true;
     this.geometry.attributes.aLifetime.needsUpdate = true;
-    this.geometry.attributes.aSize.needsUpdate = true;
+    this.geometry.attributes.aScale.needsUpdate = true;
     this.geometry.attributes.aColor.needsUpdate = true;
     this.geometry.attributes.aAlpha.needsUpdate = true;
     this.geometry.attributes.aRotation.needsUpdate = true;
