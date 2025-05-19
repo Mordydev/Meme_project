@@ -292,14 +292,23 @@ export interface LightingConfig {
   causticScale: number;
   causticSpeed: number;
   causticBlendMode: 'additive' | 'multiply' | 'mix';
+  /** @deprecated Currently unused. */
   causticReceiverObjects?: string[];
+  /** @deprecated God ray parameters are not consumed by the renderer yet. */
   enableGodRays: boolean;
+  /** @deprecated */
   godRayColor?: number | string;
+  /** @deprecated */
   godRayIntensity?: number;
+  /** @deprecated */
   godRayDensity?: number;
+  /** @deprecated */
   godRayWeight?: number;
+  /** @deprecated */
   godRayDecay?: number;
+  /** @deprecated */
   godRayExposure?: number;
+  /** @deprecated */
   godRaySamples?: number;
 }
 
@@ -346,9 +355,18 @@ export interface VisualSettings {
   obstacleImpactDebris: ParticleEffectConfig;
   ambientDust: ParticleEffectConfig;
 
+  /**
+   * @deprecated Currently unused. Reserved for future bubble animation speed.
+   */
   bubbleBaseSpeed: number;
   bubbleSize: number;
+  /**
+   * @deprecated Currently unused. Intended spawn width if automatic bubble spawning is implemented.
+   */
   bubbleSpawnAreaX: number;
+  /**
+   * @deprecated Currently unused. Intended spawn depth offset for automatic bubbles.
+   */
   bubbleSpawnDepth: number;
 
   dustSize: number;
@@ -786,10 +804,11 @@ export const defaultConfig: GameConfig = {
       opacityEnd: 0.2,
     },
 
-    bubbleBaseSpeed: 0.2, // Units per second
+    // Currently unused bubble parameters kept for potential future features
+    bubbleBaseSpeed: 0.2, // Units per second (unused)
     bubbleSize: 0.05,
-    bubbleSpawnAreaX: 10, // Spawn across a 10 unit width
-    bubbleSpawnDepth: 0.1, // Spawn slightly below surface
+    bubbleSpawnAreaX: 10, // Unused spawn width
+    bubbleSpawnDepth: 0.1, // Unused spawn depth offset
 
     dustSize: 0.03,
     dustWanderSpeed: 0.02,
@@ -884,6 +903,7 @@ export const defaultConfig: GameConfig = {
     causticScale: 7.0,
     causticSpeed: 0.1,
     causticBlendMode: 'additive',
+    // God ray values are currently unused by the renderer
     enableGodRays: true,
     godRayColor: 0x9cdfff,
     godRayIntensity: 0.1,
