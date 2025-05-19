@@ -251,7 +251,12 @@ export class SeafloorAsset {
       ry: number,
       color: THREE.Color
     ): void => {
-      ctx.fillStyle = `#${color.getHexString()}`;
+      const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rx, ry));
+      const highlight = color.clone().multiplyScalar(1.1);
+      const shadow = color.clone().multiplyScalar(0.6);
+      gradient.addColorStop(0, `#${highlight.getHexString()}`);
+      gradient.addColorStop(1, `#${shadow.getHexString()}`);
+      ctx.fillStyle = gradient;
       ctx.beginPath();
       ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -282,8 +287,8 @@ export class SeafloorAsset {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(
-      this.config.textureScale / size,
-      this.config.textureScale / size
+      this.segmentWidth / this.config.textureScale,
+      this.segmentLength / this.config.textureScale
     );
     texture.needsUpdate = true;
     SeafloorAsset.cachedSandTexture = texture;
@@ -346,7 +351,12 @@ export class SeafloorAsset {
       ry: number,
       value: number
     ): void => {
-      ctx.fillStyle = `rgb(${value},${value},${value})`;
+      const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rx, ry));
+      const inner = Math.min(value + 35, 255);
+      const outer = Math.max(value - 35, 0);
+      gradient.addColorStop(0, `rgb(${inner},${inner},${inner})`);
+      gradient.addColorStop(1, `rgb(${outer},${outer},${outer})`);
+      ctx.fillStyle = gradient;
       ctx.beginPath();
       ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -375,8 +385,8 @@ export class SeafloorAsset {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(
-      this.config.textureScale / size,
-      this.config.textureScale / size
+      this.segmentWidth / this.config.textureScale,
+      this.segmentLength / this.config.textureScale
     );
     texture.needsUpdate = true;
     SeafloorAsset.cachedSandBumpMap = texture;
@@ -478,7 +488,8 @@ export class SeafloorAsset {
     }
     uvs.needsUpdate = true;
 
-    const mesh = new THREE.Mesh(geometry, this.material);
+    // Clone the material so texture offsets can be adjusted per segment
+    const mesh = new THREE.Mesh(geometry, this.material.clone());
     mesh.name = 'SeafloorSegment_Styled';
     mesh.position.y = -1.0;
     mesh.receiveShadow = true;

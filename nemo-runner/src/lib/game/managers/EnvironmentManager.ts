@@ -310,6 +310,9 @@ export class EnvironmentManager {
       // Y position for the floor (can be configurable)
       segment.mesh.position.y = -1; // Example: player is at y=0, floor is below
 
+      // Adjust texture transform so sand appears continuous across segments
+      this.updateSeafloorTexture(segment);
+
       segment.decorations = [];
       this.spawnDecorations(segment);
       
@@ -373,6 +376,30 @@ export class EnvironmentManager {
     if (this.clamInstances && decoConfig.clams) place(decoConfig.clams, this.clamData, this.clamInstances, 'clam');
     if (this.kelpInstances && decoConfig.kelp) place(decoConfig.kelp, this.kelpData, this.kelpInstances, 'kelp');
     if (this.starfishInstances && decoConfig.starfish) place(decoConfig.starfish, this.starfishData, this.starfishInstances, 'starfish');
+  }
+
+  /**
+   * Offsets the sand texture so each segment lines up seamlessly.
+   */
+  private updateSeafloorTexture(segment: EnvironmentSegment): void {
+    const config = configSystem.getSeafloorConfig();
+    const mat = segment.seafloor.material as THREE.MeshStandardMaterial;
+
+    const repeatX = this.segmentWidth / config.textureScale;
+    const repeatY = this.segmentLength / config.textureScale;
+    const offsetX = (-this.segmentWidth / 2) / config.textureScale;
+    const offsetY = (segment.mesh.position.z - this.segmentLength / 2) / config.textureScale;
+
+    if (mat.map) {
+      mat.map.repeat.set(repeatX, repeatY);
+      mat.map.offset.set(offsetX, offsetY);
+      mat.map.needsUpdate = true;
+    }
+    if (mat.bumpMap) {
+      mat.bumpMap.repeat.set(repeatX, repeatY);
+      mat.bumpMap.offset.set(offsetX, offsetY);
+      mat.bumpMap.needsUpdate = true;
+    }
   }
 
 

@@ -435,7 +435,7 @@ export const defaultConfig: GameConfig = {
     laneCount: 3,
   },
   camera: {
-    offset: { x: 0, y: 2, z: 3 }, // z is distance behind player (closer view)
+    offset: { x: 0, y: 2, z: 4 }, // z is distance behind player
     lookAtOffset: { x: 0, y: 1, z: 0 }, // Looks slightly above player's root
     lerpFactor: 0.05, // Smoothness of camera follow
   },
@@ -715,21 +715,21 @@ export const defaultConfig: GameConfig = {
       baseColor: 0xAD8E6E,
       sandPatternColor1: 0xC4A484,
       sandPatternColor2: 0x9A7B5A,
-      textureScale: 15.0,
+      textureScale: 5.0,
       textureResolution: 512,
       bumpScale: 0.04,
       roughness: 0.85,
       metalness: 0.0,
       pebbleColors: [0x8e7b65, 0x9c8b76, 0x7b6a55],
-      pebbleDensity: 90,
-      pebbleSizeRange: [1.5, 3.5],
+      pebbleDensity: 100,
+      pebbleSizeRange: [2, 5],
       decorationSideMargin: 2,
         decorations: {
-          pebbles: { spawnCount: 30, scaleMin: 0.08, scaleMax: 0.25 },
-          smallRocks: { spawnCount: 15, scaleMin: 0.15, scaleMax: 0.4 },
-          clams: { spawnCount: 8, scaleMin: 0.25, scaleMax: 0.55 },
-          kelp: { spawnCount: 5, scaleMin: 0.8, scaleMax: 1.2 },
-          starfish: { spawnCount: 6, scaleMin: 0.4, scaleMax: 0.7 }
+          pebbles: { spawnCount: 10, scaleMin: 0.06, scaleMax: 0.18 },
+          smallRocks: { spawnCount: 5, scaleMin: 0.12, scaleMax: 0.3 },
+          clams: { spawnCount: 2, scaleMin: 0.2, scaleMax: 0.45 },
+          kelp: { spawnCount: 2, scaleMin: 0.6, scaleMax: 1.0 },
+          starfish: { spawnCount: 2, scaleMin: 0.3, scaleMax: 0.6 }
         }
     },
     waterSurface: {
