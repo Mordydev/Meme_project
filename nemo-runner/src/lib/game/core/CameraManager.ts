@@ -4,7 +4,7 @@ import { configSystem } from './ConfigurationSystem';
 
 export class CameraManager {
   public camera: THREE.PerspectiveCamera; // Public for easy access from engine/renderer
-  private playerMesh?: THREE.Mesh;
+  private playerMesh?: THREE.Group;
   private offset: THREE.Vector3;
   private lookAtOffset: THREE.Vector3;
 

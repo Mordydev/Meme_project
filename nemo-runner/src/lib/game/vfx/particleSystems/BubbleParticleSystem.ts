@@ -132,6 +132,17 @@ export class BubbleParticleSystem {
     this.updateBufferAttributes(targetIndex, particle);
   }
 
+  /**
+   * Emit a burst of bubbles at the provided origin.
+   * @param origin Position to spawn bubbles around
+   * @param count Number of bubbles to emit
+   */
+  public emit(origin: THREE.Vector3, count: number = 1): void {
+    for (let i = 0; i < count; i++) {
+      this.spawnParticle(origin);
+    }
+  }
+
   private updateBufferAttributes(index: number, particle: BubbleParticle): void {
     this.positions[index * 3] = particle.position.x;
     this.positions[index * 3 + 1] = particle.position.y;
@@ -222,6 +233,17 @@ export class BubbleParticleSystem {
         this.material.uniforms.uPixelRatio.value = 
           typeof window !== 'undefined' ? window.devicePixelRatio : 1;
       }
+    }
+  }
+
+  /**
+   * Emit bubbles at a specific position (used for VFX triggers)
+   * @param position The position to emit bubbles from
+   * @param count Number of bubbles to emit
+   */
+  public emit(position: THREE.Vector3, count: number = 5): void {
+    for (let i = 0; i < count; i++) {
+      this.spawnParticle(position);
     }
   }
 

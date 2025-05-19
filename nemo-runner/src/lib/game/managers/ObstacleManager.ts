@@ -47,7 +47,7 @@ export class ObstacleManager {
   // private environmentManager: EnvironmentManager;
   private gameEngine?: any; // Reference to GameEngine for player position
   private playerController?: PlayerController; // Reference to PlayerController for proximity effects
-  private visualEffectsService?: any; // Reference to VisualEffectsService for VFX
+  private vfxService?: any;
 
   public activeObstacles: Obstacle[] = []; // Public for collision detection access
   public obstaclePool: Obstacle[] = [];
@@ -102,13 +102,9 @@ export class ObstacleManager {
     this.playerController = playerController;
     // console.log("ObstacleManager: PlayerController linked for proximity effects.");
   }
-  
-  /**
-   * Links the VisualEffectsService to trigger particle effects
-   * @param vfxService The visual effects service to link
-   */
-  public linkVisualEffectsService(vfxService: any): void {
-    this.visualEffectsService = vfxService;
+
+  public linkVisualEffectsService(service: any): void {
+    this.vfxService = service;
   }
 
   /**
@@ -910,12 +906,6 @@ export class ObstacleManager {
         // console.log(`ObstacleManager: ${hitObstacle.type} obstacle hit, but not dangerous - no damage to player`);
         return false; // Obstacle remains active, no damage to player
       }
-      
-      // Trigger VFX for obstacle impact if dangerous
-      if (this.visualEffectsService) {
-        const position = hitObstacle.mesh.position.clone();
-        this.visualEffectsService.triggerObstacleImpact(position, undefined, hitObstacle.type);
-      }
 
       // Reset the asset to its initial state
       if (hitObstacle.assetInstance && typeof hitObstacle.assetInstance.reset === 'function') {
@@ -929,6 +919,10 @@ export class ObstacleManager {
       // Deactivate it
       hitObstacle.isActive = false;
       hitObstacle.mesh.visible = false;
+
+      if (this.vfxService) {
+        this.vfxService.triggerObstacleImpact(hitObstacle.mesh.position.clone());
+      }
 
       // Remove from activeObstacles array
       this.activeObstacles.splice(activeIndex, 1);

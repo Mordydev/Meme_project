@@ -103,7 +103,14 @@ export class KelpAsset {
       item.mesh.getWorldPosition(worldPos);
       const partHeight = item.type === 'stalk'
         ? (geom as THREE.CylinderGeometry).parameters.height
-        : (geom as THREE.ShapeGeometry).parameters.shapes[0].getBoundingBox().getSize(new THREE.Vector3()).y;
+        : (() => {
+            const shapeGeom = geom as THREE.ShapeGeometry;
+            // Get a temporary mesh to compute the bounding box
+            const tempMesh = new THREE.Mesh(shapeGeom);
+            tempMesh.geometry.computeBoundingBox();
+            const boundingBox = tempMesh.geometry.boundingBox;
+            return boundingBox ? boundingBox.getSize(new THREE.Vector3()).y : 1.0;
+          })();
 
       for (let i = 0; i < original.count; i++) {
         const ox = original.getX(i);

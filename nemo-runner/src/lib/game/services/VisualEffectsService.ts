@@ -78,21 +78,8 @@ export class VisualEffectsService {
           config.ambientDust.poolSize
         );
       }
-      // Additional particle systems introduced in later steps
-      if (config.collectibleSparks.enabled) {
-        this.collectiblePickupSystem = new CollectiblePickupParticleSystem(
-          scene,
-          shaderManager,
-          config.collectibleSparks.poolSize
-        );
-      }
-      if (config.obstacleImpactDebris.enabled) {
-        this.obstacleImpactSystem = new ObstacleImpactParticleSystem(
-          scene,
-          shaderManager,
-          config.obstacleImpactDebris.poolSize
-        );
-      }
+      this.collectiblePickupSystem = new CollectiblePickupParticleSystem(scene, shaderManager);
+      this.obstacleImpactSystem = new ObstacleImpactParticleSystem(scene, shaderManager);
     }
 
     // Initialize Screen Effects (Post-Processing)
@@ -210,23 +197,19 @@ export class VisualEffectsService {
     }
   }
 
-  /** Trigger a short burst of bubbles behind the player */
+  /** Trigger a small bubble trail at the player's position */
   public triggerPlayerTrail(position: THREE.Vector3): void {
-    // No-op - bubble trail is already handled automatically in the update method
-    // The BubbleParticleSystem spawns bubbles automatically based on player position
-    // during its regular update cycle
+    this.bubbleSystem?.emit(position, 1);
   }
 
-  /** Trigger collectible pickup particles */
-  public triggerCollectiblePickup(position: THREE.Vector3, type: 'bubble' | 'coin' = 'bubble'): void {
-    if (!configSystem.get('visuals').enableParticles) return;
-    this.collectiblePickupSystem?.emit(position, type);
+  /** Emit sparkles when a collectible or power-up is picked up */
+  public triggerCollectiblePickup(position: THREE.Vector3): void {
+    this.collectiblePickupSystem?.emit(position, 10);
   }
 
-  /** Trigger obstacle impact debris */
-  public triggerObstacleImpact(position: THREE.Vector3, normal?: THREE.Vector3, obstacleType?: string): void {
-    if (!configSystem.get('visuals').enableParticles) return;
-    this.obstacleImpactSystem?.emit(position, normal);
+  /** Emit debris when the player hits an obstacle */
+  public triggerObstacleImpact(position: THREE.Vector3): void {
+    this.obstacleImpactSystem?.emit(position, 15);
   }
 
   /** Trigger a special effect when shield absorbs a hit */
@@ -234,6 +217,19 @@ export class VisualEffectsService {
     if (!configSystem.get('visuals').enableParticles) return;
     const blue = new THREE.Color(0x55ccff);
     this.obstacleImpactSystem?.emit(position, undefined, blue);
+  }
+
+  /** Trigger power-up collection effect */
+  public triggerPowerUpCollect(position: THREE.Vector3, type: 'shield' | 'magnet' | 'doublescore'): void {
+    if (!configSystem.get('visuals').enableParticles) return;
+    // Different colors for different power-up types
+    const colors = {
+      shield: new THREE.Color(0x00aaff),
+      magnet: new THREE.Color(0xff0066),
+      doublescore: new THREE.Color(0xffd700)
+    };
+    const color = colors[type] || new THREE.Color(0xffffff);
+    this.collectiblePickupSystem?.emit(position, type as any, color);
   }
 
   /**
@@ -352,12 +348,8 @@ export class VisualEffectsService {
       if (this.dustSystem && !this.dustSystem.points.visible) {
         this.dustSystem.points.visible = true;
       }
-      if (this.collectiblePickupSystem && !this.collectiblePickupSystem.points.visible) {
-        this.collectiblePickupSystem.points.visible = true;
-      }
-      if (this.obstacleImpactSystem && !this.obstacleImpactSystem.points.visible) {
-        this.obstacleImpactSystem.points.visible = true;
-      }
+      this.collectiblePickupSystem?.reset();
+      this.obstacleImpactSystem?.reset();
     }
   }
 

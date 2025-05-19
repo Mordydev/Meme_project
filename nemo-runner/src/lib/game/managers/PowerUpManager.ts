@@ -30,6 +30,7 @@ export interface ActivePowerUpInfo {
 export class PowerUpManager {
   private scene: THREE.Scene;
   private assetFactory: ProceduralAssetFactory;
+  private vfxService?: any;
 
   // References to other managers (set via linkManagers)
   private playerController!: PlayerController;
@@ -103,6 +104,10 @@ export class PowerUpManager {
     this.scoringSystem = scoringSystem;
     this.collectibleManager = collectibleManager;
     console.log("PowerUpManager: Linked with other managers.");
+  }
+
+  public linkVisualEffectsService(service: any): void {
+    this.vfxService = service;
   }
 
   /**
@@ -248,6 +253,10 @@ export class PowerUpManager {
     // Deactivate and return the visual asset to pool
     collectedAsset.collect(); // Mark it as collected (hides it)
     this.returnPowerUpToPool(collectedAsset);
+
+    if (this.vfxService) {
+      this.vfxService.triggerCollectiblePickup(collectedAsset.getMesh().position.clone());
+    }
 
     // Remove any existing effect of the same type to reset duration
     this.activeEffects = this.activeEffects.filter(effect => {

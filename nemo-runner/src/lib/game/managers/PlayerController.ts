@@ -61,6 +61,7 @@ export class PlayerController {
   private baseForwardSpeed: number;
   private forwardSpeedMultiplier: number = 1.0;
   private currentForwardSpeed: number;
+  private trailTimer: number = 0;
 
   constructor(scene: THREE.Scene, assetFactory: ProceduralAssetFactory, gameEngine?: any) {
     this.scene = scene;
@@ -248,13 +249,19 @@ export class PlayerController {
     // Forward movement - now uses the dynamic current speed
     if (this.state !== PlayerState.DEFEATED) { // Don't move if defeated
       this.mesh.position.z -= this.currentForwardSpeed * deltaTime;
-      
-      // Trigger VFX trail when moving forward
-      if (this.gameEngine?.getVisualEffectsService) {
-        const vfxService = this.gameEngine.getVisualEffectsService();
-        if (vfxService) {
-          vfxService.triggerPlayerTrail(this.mesh.position.clone());
-        }
+    }
+
+    // Emit player bubble trail based on movement speed
+    const vfxService = this.gameEngine?.getVisualEffectsService?.();
+    if (vfxService) {
+      const trailConfig = (configSystem.get('visuals') as any).playerTrailBubbles || {};
+      const rate = trailConfig.emissionRate || 10;
+      const speedFactor = this.currentForwardSpeed / this.baseForwardSpeed;
+      const interval = 1 / (rate * Math.max(speedFactor, 0.1));
+      this.trailTimer += deltaTime;
+      if (this.trailTimer >= interval) {
+        this.trailTimer = 0;
+        vfxService.triggerPlayerTrail(this.mesh.position.clone());
       }
     }
 

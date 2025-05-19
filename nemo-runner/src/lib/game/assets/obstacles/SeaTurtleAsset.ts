@@ -28,6 +28,7 @@ export class SeaTurtleAsset {
       laneChangeDuration: 0.5,
       minTimeInLane: 3.0,
       maxTimeInLane: 6.0,
+      proximityTriggerDistance: 10.0,
       turnAngleDegrees: 25,
       visuals: {
         mainColor: 0x6B8E23,

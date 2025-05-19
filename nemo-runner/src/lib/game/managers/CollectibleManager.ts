@@ -24,6 +24,7 @@ const MAX_COINS = 50;   // Max instances for coins
 export class CollectibleManager {
   private scene: THREE.Scene;
   private assetFactory: ProceduralAssetFactory;
+  private vfxService?: any;
 
   private bubbleInstances!: THREE.InstancedMesh;
   private coinInstances!: THREE.InstancedMesh;
@@ -41,7 +42,6 @@ export class CollectibleManager {
   private magnetAttractionRadius: number = 0;
   private magnetAttractionSpeed: number = 20; // Default, will be overridden by config
   private playerController?: PlayerController; // To get player position
-  private gameEngine?: any; // Reference to game engine for accessing VFX
 
   private patterns: Array<(lane: number, startZ: number, type: 'bubble' | 'coin') => THREE.Vector3[]> = [
     this.linePattern, this.wavePattern, this.clusterPattern, this.obviousPattern
@@ -140,12 +140,9 @@ export class CollectibleManager {
   public linkPlayerController(playerController: PlayerController): void {
     this.playerController = playerController;
   }
-  
-  /**
-   * Links the game engine to allow access to VFX service
-   */
-  public linkGameEngine(gameEngine: any): void {
-    this.gameEngine = gameEngine;
+
+  public linkVisualEffectsService(service: any): void {
+    this.vfxService = service;
   }
 
   /**
@@ -450,29 +447,24 @@ export class CollectibleManager {
   // Called by CollisionDetectionSystem when a collectible is hit
   public handleCollectibleHit(instanceId: number): number | null {
     let scoreValue = null;
+    let worldPos: THREE.Vector3 | null = null;
+    let hitType: 'bubble' | 'coin' | null = null;
 
     const findAndDeactivate = (dataArray: CollectibleInstanceData[], instancesMesh: THREE.InstancedMesh, type: 'bubble' | 'coin') => {
         for (let i = 0; i < dataArray.length; i++) {
             const instance = dataArray[i];
             if (instance.id === instanceId && instance.isActive) {
                 scoreValue = instance.scoreValue;
-                
-                // Get position before deactivating
-                const position = new THREE.Vector3().setFromMatrixPosition(instance.matrix);
+                const pos = new THREE.Vector3();
+                pos.setFromMatrixPosition(instance.matrix);
+                worldPos = pos;
+                hitType = type;
 
                 // Deactivate the collectible
                 instance.isActive = false;
                 const hiddenMatrix = new THREE.Matrix4().setPosition(0, -1000, 0);
                 instancesMesh.setMatrixAt(i, hiddenMatrix);
                 instancesMesh.instanceMatrix.needsUpdate = true;
-                
-                // Trigger VFX for collectible pickup
-                if (this.gameEngine?.getVisualEffectsService) {
-                  const vfxService = this.gameEngine.getVisualEffectsService();
-                  if (vfxService) {
-                    vfxService.triggerCollectiblePickup(position, type);
-                  }
-                }
 
                 return true; // Found and deactivated
             }
@@ -483,6 +475,10 @@ export class CollectibleManager {
     // Process collection silently (game UI will show score updates)
     findAndDeactivate(this.bubbleData, this.bubbleInstances, 'bubble') ||
     findAndDeactivate(this.coinData, this.coinInstances, 'coin');
+
+    if (worldPos && hitType && this.vfxService) {
+      this.vfxService.triggerCollectiblePickup(worldPos);
+    }
 
     return scoreValue;
   }
