@@ -6,6 +6,7 @@ import { ShaderManager } from './ShaderManager';
 import { RenderManager } from '../core/RenderManager';
 import { BubbleParticleSystem } from '../vfx/particleSystems/BubbleParticleSystem';
 import { DustParticleSystem } from '../vfx/particleSystems/DustParticleSystem';
+import { ObstacleImpactParticleSystem } from '../vfx/particleSystems/ObstacleImpactParticleSystem';
 import { underwaterPPFragmentShader } from '../shaders/postprocessing/underwaterPP.frag';
 
 /**
@@ -32,6 +33,7 @@ export class VisualEffectsService {
   // Particle Systems
   private bubbleSystem?: BubbleParticleSystem;
   private dustSystem?: DustParticleSystem;
+  private obstacleImpactSystem?: ObstacleImpactParticleSystem;
   
   // Post-processing
   private postProcessingPass?: ShaderPass;
@@ -65,6 +67,10 @@ export class VisualEffectsService {
       }
       if (config.dustEnabled) {
         this.dustSystem = new DustParticleSystem(scene, shaderManager, config.dustCount);
+      }
+      const debrisCfg = (config as any).obstacleImpactDebris;
+      if (debrisCfg && debrisCfg.enabled) {
+        this.obstacleImpactSystem = new ObstacleImpactParticleSystem(scene, shaderManager);
       }
     }
 
@@ -228,10 +234,14 @@ export class VisualEffectsService {
       if (this.dustSystem) {
         this.dustSystem.update(deltaTime, playerPosition);
       }
+      if (this.obstacleImpactSystem) {
+        this.obstacleImpactSystem.update(deltaTime);
+      }
     } else {
       // Hide particles if disabled globally
       if (this.bubbleSystem?.points.visible) this.bubbleSystem.points.visible = false;
       if (this.dustSystem?.points.visible) this.dustSystem.points.visible = false;
+      if (this.obstacleImpactSystem?.points.visible) this.obstacleImpactSystem.points.visible = false;
     }
 
     // Update Post-Processing Uniforms based on config
@@ -293,6 +303,9 @@ export class VisualEffectsService {
       if (this.dustSystem && !this.dustSystem.points.visible) {
         this.dustSystem.points.visible = true;
       }
+      if (this.obstacleImpactSystem && !this.obstacleImpactSystem.points.visible) {
+        this.obstacleImpactSystem.points.visible = true;
+      }
     }
   }
 
@@ -315,6 +328,11 @@ export class VisualEffectsService {
     if (this.dustSystem) {
       this.dustSystem.dispose();
       this.dustSystem = undefined;
+    }
+
+    if (this.obstacleImpactSystem) {
+      this.obstacleImpactSystem.dispose();
+      this.obstacleImpactSystem = undefined;
     }
     
     // Remove post-processing pass
