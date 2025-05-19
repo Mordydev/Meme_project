@@ -77,7 +77,7 @@ export class WaterSurfaceAsset {
 
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <color_fragment>',
-        `#include <color_fragment>\n  float ripple = sin((vUv.x + uTime * uRippleSpeed) * uRippleScale) *\n                      sin((vUv.y + uTime * uRippleSpeed) * uRippleScale);\n  vec3 lightDir = normalize(uLightDirection);\n  float lightFactor = max(dot(normalize(normal), lightDir), 0.0) * uLightIntensity;\n  float fresnel = pow(1.0 - dot(normalize(normal), normalize(vViewPosition)), uFresnelPower);\n  vec3 fresnelSpec = uSpecularColor * fresnel * lightFactor;\n  diffuseColor.rgb += ripple * uRippleIntensity * lightFactor + fresnelSpec;`
+        `#include <color_fragment>\n  float ripple = sin((vUv.x + uTime * uRippleSpeed) * uRippleScale) *\n                      sin((vUv.y + uTime * uRippleSpeed) * uRippleScale);\n  vec3 lightDir = normalize(uLightDirection);\n  float lightFactor = max(dot(normalize(vNormal), lightDir), 0.0) * uLightIntensity;\n  float fresnel = pow(1.0 - dot(normalize(vNormal), normalize(vViewPosition)), uFresnelPower);\n  vec3 fresnelSpec = uSpecularColor * fresnel * lightFactor;\n  diffuseColor.rgb += ripple * uRippleIntensity * lightFactor + fresnelSpec;`
       );
 
       (this.material as any).userData.shader = shader;

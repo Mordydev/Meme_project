@@ -234,9 +234,29 @@ export class LightingManager {
    */
   public update(deltaTime: number, elapsedTime: number): void {
     this.elapsedTime = elapsedTime;
-    
+
     // We're no longer updating complex caustic targets since we're using simpler materials
     // This helps prevent the WebGL context loss issues
+  }
+
+  /**
+   * Update caustic uniforms on tracked meshes
+   */
+  private updateCausticUniforms(lighting: ReturnType<typeof configSystem.getLightingConfig>): void {
+    for (const mesh of this.causticTargets) {
+      const mat: any = mesh.material;
+      const uniforms = mat?.uniforms;
+      if (!uniforms) continue;
+      if (uniforms.uCausticColor) {
+        uniforms.uCausticColor.value.set(lighting.causticColor);
+      }
+      if (uniforms.uCausticIntensity) {
+        uniforms.uCausticIntensity.value = lighting.causticIntensity;
+      }
+      if (uniforms.uCausticScale) {
+        uniforms.uCausticScale.value = lighting.causticScale;
+      }
+    }
   }
   
   /**
@@ -293,6 +313,9 @@ export class LightingManager {
 
     // Update caustic settings flag
     this.useCaustics = lighting.enableCaustics;
+    if (this.useCaustics) {
+      this.updateCausticUniforms(lighting);
+    }
   }
   
   /**

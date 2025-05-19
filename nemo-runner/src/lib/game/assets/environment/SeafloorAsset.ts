@@ -113,6 +113,9 @@ interface SeafloorVisualConfig {
   bumpScale?: number;
   roughness?: number;
   metalness?: number;
+  pebbleColors?: Array<number | string>;
+  pebbleDensity?: number;
+  pebbleSizeRange?: [number, number];
 }
 
 export class SeafloorAsset {
@@ -144,7 +147,10 @@ export class SeafloorAsset {
       textureScale: 15,
       bumpScale: 0.04,
       roughness: 0.85,
-      metalness: 0.0
+      metalness: 0.0,
+      pebbleColors: [0x8e7b65, 0x9c8b76, 0x7b6a55],
+      pebbleDensity: 40,
+      pebbleSizeRange: [1, 3]
     };
     try {
       const visuals: any = configSystem.get('visuals');
@@ -204,6 +210,42 @@ export class SeafloorAsset {
       }
     }
 
+    const pebbleColors = (this.config.pebbleColors || []).map(
+      (c) => new THREE.Color(c)
+    );
+    const pebbleCount = this.config.pebbleDensity ?? 0;
+    const [minPebble, maxPebble] = this.config.pebbleSizeRange || [1, 3];
+
+    const drawPebble = (
+      cx: number,
+      cy: number,
+      rx: number,
+      ry: number,
+      color: THREE.Color
+    ): void => {
+      ctx.fillStyle = `#${color.getHexString()}`;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    for (let i = 0; i < pebbleCount; i++) {
+      const radius = THREE.MathUtils.randFloat(minPebble, maxPebble);
+      const aspect = THREE.MathUtils.randFloat(0.7, 1.3);
+      const rx = radius;
+      const ry = radius * aspect;
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const color =
+        pebbleColors[Math.floor(Math.random() * pebbleColors.length)] ||
+        baseColor;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          drawPebble(x + dx * size, y + dy * size, rx, ry, color);
+        }
+      }
+    }
+
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
@@ -252,6 +294,36 @@ export class SeafloorAsset {
         const value = Math.floor(n * 255);
         ctx.fillStyle = `rgb(${value},${value},${value})`;
         ctx.fillRect(x, y, 1, 1);
+      }
+    }
+
+    const pebbleCount = this.config.pebbleDensity ?? 0;
+    const [minPebble, maxPebble] = this.config.pebbleSizeRange || [1, 3];
+    const drawPebble = (
+      cx: number,
+      cy: number,
+      rx: number,
+      ry: number,
+      value: number
+    ): void => {
+      ctx.fillStyle = `rgb(${value},${value},${value})`;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    for (let i = 0; i < pebbleCount; i++) {
+      const radius = THREE.MathUtils.randFloat(minPebble, maxPebble);
+      const aspect = THREE.MathUtils.randFloat(0.7, 1.3);
+      const rx = radius;
+      const ry = radius * aspect;
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const v = 220;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          drawPebble(x + dx * size, y + dy * size, rx, ry, v);
+        }
       }
     }
 

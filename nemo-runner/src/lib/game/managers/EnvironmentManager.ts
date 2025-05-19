@@ -113,6 +113,49 @@ export class EnvironmentManager {
     mesh.position.y = 10;
     this.scene.add(mesh);
   }
+
+  /** Disposes a material and any textures referenced on it */
+  private disposeMaterial(material: THREE.Material): void {
+    const mat = material as any;
+    for (const key of Object.keys(mat)) {
+      const value = mat[key];
+      if (value instanceof THREE.Texture) {
+        value.dispose();
+      }
+    }
+    material.dispose();
+  }
+
+  /** Fully dispose of a mesh or group and remove it from the scene */
+  private disposeObject(object: THREE.Object3D): void {
+    object.traverse(child => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry?.dispose();
+        const material = child.material as THREE.Material | THREE.Material[];
+        if (Array.isArray(material)) {
+          material.forEach(m => this.disposeMaterial(m));
+        } else if (material) {
+          this.disposeMaterial(material);
+        }
+      }
+    });
+    this.scene.remove(object);
+  }
+
+  /**
+   * Dispose all decoration objects currently stored in pools and empty them
+   */
+  private clearDecorationPools(): void {
+    this.pebblePool.forEach(p => this.disposeObject(p));
+    this.rockPool.forEach(r => this.disposeObject(r));
+    this.clamPool.forEach(c => this.disposeObject(c));
+    this.kelpPool.forEach(k => this.disposeObject(k));
+
+    this.pebblePool = [];
+    this.rockPool = [];
+    this.clamPool = [];
+    this.kelpPool = [];
+  }
   
   // Helper to get an inactive segment from the pool
   private getInactiveSegment(): EnvironmentSegment | undefined {
@@ -154,34 +197,52 @@ export class EnvironmentManager {
   }
 
   private spawnDecorations(segment: EnvironmentSegment): void {
+    const decoConfig = configSystem.getSeafloorConfig().decorations;
+
+    if (!decoConfig) {
+      return;
+    }
+
     // Spawn pebbles
-    const pebbleCount = THREE.MathUtils.randInt(3, 6);
+    const pebbleSettings = decoConfig.pebbles;
+    const pebbleCount = pebbleSettings.spawnCount;
     for (let i = 0; i < pebbleCount && this.pebblePool.length > 0; i++) {
       const pebble = this.pebblePool.pop()!;
+      const scale = THREE.MathUtils.randFloat(pebbleSettings.scaleMin, pebbleSettings.scaleMax);
+      pebble.scale.setScalar(scale);
       this.placeDecoration(pebble, segment);
       segment.decorations.push(pebble);
     }
 
     // Spawn rocks
-    const rockCount = THREE.MathUtils.randInt(1, 3);
+    const rockSettings = decoConfig.smallRocks;
+    const rockCount = rockSettings.spawnCount;
     for (let i = 0; i < rockCount && this.rockPool.length > 0; i++) {
       const rock = this.rockPool.pop()!;
-      rock.scale.setScalar(0.3 + Math.random() * 0.3);
+      const scale = THREE.MathUtils.randFloat(rockSettings.scaleMin, rockSettings.scaleMax);
+      rock.scale.setScalar(scale);
       this.placeDecoration(rock, segment);
       segment.decorations.push(rock);
     }
 
     // Spawn clams
-    if (Math.random() < 0.3 && this.clamPool.length > 0) {
+    const clamSettings = decoConfig.clams;
+    const clamCount = clamSettings.spawnCount;
+    for (let i = 0; i < clamCount && this.clamPool.length > 0; i++) {
       const clam = this.clamPool.pop()!;
+      const scale = THREE.MathUtils.randFloat(clamSettings.scaleMin, clamSettings.scaleMax);
+      clam.scale.setScalar(scale);
       this.placeDecoration(clam, segment);
       segment.decorations.push(clam);
     }
 
     // Spawn kelp
-    const kelpCount = THREE.MathUtils.randInt(1, 2);
+    const kelpSettings = decoConfig.kelp;
+    const kelpCount = kelpSettings.spawnCount;
     for (let i = 0; i < kelpCount && this.kelpPool.length > 0; i++) {
       const kelp = this.kelpPool.pop()!;
+      const scale = THREE.MathUtils.randFloat(kelpSettings.scaleMin, kelpSettings.scaleMax);
+      kelp.scale.setScalar(scale);
       this.placeDecoration(kelp, segment);
       segment.decorations.push(kelp);
     }
@@ -197,13 +258,14 @@ export class EnvironmentManager {
 
   // Recycles segments that are too far behind the player
   private recycleSegments(playerZ: number): void {
-    const recycleThreshold = playerZ + (this.segmentLength * (this.visibleSegmentsBehind + 1)); // Point beyond which segments are recycled
+    const recycleThreshold = playerZ + (this.segmentLength * (this.visibleSegmentsBehind + 2)); // Increased buffer
 
     this.segments.forEach(segment => {
       if (segment.isActive) {
-        // A segment's "front" edge (closest to player when behind) is its position.z + segmentLength/2
-        const segmentFrontEdgeZ = segment.mesh.position.z + this.segmentLength / 2;
-        if (segmentFrontEdgeZ > recycleThreshold) {
+        // A segment's far edge (farthest from the player when behind)
+        // is its position.z + segmentLength/2
+        const segmentFarEdgeZ = segment.mesh.position.z + this.segmentLength / 2;
+        if (segmentFarEdgeZ > recycleThreshold) {
           segment.isActive = false;
           segment.mesh.visible = false;
 
@@ -250,74 +312,35 @@ export class EnvironmentManager {
 
   public dispose(): void {
     this.segments.forEach(segment => {
-      segment.seafloor.geometry.dispose();
-      if (segment.seafloor.material instanceof THREE.Material) {
-        segment.seafloor.material.dispose();
-      }
+      this.disposeObject(segment.seafloor);
       this.scene.remove(segment.mesh);
-
-      segment.decorations.forEach(obj => {
-        if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();
-        if ((obj as THREE.Mesh).material) {
-          const mat = (obj as THREE.Mesh).material as THREE.Material;
-          mat.dispose();
-        }
-        this.scene.remove(obj);
-      });
+      segment.decorations.forEach(obj => this.disposeObject(obj));
     });
     this.segments = [];
 
     this.waterSurface?.dispose();
 
     // Dispose decoration pools
-    this.pebblePool.forEach(p => { 
-      p.geometry.dispose(); 
-      (p.material as THREE.Material).dispose(); 
-      this.scene.remove(p); 
-    });
-    this.rockPool.forEach(r => { 
-      r.geometry.dispose(); 
-      (r.material as THREE.Material).dispose(); 
-      this.scene.remove(r); 
-    });
-    this.clamPool.forEach(c => { 
-      this.scene.remove(c); 
-    });
-    this.kelpPool.forEach(k => {
-      this.scene.remove(k);
-    });
-    this.pebblePool = [];
-    this.rockPool = [];
-    this.clamPool = [];
-    this.kelpPool = [];
+    this.clearDecorationPools();
 
     console.log("EnvironmentManager: Disposed.");
   }
 
   public async reset(initialPlayerZ: number = 0): Promise<void> {
+    // Remove and dispose any active decorations
     this.segments.forEach(segment => {
       segment.isActive = false;
       segment.mesh.visible = false;
-      
+
       segment.decorations.forEach(obj => {
-        obj.visible = false;
-        switch (obj.userData.decorationType) {
-          case 'pebble':
-            this.pebblePool.push(obj as THREE.Mesh);
-            break;
-          case 'rock':
-            this.rockPool.push(obj as THREE.Mesh);
-            break;
-          case 'clam':
-            this.clamPool.push(obj as THREE.Group);
-            break;
-          case 'kelp':
-            this.kelpPool.push(obj as THREE.Group);
-            break;
-        }
+        this.disposeObject(obj);
       });
       segment.decorations = [];
     });
+
+    // Clear existing pooled decorations and recreate them
+    this.clearDecorationPools();
+    this.initializeDecorationPools();
     this.lastSegmentZ = initialPlayerZ + this.segmentLength;
     for (let i = 0; i < this.visibleSegmentsFront + this.visibleSegmentsBehind; i++) {
       this.spawnSegmentAhead(true);

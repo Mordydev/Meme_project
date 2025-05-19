@@ -198,6 +198,8 @@ export interface SchoolOfFishObstacleConfig {
 }
 
 export interface ObstaclesConfig {
+  /** Distance behind the player where obstacles are recycled */
+  recycleDistance: number;
   pufferfish: PufferfishConfig; // RE-ADD
   jellyfish: JellyfishConfig;
   shark: SharkConfig;
@@ -236,6 +238,9 @@ export interface SeafloorVisualConfig {
   bumpScale?: number;
   roughness?: number;
   metalness?: number;
+  pebbleColors?: Array<number | string>;
+  pebbleDensity?: number;
+  pebbleSizeRange?: [number, number];
   decorations?: {
     pebbles: DecorationSpawnConfig;
     smallRocks: DecorationSpawnConfig;
@@ -451,6 +456,7 @@ export const defaultConfig: GameConfig = {
     transitionSpeed: 0.1, // Smoothness factor for tier transitions
   },
   obstacles: {
+    recycleDistance: 15,
     rock: {
       baseScale: 1,
       visuals: {
@@ -696,6 +702,9 @@ export const defaultConfig: GameConfig = {
       bumpScale: 0.04,
       roughness: 0.85,
       metalness: 0.0,
+      pebbleColors: [0x8e7b65, 0x9c8b76, 0x7b6a55],
+      pebbleDensity: 40,
+      pebbleSizeRange: [1, 3],
       decorations: {
         pebbles: { spawnCount: 20, scaleMin: 0.1, scaleMax: 0.3 },
         smallRocks: { spawnCount: 10, scaleMin: 0.2, scaleMax: 0.5 },
@@ -716,29 +725,29 @@ export const defaultConfig: GameConfig = {
     }
   },
   lighting: {
-    ambientLight: { color: 0x80d0d0, intensity: 0.6 },
+    ambientLight: { color: 0x6699aa, intensity: 0.55 },
     directionalLight: {
-      color: 0xc8ffff,
-      intensity: 0.8,
+      color: 0xb3ecff,
+      intensity: 0.85,
       position: { x: 1, y: 10, z: 1 },
       castShadow: false
     },
-    fogColor: 0x0d5660,
-    fogNear: 10,
-    fogFar: 60,
+    fogColor: 0x083848,
+    fogNear: 8,
+    fogFar: 70,
     enableCaustics: true,
-    causticColor: 0xA0D0FF,
-    causticIntensity: 0.15,
-    causticScale: 6.0,
-    causticSpeed: 0.08,
+    causticColor: 0x9cdfff,
+    causticIntensity: 0.12,
+    causticScale: 7.0,
+    causticSpeed: 0.1,
     causticBlendMode: 'additive',
     enableGodRays: true,
-    godRayColor: 0xA0D0FF,
-    godRayIntensity: 0.08,
-    godRayDensity: 0.96,
-    godRayWeight: 0.05,
-    godRayDecay: 0.96,
-    godRayExposure: 0.1,
-    godRaySamples: 20
+    godRayColor: 0x9cdfff,
+    godRayIntensity: 0.1,
+    godRayDensity: 0.97,
+    godRayWeight: 0.07,
+    godRayDecay: 0.94,
+    godRayExposure: 0.12,
+    godRaySamples: 30
   },
 };

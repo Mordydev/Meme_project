@@ -68,6 +68,7 @@ export class ObstacleManager {
 
   private lastSpawnZ = 0; // Keep track of Z to avoid too close spawns
   private minZSpacing = 10; // Minimum Z distance between obstacles
+  private recycleDistance = configSystem.getObstaclesConfig().recycleDistance;
 
   // Track pattern sequences for more interesting gameplay
   private patternSequence: PatternType[] = [];
@@ -812,7 +813,7 @@ export class ObstacleManager {
     }
 
     // Recycle obstacles that are far behind the player
-    const recycleThreshold = playerZ + 10; // Recycle if 10 units behind player
+    const recycleThreshold = playerZ + this.recycleDistance; // Recycle when this distance behind player
 
     // Use a reverse loop since we're modifying the array while iterating
     for (let i = this.activeObstacles.length - 1; i >= 0; i--) {
