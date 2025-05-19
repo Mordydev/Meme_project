@@ -199,7 +199,7 @@ export class VisualEffectsService {
 
   /** Trigger a small bubble trail at the player's position */
   public triggerPlayerTrail(position: THREE.Vector3): void {
-    this.bubbleSystem?.emit(position, 1);
+    this.bubbleSystem?.emit(position);
   }
 
   /** Emit sparkles when a collectible or power-up is picked up */
