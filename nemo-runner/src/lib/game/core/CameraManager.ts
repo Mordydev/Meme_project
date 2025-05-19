@@ -19,7 +19,7 @@ export class CameraManager {
     this.offset = new THREE.Vector3(
       configSystem.get('camera')?.offset?.x || 0,
       configSystem.get('camera')?.offset?.y || 2,
-      configSystem.get('camera')?.offset?.z || 5
+      configSystem.get('camera')?.offset?.z || 3
     );
     this.lookAtOffset = new THREE.Vector3(
       configSystem.get('camera')?.lookAtOffset?.x || 0,

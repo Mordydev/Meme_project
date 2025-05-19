@@ -430,7 +430,7 @@ export const defaultConfig: GameConfig = {
     laneCount: 3,
   },
   camera: {
-    offset: { x: 0, y: 2, z: 5 }, // z is distance behind player
+    offset: { x: 0, y: 2, z: 3 }, // z is distance behind player (closer view)
     lookAtOffset: { x: 0, y: 1, z: 0 }, // Looks slightly above player's root
     lerpFactor: 0.05, // Smoothness of camera follow
   },
