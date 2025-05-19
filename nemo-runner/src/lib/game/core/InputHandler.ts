@@ -1,4 +1,5 @@
 import { PlayerController } from '../managers/PlayerController';
+import { configSystem } from './ConfigurationSystem';
 
 export class InputHandler {
   private playerController: PlayerController;
@@ -6,12 +7,30 @@ export class InputHandler {
   private gameCanvasElement: HTMLElement | null = null;
   private boundHandleKeyDown: (event: KeyboardEvent) => void;
   private boundHandleKeyUp: (event: KeyboardEvent) => void;
+  private touchConfig: {
+    swipeMinDistance: number;
+    swipeMaxDuration: number;
+    swipeAngleThreshold: number;
+  };
 
   constructor(playerController: PlayerController) {
     this.playerController = playerController;
     // Bind methods to ensure 'this' context is correct in event handlers
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
     this.boundHandleKeyUp = this.handleKeyUp.bind(this);
+
+    const tc = (configSystem.get as any)(
+      'touchControls' as any
+    ) as Partial<{
+      swipeMinDistance: number;
+      swipeMaxDuration: number;
+      swipeAngleThreshold: number;
+    }>;
+    this.touchConfig = {
+      swipeMinDistance: tc?.swipeMinDistance ?? 40,
+      swipeMaxDuration: tc?.swipeMaxDuration ?? 500,
+      swipeAngleThreshold: tc?.swipeAngleThreshold ?? Math.PI / 5
+    };
   }
 
   public setGameCanvasElement(element: HTMLElement): void {
@@ -57,6 +76,60 @@ export class InputHandler {
 
   public update(deltaTime: number): void {
     // No continuous movement for lane system; handled on keydown only
+  }
+
+  // Process a swipe gesture. Exposed for testing but used internally by touch handlers.
+  private processSwipe(
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    deltaTime: number
+  ): void {
+    if (deltaTime > this.touchConfig.swipeMaxDuration) {
+      return;
+    }
+
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+
+    if (Math.max(absDeltaX, absDeltaY) < this.touchConfig.swipeMinDistance) {
+      return;
+    }
+
+    const angle = Math.atan2(deltaY, deltaX);
+
+    if (absDeltaX > absDeltaY) {
+      if (absDeltaX >= this.touchConfig.swipeMinDistance) {
+        if (
+          Math.abs(angle) < this.touchConfig.swipeAngleThreshold ||
+          Math.abs(angle) > Math.PI - this.touchConfig.swipeAngleThreshold
+        ) {
+          if (deltaX > 0) {
+            this.playerController.moveRight();
+          } else {
+            this.playerController.moveLeft();
+          }
+          return;
+        }
+      }
+    } else {
+      if (absDeltaY >= this.touchConfig.swipeMinDistance) {
+        if (
+          Math.abs(angle - Math.PI / 2) < this.touchConfig.swipeAngleThreshold ||
+          Math.abs(angle + Math.PI / 2) < this.touchConfig.swipeAngleThreshold
+        ) {
+          if (deltaY > 0) {
+            this.playerController.dive();
+          } else {
+            this.playerController.jump();
+          }
+          return;
+        }
+      }
+    }
   }
 
   public dispose(): void {
