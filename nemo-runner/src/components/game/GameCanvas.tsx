@@ -367,10 +367,12 @@ export default function GameCanvas() {
         });
       }
 
-      engine.initialize();
-      engine.start();
-      setIsLoading(false);
-      console.log("GameCanvas: GameEngine started.");
+      (async () => {
+        await engine.initialize();
+        engine.start();
+        setIsLoading(false);
+        console.log("GameCanvas: GameEngine started.");
+      })();
 
       const handleResize = () => {
         if (gameEngineRef.current) {
@@ -503,45 +505,6 @@ export default function GameCanvas() {
           onRestart={handleRestart}
           lives={lives} // Pass lives to overlay
         />
-      )}
-
-      {/* Start Game UI */}
-      {gameEngineRef.current && gameEngineRef.current.getCurrentState() === GameState.READY && !isGameOver && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 10,
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          padding: '30px',
-          borderRadius: '20px',
-          boxShadow: '0 0 30px rgba(0,0,0,0.5)',
-          border: '2px solid rgba(255,255,255,0.3)'
-        }}>
-          <h2 style={{ color: 'white', marginTop: 0, textAlign: 'center' }}>Nemo Runner</h2>
-          <button
-            onClick={handleRestart}
-            style={{
-              padding: '15px 30px',
-              fontSize: '22px',
-              cursor: 'pointer',
-              backgroundColor: '#4169E1', // Royal Blue
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
-              transition: '0.3s'
-            }}
-          >
-            Start Game
-          </button>
-          <div style={{ color: 'white', textAlign: 'center', marginTop: '15px' }}>
-            <p style={{ marginBottom: '5px' }}>Collect bubbles and coins for points!</p>
-            <p style={{ marginBottom: '0px' }}>Look for power-ups: 🛡️ Shield, 🧲 Magnet, 2✖️ Double Score</p>
-          </div>
-        </div>
       )}
     </div>
   );

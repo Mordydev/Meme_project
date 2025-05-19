@@ -121,6 +121,20 @@ interface SeafloorVisualConfig {
 }
 
 export class SeafloorAsset {
+  /**
+   * Cached sand texture shared between instances.
+   * Cleared when the last instance is disposed.
+   */
+  private static cachedSandTexture: THREE.CanvasTexture | null = null;
+
+  /**
+   * Cached bump map shared between instances.
+   * Cleared when the last instance is disposed.
+   */
+  private static cachedSandBumpMap: THREE.CanvasTexture | null = null;
+
+  /** Number of active SeafloorAsset instances using the cached textures. */
+  private static usageCount = 0;
   private shaderManager: ShaderManager;
   private lightingManager: LightingManager | null = null;
   public segmentWidth: number;
@@ -133,6 +147,7 @@ export class SeafloorAsset {
 
   constructor(shaderManager: ShaderManager) {
     this.shaderManager = shaderManager;
+    SeafloorAsset.usageCount++;
     this.config = this._fetchConfig();
     this.segmentWidth =
       configSystem.getWorldXBoundary() * 2 +
@@ -152,8 +167,8 @@ export class SeafloorAsset {
       roughness: 0.85,
       metalness: 0.0,
       pebbleColors: [0x8e7b65, 0x9c8b76, 0x7b6a55],
-      pebbleDensity: 40,
-      pebbleSizeRange: [1, 3]
+      pebbleDensity: 100,
+      pebbleSizeRange: [2, 5]
     };
     try {
       const visuals: any = configSystem.get('visuals');
@@ -166,7 +181,15 @@ export class SeafloorAsset {
     }
   }
 
+  /**
+   * Generates (or retrieves) the procedural sand texture.
+   * The result is cached statically to avoid regenerating it
+   * for every asset instance.
+   */
   private createSandTexture(): THREE.CanvasTexture {
+    if (SeafloorAsset.cachedSandTexture) {
+      return SeafloorAsset.cachedSandTexture;
+    }
     const canvas = document.createElement('canvas');
     const size = this.config.textureResolution ?? 256;
     canvas.width = size;
@@ -241,9 +264,13 @@ export class SeafloorAsset {
       const ry = radius * aspect;
       const x = Math.random() * size;
       const y = Math.random() * size;
-      const color =
+      const basePebbleColor =
         pebbleColors[Math.floor(Math.random() * pebbleColors.length)] ||
         baseColor;
+      const brightnessFactor = THREE.MathUtils.randFloat(0.7, 1.3);
+      const color = basePebbleColor
+        .clone()
+        .multiplyScalar(brightnessFactor);
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           drawPebble(x + dx * size, y + dy * size, rx, ry, color);
@@ -259,10 +286,18 @@ export class SeafloorAsset {
       this.config.textureScale / size
     );
     texture.needsUpdate = true;
+    SeafloorAsset.cachedSandTexture = texture;
     return texture;
   }
 
+  /**
+   * Generates (or retrieves) the sand bump map used for subtle relief.
+   * Cached in a static variable and shared across instances.
+   */
   private createSandBumpMap(): THREE.CanvasTexture {
+    if (SeafloorAsset.cachedSandBumpMap) {
+      return SeafloorAsset.cachedSandBumpMap;
+    }
     const canvas = document.createElement('canvas');
     const size = this.config.textureResolution ?? 256;
     canvas.width = size;
@@ -324,7 +359,11 @@ export class SeafloorAsset {
       const ry = radius * aspect;
       const x = Math.random() * size;
       const y = Math.random() * size;
-      const v = 220;
+      const baseVal = 220;
+      const brightnessFactor = THREE.MathUtils.randFloat(0.8, 1.2);
+      const v = Math.floor(
+        THREE.MathUtils.clamp(baseVal * brightnessFactor, 0, 255)
+      );
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           drawPebble(x + dx * size, y + dy * size, rx, ry, v);
@@ -340,9 +379,13 @@ export class SeafloorAsset {
       this.config.textureScale / size
     );
     texture.needsUpdate = true;
+    SeafloorAsset.cachedSandBumpMap = texture;
     return texture;
   }
 
+  /**
+   * Builds the material using cached textures to avoid redundant generation.
+   */
   private createMaterial(): void {
     this.sandTexture = this.createSandTexture();
     this.sandBumpMap = this.createSandBumpMap();
@@ -443,11 +486,17 @@ export class SeafloorAsset {
   }
 
   /**
-   * Disposes material resources to prevent memory leaks
+   * Disposes material resources. Cached textures are released only when
+   * no other SeafloorAsset instances are using them.
    */
   public dispose(): void {
-    this.sandTexture?.dispose();
-    this.sandBumpMap?.dispose();
+    SeafloorAsset.usageCount = Math.max(SeafloorAsset.usageCount - 1, 0);
+    if (SeafloorAsset.usageCount === 0) {
+      SeafloorAsset.cachedSandTexture?.dispose();
+      SeafloorAsset.cachedSandBumpMap?.dispose();
+      SeafloorAsset.cachedSandTexture = null;
+      SeafloorAsset.cachedSandBumpMap = null;
+    }
     this.material?.dispose();
   }
 }

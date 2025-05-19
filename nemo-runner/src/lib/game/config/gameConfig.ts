@@ -247,6 +247,11 @@ export interface SeafloorVisualConfig {
   pebbleColors?: Array<number | string>;
   pebbleDensity?: number;
   pebbleSizeRange?: [number, number];
+  /**
+   * Width of the center area to keep clear of decorations.
+   * Typically set to approximately one player lane width.
+   */
+  decorationSideMargin?: number;
   decorations?: {
     pebbles: DecorationSpawnConfig;
     smallRocks: DecorationSpawnConfig;
@@ -651,28 +656,28 @@ export const defaultConfig: GameConfig = {
   decorations: {
     pebble: {
       colors: [0x888888, 0x777777, 0x999999, 0x666666],
-      scaleMin: 0.08,
-      scaleMax: 0.25
+      scaleMin: 0.06,
+      scaleMax: 0.18
     },
     smallRock: {
       colors: [0x666666, 0x555555, 0x444444, 0x777777],
-      scaleMin: 0.15,
-      scaleMax: 0.4
+      scaleMin: 0.12,
+      scaleMax: 0.3
     },
     clam: {
       colors: [0xD8C0A8, 0xE0D0B0, 0xC8B090, 0xF0E0C8],
-      scaleMin: 0.25,
-      scaleMax: 0.55
+      scaleMin: 0.2,
+      scaleMax: 0.45
     },
     kelp: {
       colors: [0x2e8b57, 0x3a5f0b, 0x20603d],
-      scaleMin: 0.8,
-      scaleMax: 1.2
+      scaleMin: 0.6,
+      scaleMax: 1.0
     },
     starfish: {
       colors: [0xffa07a, 0xff6347, 0xffc1a1, 0xffd1b3],
-      scaleMin: 0.4,
-      scaleMax: 0.7
+      scaleMin: 0.3,
+      scaleMax: 0.6
     }
   },
   visuals: {
@@ -716,14 +721,15 @@ export const defaultConfig: GameConfig = {
       roughness: 0.85,
       metalness: 0.0,
       pebbleColors: [0x8e7b65, 0x9c8b76, 0x7b6a55],
-      pebbleDensity: 60,
-      pebbleSizeRange: [1, 3],
+      pebbleDensity: 100,
+      pebbleSizeRange: [2, 5],
+      decorationSideMargin: 2,
         decorations: {
-          pebbles: { spawnCount: 20, scaleMin: 0.08, scaleMax: 0.25 },
-          smallRocks: { spawnCount: 10, scaleMin: 0.15, scaleMax: 0.4 },
-          clams: { spawnCount: 5, scaleMin: 0.25, scaleMax: 0.55 },
-          kelp: { spawnCount: 3, scaleMin: 0.8, scaleMax: 1.2 },
-          starfish: { spawnCount: 4, scaleMin: 0.4, scaleMax: 0.7 }
+          pebbles: { spawnCount: 10, scaleMin: 0.06, scaleMax: 0.18 },
+          smallRocks: { spawnCount: 5, scaleMin: 0.12, scaleMax: 0.3 },
+          clams: { spawnCount: 2, scaleMin: 0.2, scaleMax: 0.45 },
+          kelp: { spawnCount: 2, scaleMin: 0.6, scaleMax: 1.0 },
+          starfish: { spawnCount: 2, scaleMin: 0.3, scaleMax: 0.6 }
         }
     },
     waterSurface: {

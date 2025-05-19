@@ -324,7 +324,9 @@ export class EnvironmentManager {
   }
 
   private spawnDecorations(segment: EnvironmentSegment): void {
-    const decoConfig = configSystem.getSeafloorConfig().decorations;
+    const seafloorCfg = configSystem.getSeafloorConfig();
+    const decoConfig = seafloorCfg.decorations;
+    const margin = seafloorCfg.decorationSideMargin ?? configSystem.get('player').laneWidth;
 
     if (!decoConfig) {
       return;
@@ -339,14 +341,20 @@ export class EnvironmentManager {
         return;
       }
       
+      const halfWidth = this.segmentWidth / 2;
+      const xMin = this.segmentWidth / 4;
+      const xMax = Math.max(xMin, halfWidth - margin);
+
       for (let i = 0; i < settings.spawnCount; i++) {
         const [inst, index] = this.getInactiveInstance(dataArray);
         if (!inst) break;
         inst.isActive = true;
 
         const scaleVal = THREE.MathUtils.randFloat(settings.scaleMin, settings.scaleMax);
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const xPos = THREE.MathUtils.randFloat(xMin, xMax) * side;
         const pos = new THREE.Vector3(
-          THREE.MathUtils.randFloatSpread(this.segmentWidth * 0.8),
+          xPos,
           segment.mesh.position.y,
           segment.mesh.position.z + THREE.MathUtils.randFloatSpread(this.segmentLength)
         );
