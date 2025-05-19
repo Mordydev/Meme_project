@@ -6,7 +6,7 @@ export const particleVertexShader = `
 
   varying vec3 vColor;
   varying float vAlpha;
-  varying float vRotation;      // Pass rotation to fragment if needed
+  varying float vRotation;
   varying vec2 vUv;             // Standard UV
 
   uniform float uBaseSize;      // Global size multiplier from config
@@ -16,13 +16,16 @@ export const particleVertexShader = `
   void main() {
     vColor = aColor;
     vAlpha = aAlpha;
-    vRotation = aRotation;
+    vRotation = aRotation; // Pass rotation to fragment shader if needed for textured sprites
     vUv = uv;
 
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
 
-    // Calculate point size based on perspective, base size, particle scale, and pixel ratio
+    // Perspective-correct point size
     gl_PointSize = uBaseSize * aScale * (100.0 / -mvPosition.z) * uPixelRatio;
+    // Ensure gl_PointSize is not NaN or Inf
+    if (mvPosition.z == 0.0) gl_PointSize = 0.0; // Avoid division by zero if camera is inside point
+    if (gl_PointSize < 0.0) gl_PointSize = 0.0; // Ensure positive size
 
     gl_Position = projectionMatrix * mvPosition;
   }
