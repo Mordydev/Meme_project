@@ -312,6 +312,12 @@ export interface LightingConfig {
   godRaySamples?: number;
 }
 
+export interface TouchControlsConfig {
+  swipeMinDistance: number;
+  swipeMaxDuration: number;
+  swipeAngleThreshold: number;
+}
+
 export interface ParticleEffectConfig {
   enabled: boolean;
   poolSize: number;
@@ -444,6 +450,7 @@ export interface GameConfig {
   };
   powerUps: PowerUpsGameConfig; // Power-up configuration
   difficulty: DifficultyGameConfig; // Difficulty configuration
+  touchControls: TouchControlsConfig;
   obstacles: ObstaclesConfig; // Obstacle configuration
   decorations: DecorationsConfig; // Decoration assets configuration
   visuals: VisualSettings;
@@ -520,6 +527,11 @@ export const defaultConfig: GameConfig = {
     baseObstacleSpawnIntervalMin: 2.5,
     baseObstacleSpawnIntervalMax: 4.5,
     transitionSpeed: 0.1, // Smoothness factor for tier transitions
+  },
+  touchControls: {
+    swipeMinDistance: 40,
+    swipeMaxDuration: 500,
+    swipeAngleThreshold: Math.PI / 5
   },
   obstacles: {
     recycleDistance: 15,

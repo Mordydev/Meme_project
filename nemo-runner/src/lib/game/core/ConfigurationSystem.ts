@@ -8,7 +8,8 @@ import {
   SeafloorVisualConfig,
   WaterSurfaceVisualConfig,
   VisualSettings,
-  DecorationsConfig
+  DecorationsConfig,
+  TouchControlsConfig
 } from '../config/gameConfig';
 
 class ConfigurationSystem {
@@ -34,7 +35,11 @@ class ConfigurationSystem {
         : {
             ...defaultConfig.difficulty,
             tiers: [...defaultConfig.difficulty.tiers]
-          }
+          },
+      // Deep merge touchControls if provided
+      touchControls: initialConfig?.touchControls
+        ? { ...defaultConfig.touchControls, ...initialConfig.touchControls }
+        : { ...defaultConfig.touchControls }
     };
     console.log("ConfigurationSystem: Initialized with config:", JSON.stringify(this.config));
   }
@@ -133,6 +138,10 @@ class ConfigurationSystem {
 
   public getWaterSurfaceConfig(): Readonly<WaterSurfaceVisualConfig> {
     return this.config.visuals.waterSurface;
+  }
+
+  public getTouchControlsConfig(): Readonly<TouchControlsConfig> {
+    return this.config.touchControls;
   }
 }
 
