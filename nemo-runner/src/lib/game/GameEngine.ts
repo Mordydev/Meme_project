@@ -171,6 +171,7 @@ export class GameEngine {
 
       // Input Handler
       this.inputHandler = new InputHandler(this.playerController);
+      this.inputHandler.setGameCanvasElement(this.renderer.domElement as HTMLElement);
       this.inputHandler.initialize();
 
       // ObstacleManager
