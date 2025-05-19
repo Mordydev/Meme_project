@@ -10,6 +10,7 @@ interface BubbleParticle {
   scale: number;
   alpha: number;
   rotation: number; // Optional
+  rotationSpeed: number;
   color: THREE.Color;
 }
 
@@ -28,6 +29,9 @@ export class BubbleParticleSystem {
   private alphas!: Float32Array;
   private colors!: Float32Array;
   private rotations!: Float32Array;
+  private rotationSpeeds: number[] = [];
+  private lastPixelRatio: number =
+    typeof window !== 'undefined' ? window.devicePixelRatio : 1;
 
   constructor(scene: THREE.Scene, shaderManager: ShaderManager, poolSize: number) {
     this.scene = scene;
@@ -55,6 +59,7 @@ export class BubbleParticleSystem {
       this.colors[i * 3 + 1] = 1;
       this.colors[i * 3 + 2] = 1;
       this.rotations[i] = 0;
+      this.rotationSpeeds[i] = 0;
     }
 
     this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
@@ -67,7 +72,7 @@ export class BubbleParticleSystem {
     this.material = this.shaderManager.createShaderMaterial('bubbleShader', {
       uBaseColor: { value: new THREE.Color(0xffffff) }, // White base tint for bubbles
       uBaseSize: { value: configSystem.get('visuals').bubbleSize },
-      uPixelRatio: { value: typeof window !== 'undefined' ? window.devicePixelRatio : 1 },
+      uPixelRatio: { value: this.lastPixelRatio },
       uUseTexture: { value: false },
     });
 
@@ -124,24 +129,19 @@ export class BubbleParticleSystem {
       scale: THREE.MathUtils.randFloat(bubbleConfig.particleSizeMin, bubbleConfig.particleSizeMax),
       alpha: bubbleConfig.opacityStart || 1.0,
       rotation: THREE.MathUtils.randFloat(0, Math.PI * 2),
+      rotationSpeed: bubbleConfig.rotationSpeed
+        ? THREE.MathUtils.randFloatSpread(bubbleConfig.rotationSpeed)
+        : 0,
       color: new THREE.Color(bubbleConfig.color1 || 0xffffff),
     };
     this.particles[targetIndex] = particle;
+    this.rotationSpeeds[targetIndex] = particle.rotationSpeed;
 
     // Immediately update buffer for the spawned particle
     this.updateBufferAttributes(targetIndex, particle);
   }
 
-  /**
-   * Emit a burst of bubbles at the provided origin.
-   * @param origin Position to spawn bubbles around
-   * @param count Number of bubbles to emit
-   */
-  public emit(origin: THREE.Vector3, count: number = 1): void {
-    for (let i = 0; i < count; i++) {
-      this.spawnParticle(origin);
-    }
-  }
+
 
   private updateBufferAttributes(index: number, particle: BubbleParticle): void {
     this.positions[index * 3] = particle.position.x;
@@ -201,6 +201,9 @@ export class BubbleParticleSystem {
         lifetimeRatio
       );
 
+      // Apply rotation
+      p.rotation += this.rotationSpeeds[i] * deltaTime;
+
       // Update buffer attributes
       this.updateBufferAttributes(i, p);
     }
@@ -229,9 +232,12 @@ export class BubbleParticleSystem {
       if (this.material.uniforms.uBaseSize) {
         this.material.uniforms.uBaseSize.value = bubbleConfig.particleSizeMax;
       }
-      if (this.material.uniforms.uPixelRatio) {
-        this.material.uniforms.uPixelRatio.value = 
-          typeof window !== 'undefined' ? window.devicePixelRatio : 1;
+      if (typeof window !== 'undefined') {
+        const pr = window.devicePixelRatio;
+        if (this.material.uniforms.uPixelRatio && pr !== this.lastPixelRatio) {
+          this.material.uniforms.uPixelRatio.value = pr;
+          this.lastPixelRatio = pr;
+        }
       }
     }
   }

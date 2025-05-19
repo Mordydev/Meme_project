@@ -204,12 +204,12 @@ export class VisualEffectsService {
 
   /** Emit sparkles when a collectible or power-up is picked up */
   public triggerCollectiblePickup(position: THREE.Vector3): void {
-    this.collectiblePickupSystem?.emit(position, 10);
+    this.collectiblePickupSystem?.emit(position);
   }
 
   /** Emit debris when the player hits an obstacle */
   public triggerObstacleImpact(position: THREE.Vector3): void {
-    this.obstacleImpactSystem?.emit(position, 15);
+    this.obstacleImpactSystem?.emit(position);
   }
 
   /** Trigger a special effect when shield absorbs a hit */
@@ -229,7 +229,7 @@ export class VisualEffectsService {
       doublescore: new THREE.Color(0xffd700)
     };
     const color = colors[type] || new THREE.Color(0xffffff);
-    this.collectiblePickupSystem?.emit(position, type as any, color);
+    this.collectiblePickupSystem?.emit(position, color);
   }
 
   /**
