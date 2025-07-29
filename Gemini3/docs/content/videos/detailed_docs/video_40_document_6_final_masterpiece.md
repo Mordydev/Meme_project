@@ -45,7 +45,7 @@ ENHANCEMENT_ASSESSMENT = {
     "character": {
       "peaceful_sleeper": {
         "id": "SLEEPER_28_EXACT",
-        "description": "28 year old person in comfortable quality sleepwear, perfectly relaxed posture, deep satisfied sleep achieved, phone face down showing confident boundaries",
+        "description": "28 year old man in comfortable quality sleepwear, perfectly relaxed posture, deep satisfied sleep achieved, phone face down showing confident boundaries",
         "position": "centered peaceful sleep in optimized bedroom",
         "journey": "satisfied settling → deep peaceful sleep"
       }
@@ -112,7 +112,7 @@ ENHANCEMENT_ASSESSMENT = {
     "character": {
       "stressed_friends": {
         "id": "FRIENDS_STRESSED_EXACT",
-        "description": "multiple friends ages 25-30 in basic sleepwear, restless tossing and turning, phones active with work/money stress, unable to achieve peaceful sleep",
+        "description": "multiple male friends ages 25-30 in basic sleepwear, restless tossing and turning, phones active with work/money stress, unable to achieve peaceful sleep",
         "collective_state": "traditional financial economy stress preventing rest",
         "individual_struggles": "rent anxiety, work emails, bill deadlines"
       }

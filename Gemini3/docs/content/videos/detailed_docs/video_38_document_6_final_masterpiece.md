@@ -44,13 +44,13 @@ ENHANCEMENT_ASSESSMENT = {
     "characters": {
       "casual_person": {
         "id": "CASUAL_24_EXACT",
-        "description": "24 year old person with medium brown hair, wearing plain casual t-shirt and jeans, normal everyday energy, not crypto-focused at all",
+        "description": "24 year old man with medium brown hair, wearing plain casual t-shirt and jeans, normal everyday energy, not crypto-focused at all",
         "position": "left side of café table",
         "journey": "casual mention → growing confusion at reaction"
       },
       "crypto_enthusiast": {
         "id": "CRYPTO_26_EXACT",
-        "description": "26 year old person with dark brown styled hair, wearing subtle crypto-themed t-shirt or plain hoodie, immediately animated when crypto mentioned",
+        "description": "26 year old man with dark brown styled hair, wearing subtle crypto-themed t-shirt or plain hoodie, immediately animated when crypto mentioned",
         "position": "right side of café table",
         "journey": "normal conversation → explosive excitement"
       }
@@ -115,12 +115,16 @@ ENHANCEMENT_ASSESSMENT = {
     "characters": {
       "casual_person": {
         "id": "CASUAL_24_EXACT",
+        "description": "24 year old man with medium brown hair, wearing plain casual t-shirt and jeans, normal everyday energy, not crypto-focused at all",
+        "position": "left side of café table",
         "clarification": "helpful explanation of Google AI",
         "patience": "trying to clear up confusion",
         "awareness": "realizes the mixup happened"
       },
       "crypto_enthusiast": {
         "id": "CRYPTO_26_EXACT",
+        "description": "26 year old man with dark brown styled hair, wearing subtle crypto-themed t-shirt or plain hoodie, immediately animated when crypto mentioned",
+        "position": "right side of café table",
         "deflation": "complete energy drain realization",
         "disappointment": "not crypto after all",
         "recovery": "attempting social grace"

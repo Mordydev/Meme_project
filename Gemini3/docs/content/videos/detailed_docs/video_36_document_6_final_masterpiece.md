@@ -44,7 +44,7 @@ ENHANCEMENT_ASSESSMENT = {
     "character": {
       "researcher": {
         "id": "AWAKENING_28_EXACT",
-        "description": "28 year old person with dark brown hair, wearing comfortable hoodie and jeans, expressive face capable of showing thinking process, academic but approachable energy",
+        "description": "28 year old man with dark brown hair, wearing comfortable hoodie and jeans, expressive face capable of showing thinking process, academic but approachable energy",
         "position": "at desk with research materials",
         "journey": "overwhelmed → thinking → first connections"
       }
@@ -110,6 +110,8 @@ ENHANCEMENT_ASSESSMENT = {
     "character": {
       "researcher": {
         "id": "AWAKENING_28_EXACT",
+        "description": "28 year old man with dark brown hair, wearing comfortable hoodie and jeans, expressive face capable of showing thinking process, academic but approachable energy",
+        "position": "at desk with research materials",
         "transformation": "confused → enlightened → excited",
         "energy_shift": "3/10 → 9/10 dramatic",
         "breakthrough": "complete ecosystem understanding"

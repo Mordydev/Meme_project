@@ -45,7 +45,7 @@ ENHANCEMENT_ASSESSMENT = {
     "character": {
       "morning_checker": {
         "id": "CHECKER_27_EXACT",
-        "description": "27 year old person with medium brown bedhead hair, wearing comfortable sleep shirt, sleepy but habitual phone-reaching behavior, daily crypto greeting ritual",
+        "description": "27 year old man with medium brown hair (bedhead messy), wearing comfortable sleep shirt, sleepy but habitual phone-reaching behavior, daily crypto greeting ritual",
         "position": "in bed, immediate phone grab upon waking",
         "journey": "sleepy routine → pleased optimism"
       }
@@ -111,7 +111,7 @@ ENHANCEMENT_ASSESSMENT = {
     "character": {
       "work_checker": {
         "id": "CHECKER_27_EXACT",
-        "description": "same person now in business casual work clothes, styled hair, guilty secretive phone checking behavior at professional desk setup",
+        "description": "27 year old man with medium brown hair (now styled for work), wearing business casual work clothes, guilty secretive phone checking behavior at professional desk setup",
         "transformation": "morning optimist → workplace anxious checker",
         "conflict": "productivity vs crypto obsession"
       }
@@ -170,7 +170,7 @@ ENHANCEMENT_ASSESSMENT = {
     "character": {
       "night_checker": {
         "id": "CHECKER_27_EXACT",
-        "description": "same person in comfortable sleepwear, tired end-of-day energy, philosophical acceptance of crypto reality, bedtime ritual completion",
+        "description": "27 year old man with medium brown hair (relaxed from work styling), wearing comfortable sleepwear, tired end-of-day energy, philosophical acceptance of crypto reality, bedtime ritual completion",
         "final_evolution": "workplace anxiety → bedtime wisdom",
         "cycle_completion": "daily emotional journey resolved"
       }

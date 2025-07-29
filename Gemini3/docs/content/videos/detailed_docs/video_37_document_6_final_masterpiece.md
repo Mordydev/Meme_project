@@ -44,7 +44,7 @@ ENHANCEMENT_ASSESSMENT = {
     "character": {
       "first_day_investor": {
         "id": "INVESTOR_26_EXACT",
-        "description": "26 year old person with medium brown hair, wearing basic casual hoodie and jeans, nervous excited energy, first-time crypto investor enthusiasm mixed with anxiety",
+        "description": "26 year old man with medium brown hair, wearing basic casual hoodie and jeans, nervous excited energy, first-time crypto investor enthusiasm mixed with anxiety",
         "position": "at basic desk/bedroom setup",
         "journey": "excited hope → immediate anxiety"
       }
@@ -110,6 +110,8 @@ ENHANCEMENT_ASSESSMENT = {
     "character": {
       "seasoned_investor": {
         "id": "INVESTOR_26_EXACT",
+        "description": "26 year old man with medium brown hair, wearing basic casual hoodie and jeans, nervous excited energy, first-time crypto investor enthusiasm mixed with anxiety",
+        "position": "at basic desk/bedroom setup",
         "transformation": "same person, evolved confidence",
         "evolution": "nervous amateur → diamond hands veteran",
         "energy_shift": "anxiety → zen mastery"
