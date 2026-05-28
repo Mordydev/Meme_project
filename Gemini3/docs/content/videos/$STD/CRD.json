@@ -1,0 +1,135 @@
+{
+  "project_metadata": {
+    "title": "CRD - Chronic Round Dripper",
+    "created": "2025-08-19",
+    "workflow": "YOLO_v1.0",
+    "validation_score": "95%",
+    "content_type": "Commercial Parody",
+    "target_platforms": ["YouTube", "TikTok", "Instagram"],
+    "total_duration": "32 seconds (4 beats × 8s)"
+  },
+  "characters": {
+    "degen_patient_marcus": {
+      "description": "28-year-old male with disheveled appearance, unshaven face, dark circles under eyes, messy brown hair, wearing a stained purple and black Solana hoodie, ripped jeans, dirty sneakers, constantly checking phone, scratching head nervously",
+      "personality": "Manic, confused, desperate, crypto-obsessed, high-energy, panicked",
+      "voice": "High-energy, panicked, uses crypto slang and profanity"
+    },
+    "doctor_patricia": {
+      "description": "45-year-old female doctor with professional appearance, disgusted expression, short gray hair, glasses, wearing white medical coat over blue scrubs, stethoscope around neck, covering nose, stepping back in horror",
+      "personality": "Professional but horrified, trying to maintain composure",
+      "voice": "Clinical but strained, professional despite disgust"
+    },
+    "narrator_voice": {
+      "description": "Deep, authoritative male voice, classic pharmaceutical commercial style",
+      "personality": "Professional, serious, slightly condescending medical authority",
+      "voice": "Measured pace, emphasizing key medical terms"
+    }
+  },
+  "beats": {
+    "beat_1": {
+      "title": "Patient Discovery Scene",
+      "duration": 8.0,
+      "prompt": "Medium shot of a 28-year-old male with disheveled appearance, unshaven face, dark circles under eyes, messy brown hair, wearing a stained purple and black Solana hoodie, ripped jeans, dirty sneakers sitting in dimly lit apartment looking at plummeting crypto chart on phone screen. He scratches his head frantically, then opens the front of his pants to look down with confused expression. Natural indoor lighting with phone screen glow illuminating his shocked face. Handheld camera with slight shake for realism. The man yells 'What the actual fuck is this?!' while gesturing at his phone, then looks down his pants saying 'what's this shit? My crypto bags are sinking, my dicks oozing, and my hands won't hit the sell button...' Camera zooms in on his panicked expression.",
+      "keywords": ["16:9", "no text", "8 seconds", "realistic", "natural lighting", "commercial style", "handheld camera", "shocked expression", "dramatic zoom", "dimly lit apartment", "phone screen glow"],
+      "character": "28-year-old male with disheveled appearance, unshaven face, dark circles under eyes, messy brown hair, wearing a stained purple and black Solana hoodie, ripped jeans, dirty sneakers, constantly checking phone, scratching head nervously",
+      "dialogue": "What the actual fuck is this?! what's this shit? My crypto bags are sinking, my dicks oozing, and my hands won't hit the sell button...",
+      "timing": {
+        "0-3s": "Staring at phone with plummeting chart",
+        "3-6s": "Opens pants, looks down confused",
+        "6-8s": "Frustrated outburst about crypto and condition"
+      }
+    },
+    "beat_2": {
+      "title": "Doctor Examination Scene",
+      "duration": 8.0,
+      "prompt": "Wide shot of sterile medical examination room with bright professional lighting. 28-year-old male with disheveled appearance, unshaven face, dark circles under eyes, messy brown hair, wearing a stained purple and black Solana hoodie stands worried and sweating with pants down at ankles. 45-year-old female doctor with professional appearance, disgusted expression, short gray hair, glasses, wearing white medical coat over blue scrubs, stethoscope around neck covers her nose and steps back in horror. Camera captures both characters with the doctor's shocked reaction as focal point. Professional medical office cinematography with sterile white walls and medical equipment visible in background.",
+      "keywords": ["16:9", "no text", "8 seconds", "realistic", "natural lighting", "commercial style", "medical office", "disgusted reaction", "professional cinematography", "sterile environment"],
+      "character": "28-year-old male with disheveled appearance, unshaven face, dark circles under eyes, messy brown hair, wearing a stained purple and black Solana hoodie, and 45-year-old female doctor with professional appearance, disgusted expression, short gray hair, glasses, wearing white medical coat over blue scrubs, stethoscope around neck",
+      "dialogue": "Visual scene - doctor's horrified reaction to examination",
+      "timing": {
+        "0-2s": "Patient worried, sweating in doctor's office",
+        "2-5s": "Pants down, doctor's disgusted reaction",
+        "5-8s": "Doctor stepping back in horror"
+      }
+    },
+    "beat_3": {
+      "title": "Medical Information Narration",
+      "duration": 8.0,
+      "prompt": "Clean medical information presentation style with professional overlay graphics. Medium shot focusing on authoritative medical presentation aesthetic. Narrator voice delivers medical information about CRD symptoms in deep, authoritative male voice with pharmaceutical commercial style delivery. Professional lighting with clinical color science. Camera maintains steady, authoritative framing typical of medical advertisements. Background suggests medical authority with subtle medical imagery.",
+      "keywords": ["16:9", "no text", "8 seconds", "realistic", "natural lighting", "commercial style", "medical advertisement", "authoritative narration", "professional cinematography", "clinical presentation"],
+      "character": "Narrator voice - Deep, authoritative male voice, classic pharmaceutical commercial style, professional, serious, slightly condescending medical authority",
+      "dialogue": "If your dick drips enough to water the Sahara desert, then you might have CRD, Chronic Round Dripper syndrome. Symptoms of CRD may include, not getting laid, getting side eyed by dogs, dogs attracted to your penis aroma, not getting invited to thanksgiving, no more hugs, penile atrophy, low vitamin d, and getting denied by prostitutes.",
+      "timing": {
+        "0-8s": "Complete medical information delivery"
+      }
+    },
+    "beat_4": {
+      "title": "Product Advertisement",
+      "duration": 8.0,
+      "prompt": "Professional product showcase with luxury aesthetic. Close-up shots of diamond-encrusted penile sock product called Diadik with premium lighting and luxury presentation. Professional commercial cinematography with smooth camera movements showcasing the diamond-covered product. Narrator continues with authoritative pharmaceutical commercial voice delivery. Background suggests medical and luxury combination with professional lighting setup. Camera captures product details with high-end commercial production values.",
+      "keywords": ["16:9", "no text", "8 seconds", "realistic", "natural lighting", "commercial style", "product showcase", "luxury aesthetic", "authoritative narration", "professional cinematography", "diamond luxury"],
+      "character": "Narrator voice - Deep, authoritative male voice, classic pharmaceutical commercial style, professional, serious, slightly condescending medical authority",
+      "dialogue": "If you or anyone you know is suffering from CRD, tell them to call their physician with the warmest hands and ask them if Diadik is right for you. Diadik a non surgical, chemical free way to choke off your house at the dip. Diadik is a prosthetic diamond encrusted super absorbent penile sock. When you wear your diadik not only will your drip be diamond covered, but you'll have the most expensive dick in the room. Size doesn't matter, when your dick is worth a mil. No more when lambo, wen diadik. Get your prescription today and you may be eligible to get your diadik on medicare. Certain color restriction apply for penile sizes, skin color, and income bracket. Get your Diadik today.",
+      "timing": {
+        "0-8s": "Complete product advertisement delivery"
+      }
+    }
+  },
+  "variations": {
+    "hero": {
+      "description": "Balanced commercial parody with shock comedy - Original version",
+      "modifications": "Standard execution as described above",
+      "target_audience": "General comedy/crypto audience",
+      "platform_optimization": "YouTube primary"
+    },
+    "variation_a": {
+      "description": "Enhanced comedy with exaggerated reactions",
+      "modifications": "Increase facial expressions, add more physical comedy, enhance shocked reactions",
+      "target_audience": "Comedy-focused viewers",
+      "platform_optimization": "TikTok comedy trend"
+    },
+    "variation_b": {
+      "description": "More dramatic medical tone with serious undertones",
+      "modifications": "Reduce comedy elements, emphasize medical authority, more serious narrator tone",
+      "target_audience": "Adult comedy with medical parody focus",
+      "platform_optimization": "YouTube mature content"
+    },
+    "variation_c": {
+      "description": "TikTok-optimized with faster pacing",
+      "modifications": "Compress timing, enhance visual impacts, optimize for vertical viewing",
+      "target_audience": "TikTok crypto/meme community",
+      "platform_optimization": "TikTok vertical format"
+    }
+  },
+  "generation_notes": {
+    "seed_strategy": "Use consistent seed for character continuity across all 4 beats. Test multiple seeds for optimal character consistency.",
+    "character_consistency": "CRITICAL: Use complete character descriptions in every beat. Never use 'same as beat 1' - copy full descriptions.",
+    "audio_safety": "All dialogue uses natural capitalization - NO ALL CAPS in speech",
+    "platform_exports": {
+      "youtube": "16:9 format, 32-second total duration",
+      "tiktok": "Vertical crop optimization, faster pacing",
+      "instagram": "Square crop consideration for feed posts"
+    },
+    "success_metrics": {
+      "engagement_target": "15%+ engagement rate",
+      "shareability_factors": "Shock comedy, crypto relevance, absurd product",
+      "viral_potential": "High - combines crypto culture with absurd medical parody"
+    },
+    "technical_requirements": {
+      "total_duration": "32 seconds (4 beats × 8 seconds each)",
+      "format": "16:9 widescreen",
+      "quality": "High-definition commercial grade",
+      "audio": "Professional narrator voice with character dialogue"
+    }
+  },
+  "validation_checklist": {
+    "character_consistency": "✓ Complete descriptions in every beat",
+    "audio_safety": "✓ No ALL CAPS in dialogue",
+    "timing_precision": "✓ Exactly 8.0 seconds per beat",
+    "keyword_completeness": "✓ All required keywords present",
+    "script_fidelity": "✓ Original script preserved exactly",
+    "technical_specs": "✓ Professional commercial standards",
+    "viral_mechanics": "✓ Shock comedy + crypto relevance",
+    "platform_optimization": "✓ Multi-platform compatibility"
+  }
+}

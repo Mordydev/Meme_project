@@ -1,0 +1,395 @@
+{
+  "project": "CRD - Chronic Round Dripper Pharmaceutical Parody",
+  "total_duration": "56 seconds (7 x 8-second segments)",
+  "style": "Dark comedy pharmaceutical commercial parody",
+  "prompts": [
+    {
+      "segment_id": 1,
+      "title": "Discovery Scene - Crypto Degen Realization",
+      "description": "Disheveled crypto trader discovers wet spot while checking plummeting charts, realizing something is wrong.",
+      "style": "photorealistic cinematic, dark comedy pharmaceutical commercial",
+      "keywords": [
+        "16:9",
+        "pharmaceutical ad",
+        "dark comedy",
+        "crypto trader",
+        "disheveled character",
+        "stained clothing",
+        "phone screen",
+        "medical concern",
+        "no text overlays",
+        "8 seconds"
+      ],
+      "duration": 8,
+      "character": {
+        "description": "Jake, 32-year-old disheveled man, unwashed brown hair, patchy beard, wearing stained purple Solana hoodie with crypto logos, baggy gray sweatpants, pale skin, red-rimmed eyes from screen time",
+        "voice": "panicked, confused, slightly unhinged energy"
+      },
+      "timing_breakdown": {
+        "0.0-2.5s": {
+          "visual": "Jake, 32-year-old disheveled man with unwashed brown hair and patchy beard in stained purple Solana hoodie, hunched over phone showing red crypto charts, scratching head frantically in dimly lit apartment",
+          "camera": "medium close-up, handheld slight shake for anxiety",
+          "lighting": "harsh phone screen glow on face, dark apartment ambience",
+          "audio": "typing sounds, notification pings, frustrated breathing"
+        },
+        "2.5-5.0s": {
+          "visual": "Jake, 32-year-old disheveled man with unwashed brown hair and patchy beard in stained purple Solana hoodie, stands up suddenly, looks down at front of gray sweatpants, visible dark wet spot spreading",
+          "camera": "tilt down following his gaze to pants, then back up to horrified face",
+          "lighting": "overhead apartment light flickers on, revealing stain clearly",
+          "dialogue": "What the actual fuck is this?!",
+          "audio": "chair scraping, fabric rustling, shocked gasp"
+        },
+        "5.0-8.0s": {
+          "visual": "Jake, 32-year-old disheveled man with unwashed brown hair and patchy beard in stained purple Solana hoodie, pulls waistband forward to look inside pants, eyes widening in horror and confusion",
+          "camera": "close-up on face showing disgust and panic",
+          "lighting": "harsh overhead light, sweat glistening on forehead",
+          "dialogue": "What's this shit? My crypto bags are sinking and my dick's oozing!",
+          "audio": "elastic snap, heavy breathing, distant chart notification sounds"
+        }
+      },
+      "environment": "messy bachelor apartment, empty energy drink cans, multiple monitor setup with crypto charts",
+      "audio_layers": {
+        "dialogue": "panicked, confused delivery",
+        "sfx": "notification pings, chair movements, fabric sounds",
+        "ambience": "apartment hum, computer fans"
+      },
+      "negative_prompts": ["text overlays", "captions", "logos", "clean environment", "professional setting"]
+    },
+    {
+      "segment_id": 2,
+      "title": "Doctor's Office Shock",
+      "description": "Patient reveals condition to doctor who reacts with visible disgust and shock.",
+      "style": "photorealistic cinematic, medical office setting, dark comedy",
+      "keywords": [
+        "16:9",
+        "doctor's office",
+        "medical examination",
+        "shocked reaction",
+        "pharmaceutical parody",
+        "clinical lighting",
+        "professional medical",
+        "no text overlays",
+        "8 seconds"
+      ],
+      "duration": 8,
+      "characters": {
+        "patient": "Jake, 32-year-old disheveled man with unwashed brown hair and patchy beard in stained purple Solana hoodie, gray sweatpants at ankles, embarrassed and sweating",
+        "doctor": "Dr. Martinez, 45-year-old Hispanic woman, short black hair, white coat, stethoscope, professional attire, horrified expression"
+      },
+      "timing_breakdown": {
+        "0.0-2.0s": {
+          "visual": "Jake, 32-year-old disheveled man in stained purple Solana hoodie, standing nervously in sterile medical office, reaches for zipper while Dr. Martinez, 45-year-old woman in white coat, holds clipboard",
+          "camera": "wide shot showing both characters, medical posters on walls",
+          "lighting": "bright clinical fluorescent lighting",
+          "audio": "zipper sound effect prominent, paper rustling"
+        },
+        "2.0-5.0s": {
+          "visual": "Jake's gray sweatpants drop to ankles, Dr. Martinez, 45-year-old woman in white coat, face transforms from professional to absolute horror and disgust, drops clipboard",
+          "camera": "quick cut to doctor's shocked face, eyes wide",
+          "lighting": "harsh medical lighting emphasizing doctor's horrified expression",
+          "audio": "clipboard clattering, shocked gasp from doctor"
+        },
+        "5.0-8.0s": {
+          "visual": "Dr. Martinez, 45-year-old woman in white coat, backs away covering nose, Jake, 32-year-old disheveled man in Solana hoodie with pants at ankles, looks down shamefully",
+          "camera": "pull back to show increasing distance between them",
+          "lighting": "clinical lighting with shadows showing separation",
+          "audio": "doctor's muffled voice through hand, squeaking shoes on linoleum"
+        }
+      },
+      "environment": "sterile medical examination room, anatomy posters, examination table, medical equipment",
+      "audio_layers": {
+        "sfx": "zipper sound, clipboard drop, shoe squeaks",
+        "ambience": "fluorescent light hum, medical equipment beeps"
+      },
+      "negative_prompts": ["text overlays", "nudity", "explicit content", "unprofessional medical setting"]
+    },
+    {
+      "segment_id": 3,
+      "title": "Narrator Introduction with Dog Reaction",
+      "description": "Professional narrator voice explains CRD while showing patient getting side-eyed by disgusted dogs on street.",
+      "style": "pharmaceutical commercial aesthetic, professional voiceover, comedic visual demonstrations",
+      "keywords": [
+        "16:9",
+        "pharmaceutical commercial",
+        "narrator voiceover",
+        "street scene",
+        "dog reactions",
+        "medical information",
+        "professional tone",
+        "comedic visuals",
+        "8 seconds"
+      ],
+      "duration": 8,
+      "character": "Jake, 32-year-old disheveled man in stained purple Solana hoodie and gray sweatpants, walking shamefully down suburban sidewalk",
+      "narrator": "Professional male voiceover, calm pharmaceutical commercial tone",
+      "timing_breakdown": {
+        "0.0-3.0s": {
+          "visual": "Jake, 32-year-old disheveled man in stained Solana hoodie, walks down sidewalk as golden retriever on leash stops and gives obvious side-eye with disgusted expression",
+          "camera": "tracking shot following Jake, cuts to close-up of dog's judgmental face",
+          "lighting": "bright daylight, suburban setting",
+          "dialogue": "If your dick drips enough to water the Sahara desert",
+          "audio": "professional narrator voice, dog whimpering"
+        },
+        "3.0-6.0s": {
+          "visual": "Multiple dogs turn away disgusted as Jake passes, one small terrier actively backing away, owner pulling leash",
+          "camera": "wide shot showing multiple dog reactions",
+          "lighting": "natural daylight, clear visibility",
+          "dialogue": "then you might have CRD, Chronic Round Dripper syndrome",
+          "audio": "narrator continues, multiple dog whines and growls"
+        },
+        "6.0-8.0s": {
+          "visual": "Jake, 32-year-old disheveled man in stained hoodie, stands alone on sidewalk as all dogs and owners have moved away",
+          "camera": "pull back to show his isolation",
+          "lighting": "bright but emphasizing his loneliness",
+          "dialogue": "Symptoms of CRD include",
+          "audio": "narrator voice, distant dog barks, lonely wind"
+        }
+      },
+      "environment": "suburban sidewalk, trees, typical neighborhood setting",
+      "audio_layers": {
+        "dialogue": "professional pharmaceutical narrator",
+        "sfx": "dog sounds, footsteps, wind",
+        "ambience": "suburban outdoor sounds"
+      },
+      "negative_prompts": ["text overlays", "animal harm", "aggressive behavior"]
+    },
+    {
+      "segment_id": 4,
+      "title": "Prostitute Rejection Scene",
+      "description": "Patient approaches sex worker who rejects him with visible disgust, narrator lists more symptoms.",
+      "style": "dark comedy, street scene at night, pharmaceutical commercial parody",
+      "keywords": [
+        "16:9",
+        "night street scene",
+        "urban setting",
+        "rejection scene",
+        "pharmaceutical parody",
+        "neon lighting",
+        "dark comedy",
+        "8 seconds"
+      ],
+      "duration": 8,
+      "characters": {
+        "patient": "Jake, 32-year-old disheveled man in stained purple Solana hoodie, approaching nervously",
+        "sex_worker": "Crystal, 28-year-old woman, blonde hair, red dress, platform heels, professional street attire"
+      },
+      "timing_breakdown": {
+        "0.0-2.5s": {
+          "visual": "Jake, 32-year-old disheveled man in stained Solana hoodie, approaches Crystal, 28-year-old woman in red dress, on dimly lit street corner with neon signs",
+          "camera": "medium shot showing both characters",
+          "lighting": "neon reds and blues from signs, street lights",
+          "dialogue": "not getting laid, getting denied by prostitutes",
+          "audio": "narrator voice, street traffic, distant music"
+        },
+        "2.5-5.5s": {
+          "visual": "Crystal, 28-year-old woman in red dress, looks Jake up and down, face transforms to disgust, holds up hand in 'stop' gesture while shaking head",
+          "camera": "close-up on her disgusted expression",
+          "lighting": "neon light highlighting her rejection",
+          "dialogue": "No! Absolutely not!",
+          "speaker": "Crystal",
+          "audio": "her firm rejection, high heels clicking as she backs away"
+        },
+        "5.5-8.0s": {
+          "visual": "Crystal, 28-year-old woman in red dress, walks away quickly in platform heels, Jake, 32-year-old man in stained hoodie, stands alone under streetlight looking dejected",
+          "camera": "wide shot showing him alone on empty corner",
+          "lighting": "single streetlight creating lonely spotlight",
+          "dialogue": "penile atrophy, low vitamin D",
+          "audio": "narrator continues, heels clicking away, distant city sounds"
+        }
+      },
+      "environment": "urban street corner at night, neon signs, empty sidewalk",
+      "audio_layers": {
+        "dialogue": "narrator plus character rejection",
+        "sfx": "traffic, footsteps, city ambience",
+        "music": "subtle dramatic undertone"
+      },
+      "negative_prompts": ["explicit content", "nudity", "violence", "drug use"]
+    },
+    {
+      "segment_id": 5,
+      "title": "Product Reveal - Diadik Introduction",
+      "description": "Dramatic product reveal of diamond-encrusted penile sock with glamour shots and professional presentation.",
+      "style": "high-end pharmaceutical product showcase, premium lighting, professional commercial",
+      "keywords": [
+        "16:9",
+        "product reveal",
+        "pharmaceutical commercial",
+        "diamond product",
+        "premium showcase",
+        "medical device",
+        "glamour lighting",
+        "professional presentation",
+        "8 seconds"
+      ],
+      "duration": 8,
+      "timing_breakdown": {
+        "0.0-2.0s": {
+          "visual": "Pristine white medical display case opens with dramatic smoke effect, revealing diamond-encrusted medical device on velvet cushion",
+          "camera": "slow zoom in on product, 360-degree rotation beginning",
+          "lighting": "spotlight with lens flares from diamonds, premium product lighting",
+          "dialogue": "If you or anyone you know is suffering from CRD",
+          "audio": "dramatic reveal music, case opening sound"
+        },
+        "2.0-5.0s": {
+          "visual": "Product rotates showing diamond details, multiple angles in quick cuts, sparkles and light refractions prominent",
+          "camera": "multiple angle cuts, macro shots of diamond details",
+          "lighting": "rotating lights creating sparkle effects",
+          "dialogue": "ask your physician if Diadik is right for you",
+          "audio": "premium product music, sparkle sound effects"
+        },
+        "5.0-8.0s": {
+          "visual": "Product name 'DIADIK' appears in elegant lettering, disclaimer text scrolls quickly at bottom as product continues rotating",
+          "camera": "pull back to hero shot with product centered",
+          "lighting": "balanced premium lighting with subtle glow",
+          "dialogue": "Diadik - a diamond encrusted super absorbent penile sock",
+          "audio": "confident narrator, pharmaceutical jingle"
+        }
+      },
+      "environment": "premium medical showroom, white infinity background",
+      "audio_layers": {
+        "dialogue": "professional medical narrator",
+        "music": "pharmaceutical commercial theme",
+        "sfx": "sparkles, dramatic reveals"
+      },
+      "visual_text": {
+        "product_name": "DIADIK (pronounced DIE-A-DIK)",
+        "position": "center frame",
+        "style": "elegant pharmaceutical branding"
+      },
+      "negative_prompts": ["cheap looking", "amateur lighting", "handheld camera"]
+    },
+    {
+      "segment_id": 6,
+      "title": "Side Effects Rapid Scroll",
+      "description": "Fast scrolling side effects text while showing various reaction shots of people reading the list.",
+      "style": "pharmaceutical commercial disclaimer section, fast-paced text scroll",
+      "keywords": [
+        "16:9",
+        "side effects",
+        "disclaimer text",
+        "scrolling text",
+        "pharmaceutical ad",
+        "legal disclaimer",
+        "reaction shots",
+        "8 seconds"
+      ],
+      "duration": 8,
+      "timing_breakdown": {
+        "0.0-2.5s": {
+          "visual": "Split screen: left side shows rapidly scrolling side effects text, right side shows elderly man's eyes widening as he reads",
+          "camera": "static split screen composition",
+          "lighting": "bright medical office lighting",
+          "dialogue": "Side effects may include dry mouth, wet dreams about diamonds",
+          "text_scroll": "Beginning of extensive side effects list scrolling upward",
+          "audio": "fast disclaimer voice, paper rustling"
+        },
+        "2.5-5.0s": {
+          "visual": "Text continues scrolling faster, reaction shots quick-cut between shocked patients, one woman drops pamphlet",
+          "camera": "rapid cuts between different readers",
+          "lighting": "various medical waiting room settings",
+          "dialogue": "sudden wealth complex, fear of zippers, attraction to jewelry stores",
+          "text_scroll": "Middle section of side effects accelerating",
+          "audio": "accelerating disclaimer voice, gasps"
+        },
+        "5.0-8.0s": {
+          "visual": "Text scroll reaches maximum speed becoming blur, final reader closes pamphlet and walks away shaking head",
+          "camera": "pull back showing waiting room of confused patients",
+          "lighting": "standard medical facility lighting",
+          "dialogue": "and in rare cases, speaking in diamond puns",
+          "text_scroll": "End of list, barely readable from speed",
+          "audio": "disclaimer voice trails off, waiting room murmur"
+        }
+      },
+      "visual_text": {
+        "content": "Extensive side effects list including all mentioned symptoms",
+        "style": "standard pharmaceutical disclaimer font",
+        "speed": "accelerating scroll",
+        "position": "left half of screen"
+      },
+      "environment": "various medical waiting rooms and offices",
+      "audio_layers": {
+        "dialogue": "rapid disclaimer voice",
+        "sfx": "paper sounds, gasps, murmuring",
+        "ambience": "medical facility sounds"
+      },
+      "negative_prompts": ["readable text speed", "single shot", "no reactions"]
+    },
+    {
+      "segment_id": 7,
+      "title": "Final Glamour Shot with Medicare",
+      "description": "Premium product hero shot with Medicare card reveal and final call to action.",
+      "style": "pharmaceutical commercial ending, premium product showcase, aspirational",
+      "keywords": [
+        "16:9",
+        "final shot",
+        "Medicare",
+        "product glamour",
+        "call to action",
+        "pharmaceutical ending",
+        "premium aesthetic",
+        "8 seconds"
+      ],
+      "duration": 8,
+      "timing_breakdown": {
+        "0.0-3.0s": {
+          "visual": "Diadik product on rotating pedestal with light beams, Medicare card slides into frame beside it",
+          "camera": "slow dolly in toward product",
+          "lighting": "premium backlighting with lens flares",
+          "dialogue": "Size doesn't matter when your dick is worth a mil",
+          "audio": "confident narrator, triumphant music"
+        },
+        "3.0-6.0s": {
+          "visual": "Happy confident man (different from Jake) in business suit holds product box, gives thumbs up, Medicare approved stamp appears",
+          "camera": "medium shot of testimonial style scene",
+          "lighting": "bright, optimistic commercial lighting",
+          "dialogue": "No more wen lambo, wen Diadik",
+          "audio": "upbeat music, approval stamp sound"
+        },
+        "6.0-8.0s": {
+          "visual": "Final product shot with website URL, phone number, and 'Ask your doctor' text, fade to white",
+          "camera": "static hero shot",
+          "lighting": "pristine white background",
+          "dialogue": "Get your Diadik today",
+          "text_overlay": "Ask your doctor if Diadik is right for you",
+          "audio": "pharmaceutical jingle, gentle fade out"
+        }
+      },
+      "environment": "premium medical showroom transitioning to white void",
+      "visual_text": {
+        "cta": "Ask your doctor about Diadik",
+        "medicare": "Medicare approved (restrictions apply)",
+        "style": "professional pharmaceutical branding"
+      },
+      "audio_layers": {
+        "dialogue": "confident closing narrator",
+        "music": "uplifting pharmaceutical theme",
+        "sfx": "approval stamps, sparkles"
+      },
+      "negative_prompts": ["low quality", "dark mood", "negative imagery"]
+    }
+  ],
+  "technical_specifications": {
+    "resolution": "720p for Gemini API, 1080p for Vertex AI",
+    "fps": 24,
+    "aspect_ratio": "16:9",
+    "total_segments": 7,
+    "segment_duration": "8 seconds each",
+    "total_duration": "56 seconds"
+  },
+  "production_notes": {
+    "tone": "Dark comedy pharmaceutical parody maintaining broadcast commercial aesthetic",
+    "character_consistency": "Jake (patient) must have complete description in every beat",
+    "dialogue_pacing": "Keep under 20 words per 8-second segment for clarity",
+    "visual_effects": "Diamond sparkles, medical lighting, product glamour shots",
+    "audio_strategy": "Professional narrator throughout, character dialogue sparse",
+    "disclaimer_speed": "Side effects scroll should accelerate to illegible speed",
+    "branding": "DIADIK pronounced 'DIE-A-DIK' emphasized in product reveals"
+  },
+  "implementation_order": [
+    "Generate segments 1-3 for story setup",
+    "Generate segments 4-5 for problem/solution reveal",
+    "Generate segments 6-7 for disclaimers and CTA",
+    "Review transitions between segments",
+    "Adjust timing for smooth narrative flow"
+  ]
+}

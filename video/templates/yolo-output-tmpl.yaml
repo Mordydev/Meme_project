@@ -1,0 +1,276 @@
+---
+# YOLO Mode Output Template
+# Generates complete production-ready Veo 3 beats
+
+metadata:
+  title: "YOLO Complete Production Output"
+  version: "1.0"
+  generated: "[timestamp]"
+  mode: "fully_automated"
+
+sections:
+  - name: "Project Overview"
+    instruction: "Generate project summary from automated decisions"
+    content: |
+      # [PROJECT NAME - AUTO GENERATED]
+      
+      ## Concept
+      - Original Input: [user's concept]
+      - Processed Concept: [refined for production]
+      - Content Type: [selected type]
+      - Platform: [primary platform]
+      - Keywords: [complete array]
+      
+      ## Automated Decisions
+      - Viral Mechanic: [selected hook type]
+      - Beat Structure: [selected structure]
+      - Variation: [selected variation]
+      - Enhancement Level: [applied enhancements]
+      
+      ## Success Projections
+      - Engagement: [projected %]
+      - Shares: [projected %]
+      - Completion: [projected %]
+
+  - name: "Character Lock"
+    instruction: "Document complete character description for consistency"
+    condition: "content_type == 'character'"
+    content: |
+      ## Character Bible (LOCKED)
+      
+      **Character ID**: [AUTO_GEN_ID]
+      **Name**: [Generated name]
+      **Demographics**: [age]-year-old [gender]
+      
+      **Complete Description** (Copy exactly to all beats):
+      [Full appearance description including hair, clothing, accessories, distinguishing features]
+      
+      **Voice Profile**:
+      - Tone: [selected tone]
+      - Energy: [1-10]
+      - Patterns: [speech characteristics]
+      
+      **Continuity Notes**:
+      - Maintained across all beats
+      - No variations permitted
+
+  - name: "Beat 1 - Complete"
+    instruction: "Generate complete first beat specification"
+    content: |
+      ## BEAT 1 - PRODUCTION READY
+      
+      ```json
+      {
+        "beat_id": "001_final",
+        "duration": 8.0,
+        "description": "[Complete one-sentence description]",
+        "style": "[cinematic approach]",
+        "keywords": ["16:9", "no text", "8 seconds", ...],
+        "character": "[COMPLETE DESCRIPTION - Never shortened]",
+        "camera": {
+          "lens": "[specs]",
+          "movement": "[exact]",
+          "position": "[precise]"
+        },
+        "lighting": {
+          "setup": "[complete]",
+          "evolution": "[if any]"
+        },
+        "dialogue": {
+          "text": "[final dialogue - no caps]",
+          "timing": "[exact]",
+          "delivery": "[specific notes]"
+        },
+        "audio": {
+          "ambient": "[description] @ -18dB",
+          "sfx": [list with timing],
+          "music": "[if any] @ -15dB"
+        },
+        "timing_breakdown": {
+          "0.0-2.0s": "[exact action]",
+          "2.0-4.0s": "[exact action]",
+          "4.0-6.0s": "[exact action]",
+          "6.0-8.0s": "[exact action]"
+        },
+        "viral_element": "[specific moment @ timestamp]"
+      }
+      ```
+
+  - name: "Beat 2 - Complete"
+    instruction: "Generate complete second beat maintaining consistency"
+    content: |
+      ## BEAT 2 - PRODUCTION READY
+      
+      ```json
+      {
+        "beat_id": "002_final",
+        "duration": 8.0,
+        [Complete specification with IDENTICAL character description]
+      }
+      ```
+
+  - name: "Beat 3 - Complete"
+    instruction: "Generate complete third beat maintaining consistency"
+    content: |
+      ## BEAT 3 - PRODUCTION READY
+      
+      ```json
+      {
+        "beat_id": "003_final",
+        "duration": 8.0,
+        [Complete specification with IDENTICAL character description]
+      }
+      ```
+
+  - name: "Transformation Details"
+    instruction: "Document transformation choreography if applicable"
+    condition: "content_type == 'transformation'"
+    content: |
+      ## Transformation Choreography
+      
+      **Type**: [logo_to_product/unboxing/environment_morph]
+      
+      **Synchronized Timeline**:
+      - 0.0s: Visual trigger + Audio foundation
+      - 1.5s: Dissolution/Opening + Chime/Burst
+      - 3.0s: Convergence/Assembly + Crescendo
+      - 5.5s: Stabilization + Environment fade-in
+      - 8.0s: Hero shot + Resolution
+      
+      **Material Physics**:
+      - Particle type: [selected]
+      - Behavior: [description]
+      - Convergence: [pattern]
+      
+      **Camera Pattern**: [macro_to_wide/orbital/dolly]
+
+  - name: "Quick Prompts"
+    instruction: "Generate copy-paste ready prompts"
+    content: |
+      ## Quick Generation Prompts
+      
+      ### BEAT 1
+      ```
+      [Streamlined prompt for quick copy-paste]
+      ```
+      
+      ### BEAT 2
+      ```
+      [Streamlined prompt maintaining character]
+      ```
+      
+      ### BEAT 3
+      ```
+      [Streamlined prompt maintaining character]
+      ```
+
+  - name: "Generation Instructions"
+    instruction: "Provide step-by-step generation guidance"
+    content: |
+      ## Veo 3 Generation Steps
+      
+      1. **Beat 1 Generation**
+         - Generate with 3 different seeds
+         - Select best result
+         - Note seed: _______
+      
+      2. **Beat 2 Generation**
+         - Use seed from Beat 1 (if same character)
+         - Verify consistency
+         - If inconsistent, try new seed
+      
+      3. **Beat 3 Generation**
+         - Maintain seed consistency
+         - Final verification
+      
+      4. **Platform Export**
+         - Primary: [platform specs]
+         - Secondary: [adaptation notes]
+
+  - name: "Quality Validation"
+    instruction: "Document automated validation results"
+    content: |
+      ## Quality Validation Report
+      
+      ### Automated Checks Passed
+      - [x] Character consistency verified (100%)
+      - [x] No ALL CAPS in dialogue
+      - [x] Keywords complete
+      - [x] Timing ≤ 8 seconds
+      - [x] Technical specs complete
+      - [x] Platform optimized
+      - [x] Viral mechanics present
+      - [x] Audio layers defined
+      - [x] Transformation choreographed
+      - [x] Production ready
+      
+      ### Validation Score: [95-100]%
+      
+      ### Auto-Applied Fixes
+      - [List any automatic corrections made]
+      
+      ### Confidence Level
+      - First generation success: [85%+]
+      - Character consistency: [95%+]
+      - Viral potential: [High/Medium]
+
+  - name: "Decision Log"
+    instruction: "Document all automated decisions for transparency"
+    content: |
+      ## YOLO Mode Decision Log
+      
+      ### Phase 1: Concept Analysis
+      - Input parsed: [what was detected]
+      - Content type selected: [why]
+      - Platform detected: [reasoning]
+      
+      ### Phase 2: Visual Design
+      - Camera approach: [selected + why]
+      - Lighting: [selected + why]
+      - Color palette: [selected + why]
+      
+      ### Phase 3: Script Engineering
+      - Dialogue style: [selected + why]
+      - Word count: [optimized for]
+      - Viral line: [selected moment]
+      
+      ### Phase 4: Integration
+      - Transitions: [type selected]
+      - Energy curve: [progression]
+      - Flow optimization: [decisions]
+      
+      ### Phase 5: Variation
+      - Base selected: [hero/A/B/C]
+      - Reason: [platform/audience]
+      
+      ### Phase 6: Enhancement
+      - Preserved: [what worked]
+      - Enhanced: [what was improved]
+      - Polish level: [applied]
+
+  - name: "Final Status"
+    instruction: "Confirm production readiness"
+    content: |
+      ## PRODUCTION STATUS
+      
+      ✅ **READY FOR VEO 3 GENERATION**
+      
+      - All requirements validated
+      - Character consistency guaranteed
+      - Keywords complete and correct
+      - Platform optimized
+      - Viral mechanics incorporated
+      - Success probability: [92%+]
+      
+      Generated by YOLO Mode
+      Timestamp: [datetime]
+      Total processing time: [duration]
+      
+      ---
+      
+      **Next Step**: Copy beats to Veo 3 and generate!
+
+output:
+  format: "markdown"
+  filename: "yolo-production-[timestamp].md"
+  location: "video/yolo/"
